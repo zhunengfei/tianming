@@ -38,7 +38,7 @@ function main() {
   });
 
   const snapshot = {
-    version: '2026-05-14-nonming-character-parity',
+    version: '2026-05-15-portraits',
     sid: SID,
     sourceFile: path.relative(repoRoot, loaded.file).replace(/\\/g, '/'),
     scenario,

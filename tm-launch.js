@@ -241,7 +241,8 @@ function _startWithDifficulty(sid) {
 
   // 检查剧本是否有地图数据
   var sc = findScenarioById(sid);
-  var hasMapData = sc && sc.map && sc.map.regions && sc.map.regions.length > 0;
+  var scenarioMap = sc && ((sc.map && sc.map.regions && sc.map.regions.length > 0) ? sc.map : sc.mapData);
+  var hasMapData = !!(scenarioMap && scenarioMap.regions && scenarioMap.regions.length > 0);
 
   // 弹窗让玩家选择地图模式
   _showMapModeChoice(sid, hasMapData);

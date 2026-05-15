@@ -379,7 +379,11 @@ function _prepareGMForSave() {
   // 存档建筑运行时数据（GM层）
   if (GM.buildings && GM.buildings.length > 0) GM._savedBuildings = _safeClone(GM.buildings);
   if (GM.buildingQueue && GM.buildingQueue.length > 0) GM._savedBuildingQueue = _safeClone(GM.buildingQueue);
-  if (GM.mapData) GM._savedMapData = _safeClone(GM.mapData);
+  var _mapForSave = null;
+  if (GM.mapData && GM.mapData.regions && GM.mapData.regions.length > 0) _mapForSave = GM.mapData;
+  else if (typeof P !== 'undefined' && P && P.mapData && P.mapData.regions && P.mapData.regions.length > 0) _mapForSave = P.mapData;
+  else if (typeof P !== 'undefined' && P && P.map && P.map.regions && P.map.regions.length > 0) _mapForSave = P.map;
+  if (_mapForSave) GM._savedMapData = _safeClone(_mapForSave);
   if (GM.npcContext) GM._savedNpcContext = _safeClone(GM.npcContext);
   if (GM.pendingConsequences && GM.pendingConsequences.length > 0) GM._savedPendingConsequences = _safeClone(GM.pendingConsequences);
   if (GM.factionRelations && GM.factionRelations.length > 0) GM._savedFactionRelations = _safeClone(GM.factionRelations);
@@ -717,12 +721,19 @@ function fullLoadGame(data){
       var _liveMapSrc = (GM && GM.mapData && GM.mapData.regions && GM.mapData.regions.length > 0) ? GM.mapData :
         (P && P.map && P.map.regions && P.map.regions.length > 0) ? P.map :
         (P && P.mapData && P.mapData.regions && P.mapData.regions.length > 0) ? P.mapData : null;
+      if (!_liveMapSrc && typeof findScenarioById === 'function' && GM && GM.sid) {
+        var _scMapOwner = findScenarioById(GM.sid);
+        var _scMapSrc = _scMapOwner && ((_scMapOwner.mapData && _scMapOwner.mapData.regions && _scMapOwner.mapData.regions.length > 0) ? _scMapOwner.mapData : _scMapOwner.map);
+        if (_scMapSrc && _scMapSrc.regions && _scMapSrc.regions.length > 0) _liveMapSrc = _scMapSrc;
+      }
       if (_liveMapSrc && typeof bindRuntimeMapState === 'function') {
         bindRuntimeMapState(_liveMapSrc);
+        GM._useAIGeo = false;
       } else if (_liveMapSrc) {
         GM.mapData = _safeClone(_liveMapSrc);
         P.map = GM.mapData;
         P.mapData = GM.mapData;
+        GM._useAIGeo = false;
       }
     } catch(_mapRestoreE) { try{ window.TM&&TM.errors&&TM.errors.captureSilent(_mapRestoreE,'fullLoadGame·mapLiveState'); }catch(_){} }
 

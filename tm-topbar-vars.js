@@ -1190,6 +1190,33 @@ function closeAllVarsModal() {
   if (ov) ov.classList.remove('open');
 }
 
+function _allVarsEsc(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+  });
+}
+
+function _allVarsPlainValue(v) {
+  if (v == null) return '—';
+  if (typeof v === 'object') {
+    if (v.value !== undefined) return _allVarsPlainValue(v.value) + (v.unit ? String(v.unit) : '');
+    if (v.current !== undefined) return _allVarsPlainValue(v.current) + (v.unit ? String(v.unit) : '');
+    if (v.amount !== undefined) return _allVarsPlainValue(v.amount) + (v.unit ? String(v.unit) : '');
+    if (v.name && v.value === undefined) return String(v.name);
+    try {
+      return JSON.stringify(v);
+    } catch (_) {
+      return '—';
+    }
+  }
+  return String(v);
+}
+
+function _allVarsDesc(v) {
+  if (!v) return '';
+  return v.description || v.desc || v.note || v.summary || '';
+}
+
 function _renderAllVarsBody() {
   var body = document.getElementById('all-vars-body');
   if (!body) return;
@@ -1214,11 +1241,15 @@ function _renderAllVarsBody() {
     html += '<div class="all-vars-grid">';
     for (var i = 0; i < scenarioVars.length; i++) {
       var v = scenarioVars[i];
-      var curVal = runtimeVars[v.name] !== undefined ? runtimeVars[v.name] : (v.initial !== undefined ? v.initial : '—');
-      html += '<div class="all-vars-card" data-vname="' + (v.name || '').toLowerCase() + '">'+
-        '<div class="all-vars-card-name">' + (v.displayName || v.name || '未命名') + '</div>'+
-        '<div class="all-vars-card-value">' + curVal + '</div>'+
-        (v.description ? '<div class="all-vars-card-desc">' + v.description + '</div>' : '')+
+      var rawVal = runtimeVars[v.name] !== undefined ? runtimeVars[v.name] :
+        (v.value !== undefined ? v.value : (v.initial !== undefined ? v.initial : '—'));
+      var curVal = _allVarsPlainValue(rawVal);
+      var vName = v.displayName || v.label || v.name || '未命名';
+      var vDesc = _allVarsDesc(v);
+      html += '<div class="all-vars-card" data-vname="' + _allVarsEsc(String(v.name || vName).toLowerCase()) + '">'+
+        '<div class="all-vars-card-name">' + _allVarsEsc(vName) + '</div>'+
+        '<div class="all-vars-card-value">' + _allVarsEsc(curVal) + '</div>'+
+        (vDesc ? '<div class="all-vars-card-desc">' + _allVarsEsc(vDesc) + '</div>' : '')+
       '</div>';
     }
     html += '</div></div>';
@@ -1236,9 +1267,12 @@ function _renderAllVarsBody() {
     html += '<div class="all-vars-grid">';
     for (var j = 0; j < extraKeys.length; j++) {
       var ek = extraKeys[j];
-      html += '<div class="all-vars-card" data-vname="' + ek.toLowerCase() + '">'+
-        '<div class="all-vars-card-name">' + ek + '</div>'+
-        '<div class="all-vars-card-value">' + runtimeVars[ek] + '</div>'+
+      var rv = runtimeVars[ek];
+      var rvDesc = _allVarsDesc(rv);
+      html += '<div class="all-vars-card" data-vname="' + _allVarsEsc(ek.toLowerCase()) + '">'+
+        '<div class="all-vars-card-name">' + _allVarsEsc(ek) + '</div>'+
+        '<div class="all-vars-card-value">' + _allVarsEsc(_allVarsPlainValue(rv)) + '</div>'+
+        (rvDesc ? '<div class="all-vars-card-desc">' + _allVarsEsc(rvDesc) + '</div>' : '')+
       '</div>';
     }
     html += '</div></div>';
@@ -1307,6 +1341,16 @@ document.addEventListener('keydown', function(e) {
       }
       // 新徽标
       // 6 新徽标已撤销，无额外映射
+    });
+    host.addEventListener('contextmenu', function(e) {
+      var t = e.target.closest ? e.target.closest('.bar-var') : null;
+      if (!t) return;
+      var key = t.getAttribute('data-var');
+      if (!key) return;
+      var MAIN_KEYS = { guoku:1, neitang:1, hukou:1, lizhi:1, minxin:1, huangquan:1, huangwei:1 };
+      if (!MAIN_KEYS[key]) return;
+      e.preventDefault();
+      try { _handleBarVarClick(key); } catch(err) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(err, 'topbar contextmenu') : console.error('[topbar contextmenu]', key, err); }
     });
     host.addEventListener('mouseover', function(e) {
       var t = e.target.closest ? e.target.closest('.bar-var[data-tip-idx]') : null;
