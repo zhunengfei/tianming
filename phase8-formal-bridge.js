@@ -111,19 +111,25 @@
     return String((p && (p.id || p.name || p.charId || p.key)) || '');
   }
 
+  function personNameKey(p){
+    return String((p && p.name) || '').replace(/\s+/g, '').trim();
+  }
+
   function getPeople(){
-    var seen = {};
+    var seenKey = {};
+    var seenName = {};
     var out = [];
     function add(p){
       if (!p) return;
       var k = personKey(p);
-      if (!k || seen[k]) return;
-      seen[k] = true;
+      var n = personNameKey(p);
+      if ((!k && !n) || (k && seenKey[k]) || (n && seenName[n])) return;
+      if (k) seenKey[k] = true;
+      if (n) seenName[n] = true;
       out.push(p);
     }
     var gm = window.GM || {};
     if (Array.isArray(gm.chars)) gm.chars.forEach(add);
-    if (Array.isArray(gm.allCharacters)) gm.allCharacters.forEach(add);
     if (window.P && Array.isArray(P.characters)) P.characters.forEach(add);
     if (typeof window.renwuAllChars === 'function') {
       try { (window.renwuAllChars() || []).forEach(add); } catch(_) {}
@@ -132,6 +138,7 @@
       try { (window.tmCleanPreviewRenwuChars() || []).forEach(add); } catch(_) {}
     }
     if (Array.isArray(window.RENWU_ATLAS_CHARS)) window.RENWU_ATLAS_CHARS.forEach(add);
+    if (Array.isArray(gm.allCharacters)) gm.allCharacters.forEach(add);
     return out;
   }
 
@@ -3778,10 +3785,17 @@
     ov.addEventListener('input', function(e){
       if (e.target && e.target.matches && e.target.matches('[data-renwu-search]')) filterRenwuOverlay(ov);
     });
+    ov.addEventListener('keyup', function(e){
+      if (e.target && e.target.matches && e.target.matches('[data-renwu-search]')) filterRenwuOverlay(ov);
+    });
+    ov.addEventListener('compositionend', function(e){
+      if (e.target && e.target.matches && e.target.matches('[data-renwu-search]')) filterRenwuOverlay(ov);
+    });
     ov.addEventListener('change', function(e){
       if (e.target && e.target.matches && e.target.matches('[data-renwu-filter]')) filterRenwuOverlay(ov);
     });
     document.body.appendChild(ov);
+    if (ov.querySelector('[data-renwu-card]')) filterRenwuOverlay(ov);
   }
 
   function rerenderModule(){
@@ -3837,6 +3851,7 @@
       state.renwuTab = data.tab || 'overview';
       rerenderModule();
     } else if (action === 'renwu-reset') {
+      state.renwuFilters = { q: '', group: 'all', faction: 'all', status: 'all', showDead: false };
       rerenderModule();
     } else if (action === 'renwu-person-action') {
       if (window.TMPhase8FormalBridge && typeof window.TMPhase8FormalBridge.personAction === 'function') {
@@ -4687,18 +4702,41 @@
     '</aside>';
   }
 
+  function renwuFilterState(){
+    var f = state.renwuFilters || {};
+    state.renwuFilters = f;
+    f.q = String(f.q || '');
+    f.group = f.group || 'all';
+    f.faction = f.faction || 'all';
+    f.status = f.status || 'all';
+    f.showDead = !!f.showDead;
+    return f;
+  }
+
+  function renwuOption(value, label, current){
+    value = String(value == null ? '' : value);
+    return '<option value="' + attr(value) + '"' + (String(current) === value ? ' selected' : '') + '>' + esc(label == null ? value : label) + '</option>';
+  }
+
   function filterRenwuOverlay(root){
     root = root || document;
+    var f = renwuFilterState();
     var q = (root.querySelector('[data-renwu-search]') || {}).value || '';
     q = q.trim().toLowerCase();
     var group = (root.querySelector('[data-renwu-group]') || {}).value || 'all';
     var faction = (root.querySelector('[data-renwu-faction]') || {}).value || 'all';
     var status = (root.querySelector('[data-renwu-status]') || {}).value || 'all';
     var showDead = !!((root.querySelector('[data-renwu-dead]') || {}).checked);
+    f.q = q;
+    f.group = group;
+    f.faction = faction;
+    f.status = status;
+    f.showDead = showDead;
     var shown = 0;
     root.querySelectorAll('[data-renwu-card]').forEach(function(card){
       var ok = true;
-      if (q && String(card.dataset.filterText || '').indexOf(q) < 0) ok = false;
+      var text = String((card.dataset && card.dataset.filterText) || card.textContent || '').toLowerCase();
+      if (q && text.indexOf(q) < 0) ok = false;
       if (group !== 'all' && card.dataset.group !== group) ok = false;
       if (faction !== 'all' && card.dataset.faction !== faction) ok = false;
       if (status !== 'all' && (' ' + (card.dataset.status || '') + ' ').indexOf(' ' + status + ' ') < 0) ok = false;
@@ -4719,6 +4757,7 @@
     var factions = tmfRenwuOptionValues(people, tmfRenwuFaction);
     var groups = tmfRenwuOptionValues(people, tmfRenwuGroup);
     var pinnedCount = (state.pinnedPeople || []).length;
+    var filters = renwuFilterState();
     var tabs = [['overview','总览'],['identity','身份'],['mind','心绪'],['relations','关系'],['career','履历'],['family','家族'],['resources','资源'],['actions','行动']];
     var loyalty = tmfRenwuNum(selected, ['loyalty','loyal','忠'], '—');
     var ambition = tmfRenwuNum(selected, ['ambition','野'], '—');
@@ -4734,11 +4773,11 @@
         '<aside class="renwu-roster">' +
           '<div class="renwu-statbar"><div class="renwu-stat"><b>' + people.length + '</b><span>入志</span></div><div class="renwu-stat"><b>' + alive + '</b><span>存世</span></div><div class="renwu-stat"><b>' + pinnedCount + '</b><span>钉选</span></div></div>' +
           '<div class="renwu-tools">' +
-            '<div class="renwu-tool-row"><input class="renwu-search" data-renwu-search placeholder="输入姓名、官职、派系、记忆"><label class="renwu-check"><input type="checkbox" data-renwu-filter data-renwu-dead>含已殁</label></div>' +
+            '<div class="renwu-tool-row"><input class="renwu-search" data-renwu-search value="' + attr(filters.q) + '" placeholder="输入姓名、官职、派系、记忆"><label class="renwu-check"><input type="checkbox" data-renwu-filter data-renwu-dead' + (filters.showDead ? ' checked' : '') + '>含已殁</label></div>' +
             '<div class="renwu-filter-row three">' +
-              '<select data-renwu-filter data-renwu-group><option value="all">全部门类</option>' + groups.map(function(g){ return '<option value="' + attr(g) + '">' + esc(g) + '</option>'; }).join('') + '</select>' +
-              '<select data-renwu-filter data-renwu-faction><option value="all">全部势力</option>' + factions.map(function(f){ return '<option value="' + attr(f) + '">' + esc(f) + '</option>'; }).join('') + '</select>' +
-              '<select data-renwu-filter data-renwu-status><option value="all">全部状态</option><option value="court">在朝</option><option value="local">在外</option><option value="inner">内廷</option><option value="dead">已殁</option></select>' +
+              '<select data-renwu-filter data-renwu-group>' + renwuOption('all', '全部门类', filters.group) + groups.map(function(g){ return renwuOption(g, g, filters.group); }).join('') + '</select>' +
+              '<select data-renwu-filter data-renwu-faction>' + renwuOption('all', '全部势力', filters.faction) + factions.map(function(f){ return renwuOption(f, f, filters.faction); }).join('') + '</select>' +
+              '<select data-renwu-filter data-renwu-status>' + renwuOption('all', '全部状态', filters.status) + renwuOption('court', '在朝', filters.status) + renwuOption('local', '在外', filters.status) + renwuOption('inner', '内廷', filters.status) + renwuOption('dead', '已殁', filters.status) + '</select>' +
             '</div>' +
             '<div class="renwu-legend"><span>当前显示 <b id="renwu-visible-count">' + people.length + '</b> 人</span><span>点击人物切换档案</span></div>' +
           '</div>' +
