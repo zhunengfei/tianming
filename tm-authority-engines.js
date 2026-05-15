@@ -187,23 +187,9 @@
       hw.lostAuthorityCrisis.active = false;
       hw.history.crisisPeriods.push({ start: hw.lostAuthorityCrisis.activatedTurn, end: ctx.turn });
     }
-    // 自然衰减（无事迹 → 缓慢下降）
-    var totalAction = 0;
-    Object.keys(hw.sources).forEach(function(s) { totalAction += hw.sources[s]; });
-    var idleTurns = (typeof global.turnsForMonths === 'function') ? global.turnsForMonths(6) : 6;
-    if (false && totalAction < 1 && (ctx.turn - (hw.history.lastActionTurn || 0)) > idleTurns) {
-      adjustHuangwei('idleGovern', -0.3 * mr, '无事迹');
-    }
-    // 怠政自动触发
-    var yearBoundary = (typeof global.isYearBoundary === 'function')
-      ? global.isYearBoundary(ctx.turn)
-      : (function(t) {
-          t = Number(t || 0);
-          return t > 0 && Math.floor((t * 30) / 365) > Math.floor(((t - 1) * 30) / 365);
-        })(ctx.turn);
-    if (false && global.GM._edictTracker && global.GM._edictTracker.length === 0 && yearBoundary) {
-      adjustHuangwei('idleGovern', -1 * mr, '久无诏令');
-    }
+    // 不再因“无事迹/久无诏令”自动衰减；只记录本轮皇威 tick。
+    hw.history.lastAuthorityTick = ctx.turn || 0;
+    hw.history.lastAuthorityTick = ctx.turn || 0;
     _updatePerceivedHuangwei(hw);
   }
 
