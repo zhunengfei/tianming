@@ -44,6 +44,7 @@
     if (!GM.corruption) GM.corruption = {};
     var c = GM.corruption;
     if (c.trueIndex === undefined)     c.trueIndex = 30;
+    if (c.overall === undefined)       c.overall = c.trueIndex;
     if (c.perceivedIndex === undefined) c.perceivedIndex = c.trueIndex;
     if (!c.phase) c.phase = 'moderate';
     if (!c.subDepts) c.subDepts = {};
@@ -328,6 +329,91 @@
     c.visibilityTier = calcVisibilityTier();
   }
 
+  var CORR_DEPTS = ['central','provincial','military','fiscal','judicial','imperial'];
+
+  function _averageDeptTrue(c) {
+    var total = 0, n = 0;
+    c = c || (GM && GM.corruption);
+    if (!c || !c.subDepts) return NaN;
+    CORR_DEPTS.forEach(function(k) {
+      var sd = c.subDepts[k];
+      if (!sd) return;
+      var v = Number(sd.true);
+      if (!isFinite(v)) return;
+      total += v;
+      n++;
+    });
+    return n > 0 ? total / n : NaN;
+  }
+
+  function _syncPerceivedAverage(c, fallback) {
+    var total = 0, n = 0;
+    if (!c || !c.subDepts) return;
+    CORR_DEPTS.forEach(function(k) {
+      var sd = c.subDepts[k];
+      if (!sd) return;
+      if (typeof sd.true === 'number' && isFinite(sd.true) &&
+          typeof sd.perceived === 'number' && isFinite(sd.perceived) &&
+          sd.perceived > sd.true) {
+        sd.perceived = sd.true;
+      }
+      var p = Number(sd.perceived);
+      if (!isFinite(p)) return;
+      total += p;
+      n++;
+    });
+    c.perceivedIndex = n > 0 ? clamp(total / n, 0, 100) : fallback;
+    c.visibilityTier = calcVisibilityTier();
+  }
+
+  function _pushTurnReason(entry, reason) {
+    if (!reason) return;
+    entry.reasons = entry.reasons || [];
+    var exists = entry.reasons.some(function(r) { return r && r.desc === reason; });
+    if (!exists) entry.reasons.push({ desc: reason });
+  }
+
+  function _recordCorruptionIndexChange(oldVal, newVal, reason) {
+    if (!isFinite(oldVal) || !isFinite(newVal) || Math.abs(newVal - oldVal) < 1e-6) return;
+    if (!GM.turnChanges) GM.turnChanges = {};
+    if (!Array.isArray(GM.turnChanges.variables)) GM.turnChanges.variables = [];
+    var path = 'corruption.trueIndex';
+    var existing = GM.turnChanges.variables.find(function(v) { return v && v.path === path; });
+    if (existing) {
+      existing.newValue = newVal;
+      _pushTurnReason(existing, reason);
+      return;
+    }
+    var entry = {
+      name: '\u540f\u6cbb',
+      path: path,
+      oldValue: oldVal,
+      newValue: newVal,
+      reasons: []
+    };
+    _pushTurnReason(entry, reason);
+    GM.turnChanges.variables.push(entry);
+  }
+
+  function syncIndexFromSubDepts(reason, opts) {
+    opts = opts || {};
+    ensureCorruptionModel();
+    var c = GM.corruption;
+    var oldIndex = Number(c.trueIndex);
+    if (!isFinite(oldIndex)) oldIndex = _averageDeptTrue(c);
+    var next = _averageDeptTrue(c);
+    if (!isFinite(next)) return c.trueIndex;
+    next = clamp(next, 0, 100);
+    c.trueIndex = next;
+    c.overall = next;
+    _syncPerceivedAverage(c, next);
+    var threshold = typeof opts.trendThreshold === 'number' ? opts.trendThreshold : 0.0001;
+    c.trend = next > oldIndex + threshold ? 'rising' :
+              next < oldIndex - threshold ? 'falling' : 'stable';
+    if (opts.record !== false) _recordCorruptionIndexChange(oldIndex, next, reason);
+    return next;
+  }
+
   // ═════════════════════════════════════════════════════════════
   // 主循环（每回合调用一次）
   // ═════════════════════════════════════════════════════════════
@@ -386,6 +472,7 @@
     });
     var oldIndex = GM.corruption.trueIndex;
     GM.corruption.trueIndex = n > 0 ? totalTrue / n : oldIndex;
+    GM.corruption.overall = GM.corruption.trueIndex;
     var gtrendThresh = 0.3 * mr;
     GM.corruption.trend = GM.corruption.trueIndex > oldIndex + gtrendThresh ? 'rising' :
                           GM.corruption.trueIndex < oldIndex - gtrendThresh ? 'falling' : 'stable';
@@ -404,6 +491,7 @@
 
     // 7. 揭发事件概率（每月速率 → 每回合）
     _maybeGenerateExposure(mr);
+    syncIndexFromSubDepts(null, { record: false, trendThreshold: 0.3 * mr });
   }
 
   function _decayLumpSumIncidents(mr) {
@@ -498,6 +586,7 @@
       if (typeof addEB === 'function') {
         addEB('朝代', '遣钦差赴' + _deptName(dept) + '巡查', { credibility: 'high' });
       }
+      syncIndexFromSubDepts('\u9063\u94a6\u5dee\u5de1\u67e5');
       return { success: true };
     },
 
@@ -517,6 +606,7 @@
       };
       GM.corruption.history.purgeCampaigns.push({ scale:scale, turn:GM.turn });
       if (typeof addEB === 'function') addEB('朝代', '肃贪大计启动', { credibility: 'high' });
+      syncIndexFromSubDepts('\u8083\u8d2a\u8fd0\u52a8');
       return { success: true };
     },
 
@@ -543,6 +633,7 @@
       GM.corruption.countermeasures.factionFeud = Math.min(1,
         GM.corruption.countermeasures.factionFeud + 0.3);
       if (typeof addEB === 'function') addEB('朝代', '党人授意弹劾，朝堂震荡', { credibility: 'medium' });
+      syncIndexFromSubDepts('\u6388\u610f\u5f39\u52be');
       return { success: true };
     },
 
@@ -578,6 +669,7 @@
       // 民心↓
       if (GM.minxin) GM.minxin.trueIndex = Math.max(0, GM.minxin.trueIndex - 8);
       if (typeof addEB === 'function') addEB('朝代', '陛下以酷吏肃贪，朝野肃然', { credibility: 'high' });
+      syncIndexFromSubDepts('\u9177\u540f\u8083\u8d2a');
       return { success: true };
     },
 
@@ -666,6 +758,7 @@
     var base = preset.phases[pi];
 
     GM.corruption.trueIndex = base;
+    GM.corruption.overall = GM.corruption.trueIndex;
     GM.corruption.perceivedIndex = Math.max(0, base - 8);
 
     ['central','provincial','military','fiscal','judicial','imperial'].forEach(function(d) {
@@ -686,6 +779,7 @@
       overridden = true;
       if (typeof cc.trueIndex === 'number') {
         GM.corruption.trueIndex = clamp(cc.trueIndex, 0, 100);
+        GM.corruption.overall = GM.corruption.trueIndex;
       }
       if (cc.subDepts) {
         ['central','provincial','military','fiscal','judicial','imperial'].forEach(function(d) {
@@ -1021,6 +1115,7 @@
     tick: tick,
     ensureModel: ensureCorruptionModel,
     updatePerceived: updatePerceived,
+    syncIndexFromSubDepts: syncIndexFromSubDepts,
     calcVisibilityTier: calcVisibilityTier,
     getMonthRatio: getMonthRatio,
     Sources: Sources,
@@ -1434,6 +1529,7 @@
     caseObj.resolvedAction = optionId;
     cases.splice(cIdx, 1);
     GM.corruption.history.exposedCases.push(caseObj);
+    syncIndexFromSubDepts('\u8150\u8d25\u6848\u5904\u7f6e');
 
     if (typeof addEB === 'function') {
       addEB('朝代', '「' + caseObj.name + '」：' + opt.label, {
@@ -2261,6 +2357,7 @@
     _origTick.call(this, context);
     try { applyRotationSideEffects(context); } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'corruption-p4] rotation:') : console.error('[corruption-p4] rotation:', e); }
     try { applyJuannaMonthly(context); }       catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'corruption-p4] juanna:') : console.error('[corruption-p4] juanna:', e); }
+    try { syncIndexFromSubDepts('\u8150\u8d25\u540e\u7eed\u8054\u52a8', { record: false }); } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'corruption-p4] sync:') : console.error('[corruption-p4] sync:', e); }
     try { updateRegionalCorruption(); }        catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'corruption-p4] region:') : console.error('[corruption-p4] region:', e); }
   };
 

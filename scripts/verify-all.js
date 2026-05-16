@@ -38,6 +38,7 @@ const checks = [
   { name: 'wendui-active-audience', file: 'smoke-wendui-active-audience.js', estSec: 1, expectExit: 0 },
   { name: 'topbar-fiscal-consistency', file: 'smoke-topbar-fiscal-consistency.js', estSec: 1, expectExit: 0 },
   { name: 'endturn-console-regressions', file: 'smoke-endturn-console-regressions.js', estSec: 1, expectExit: 0 },
+  { name: 'wentian-hardchange', file: 'smoke-wentian-hardchange.js', estSec: 1, expectExit: 0 },
   { name: 'faction-relations', file: 'smoke-faction-relations.js', estSec: 1, expectExit: 0 },
   { name: 'faction-index', file: 'smoke-faction-index.js', estSec: 1, expectExit: 0 },
   { name: 'faction-index-e2e', file: 'smoke-faction-index-e2e.js', estSec: 1, expectExit: 0 },
@@ -78,6 +79,7 @@ const checks = [
   { name: 'corruption-clique', file: 'smoke-corruption-clique-formation.js', estSec: 1, expectExit: 0 },
   { name: 'corruption-ai', file: 'smoke-corruption-ai-detect-prompt.js', estSec: 1, expectExit: 0 },
   { name: 'corruption-juanna', file: 'smoke-corruption-pardon-and-restore.js', estSec: 1, expectExit: 0 },
+  { name: 'corruption-player-actions-sync', file: 'smoke-corruption-player-actions-sync.js', estSec: 1, expectExit: 0 },
   // R12a (2026-05-04) edict-parser LAYERED OVERRIDE chain smoke (phase-c-patches·Claude own)
   { name: 'edict-parser-layered', file: 'smoke-edict-parser-layered.js', estSec: 1, expectExit: 0 },
   // R12c (2026-05-04) authority PhaseF1 LAYERED OVERRIDE chain smoke (Codex own)

@@ -1698,6 +1698,7 @@ async function _wtSend() {
   if (_wtForceCategory) {
     forceHint = '\n★ 玩家已手动强制分类为：' + _wtForceCategory + '——你必须按此分类输出相应必需字段';
     if (_wtForceCategory === 'hardChange') forceHint += '（必填 hardChange:{path,op,value}·尽力从玩家文本推断具体字段路径）';
+    if (_wtForceCategory === 'absolute') forceHint += '（天意档允许改任何 GM/P 字段；若玩家要求改数值或字段，仍必须填写 hardChange:{path,op,value}，确认后立即写入）';
     if (_wtForceCategory === 'edictSubstitute') forceHint += '（必填 edictText 和 edictChannel·将玩家意图改写为正式诏令措辞）';
   }
   ctx += forceHint;
@@ -1708,18 +1709,18 @@ async function _wtSend() {
     + '   · setting — 世界背景/设定注入：补充剧本的背景信息/状态/历史（例："此时倭寇已平"、"北方去年大旱未记入"）\n'
     + '   · hardChange — 直接修改数值：要求直接改具体数值/字段（例："帑廪+1000万两"、"某NPC忠诚设为100"、"皇威+10"）\n'
     + '       ★【识别规则】只要指令提到：具体金额(万两/石/匹)、具体数值(+N/-N/设为N)、具体字段(国库/帑廪/内帑/忠诚/皇威/皇权/民心等)——必须归入 hardChange。不要误判为 narrative/directive。\n'
-    + '       ★【常见路径】白银=guoku.money·粮=guoku.grain·布=guoku.cloth·内帑银=neitang.money·皇威=vars.皇威.value·皇权=vars.皇权.value·民心=vars.民心.value·人物忠诚=chars[N].loyalty\n'
+    + '       ★【常见路径】白银=guoku.money·粮=guoku.grain·布=guoku.cloth·内帑银=neitang.money·皇威=huangwei.index·皇权=huangquan.index·腐败/吏治=corruption.trueIndex·民心=minxin.trueIndex·人物忠诚=chars[N].loyalty\n'
     + '       ★【操作符】"加/增/+"→op:add · "减/扣/-"→op:add(负数) · "设为/改为/="→op:set · "翻倍/x2"→op:mul\n'
     + '       ★【单位换算】1 万两=10000·50 万两=500000·100 万石=1000000·玩家说"100 万"一律写成 1000000 数字不要保留"万"字\n'
     + '   · edictSubstitute — 等同诏令：玩家实际想下诏令的事（例："拨银赈灾"、"罢某某官"、"遣使某国"——这些本该走诏令而非问天）\n'
     + '   · absolute — 天意/至高意志：玩家明确以"天意"、"绝对"、"必须"、"神谕"、"不论如何"、"强制"等词修饰·或语气极强要求无条件落实（例："天意让北虏此回合覆灭"、"必须让此人变心"）——此类由世界法则直接生效·AI 无推辞空间·须在叙事中让其字面发生\n'
     + '3. 解析为结构化约束 structured:{target, action, scope, forbidden, measurable, condition}\n'
-    + '4. 若 category=hardChange → 必填 hardChange:{path:"GM/P 字段路径(如 guoku.money)", op:"set|add|mul", value:数字(禁用万/亿汉字·须换算为纯数字)}\n'
+    + '4. 若 category=hardChange，或 category=absolute 且玩家要求直改字段/数值 → 必填 hardChange:{path:"GM/P 字段路径(如 guoku.money)", op:"set|add|mul", value:数字或要写入的内容}\n'
     + '5. 若 category=edictSubstitute → 必填 edictText:"改写成诏令正式措辞(30-80字)", edictChannel:"pol|mil|dip|eco|oth"\n'
     + '6. 给出 interpretation（30-80字复述）、ambiguity（歧义数组，可空）、plan（一句话下回合怎样落实）\n'
     + '\n【上下文】\n' + ctx
     + '\n【玩家指令】\n' + content
-    + '\n\n返回 JSON：{"type":"rule|correction|content|directive","category":"narrative|setting|hardChange|edictSubstitute","structured":{"target":"","action":"","scope":"","forbidden":"","measurable":"","condition":""},"hardChange":{"path":"","op":"","value":null},"edictText":"","edictChannel":"","interpretation":"...","ambiguity":["..."],"plan":"..."}';
+    + '\n\n返回 JSON：{"type":"rule|correction|content|directive","category":"narrative|setting|hardChange|edictSubstitute|absolute","structured":{"target":"","action":"","scope":"","forbidden":"","measurable":"","condition":""},"hardChange":{"path":"","op":"set|add|mul","value":null},"edictText":"","edictChannel":"","interpretation":"...","ambiguity":["..."],"plan":"..."}';
 
   try {
     var resp = await callAI(prompt, 900);
@@ -1844,10 +1845,24 @@ function _wtConfirmPending() {
     // 天意·至高意志：标记为 absolute, rule 性质（每回合生效至玩家移除）, 永不 ignore
     dir.type = 'rule';
     dir._absolute = true;
+    if (p.hardChange && p.hardChange.path) {
+      var ahc = p.hardChange;
+      var aPath = _wtNormalizeHardChangePath(ahc.path);
+      var aok = _wtApplyHardChange(ahc.path, ahc.op || 'set', ahc.value);
+      dir.hardChange = Object.assign({}, ahc, { path: aPath });
+      dir._immediatelyApplied = !!aok;
+      dir._lastStatus = aok ? 'followed' : 'ignored';
+      dir._lastReason = aok ? '天意直改即时生效' : '天意直改路径未找到/无法修改';
+      dir._lastCheckTurn = GM.turn;
+      sysMsg = aok
+        ? ('★ 天 意 已 降 并 写 入：' + aPath + ' ' + (ahc.op||'set') + ' ' + ahc.value + ' [id=' + did + ']')
+        : ('★ 天 意 已 入 库，但直改失败：' + aPath + ' [id=' + did + ']');
+    } else {
+      sysMsg = '\u2605 \u5929 \u610F \u5DF2 \u5929 \u5B9A [id=' + did + ']\u00B7\u4E16\u754C\u6CD5\u5219\u76F4\u63A5\u751F\u6548\u00B7AI \u65E0\u63A8\u8FAD';
+    }
     GM._playerDirectives.push(dir);
-    sysMsg = '\u2605 \u5929 \u610F \u5DF2 \u5929 \u5B9A [id=' + did + ']\u00B7\u4E16\u754C\u6CD5\u5219\u76F4\u63A5\u751F\u6548\u00B7AI \u65E0\u63A8\u8FAD';
     GM._wentianHistory.push({ role: 'system', content: sysMsg });
-    toast('\u2605 \u5929\u610F\u5DF2\u964D');
+    toast(dir._immediatelyApplied ? '★ 天意已写入' : '\u2605 \u5929\u610F\u5DF2\u964D');
   } else if (p.category === 'hardChange' && p.hardChange && p.hardChange.path) {
     // 立即写入 GM/P 数值
     var hc = p.hardChange;
@@ -1894,11 +1909,117 @@ function _wtConfirmPending() {
   _wtRenderHistory();
 }
 
+function _wtNormalizeHardChangePath(path) {
+  var p = String(path || '').trim().replace(/\s+/g, '');
+  p = p.replace(/\[(\d+)\]/g, '.$1');
+  var root = '';
+  var m = p.match(/^(GM|gm|P|p)\.(.+)$/);
+  if (m) {
+    root = (/^p$/i.test(m[1])) ? 'P.' : '';
+    p = m[2];
+  }
+  p = p.replace(/^(vars|variables|var|变量|變量|七变量|七變量)\./i, '');
+
+  var aliases = {
+    '帑廪': 'guoku.money',
+    '帑廪.value': 'guoku.money',
+    '帑廪.money': 'guoku.money',
+    '帑廩': 'guoku.money',
+    '国库': 'guoku.money',
+    '國庫': 'guoku.money',
+    '白银': 'guoku.money',
+    '银两': 'guoku.money',
+    '银': 'guoku.money',
+    '粮': 'guoku.grain',
+    '粮食': 'guoku.grain',
+    '布': 'guoku.cloth',
+    '布匹': 'guoku.cloth',
+    '内帑': 'neitang.money',
+    '内帑.value': 'neitang.money',
+    '内帑.money': 'neitang.money',
+    '內帑': 'neitang.money',
+    '皇权': 'huangquan.index',
+    '皇权.value': 'huangquan.index',
+    '皇权.index': 'huangquan.index',
+    '皇權': 'huangquan.index',
+    '皇權.value': 'huangquan.index',
+    '皇權.index': 'huangquan.index',
+    '皇威': 'huangwei.index',
+    '皇威.value': 'huangwei.index',
+    '皇威.index': 'huangwei.index',
+    '民心': 'minxin.trueIndex',
+    '民心.value': 'minxin.trueIndex',
+    '民心.index': 'minxin.trueIndex',
+    '吏治': 'corruption.trueIndex',
+    '吏治.value': 'corruption.trueIndex',
+    '吏治.index': 'corruption.trueIndex',
+    '腐败': 'corruption.trueIndex',
+    '腐败.value': 'corruption.trueIndex',
+    '腐败.index': 'corruption.trueIndex',
+    '腐败.overall': 'corruption.trueIndex',
+    '腐敗': 'corruption.trueIndex',
+    '腐敗.value': 'corruption.trueIndex',
+    '腐敗.index': 'corruption.trueIndex',
+    'corruption.index': 'corruption.trueIndex',
+    'corruption.value': 'corruption.trueIndex',
+    'corruption.overall': 'corruption.trueIndex',
+    'huangquan.value': 'huangquan.index',
+    'huangwei.value': 'huangwei.index',
+    'minxin.index': 'minxin.trueIndex',
+    'minxin.value': 'minxin.trueIndex'
+  };
+  return root + (aliases[p] || p);
+}
+
+function _wtSetNumericIfPossible(obj, key, value) {
+  if (!obj) return;
+  var n = Number(value);
+  obj[key] = isNaN(n) ? value : n;
+}
+
+function _wtSyncHardChangeSideEffects(parts, newVal) {
+  var key = parts.join('.');
+  var numeric = Number(newVal);
+  var hasNumber = !isNaN(numeric);
+  if (key === 'guoku.money' && GM.guoku) GM.guoku.balance = GM.guoku.money;
+  if (key === 'huangquan.index' && GM.huangquan && typeof GM.huangquan === 'object') {
+    _wtSetNumericIfPossible(GM.huangquan, 'index', GM.huangquan.index);
+  }
+  if (key === 'huangwei.index' && GM.huangwei && typeof GM.huangwei === 'object') {
+    _wtSetNumericIfPossible(GM.huangwei, 'index', GM.huangwei.index);
+    if (GM.huangwei.subDims && hasNumber) {
+      Object.keys(GM.huangwei.subDims).forEach(function(k){
+        var d = GM.huangwei.subDims[k];
+        if (d && typeof d === 'object' && d.value !== undefined) d.value = numeric;
+      });
+    }
+  }
+  if (key === 'minxin.trueIndex' && GM.minxin && typeof GM.minxin === 'object') {
+    _wtSetNumericIfPossible(GM.minxin, 'trueIndex', GM.minxin.trueIndex);
+    if (GM.minxin.perceivedIndex === undefined && hasNumber) GM.minxin.perceivedIndex = numeric;
+  }
+  if (key === 'corruption.trueIndex' && GM.corruption && typeof GM.corruption === 'object' && hasNumber) {
+    GM.corruption.trueIndex = numeric;
+    GM.corruption.overall = numeric;
+    if (GM.corruption.perceivedIndex === undefined) GM.corruption.perceivedIndex = numeric;
+    if (GM.corruption.subDepts) {
+      Object.keys(GM.corruption.subDepts).forEach(function(k){
+        var d = GM.corruption.subDepts[k];
+        if (d && typeof d === 'object') {
+          d.true = numeric;
+          if (d.perceived === undefined) d.perceived = numeric;
+        }
+      });
+    }
+  }
+}
+
 /** 直接修改 GM/P 字段 */
 function _wtApplyHardChange(path, op, value) {
   if (!path) return false;
   // 根据路径前缀决定 root
-  var parts = String(path).split('.');
+  var normalizedPath = _wtNormalizeHardChangePath(path);
+  var parts = String(normalizedPath).split('.');
   var root;
   if (parts[0] === 'GM' || parts[0] === 'gm') { parts.shift(); root = GM; }
   else if (parts[0] === 'P' || parts[0] === 'p') { parts.shift(); root = P; }
@@ -1923,12 +2044,10 @@ function _wtApplyHardChange(path, op, value) {
     cur[lastKey] = (Number(oldVal)||0) * m;
   } else {
     // set
-    cur[lastKey] = value;
+    if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value.trim())) cur[lastKey] = parseFloat(value);
+    else cur[lastKey] = value;
   }
-  // 同步 guoku.balance
-  if (root === GM && parts[0] === 'guoku' && parts[1] === 'money') {
-    if (GM.guoku) GM.guoku.balance = GM.guoku.money;
-  }
+  if (root === GM) _wtSyncHardChangeSideEffects(parts, cur[lastKey]);
   // 立即刷新 UI·让玩家看到数值变化——原只刷 renderLeftPanel 不够·补全帑廪/内帑/七变量/整体
   try { if (typeof renderLeftPanel === 'function') renderLeftPanel(); } catch(_){}
   try { if (typeof renderGameState === 'function') renderGameState(); } catch(_){}
@@ -1937,9 +2056,9 @@ function _wtApplyHardChange(path, op, value) {
   try { if (typeof renderRenwu === 'function') renderRenwu(); } catch(_){}
   // 变量变化广播·供 delta panel 等监听
   try { if (typeof GM !== 'undefined' && GM._listeners && Array.isArray(GM._listeners.varChange)) {
-    GM._listeners.varChange.forEach(function(fn){ try { fn(path, oldVal, cur[lastKey]); } catch(_){} });
+    GM._listeners.varChange.forEach(function(fn){ try { fn(normalizedPath, oldVal, cur[lastKey]); } catch(_){} });
   } } catch(_){}
-  if (typeof addEB === 'function') addEB('\u95EE\u5929', '\u76F4\u6539 ' + path + ' \u00B7 ' + oldVal + '\u2192' + cur[lastKey]);
+  if (typeof addEB === 'function') addEB('\u95EE\u5929', '\u76F4\u6539 ' + normalizedPath + ' \u00B7 ' + oldVal + '\u2192' + cur[lastKey]);
   return true;
 }
 
