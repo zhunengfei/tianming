@@ -117,6 +117,11 @@ function extractEdictActions(edictText) {
       actions.dismissals.push({ character: char, position: m[2] ? m[2].replace(/[，。、]/g, '') : '' });
     }
   });
+  if (actions.appointments.length && actions.dismissals.length) {
+    var _appointedNames = {};
+    actions.appointments.forEach(function(a){ if (a && a.character) _appointedNames[a.character] = true; });
+    actions.dismissals = actions.dismissals.filter(function(d){ return !(d && d.character && _appointedNames[d.character]); });
+  }
 
   // ═══ 赐死模式 ═══
   var deathPatterns = [
@@ -179,6 +184,17 @@ function _findPositionInOfficeTree(posName) {
 /** 执行从诏令中提取的操作（在AI推演前执行，确保状态一致） */
 function applyEdictActions(actions) {
   if (!actions) return;
+  var appointedThisEdict = {};
+  (actions.appointments || []).forEach(function(a){
+    if (a && a.character) appointedThisEdict[a.character] = true;
+  });
+  if (Array.isArray(actions.dismissals) && actions.dismissals.length) {
+    actions.dismissals = actions.dismissals.filter(function(a){
+      if (!a || !a.character || !appointedThisEdict[a.character]) return true;
+      if (typeof addEB === 'function') addEB('人事', a.character + '免旧职并入升迁，不另作罢黜', { credibility: 'high' });
+      return false;
+    });
+  }
   // 任命——双路径查找：postSystem.posts（动态岗位）+ officeTree（静态官制）
   actions.appointments.forEach(function(a) {
     var char = findCharByName(a.character);

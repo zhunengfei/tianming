@@ -214,17 +214,83 @@ function _endTurn_init() {
 }
 
 /** NPC 对玩家诏令的即时反应 */
+function _appointmentTextOf(ch) {
+  if (!ch) return '';
+  var parts = [];
+  ['personality','temperament','character','disposition','profile','desc','description'].forEach(function(k){
+    if (ch[k]) parts.push(ch[k]);
+  });
+  ['traits','traitIds','personalityTraits','tags'].forEach(function(k){
+    if (Array.isArray(ch[k])) parts = parts.concat(ch[k].map(function(x){
+      return typeof x === 'string' ? x : [x && x.id, x && x.name, x && x.label].filter(Boolean).join(' ');
+    }));
+  });
+  return parts.join(' ');
+}
+
+function _appointmentHasJealousTemper(ch) {
+  return /善妒|嫉妒|妒忌|猜忌|jealous|envy|envious/i.test(_appointmentTextOf(ch));
+}
+
+function _appointmentNameInList(list, targetName) {
+  if (!list || !targetName) return false;
+  if (Array.isArray(list)) {
+    return list.some(function(x){
+      if (!x) return false;
+      if (typeof x === 'string') return x === targetName || x.indexOf(targetName) >= 0;
+      return x.name === targetName || x.id === targetName || x.target === targetName || x.character === targetName;
+    });
+  }
+  if (typeof list === 'object') return !!list[targetName];
+  return false;
+}
+
+function _appointmentRelationValue(from, to) {
+  if (!from || !to || !from.name || !to.name) return 0;
+  try {
+    if (typeof AffinityMap !== 'undefined' && AffinityMap && typeof AffinityMap.get === 'function') {
+      var aff = Number(AffinityMap.get(from.name, to.name));
+      if (isFinite(aff)) return aff;
+    }
+  } catch(_) {}
+  var maps = [from.relations, from.relationships, from.relationMap];
+  for (var i = 0; i < maps.length; i++) {
+    var rel = maps[i] && maps[i][to.name];
+    if (typeof rel === 'number' && isFinite(rel)) return rel;
+    if (rel && typeof rel.value === 'number' && isFinite(rel.value)) return rel.value;
+    if (rel && typeof rel.score === 'number' && isFinite(rel.score)) return rel.score;
+  }
+  return 0;
+}
+
+function _appointmentIsPoliticalEnemy(rival, appointed) {
+  if (!rival || !appointed) return false;
+  var targetName = appointed.name;
+  if (_appointmentNameInList(rival.rivals, targetName) ||
+      _appointmentNameInList(rival.enemies, targetName) ||
+      _appointmentNameInList(rival.politicalRivals, targetName) ||
+      _appointmentNameInList(rival.politicalEnemies, targetName) ||
+      _appointmentNameInList(rival.opponents, targetName)) return true;
+  return false;
+}
+
+function _appointmentShouldResent(rival, appointed) {
+  if (!rival || !appointed) return false;
+  if (_appointmentHasJealousTemper(rival)) return true;
+  if (_appointmentIsPoliticalEnemy(rival, appointed)) return true;
+  return _appointmentRelationValue(rival, appointed) <= -25;
+}
+
 function _reactToEdicts(actions) {
   if (!GM.chars) return;
 
-  // 任命反应：同势力/同党派的竞争者可能嫉妒
+  // 任命反应：只有关系差、政敌或善妒者才会因同势力升迁不满
   actions.appointments.forEach(function(a) {
     var appointed = findCharByName(a.character);
     if (!appointed) return;
     GM.chars.forEach(function(rival) {
       if (rival.name === a.character || rival.isPlayer || rival.alive === false) return;
-      // 同势力且野心高的角色嫉妒
-      if (rival.faction && rival.faction === appointed.faction && (rival.ambition || 50) > 65) {
+      if (rival.faction && rival.faction === appointed.faction && _appointmentShouldResent(rival, appointed)) {
         if (typeof adjustCharacterLoyalty === 'function') {
           adjustCharacterLoyalty(rival, -3, '\u540C\u52BF\u529B\u5B98\u5458\u5AC9\u5992' + a.character + '\u5347\u8FC1', { source:'appointment-rival-jealousy' });
         } else {

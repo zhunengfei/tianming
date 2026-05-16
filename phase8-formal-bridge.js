@@ -5916,7 +5916,10 @@
       'body.tm-phase8-formal .edict-xingzhi-head b{display:block;color:#f0d892;font-size:13px;} body.tm-phase8-formal .edict-xingzhi-head span{display:block;margin:4px 0 8px;color:rgba(232,220,187,.58);font-size:11px;}',
       'body.tm-phase8-formal .edict-old-archive{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}',
       'body.tm-phase8-formal .edict-sug-v2{display:grid;grid-template-columns:44px minmax(0,1fr);gap:9px;margin-bottom:9px;padding:9px;border:1px solid rgba(201,160,69,.16);border-radius:4px;background:linear-gradient(180deg,rgba(255,246,216,.055),rgba(255,246,216,.025)),rgba(0,0,0,.14);}',
-      'body.tm-phase8-formal .edict-sug-portrait{width:42px;height:52px;object-fit:cover;border:1px solid rgba(201,160,69,.22);background:rgba(0,0,0,.20);}',
+      'body.tm-phase8-formal .edict-sug-portrait-wrap{width:42px;height:52px;display:grid;place-items:center;position:relative;overflow:hidden;border:1px solid rgba(201,160,69,.22);background:radial-gradient(circle at 50% 28%,rgba(201,160,69,.20),rgba(0,0,0,.26));color:#efd990;font-size:18px;}',
+      'body.tm-phase8-formal .edict-sug-portrait-wrap:after{content:attr(data-glyph);display:none;font-family:"STKaiti","KaiTi",serif;text-shadow:0 1px 8px rgba(0,0,0,.55);}',
+      'body.tm-phase8-formal .edict-sug-portrait-wrap.fallback:after{display:block;}',
+      'body.tm-phase8-formal .edict-sug-portrait{width:100%;height:100%;object-fit:cover;display:block;}',
       'body.tm-phase8-formal .edict-sug-v2 b{display:block;color:#f0d892;font-size:12px;} body.tm-phase8-formal .edict-sug-v2 p{margin:5px 0 7px;color:rgba(236,226,193,.76);font-size:11.5px;line-height:1.48;}',
       'body.tm-phase8-formal .edict-sug-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;} body.tm-phase8-formal .edict-sug-adopt{min-height:24px;padding:2px 9px;border:1px solid rgba(213,92,64,.34);color:#fff0c9;background:linear-gradient(180deg,#7f3528,#331612);font-family:inherit;font-size:11px;cursor:pointer;}',
       'body.tm-phase8-formal .edict-sug-delete{margin-left:5px;min-width:24px;min-height:24px;border:1px solid rgba(201,160,69,.18);color:rgba(232,220,187,.58);background:rgba(0,0,0,.20);font-family:inherit;font-size:14px;line-height:1;cursor:pointer;} body.tm-phase8-formal .edict-sug-delete:hover{color:#f0a082;border-color:rgba(213,92,64,.40);}',
@@ -6055,6 +6058,7 @@
         topic: x.topic || x.title || '',
         text: x.text || x.content || x.body || '',
         content: x.content || x.text || x.body || '',
+        portrait: x.portrait || x.avatar || x.image || x.img || x.photo || x.characterImage || '',
         tags: x.tags || [],
         turn: x.turn || 0,
         used: !!x.used
@@ -6084,12 +6088,77 @@
     return state.edictDrafts;
   }
 
+  function normalizeFormalImageSrc(src){
+    src = String(src || '').trim();
+    if (!src || src === '[IMG]') return '';
+    if (/^(https?:|data:|blob:|\/|preview\/|assets\/)/.test(src)) return src;
+    if (src.indexOf('img/') === 0) return 'preview/' + src;
+    if (src.indexOf('portraits/') === 0) return 'preview/img/' + src;
+    return src;
+  }
+
+  function formalEdictSourceName(value){
+    var raw = String(value || '').trim();
+    if (!raw) return '';
+    return raw
+      .replace(/^[\s\[]+|[\s\]]+$/g, '')
+      .split(/[：:，,。.；;、（）()【】\[\]「」『』·\s]/)[0]
+      .trim();
+  }
+
+  function findFormalEdictPerson(name){
+    var raw = String(name || '').trim();
+    if (!raw) return null;
+    var clean = formalEdictSourceName(raw) || raw;
+    var candidates = [raw, clean].filter(Boolean);
+    if (typeof window.findCharByName === 'function') {
+      for (var i = 0; i < candidates.length; i += 1) {
+        try {
+          var found = window.findCharByName(candidates[i]);
+          if (found) return found;
+        } catch(_) {}
+      }
+    }
+    var people = getPeople();
+    for (var p = 0; p < people.length; p += 1) {
+      var person = people[p];
+      if (!person) continue;
+      var key = personKey(person);
+      var pname = String(person.name || '');
+      var compactName = personNameKey(person);
+      for (var c = 0; c < candidates.length; c += 1) {
+        var cand = String(candidates[c] || '');
+        var compactCand = cand.replace(/\s+/g, '');
+        if (key === cand || pname === cand || compactName === compactCand) return person;
+        if (compactName && compactCand && (compactCand.indexOf(compactName) >= 0 || compactName.indexOf(compactCand) >= 0)) return person;
+      }
+    }
+    return null;
+  }
+
   function edictPortraitForFormal(s){
+    var direct = normalizeFormalImageSrc(s && (s.portrait || s.avatar || s.image || s.img || s.photo || s.characterImage));
+    if (direct) return direct;
+    var person = findFormalEdictPerson(s && s.from);
+    if (person && typeof tmfRenwuPortrait === 'function') {
+      try {
+        var portrait = normalizeFormalImageSrc(tmfRenwuPortrait(person));
+        if (portrait) return portrait;
+      } catch(_) {}
+    }
     var text = [s && s.source, s && s.title, (s && s.tags || []).join(' ')].join(' ');
     if (/军|兵|边|镇|将/.test(text)) return asset('portraits/ming-general-ai.png');
     if (/内廷|司礼|东厂|宦/.test(text)) return asset('portraits/ming-eunuch-ai.png');
     if (/讲|学|礼|儒|史/.test(text)) return asset('portraits/ming-scholar-ai.png');
     return asset('portraits/ming-civil-ai.png');
+  }
+
+  function edictSuggestionPortraitHtml(x){
+    var name = formalEdictSourceName((x && (x.from || x.source || x.title)) || '') || '\u81e3';
+    var glyph = name.slice(0, 1) || '\u81e3';
+    return '<span class="edict-sug-portrait-wrap" data-glyph="' + attr(glyph) + '">' +
+      '<img class="edict-sug-portrait" src="' + attr(edictPortraitForFormal(x)) + '" alt="" onerror="this.style.display=\'none\';this.parentNode.classList.add(\'fallback\');">' +
+      '</span>';
   }
 
   function legacyEdictDraftValue(id, keys){
@@ -6107,7 +6176,7 @@
   function renderEdictSuggestionItem(x, index){
     var realIndex = x.realIndex == null ? index : x.realIndex;
     return '<article class="edict-sug-v2">' +
-      '<img class="edict-sug-portrait" src="' + attr(edictPortraitForFormal(x)) + '" alt="">' +
+      edictSuggestionPortraitHtml(x) +
       '<div><b>【' + esc(x.source || '御案') + (x.from ? ' · ' + esc(x.from) : '') + '】</b>' +
       (x.topic ? '<p style="margin-bottom:2px;color:#c9a045;font-style:italic;">〔' + esc(x.topic) + '〕</p>' : '') +
       '<p>' + esc(compactText(x.text || x.content || '可纳入诏令草拟。', 92)) + '</p>' +

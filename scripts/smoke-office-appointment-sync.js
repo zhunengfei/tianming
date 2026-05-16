@@ -82,6 +82,7 @@ function load(file) {
 
 load('tm-office-system.js');
 load('tm-endturn-edict.js');
+load('tm-endturn-prep.js');
 load('editor-crud.js');
 load('tm-office-panel.js');
 
@@ -170,5 +171,60 @@ assert(!directPanelPos.actualHolders.some(h => h && h.name === 'OldOfficer'), 'd
 assert(directPanelPos.publicTreasury.currentHead === 'NewOfficer', 'direct panel appointment should update treasury currentHead');
 assert(directPanelPos._pendingEdict && directPanelPos._pendingEdict.prevHolder === 'OldOfficer', 'direct panel appointment should snapshot effective previous holder');
 assert(context.GM.chars[1].officialTitle === 'TestMinister', 'direct panel appointment should update new character title');
+
+context.GM.chars = [
+  { name: '升官者', officialTitle: '侍郎', position: '侍郎', faction: '东林', party: '清流', ambition: 50, loyalty: 70, alive: true },
+  { name: '中立同僚', faction: '东林', party: '清流', ambition: 90, loyalty: 60, alive: true },
+  { name: '政敌同僚', faction: '东林', party: '浙党', ambition: 90, loyalty: 60, alive: true },
+  { name: '善妒同僚', faction: '东林', party: '清流', ambition: 90, loyalty: 60, alive: true, traits: ['jealous'] }
+];
+context.GM.affinityMap = { '政敌同僚|升官者': -40 };
+context.AffinityMap = {
+  get(a, b) { return context.GM.affinityMap[a + '|' + b] || context.GM.affinityMap[b + '|' + a] || 0; },
+  add(a, b, delta, reason) {
+    const key = a + '|' + b;
+    context.GM.affinityMap[key] = (context.GM.affinityMap[key] || 0) + delta;
+    context.GM._affinityEvents = context.GM._affinityEvents || [];
+    context.GM._affinityEvents.push({ a, b, delta, reason });
+  }
+};
+context.adjustCharacterLoyalty = function(chOrName, delta, reason, opts) {
+  const ch = typeof chOrName === 'string' ? context.findCharByName(chOrName) : chOrName;
+  if (!ch) return { ok: false };
+  ch.loyalty = Math.max(0, Math.min(100, (ch.loyalty == null ? 50 : ch.loyalty) + delta));
+  context.GM._loyaltyEvents = context.GM._loyaltyEvents || [];
+  context.GM._loyaltyEvents.push({ name: ch.name, delta, reason, source: opts && opts.source });
+  return { ok: true };
+};
+
+const parsedPromotion = context.extractEdictActions('命升官者为尚书，并免去升官者旧职。');
+assert(parsedPromotion.appointments.some(a => a.character === '升官者' && a.position === '尚书'), 'promotion edict should keep appointment');
+assert(!parsedPromotion.dismissals.some(d => d.character === '升官者'), 'promotion edict should not also dismiss promoted character');
+
+context.GM.chars = [
+  { name: '升官者', officialTitle: '侍郎', position: '侍郎', faction: '东林', party: '清流', ambition: 50, loyalty: 70, alive: true },
+  { name: '前任尚书', officialTitle: '尚书', position: '尚书', faction: '东林', party: '清流', ambition: 50, loyalty: 60, alive: true }
+];
+context.GM.officeTree = [
+  { name: '吏部', positions: [
+    { name: '尚书', holder: '前任尚书', establishedCount: 1, vacancyCount: 0, actualHolders: [{ name: '前任尚书', generated: true }] },
+    { name: '侍郎', holder: '升官者', establishedCount: 1, vacancyCount: 0, actualHolders: [{ name: '升官者', generated: true }] }
+  ], subs: [] }
+];
+context.applyEdictActions({ appointments: [{ character: '升官者', position: '尚书' }], dismissals: [{ character: '升官者', position: '旧职' }], deaths: [] });
+assert(context.findCharByName('升官者').officialTitle === '尚书', 'same-edict promotion+dismissal should leave promoted character in new office');
+assert(context.GM.officeTree[0].positions[0].holder === '升官者', 'same-edict promotion+dismissal should not vacate new office');
+
+context.GM.chars = [
+  { name: '升官者', officialTitle: '侍郎', position: '侍郎', faction: '东林', party: '清流', ambition: 50, loyalty: 70, alive: true },
+  { name: '中立同僚', faction: '东林', party: '清流', ambition: 90, loyalty: 60, alive: true },
+  { name: '政敌同僚', faction: '东林', party: '浙党', ambition: 90, loyalty: 60, alive: true },
+  { name: '善妒同僚', faction: '东林', party: '清流', ambition: 90, loyalty: 60, alive: true, traits: ['jealous'] }
+];
+context.GM.affinityMap = { '政敌同僚|升官者': -40 };
+context._reactToEdicts({ appointments: [{ character: '升官者', position: '尚书' }], dismissals: [], deaths: [] });
+assert(context.findCharByName('中立同僚').loyalty === 60, 'neutral same-faction ambitious colleague should not lose loyalty for promotion');
+assert(context.findCharByName('政敌同僚').loyalty === 57, 'same-faction political enemy may resent promotion');
+assert(context.findCharByName('善妒同僚').loyalty === 57, 'jealous colleague may resent promotion');
 
 console.log('[smoke-office-appointment-sync] pass assertions=' + assertions);
