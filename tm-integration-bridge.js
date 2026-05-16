@@ -305,7 +305,9 @@
     var nationalMouths = G.population && G.population.national && G.population.national.mouths || 50000000;
     var nationalHouseholds = G.population && G.population.national && G.population.national.households || 10000000;
     var avgMx = G.minxin && G.minxin.trueIndex || 60;
-    var avgCorr = G.corruption && (typeof G.corruption === 'object' ? G.corruption.overall : G.corruption) || 30;
+    var avgCorr = G.corruption && (typeof G.corruption === 'object'
+      ? (typeof G.corruption.trueIndex === 'number' ? G.corruption.trueIndex : G.corruption.overall)
+      : G.corruption) || 30;
 
     // 首次均分（若区划没初始值）
     topLevel.forEach(function(div, idx) {
@@ -608,7 +610,9 @@
       if (typeof G.minxin === 'object') {
         G.minxin.trueIndex = avgMx;
         // 感知值按腐败粉饰
-        var corrForPerc = (typeof G.corruption === 'object' ? G.corruption.overall : G.corruption) || 30;
+        var corrForPerc = (typeof G.corruption === 'object'
+          ? (typeof G.corruption.trueIndex === 'number' ? G.corruption.trueIndex : G.corruption.overall)
+          : G.corruption) || 30;
         G.minxin.perceivedIndex = Math.min(100, avgMx + (corrForPerc / 100) * 10);
       }
     }
@@ -625,6 +629,9 @@
       if (typeof G.corruption === 'object') {
         if (!G.corruption.byDept) G.corruption.byDept = {};
         G.corruption.byDept.provincial = avgProvCorr;
+        if (!G.corruption.subDepts) G.corruption.subDepts = {};
+        if (!G.corruption.subDepts.provincial) G.corruption.subDepts.provincial = {};
+        G.corruption.subDepts.provincial.true = avgProvCorr;
         // 其他 5 部门：若首次则按基线初始化，之后由事件/AI 推演修改
         if (G.corruption.byDept.central === undefined)   G.corruption.byDept.central   = Math.round(avgProvCorr * 0.85);
         if (G.corruption.byDept.county === undefined)    G.corruption.byDept.county    = Math.round(avgProvCorr * 1.15);
