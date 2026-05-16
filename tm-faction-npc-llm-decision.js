@@ -54,6 +54,10 @@
     return global.TM.FactionNpcSettings.isAiPrecisionEnabled();
   }
 
+  function _actionEngine() {
+    return (global.TM && global.TM.FactionActionEngine) || null;
+  }
+
   function _classifyChar(c) {
     if (global.TM && global.TM.FactionNpcMemorial && global.TM.FactionNpcMemorial._classifyChar) {
       return global.TM.FactionNpcMemorial._classifyChar(c);
@@ -290,6 +294,18 @@
     });
     _tail(fac.npcFiscalLedger, 4).forEach(function(l){
       lines.push('  财计 ' + _fmtTurn(l) + (l.crisis ? ' 危机' : '') + ' 压力' + (l.stress != null ? l.stress : (l.fiscalStress != null ? l.fiscalStress : '?')) + ' ' + _txt(l.summary || l.note, 100));
+    });
+    _tail(fac.npcMilitaryActions, 4).forEach(function(a){
+      lines.push('  军务 ' + _fmtTurn(a) + ' ' + _txt(a.army || a.target || a.action, 80) + ' ' + _txt(a.reason, 100) + ' ' + _txt(a.effect, 140));
+    });
+    _tail(fac.npcDiplomacyActions, 4).forEach(function(a){
+      lines.push('  外交 ' + _fmtTurn(a) + ' ->' + _txt(a.to || a.target || '', 60) + ' ' + _txt(a.reason, 100) + ' ' + _txt(a.effect, 140));
+    });
+    _tail(fac.npcProvincePolicies, 4).forEach(function(a){
+      lines.push('  地政 ' + _fmtTurn(a) + ' ' + _txt(a.province || a.target || a.action, 80) + ' ' + _txt(a.reason, 100) + ' ' + _txt(a.effect, 140));
+    });
+    _tail(fac.npcFiscalActions, 4).forEach(function(a){
+      lines.push('  财策 ' + _fmtTurn(a) + ' ' + _txt(a.resource || a.action, 60) + ' ' + _txt(a.amount, 40) + ' ' + _txt(a.reason, 100) + ' ' + _txt(a.effect, 140));
     });
     if (fac._lastLlmRationale && fac._lastLlmRationale.text) {
       lines.push('  上次君主考量: ' + _txt(fac._lastLlmRationale.text, 180));
@@ -797,6 +813,10 @@
   var CANONICAL_ACTION_TYPES = ['memorial','edict','court_alignment','office_change','fiscal_policy','military_order','diplomacy','province_policy','rebellion_policy','spy_or_intrigue'];
 
   function _validateDecision(d) {
+    var engine = _actionEngine();
+    if (engine && typeof engine.validateDecision === 'function') {
+      return engine.validateDecision(d);
+    }
     if (!d || typeof d !== 'object') return null;
     if (typeof d.rationale !== 'string') d.rationale = '';
     if (!Array.isArray(d.memorials)) d.memorials = [];
@@ -864,6 +884,10 @@
   }
 
   function _normalizeDecisionActions(fac, decision, opts) {
+    var engine = _actionEngine();
+    if (engine && typeof engine.normalizeDecisionActions === 'function') {
+      return engine.normalizeDecisionActions(fac, decision, opts);
+    }
     opts = opts || {};
     var turn = _safeNum(opts.turn) || ((global.GM && global.GM.turn) || 1);
     var d = _validateDecision(decision);
@@ -1129,6 +1153,10 @@
   // Apply decision·按 schema 改 fac/chars 数据
   // ──────────────────────────────────────────────────────────
   function _applyDecision(fac, decision) {
+    var engine = _actionEngine();
+    if (engine && typeof engine.applyDecision === 'function') {
+      return engine.applyDecision(fac, decision);
+    }
     var turn = (global.GM && global.GM.turn) || 1;
     var entry = (global.GM && global.GM._facIndex && global.GM._facIndex[fac.name]) || null;
     var alive = (entry && entry.chars) ? entry.chars.filter(function(c){ return c.alive !== false; }) : [];
@@ -1419,7 +1447,7 @@
     return { applied: true, summary: summary, rationale: decision.rationale };
   }
 
-  // 多 fac 并发·按 derivedStrength 排序·max maxPerTurn
+  // 多 fac 并发·用 action engine 评分优先处理战争/财政/干预后的活跃势力
   async function decideAll(opts) {
     opts = opts || {};
     if (!_isEnabled()) return { skipped: true, reason: 'LLM mode off' };
@@ -1428,15 +1456,23 @@
     var source = opts.source || 'eager';
     var maxPerTurn = (global.TM.FactionNpcSettings && global.TM.FactionNpcSettings.maxPerTurn()) || 8;
     var playerFacNames = _resolvePlayerFactionNames();
-    var npcs = global.GM.facs
+    var candidates = global.GM.facs
       .filter(function(f){ return f && f.name && !_isPlayerFaction(f, playerFacNames); })
-      .filter(function(f){ return !hasRunThisTurn(f.name, batchTurn); })
-      .sort(function(a, b){
+      .filter(function(f){ return !hasRunThisTurn(f.name, batchTurn); });
+    var engine = _actionEngine();
+    var npcs = [];
+    if (engine && typeof engine.rankFactionCandidates === 'function') {
+      npcs = engine.rankFactionCandidates(candidates, { turn: batchTurn, playerFactionNames: playerFacNames })
+        .map(function(row){ return row.fac; })
+        .slice(0, maxPerTurn);
+    } else {
+      npcs = candidates.sort(function(a, b){
         var sa = (a.derivedStrength && a.derivedStrength.value) || 0;
         var sb = (b.derivedStrength && b.derivedStrength.value) || 0;
         return sb - sa;
       })
       .slice(0, maxPerTurn);
+    }
 
     var results = await Promise.all(npcs.map(function(f){
       return decideFor(f.name, { source: source, turn: batchTurn }).then(function(r){ return { fac: f.name, result: r }; });

@@ -1520,17 +1520,6 @@ interface AICharacterDeath {
   isPlayer?: boolean;
 }
 
-/** 新角色创建 (new_characters 元素) */
-interface AINewCharacter {
-  name: string;
-  title?: string;
-  age?: number;
-  gender?: string;
-  faction?: string;
-  /** 其他字段同 Character */
-  [k: string]: any;
-}
-
 /** 势力事件 (faction_events 元素) */
 interface AIFactionEvent {
   type: 'war' | 'alliance' | 'coup' | 'march' | 'siege' | string;
@@ -1582,7 +1571,6 @@ interface AIScenarioResponse {
 
   // 角色
   character_deaths?: AICharacterDeath[];
-  new_characters?: AINewCharacter[];
   char_updates?: AICharUpdate[];
   relations?: any[];
 

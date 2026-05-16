@@ -1657,7 +1657,6 @@
     tp += "  ■ player_inner中体现情感纠葛：\n";
     tp += "    - 例：“今夜本想去看她…但奏疏还没批完。算了，明日吧。”\n";
     tp += "    - 例：“皇后说得对，可每次听她说话朕就觉得累。倒是某妃…一笑便令人忘忧。”\n";
-    tp += "  ■ AI可通过new_characters安排子嗣出生，子女姓名由AI起名需合乎时代\n";
     tp += "  ■ 继承危机：多皇子+不同母族=自然产生储位之争\n";
     tp += "• 门阀与寒门（若【门阀家族】段存在）：\n";
     tp += "  - 世家大族间通婚联姻、互提子弟，形成盘根错节的关系网\n";
@@ -2900,7 +2899,6 @@
     sysP += '\n  · 多数行政领域之间有共通性——财政/人事/民政的底层逻辑相近，不应将其视为完全隔离的知识孤岛';
     sysP += '\n  · 真正的"外行"是：从未接触过、能力也低(对应值<40)、从政时间短的角色';
     sysP += '\n- character_deaths: 让任何角色死亡（包括玩家角色→游戏结束）';
-    sysP += '\n- new_characters: 创建新角色（子嗣、投奔者、新官员等）';
     sysP += '\n- faction_changes: \u4FEE\u6539\u52BF\u529B\u5C5E\u6027\uFF08strength_delta\u5B9E\u529B\uFF0Ceconomy_delta\u7ECF\u6D4E\uFF0CplayerRelation_delta\u5BF9\u7389\u5173\u7CFB\u3002strength\u964D\u81F30\u2192\u52BF\u529B\u8986\u706D\uFF09';
     sysP += '\n- faction_events: 创造势力间自主事件（战争/联盟/政变/行军/围城等）';
     sysP += '\n  ⚠ 涉及行军/围城的事件，必须在geoData中提供地理推算数据！';
@@ -2927,7 +2925,7 @@
     sysP += '\n    【重要】获得领土(territory_gain)的行政区会自动进入"未定行政区"临时节点，等待玩家决定管理方案';
     sysP += '\n    【重要】丢失领土(territory_loss)的行政区数据对玩家清零，不可管理';
     sysP += '\n- harem_events: \u540E\u5BAB\u4E8B\u4EF6\u3002\u7C7B\u578B\uFF1A';
-    sysP += '\n    pregnancy(\u6709\u5B55) / birth(\u751F\u80B2\uFF0C\u5FC5\u987B\u540C\u65F6\u5728new_characters\u4E2D\u521B\u5EFA\u5B50\u55E3\u89D2\u8272\u542BmotherName) / rank_change(\u664B\u5C01/\u964D\u4F4D\uFF0CnewRank\u586B\u4F4D\u5206id)';
+    sysP += '\n    pregnancy(\u6709\u5B55) / birth(\u751F\u80B2\uFF0C\u4EC5\u8BB0\u5F55\u4E8B\u4EF6\uFF0C\u4E0D\u5728\u56DE\u5408\u63A8\u6F14\u4E2D\u81EA\u52A8\u521B\u5EFA\u5B50\u55E3\u89D2\u8272) / rank_change(\u664B\u5C01/\u964D\u4F4D\uFF0CnewRank\u586B\u4F4D\u5206id)';
     sysP += '\n    death(\u85A8\u901D) / favor_change(\u5BA0\u7231\u53D8\u5316\uFF0Cfavor_delta\u6570\u503C) / scandal(\u4E11\u95FB/\u7EA0\u7EB7\uFF0Cdetail\u63CF\u8FF0)';
     sysP += '\n    \u540E\u5BAB\u4E0D\u53EA\u662F\u751F\u80B2\u5DE5\u5177\u2014\u2014\u5983\u5B50\u6709\u6027\u683C\u3001\u91CE\u5FC3\u3001\u6BCD\u65CF\u80CC\u666F\uFF0C\u4F1A\u4E3B\u52A8\u4E89\u5BA0\u3001\u7ED3\u515A\u3001\u8C0B\u5BB3\u3001\u5E72\u653F\u3002AI\u5E94\u8BA9\u540E\u5BAB\u6210\u4E3A\u53D9\u4E8B\u7684\u6D3B\u8DC3\u8BBE\u5F00\u573A\u666F';
     sysP += '\n- tech_civic_unlocks: 解锁科技或推行民政政策（自动扣费+应用效果）';
@@ -2970,7 +2968,7 @@
     sysP += '\n    · 生灭事件应稀疏——一回合最多 1-2 个重大生灭事件；日常以 splinter/merge/relation_shift 为主';
     sysP += '\n    · 势力覆灭必须与战争/bigyear 事件呼应，不得凭空消失';
     sysP += '\n    · 阶层兴替跨度长——通常数十回合渐变，非一日之功；除非诏令明确废止（如"永禁贱籍"）才立即生效';
-    sysP += '\n    · 新建时 leader/首脑须指向现有角色，或在同一回合的 new_characters 中一并创建';
+    sysP += '\n    · 新建时 leader/首脑须指向现有角色；不得在回合推演中自动创建新角色';
     sysP += '\n【官制人事·扩展动作】';
     sysP += '\n  promote: 晋升——填newRank(新品级)，可选newDept+newPosition(升任新职)';
     sysP += '\n  demote: 降级——填newRank';

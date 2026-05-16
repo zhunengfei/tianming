@@ -827,23 +827,6 @@ EndTurnHooks.register('after', function() {
             // 党派变化
             if(parsed.party_changes){Object.entries(parsed.party_changes).forEach(function(e){var party=findPartyByName(e[0]);if(party&&typeof e[1]==="object"){if(e[1].strength!=null)party.strength=clamp(party.strength+(e[1].strength||0),0,100);}});}
 
-            // 新角色
-            if(parsed.new_characters&&Array.isArray(parsed.new_characters)){
-              parsed.new_characters.forEach(function(nc){
-                if(!nc.name)return;
-                var exists=(GM.allCharacters||[]).find(function(c){return c.name===nc.name;});
-                if(!exists){
-                  GM.allCharacters.push({name:nc.name,title:nc.title||"",age:nc.age||"?",gender:nc.gender||"男",personality:nc.personality||"",appearance:nc.appearance||"",desc:nc.desc||"",loyalty:nc.loyalty||50,relationValue:nc.relation_value||50,faction:nc.faction||"",recruited:nc.recruited||false,recruitTurn:GM.turn-1,source:nc.source||"推演出现",avatarUrl:""});
-                  if(nc.recruited){
-                    var newChar = {name:nc.name,title:nc.title||"",desc:nc.desc||"",stats:{},stance:"",playable:false,personality:nc.personality||"",appearance:"",skills:[],loyalty:nc.loyalty||50,morale:70,dialogues:[],secret:"",faction:nc.faction||"",aiPersonaText:"",behaviorMode:"",valueSystem:"",speechStyle:"",rels:[]};
-                    GM.chars.push(newChar);
-                    addToIndex('char', newChar.name, newChar);
-                  }
-                  addEB("人物",nc.name+(nc.recruited?" 已招":"出现"));
-                }
-              });
-            }
-
             // 角色更新
             if(parsed.char_updates){Object.entries(parsed.char_updates).forEach(function(e){var ch=findCharByName(e[0]);var upd=e[1];if(ch&&typeof upd==="object"){if(upd.loyalty_delta!=null){if(typeof adjustCharacterLoyalty==="function")adjustCharacterLoyalty(ch,clamp(parseInt(upd.loyalty_delta)||0,-20,20),upd.reason||"",{source:"legacy-core-char-updates",ai:true,defaultReason:"AI\u63A8\u6F14",maxAbs:20});else if(upd.reason){var oldLd=(typeof ch.loyalty==="number"&&isFinite(ch.loyalty))?ch.loyalty:50;ch.loyalty=clamp(oldLd+clamp(parseInt(upd.loyalty_delta)||0,-20,20),0,100);}}else if(upd.loyalty!=null){if(typeof setCharacterLoyalty==="function")setCharacterLoyalty(ch,upd.loyalty,upd.reason||"",{source:"legacy-core-char-updates",ai:true,defaultReason:"AI\u63A8\u6F14",maxJump:20});else if(upd.reason){var oldSet=parseInt(upd.loyalty);ch.loyalty=clamp(isNaN(oldSet)?50:oldSet,0,100);var ac0=(GM.allCharacters||[]).find(function(c){return c.name===e[0];});if(ac0){ac0.loyalty=ch.loyalty;ac0.relationValue=ch.loyalty;}}}if(upd.desc)ch.desc=upd.desc;}});}
           }

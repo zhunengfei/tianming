@@ -191,6 +191,18 @@
         rec.id = 'npco_' + turn + '_' + fac.name + '_' + idx;
         rec.turn = turn;
         fac.npcOfficeActions.push(rec);
+        if (global.TM && global.TM.FactionActionEngine && typeof global.TM.FactionActionEngine.recordLocalAction === 'function') {
+          try {
+            global.TM.FactionActionEngine.recordLocalAction(fac, 'office_change', {
+              kind: rec.action || a.kind,
+              target: rec.target,
+              oldPosition: rec.oldPosition,
+              newPosition: rec.newPosition,
+              loyaltyDelta: rec.loyaltyDelta,
+              reason: rec.reason
+            }, rec);
+          } catch(_){}
+        }
         // Phase H2·人事变动入近事快报
         if (global.TM && global.TM.FactionNpcNewsBridge) {
           try { global.TM.FactionNpcNewsBridge.pushOffice(fac, rec); } catch(_){}

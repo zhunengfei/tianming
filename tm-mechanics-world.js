@@ -736,7 +736,7 @@ var HaremSettlement = {
       completed.forEach(function(preg) {
         var mother = findCharByName(preg.motherName);
         if (mother && mother.alive !== false) {
-          addEB('\u5BAB\u4E2D\u559C\u8BAF', preg.motherName + '\u5373\u5C06\u4EA7\u5B50\uFF0C\u8BF7AI\u5728\u4E0B\u56DE\u5408\u901A\u8FC7new_characters\u5B89\u6392\u8BDE\u751F');
+          addEB('\u5BAB\u4E2D\u559C\u8BAF', preg.motherName + '\u5373\u5C06\u4EA7\u5B50\uFF0C\u4E0B\u56DE\u5408\u4EC5\u8BB0\u5F55\u751F\u80B2\u4E8B\u4EF6\uFF0C\u4E0D\u81EA\u52A8\u521B\u5EFA\u89D2\u8272');
           preg.dueThisTurn = true;
         }
       });

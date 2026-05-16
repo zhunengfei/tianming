@@ -58,6 +58,10 @@ const ctx = {
   P: { playerInfo: { factionName:'明朝廷' } },
   TM: {}
 };
+ctx.GM.facs[1].npcMilitaryActions = [{ turn:3, action:'military_order', army:'BlueBanner', reason:'Frontier drill', effect:{ commanderFrom:'OldGeneral', commanderTo:'NewGeneral', trainingDelta:6, moraleDelta:4 } }];
+ctx.GM.facs[1].npcDiplomacyActions = [{ turn:3, action:'diplomacy', to:'MingEnvoy', reason:'Probe peace terms', effect:{ relationFrom:-70, relationTo:-55 } }];
+ctx.GM.facs[1].npcProvincePolicies = [{ turn:3, action:'province_policy', province:'Liaoyang', reason:'Move grain levy', effect:{ ownerFrom:'OldOwner', ownerTo:'NewOwner', revenueDelta:1200 } }];
+ctx.GM.facs[1].npcFiscalActions = [{ turn:3, action:'fiscal_policy', resource:'money', amount:120000, reason:'War levy', effect:{ before:100000, after:220000 } }];
 ctx.window = ctx;
 ctx.globalThis = ctx;
 vm.createContext(ctx);
@@ -65,5 +69,12 @@ vm.runInContext(src, ctx, { filename:'tm-three-systems-ui.js' });
 ctx.openForcesRelationsPanel('后金');
 assert(captured && captured.title === '势力天平', 'panel did not open expected modal');
 assert(captured.html.includes('frp-shell') && captured.html.includes('后金') && captured.html.includes('关系棋盘'), 'rendered modal missing core content');
+
+assert(captured.html.includes('BlueBanner') && captured.html.includes('Probe peace terms') && captured.html.includes('Liaoyang') && captured.html.includes('War levy'),
+  'faction detail panel should surface expanded NPC LLM action trajectories');
+
+ctx._tsInspectNpcInternal(ctx.GM.facs[1].name);
+assert(captured && captured.html.includes('BlueBanner') && captured.html.includes('Probe peace terms') && captured.html.includes('Liaoyang') && captured.html.includes('War levy'),
+  'NPC internal inspection panel should surface expanded NPC LLM action trajectories');
 
 console.log('[smoke-faction-panel-ui] pass');

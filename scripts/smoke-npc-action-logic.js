@@ -25,7 +25,8 @@ async function main() {
     { id: 'c2', name: 'LiSi', alive: true, loyalty: 50, ambition: 40, intelligence: 55, integrity: 45, officialTitle: 'Clerk', location: 'Capital', faction: 'Ming', party: 'CourtBloc' },
     { id: 'c3', name: 'GeneralWang', alive: true, loyalty: 58, ambition: 65, valor: 88, troops: 1000, officialTitle: 'General', location: 'Frontier' },
     { id: 'c4', name: 'RemoteZhao', alive: true, loyalty: 72, ambition: 35, intelligence: 70, officialTitle: 'Governor', location: 'Liaodong', faction: 'Ming' },
-    { id: 'c5', name: 'QianRival', alive: true, loyalty: 45, ambition: 77, intelligence: 72, officialTitle: 'Censor', location: 'Capital', faction: 'Ming', party: 'RivalBloc' }
+    { id: 'c5', name: 'QianRival', alive: true, loyalty: 45, ambition: 77, intelligence: 72, officialTitle: 'Censor', location: 'Capital', faction: 'Ming', party: 'RivalBloc' },
+    { id: 'c6', name: 'ChenAlly', alive: true, loyalty: 80, ambition: 25, intelligence: 50, officialTitle: 'Secretary', location: 'Capital', faction: 'Ming', party: 'CourtBloc' }
   ];
   const events = [];
   let lastPrompt = '';
@@ -154,6 +155,20 @@ async function main() {
   assert(courtCandidates.every(function(c) { return typeof c.score === 'number' && c.score > 0; }),
     'candidate actions should carry positive motivation scores');
 
+  ctx.GM._npcInternalActionHistory = [{ kind: 'private_correspondence', from: 'ZhangSan', to: 'LiSi', intent: 'Recent private note', turn: ctx.GM.turn - 1 }];
+  const diversifiedCandidates = ctx._buildNpcActionCandidates(chars[0], ctx.buildNpcBehaviorContext());
+  const diversifiedPrivate = diversifiedCandidates.find(function(c) { return c.behaviorType === 'private_correspondence'; });
+  assert(diversifiedPrivate && diversifiedPrivate.target === 'ChenAlly',
+    'recent private correspondence should diversify the next NPC-to-NPC correspondence target');
+  ctx.GM._npcInternalActionHistory = [];
+
+  ctx.GM._pendingNpcCorrespondence.push({ from: 'ZhangSan', to: 'LiSi', intent: 'Pending private note', turn: ctx.GM.turn });
+  const pendingDiversifiedCandidates = ctx._buildNpcActionCandidates(chars[0], ctx.buildNpcBehaviorContext());
+  const pendingDiversifiedPrivate = pendingDiversifiedCandidates.find(function(c) { return c.behaviorType === 'private_correspondence'; });
+  assert(pendingDiversifiedPrivate && pendingDiversifiedPrivate.target === 'ChenAlly',
+    'pending private correspondence should diversify same-turn NPC-to-NPC correspondence target');
+  ctx.GM._pendingNpcCorrespondence = [];
+
   ctx.GM._pendingNpcCorrespondence.push({ from: 'ZhangSan', to: 'LiSi', intent: 'Pre-seeded private note', turn: ctx.GM.turn });
   ctx.GM._pendingNpcConspiracies.push({ from: 'ZhangSan', target: 'LiSi', intent: 'Pre-seeded faction talk', turn: ctx.GM.turn });
   ctx.GM._npcHiddenMoves.push({ actor: 'QianRival', target: 'ZhangSan', intent: 'Pre-seeded obstruction', turn: ctx.GM.turn });
@@ -275,6 +290,41 @@ async function main() {
   }, chars[0], behaviorContext);
   assert(corrOk === true && ctx.GM._pendingNpcCorrespondence.some(function(x) { return x.from === 'ZhangSan' && x.to === 'LiSi'; }),
     'private_correspondence behavior should enqueue NPC-to-NPC correspondence');
+  assert(ctx.GM._npcInternalActionHistory.some(function(x) { return x.kind === 'private_correspondence' && x.from === 'ZhangSan' && x.to === 'LiSi'; }),
+    'private_correspondence behavior should persist internal action history for future inference');
+
+  const conspireOk = ctx._executeNormalizedNpcDecision({
+    actor: 'ZhangSan',
+    behaviorType: 'conspire',
+    target: 'LiSi',
+    action: 'Coordinate factionally with LiSi',
+    shouldExecute: true
+  }, chars[0], behaviorContext);
+  assert(conspireOk === true && ctx.GM._npcInternalActionHistory.some(function(x) { return x.kind === 'conspiracy' && x.from === 'ZhangSan' && x.to === 'LiSi'; }),
+    'conspire behavior should persist internal action history');
+
+  const obstructOk = ctx._executeNormalizedNpcDecision({
+    actor: 'ZhangSan',
+    behaviorType: 'obstruct',
+    target: 'QianRival',
+    action: 'Quietly obstruct QianRival',
+    shouldExecute: true
+  }, chars[0], behaviorContext);
+  assert(obstructOk === true && ctx.GM._npcInternalActionHistory.some(function(x) { return x.kind === 'hidden_move' && x.from === 'ZhangSan' && x.to === 'QianRival'; }),
+    'hidden obstruct behavior should persist internal action history');
+
+  ctx.GM._pendingNpcCorrespondence = [];
+  ctx.GM._pendingNpcConspiracies = [];
+  ctx.GM._npcHiddenMoves = [];
+  const postSettleContext = ctx.buildNpcBehaviorContext();
+  assert(postSettleContext.npcInternalActions.some(function(x) { return x.kind === 'private_correspondence' && x.from === 'ZhangSan' && x.to === 'LiSi'; }),
+    'settled private correspondence should still influence later NPC inference context');
+  assert(postSettleContext.npcInternalActions.some(function(x) { return x.kind === 'hidden_move' && x.from === 'ZhangSan' && x.to === 'QianRival'; }),
+    'settled hidden moves should still influence later NPC inference context');
+
+  const saveLifecycleSrc = fs.readFileSync(path.join(ROOT, 'tm-save-lifecycle.js'), 'utf8');
+  assert(saveLifecycleSrc.indexOf('GM._npcInternalActionHistory') >= 0 && saveLifecycleSrc.indexOf('GM._savedNpcInternalActionHistory') >= 0,
+    'save lifecycle should persist NPC internal action history');
 
   console.log('[smoke-npc-action-logic] PASS ' + passed + ' assertions');
 }

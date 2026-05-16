@@ -2,6 +2,48 @@
   "_comment": "天命·更新日志——新条目 unshift 到数组最前（由近及远）。格式：{date, module, title, items[]}；items 元素可为字符串或 {what, why}。",
   "entries": [
     {
+      "date": "2026-05-17",
+      "module": "势力 LLM 精细化推演",
+      "title": "统一 NPC 势力行动引擎，扩展战略动作、账本与势力面板展示",
+      "items": [
+        {
+          "what": "新增 FactionActionEngine，统一校验、归一化和应用 memorial、edict、court_alignment、office_change、military_order、diplomacy、province_policy、fiscal_policy、spy_or_intrigue、rebellion_policy 等行动。",
+          "why": "让势力 LLM 不只是生成文字，而是能稳定改动军队、外交、地块、财政、密谋与叛乱压力等真实数据，并保留可追踪的 actionId / decisionId。"
+        },
+        {
+          "what": "势力 LLM 的候选势力选择改为综合评分，优先处理战争中、财政危机、刚被玩家干预、长期未推演的 NPC 势力；in-turn 后台推演也使用同一套评分。",
+          "why": "避免只按国力大小机械选择势力，让后金、藩镇、叛军、危机势力等在局势变化时更自然地获得推演机会。"
+        },
+        {
+          "what": "本地模板系统生成的奏疏、诏令、朝议、人事任免、国库周期也写入统一行动账本，势力详情和查内政面板新增军务、外交、地政、财计轨迹展示。",
+          "why": "打通 LLM 推演与本地模板推演的记录口径，方便 UI 回看、后续去重、叙事延续和问题排查。"
+        },
+        {
+          "what": "补充势力 LLM 决策、in-turn 账本、势力面板 UI 的 smoke 覆盖，并通过 verify-all 全量 96 项检查。",
+          "why": "防止扩展 action、候选排序、面板展示和提示词上下文在后续改动中回退。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-17",
+      "module": "回合推演·人物生成",
+      "title": "回合推演不再自动创建新人物，改为玩家点击后补档",
+      "items": [
+        {
+          "what": "彻底移除回合推演结果中的 new_characters 创建链路，AI 主推演不再直接把子嗣、投奔者或新官员写入人物志。",
+          "why": "避免回合推演自动生成薄人物、错归属人物或重复人物，防止人物志被后台误扩张。"
+        },
+        {
+          "what": "推演文本扫描现在只登记 pending 人名，不再按“重要人物”自动调用 API 生成人物卡。",
+          "why": "保留史记、时政记里的陌生人名线索，但只有玩家主动点击该人名时才消耗 API 并生成完整人物。"
+        },
+        {
+          "what": "同步清理 AI schema、validator、prompt、类型定义和婚育补录提示中的 new_characters 入口；婚育补录若出现新生儿姓名，会登记为待补档人名。",
+          "why": "从提示词、解析、应用层三处同时收口，避免旧字段通过残留提示或旧 hook 继续生效。"
+        }
+      ]
+    },
+    {
       "date": "2026-05-16",
       "module": "势力NPC推演·玩家边界与行动账本",
       "title": "玩家势力不再被势力 LLM 接管，并补齐 NPC 行动落账",

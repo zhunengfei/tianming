@@ -73,12 +73,6 @@
       requiredSubFields: ['name'],
       consumedBy: ['endturn:9636', 'endturn:14205']
     },
-    new_characters: {
-      type: 'array',
-      desc: '创建新角色（子嗣、投奔者、新官员）',
-      requiredSubFields: ['name'],
-      consumedBy: ['endturn', 'applier']
-    },
     char_updates: {
       type: 'array',
       desc: '角色属性增量（忠诚/智力/野心/loyalty 等）',
@@ -726,7 +720,7 @@
     },
     {
       name: 'record_marriage_birth_events',
-      description: '记录婚姻/生育/继承事件（嫁娶/诞生/夭折/即位/承嗣）。仅当 narrative 提到但 char_updates / new_characters / character_deaths 漏录时调用。',
+      description: '记录婚姻/生育/继承事件（嫁娶/诞生/夭折/即位/承嗣）。仅当 narrative 提到但 char_updates / character_deaths 漏录时调用。',
       parameters: {
         type: 'object',
         properties: {

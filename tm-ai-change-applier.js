@@ -3660,12 +3660,10 @@
     var succKw = _firstHit(narrative, ['即位','登基','嗣位','继统','承祧','承嗣','袭爵','袭封','袭位']);
     if (!marryKw && !birthKw && !deathHeirKw && !succKw) return;
     var charUpdates = aiOutput.char_updates || [];
-    var newChars = aiOutput.new_characters || [];
     var charDeaths = aiOutput.character_deaths || [];
     var hasUpdate = charUpdates.some(function(c){return c && c.changes && Object.keys(c.changes).some(function(k){return /spouse|wife|consort|children|heir|inherited|succeeded/i.test(k);});});
     var warnings = [];
     if (marryKw && !hasUpdate) warnings.push({ kind: 'marriage_missing', keyword: marryKw, snippet: _snippetAround(narrative, marryKw, 30) });
-    if (birthKw && newChars.length === 0) warnings.push({ kind: 'birth_missing', keyword: birthKw, snippet: _snippetAround(narrative, birthKw, 30) });
     if (deathHeirKw && charDeaths.length === 0) warnings.push({ kind: 'heir_death_missing', keyword: deathHeirKw, snippet: _snippetAround(narrative, deathHeirKw, 30) });
     if (succKw && !hasUpdate) warnings.push({ kind: 'succession_missing', keyword: succKw, snippet: _snippetAround(narrative, succKw, 30) });
     if (!warnings.length) return;

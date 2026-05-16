@@ -5,7 +5,7 @@
  *
  * 提供三路入口：
  *   A) 诏令征召 —— edictRecruitCharacter(name, opts)
- *   B) 推演扫描 —— 在 endturn 后由 tm-endturn.js 调用 scanMentionedCharacters
+ *   B) 推演文本扫描 —— 只登记 pending 人名，不直接生成角色
  *   C) 点击具象化 —— crystallizePendingCharacter(name)
  *
  * 统一调用核心：aiGenerateCompleteCharacter(name, opts)
@@ -1416,31 +1416,6 @@
     return names;
   }
 
-  /** 判定重要性：major=自动生成·minor=入 pending */
-  function _judgeImportance(name, aiResult) {
-    if (!aiResult) return 'minor';
-    var texts = [];
-    if (typeof aiResult === 'object') {
-      if (aiResult.zhengwen) texts.push(aiResult.zhengwen);
-      if (Array.isArray(aiResult.events)) aiResult.events.forEach(function(e){ if (e && e.text) texts.push(e.text); });
-      if (Array.isArray(aiResult.npc_actions)) aiResult.npc_actions.forEach(function(a){ if (a && a.actor === name) texts.push('[actor]'); });
-    }
-    var full = texts.join('\n');
-    // 出现次数
-    var count = (full.match(new RegExp(name, 'g')) || []).length;
-    if (count >= 2) return 'major';
-    // events 主角 or npc_actions 动作者
-    if (full.indexOf('[actor]') >= 0) return 'major';
-    if (aiResult && Array.isArray(aiResult.events)) {
-      for (var i=0; i<aiResult.events.length; i++) {
-        var ev = aiResult.events[i];
-        if (ev && Array.isArray(ev.participants) && ev.participants.indexOf(name) >= 0) return 'major';
-        if (ev && ev.protagonist === name) return 'major';
-      }
-    }
-    return 'minor';
-  }
-
   /** 主扫描入口·供 endturn 调用 */
   async function scanMentionedCharacters(aiResult) {
     if (!GM._pendingCharacters) GM._pendingCharacters = [];
@@ -1472,7 +1447,6 @@
     });
     if (!candidates.length) return { generated: [], pending: [] };
 
-    var generated = [];
     var pendingAdded = [];
     var fullTexts = typeof aiResult === 'string' ? aiResult : JSON.stringify(aiResult).slice(0, 2000);
 
@@ -1480,37 +1454,17 @@
       var name = candidates[i];
       // 循环内再次防御——异步期间可能有其他代码往 GM.chars 添加
       if (typeof findCharByName === 'function' && findCharByName(name)) continue;
-      var importance = _judgeImportance(name, aiResult);
       // 检查 pending 累计 mentions
       var existing = GM._pendingCharacters.find(function(p){ return p.name === name; });
       if (existing) {
         existing.mentions++;
         existing.lastSeenTurn = GM.turn;
-        if (existing.mentions >= 2) importance = 'major';  // 累计出场升级
       }
 
-      if (importance === 'major') {
-        try {
-          var snippet = _extractSnippet(fullTexts, name);
-          var ch = await aiGenerateCompleteCharacter(name, {
-            reason: '\u63A8\u6F14\u6D8C\u73B0',
-            sourceContext: snippet
-          });
-          generated.push(name);
-          // 若之前在 pending·移除
-          GM._pendingCharacters = GM._pendingCharacters.filter(function(p){ return p.name !== name; });
-        } catch(e) {
-          console.warn('[扫描生成] ' + name + ' 失败', e.message);
-          // 失败·降级为 pending
-          addPendingCharacter({ name: name, source: '\u63A8\u6F14', snippet: _extractSnippet(fullTexts, name) });
-          pendingAdded.push(name);
-        }
-      } else {
-        addPendingCharacter({ name: name, source: '\u63A8\u6F14', snippet: _extractSnippet(fullTexts, name) });
-        pendingAdded.push(name);
-      }
+      addPendingCharacter({ name: name, source: '\u63A8\u6F14', snippet: _extractSnippet(fullTexts, name) });
+      pendingAdded.push(name);
     }
-    return { generated: generated, pending: pendingAdded };
+    return { generated: [], pending: pendingAdded };
   }
 
   /** 提取人名周边文本片段 */

@@ -243,6 +243,17 @@
       if (!Array.isArray(fac.npcEdicts)) fac.npcEdicts = [];
       if (fac.npcEdicts.length > 30) fac.npcEdicts = fac.npcEdicts.slice(-30);
       fac.npcEdicts.push(edict);
+      if (global.TM && global.TM.FactionActionEngine && typeof global.TM.FactionActionEngine.recordLocalAction === 'function') {
+        try {
+          global.TM.FactionActionEngine.recordLocalAction(fac, 'edict', {
+            type: edict.type,
+            content: edict.content,
+            trigger: edict.trigger,
+            treasuryDelta: edict.effects && edict.effects.treasuryDelta,
+            loyaltyDeltas: edict.effects && edict.effects.loyaltyDeltas
+          }, edict);
+        } catch(_){}
+      }
       // Phase H2·诏令全入近事快报
       if (global.TM && global.TM.FactionNpcNewsBridge) {
         try { global.TM.FactionNpcNewsBridge.pushEdict(fac, edict); } catch(_){}

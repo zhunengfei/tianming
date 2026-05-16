@@ -35,7 +35,7 @@
     // 数值 delta
     era_state_delta: 'object', global_state_delta: 'object',
     // 数组字段
-    character_deaths: 'array', new_characters: 'array',
+    character_deaths: 'array',
     char_updates: 'array', relations: 'array',
     faction_changes: 'array', faction_events: 'array', faction_relation_changes: 'array', faction_updates: 'array',
     party_changes: 'array', party_updates: 'array',
@@ -77,7 +77,6 @@
   // ─── 关键子字段必填检查（fallback） ───
   var REQUIRED_SUBFIELDS_FALLBACK = {
     character_deaths: ['name'],
-    new_characters: ['name'],
     office_changes: ['action'],
     admin_division_updates: ['action'],
     harem_events: ['type'],

@@ -835,6 +835,44 @@ function _npcTargetSort(a, b) {
   return (b.score || 0) - (a.score || 0) || String(a.ch.name).localeCompare(String(b.ch.name));
 }
 
+function _npcHistoryKindForAction(type) {
+  if (type === 'conspire') return 'conspiracy';
+  if (type === 'private_correspondence') return 'private_correspondence';
+  if (type === 'obstruct' || type === 'slander') return 'hidden_move';
+  return type || '';
+}
+
+function _npcRecentTargetPenalty(npc, type, target) {
+  if (!npc || !npc.name || !target || typeof GM === 'undefined' || !GM) return 0;
+  var kind = _npcHistoryKindForAction(type);
+  var turn = Number(GM.turn || 0);
+  var maxPenalty = 0;
+  function inspect(item, itemKind) {
+    if (!item) return;
+    var effectiveKind = item.kind || itemKind || '';
+    if (kind && effectiveKind && effectiveKind !== kind) return;
+    var from = item.from || item.actor || item.name || '';
+    var to = item.to || item.target || '';
+    if (from !== npc.name || to !== target) return;
+    var age = turn - Number(item.turn || turn);
+    if (age < 0 || age > 4) return;
+    maxPenalty = Math.max(maxPenalty, Math.max(20, 48 - age * 6));
+  }
+  (Array.isArray(GM._npcInternalActionHistory) ? GM._npcInternalActionHistory : []).forEach(function(item) {
+    inspect(item, item && item.kind);
+  });
+  (Array.isArray(GM._pendingNpcCorrespondence) ? GM._pendingNpcCorrespondence : []).forEach(function(item) {
+    inspect(item, 'private_correspondence');
+  });
+  (Array.isArray(GM._pendingNpcConspiracies) ? GM._pendingNpcConspiracies : []).forEach(function(item) {
+    inspect(item, 'conspiracy');
+  });
+  (Array.isArray(GM._npcHiddenMoves) ? GM._npcHiddenMoves : []).forEach(function(item) {
+    inspect(item, 'hidden_move');
+  });
+  return maxPenalty;
+}
+
 function _selectNpcActionTarget(npc, type, context) {
   if (!npc || !npc.name) return '';
   var people = _npcLiveCharacters().filter(function(ch) { return ch.name !== npc.name && !ch.isPlayer; });
@@ -850,6 +888,7 @@ function _selectNpcActionTarget(npc, type, context) {
       if (findNpcOffice(ch.name)) score += 6;
       score += Math.max(0, (ch.ambition || 50) - 50) * 0.1;
       score += Math.max(0, 75 - (ch.loyalty || 50)) * 0.05;
+      score -= _npcRecentTargetPenalty(npc, type, ch.name);
       return { ch: ch, score: score };
     }).filter(function(item) { return item.score > 0; }).sort(_npcTargetSort);
     return allies[0] ? allies[0].ch.name : '';
@@ -864,6 +903,7 @@ function _selectNpcActionTarget(npc, type, context) {
       if (findNpcOffice(ch.name)) score += 6;
       score += Math.max(0, (ch.intelligence || 50) - 50) * 0.08;
       score += Math.max(0, 75 - (ch.loyalty || 50)) * 0.04;
+      score -= _npcRecentTargetPenalty(npc, type, ch.name);
       return { ch: ch, score: score };
     }).filter(function(item) { return item.score > 0; }).sort(_npcTargetSort);
     return contacts[0] ? contacts[0].ch.name : '';
@@ -881,6 +921,7 @@ function _selectNpcActionTarget(npc, type, context) {
       if (findNpcOffice(ch.name)) score += 6;
       score += Math.max(0, (ch.ambition || 50) - 55) * 0.15;
       score += Math.max(0, (ch.intelligence || 50) - 55) * 0.08;
+      score -= _npcRecentTargetPenalty(npc, type, ch.name);
       return { ch: ch, score: score };
     }).filter(function(item) { return item.score > 0; }).sort(_npcTargetSort);
     return rivals[0] ? rivals[0].ch.name : '';
@@ -1050,6 +1091,27 @@ function _npcRemember(name, text, emotion, importance, who) {
   } catch (_) {}
 }
 
+function _recordNpcInternalAction(kind, item) {
+  if (!kind || !item) return;
+  var history = _npcEnsureArray(GM, '_npcInternalActionHistory');
+  var rec = {
+    kind: kind,
+    from: item.from || item.actor || item.name || '',
+    to: item.to || item.target || '',
+    intent: _npcShortText(item.intent || item.content || item.subjectLine || item.reason || '', '', 100),
+    turn: Number(item.turn || item.createdTurn || GM.turn || 0),
+    actionId: item._actionId || item.actionId || item.id || '',
+    visibility: item.visibility || item.type || 'internal'
+  };
+  var exists = history.some(function(x) {
+    if (!x) return false;
+    if (rec.actionId && x.actionId === rec.actionId) return true;
+    return x.kind === rec.kind && x.from === rec.from && x.to === rec.to && x.turn === rec.turn && x.intent === rec.intent;
+  });
+  if (!exists) history.push(rec);
+  if (history.length > 80) history.splice(0, history.length - 80);
+}
+
 function executePetitionBehavior(npc, target, decision, context) {
   var list = _npcEnsureArray(GM, 'memorials');
   var title = _npcShortText(decision.title || decision.subject || decision.intent, npc.name + '上疏言事', 36);
@@ -1077,14 +1139,16 @@ function executePetitionBehavior(npc, target, decision, context) {
 
 function executeConspireBehavior(npc, target, decision, context) {
   var list = _npcEnsureArray(GM, '_pendingNpcConspiracies');
-  list.push({
+  var rec = {
     id: _npcGeneratedId('conspire', npc),
     from: npc.name,
     target: target || '',
     intent: decision.intent || '暗中串联',
     turn: GM.turn,
     _npcAutonomous: true
-  });
+  };
+  list.push(rec);
+  _recordNpcInternalAction('conspiracy', rec);
   if (typeof AffinityMap !== 'undefined' && target) {
     try { AffinityMap.add(npc.name, target, 6, '暗中串联'); } catch (_) {}
   }
@@ -1132,7 +1196,7 @@ function executePrivateCorrespondenceBehavior(npc, target, decision, context) {
     to = _selectNpcActionTarget(npc, 'private_correspondence', context || buildNpcBehaviorContext());
   }
   if (!to || to === npc.name) return;
-  list.push({
+  var rec = {
     id: _npcGeneratedId('npc-corr', npc),
     from: npc.name,
     to: to,
@@ -1144,7 +1208,9 @@ function executePrivateCorrespondenceBehavior(npc, target, decision, context) {
     turn: GM.turn,
     _npcAutonomous: true,
     _actionId: decision.actionId || ''
-  });
+  };
+  list.push(rec);
+  _recordNpcInternalAction('private_correspondence', rec);
   if (typeof AffinityMap !== 'undefined' && to) {
     try { AffinityMap.add(npc.name, to, 3, '私下通信'); } catch (_) {}
   }
@@ -1177,7 +1243,7 @@ function executeRequestFundsBehavior(npc, target, decision, context) {
 
 function executeObstructBehavior(npc, target, decision, context) {
   var moves = _npcEnsureArray(GM, '_npcHiddenMoves');
-  moves.push({
+  var rec = {
     id: _npcGeneratedId('obstruct', npc),
     actor: npc.name,
     target: target || '',
@@ -1185,7 +1251,9 @@ function executeObstructBehavior(npc, target, decision, context) {
     turn: GM.turn,
     visibility: 'hidden',
     _npcAutonomous: true
-  });
+  };
+  moves.push(rec);
+  _recordNpcInternalAction('hidden_move', rec);
   addEB('阻挠', npc.name + '私下阻挠' + (target ? '·' + target : ''));
   _npcRemember(npc.name, '私下阻挠：' + _npcShortText(decision.intent, target, 50), '密', 5, target || '局中人');
 }
@@ -1200,6 +1268,14 @@ function executeSlanderBehavior(npc, target, decision, context) {
   if (typeof AffinityMap !== 'undefined' && target) {
     try { AffinityMap.add(target, npc.name, -8, '遭谗言'); } catch (_) {}
   }
+  _recordNpcInternalAction('hidden_move', {
+    id: _npcGeneratedId('slander', npc),
+    actor: npc.name,
+    target: target || '',
+    intent: decision.intent || '谗言攻讦',
+    turn: GM.turn,
+    visibility: 'hidden'
+  });
   addEB('谗言', npc.name + '议及' + (target || '他人'));
   _npcRemember(npc.name, '攻讦' + (target || '他人') + '：' + _npcShortText(decision.intent, '', 50), '密', 5, target || '他人');
 }
@@ -1596,16 +1672,24 @@ async function batchNpcDecisions(npcs, context) {
 // 构建 NPC 行为推演的上下文
 function _collectRecentNpcInternalActions(limit) {
   var out = [];
+  var seen = {};
   function push(kind, item) {
     if (!item) return;
-    out.push({
+    var rec = {
       kind: kind,
       from: item.from || item.actor || item.name || '',
       to: item.to || item.target || '',
       intent: _npcShortText(item.intent || item.content || item.subjectLine || item.reason || '', '', 80),
       turn: Number(item.turn || item.createdTurn || GM.turn || 0)
-    });
+    };
+    var key = [rec.kind, rec.from, rec.to, rec.turn, rec.intent].join('|');
+    if (seen[key]) return;
+    seen[key] = true;
+    out.push(rec);
   }
+  (Array.isArray(GM._npcInternalActionHistory) ? GM._npcInternalActionHistory : []).forEach(function(item) {
+    push(item.kind || 'internal', item);
+  });
   (Array.isArray(GM._pendingNpcCorrespondence) ? GM._pendingNpcCorrespondence : []).forEach(function(item) {
     push('private_correspondence', item);
   });
@@ -1660,7 +1744,8 @@ function buildNpcBehaviorContext() {
     pendingNpcLetters: _npcPendingLetterCount(),
     pendingNpcCorrespondence: Array.isArray(GM._pendingNpcCorrespondence) ? GM._pendingNpcCorrespondence.length : 0,
     pendingConspiracies: Array.isArray(GM._pendingNpcConspiracies) ? GM._pendingNpcConspiracies.length : 0,
-    hiddenMoves: Array.isArray(GM._npcHiddenMoves) ? GM._npcHiddenMoves.length : 0
+    hiddenMoves: Array.isArray(GM._npcHiddenMoves) ? GM._npcHiddenMoves.length : 0,
+    internalActionHistory: Array.isArray(GM._npcInternalActionHistory) ? GM._npcInternalActionHistory.length : 0
   };
   context.npcInternalActions = _collectRecentNpcInternalActions(8);
 

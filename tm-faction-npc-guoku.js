@@ -104,6 +104,19 @@
       if (!Array.isArray(fac.npcFiscalLedger)) fac.npcFiscalLedger = [];
       if (fac.npcFiscalLedger.length > 30) fac.npcFiscalLedger = fac.npcFiscalLedger.slice(-30);
       fac.npcFiscalLedger.push(rec);
+      if (global.TM && global.TM.FactionActionEngine && typeof global.TM.FactionActionEngine.recordLocalAction === 'function') {
+        try {
+          global.TM.FactionActionEngine.recordLocalAction(fac, 'fiscal_policy', {
+            resource: 'money',
+            before: rec.treasuryBefore,
+            after: rec.treasuryAfter,
+            delta: rec.net,
+            monthlyIncome: rec.monthlyIncome,
+            monthlyExpense: rec.monthlyExpense,
+            crisis: rec.crisis
+          }, rec);
+        } catch(_){}
+      }
       // Phase H2·crisis 转折入近事快报
       if (global.TM && global.TM.FactionNpcNewsBridge) {
         try { global.TM.FactionNpcNewsBridge.pushFiscalCrisis(fac, rec); } catch(_){}

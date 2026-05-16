@@ -24,6 +24,7 @@ function buildContext() {
    'tm-faction-derived-health.js', 'tm-faction-membership.js',
    'tm-faction-derived-economy.js', 'tm-faction-derived-cohesion.js', 'tm-faction-derived-strength.js',
    'tm-faction-npc-settings.js',
+   'tm-faction-action-engine.js',
    'tm-faction-npc-memorial.js', 'tm-faction-npc-edict.js', 'tm-faction-npc-chaoyi.js',
    'tm-faction-npc-office.js', 'tm-faction-npc-guoku.js',
    'tm-faction-npc-llm-decision.js'].forEach(function(f){
@@ -223,6 +224,94 @@ function nativeOfficeFiscalActionsTest() {
   console.log('[native-actions] office/fiscal assertions pass');
 }
 
+function actionEngineStrategicActionsTest() {
+  var ctx = buildContext();
+  assert(ctx.TM.FactionActionEngine, 'FactionActionEngine missing');
+  assert(typeof ctx.TM.FactionActionEngine.validateDecision === 'function', 'engine validateDecision missing');
+  assert(typeof ctx.TM.FactionActionEngine.applyDecision === 'function', 'engine applyDecision missing');
+  assert(typeof ctx.TM.FactionActionEngine.scoreFactionCandidate === 'function', 'engine scoreFactionCandidate missing');
+
+  var fac = { name: '北镇', treasury: { money: 200000 }, derivedStrength: { value: 30 }, derivedHealth: { overall: 35, _source: { partyImbalance: 0.4 } }, aiProfile: { posture: '守势' } };
+  var target = { name: '南藩', treasury: { money: 300000 }, derivedStrength: { value: 90 }, derivedHealth: { overall: 80, _source: { partyImbalance: 0.1 } } };
+  var spy = { name: '密探甲', faction: '北镇', loyalty: 60, alive: true };
+  ctx.GM = {
+    turn: 11,
+    facs: [fac, target],
+    chars: [spy],
+    armies: [],
+    factionRelations: [],
+    _npcInterventions: [{ turn: 10, targetFac: '北镇', action: 'spreadRumor' }],
+    activeWars: [{ name: '北南战事', sides: ['北镇', '南藩'], status: 'active' }],
+    qijuHistory: [],
+    _facIndex: { '北镇': { chars: [spy], parties: {}, metrics: {} }, '南藩': { chars: [], parties: {}, metrics: {} } }
+  };
+  ctx.P = { conf: { npcAiPrecision: true }, ai: { key: 'fake' }, playerInfo: { factionName: '玩家朝廷' } };
+
+  var raw = {
+    rationale: '北镇受压，暗行离间并扶乱牵制南藩。',
+    actions: [
+      { type: 'spy_or_intrigue', targetFaction: '南藩', target: '密探甲', intrigue: 'spread_rumor', relationDelta: -12, reason: '离间其众' },
+      { type: 'rebellion_policy', targetFaction: '南藩', policy: 'incite', support: 2, reason: '扰其边境' }
+    ]
+  };
+  var decision = ctx.TM.FactionActionEngine.validateDecision(raw);
+  var actions = ctx.TM.FactionActionEngine.normalizeDecisionActions(fac, decision);
+  assert(actions.map(function(a){ return a.type; }).join('|') === 'spy_or_intrigue|rebellion_policy', 'engine should normalize intrigue/rebellion actions');
+  var summary = ctx.TM.FactionActionEngine.applyDecision(fac, decision);
+  assert(summary.actions === 2, 'engine should apply intrigue/rebellion actions');
+  assert(Array.isArray(fac.npcIntrigueActions) && fac.npcIntrigueActions.length === 1, 'intrigue trajectory should be recorded');
+  assert(Array.isArray(fac.npcRebellionPolicies) && fac.npcRebellionPolicies.length === 1, 'rebellion trajectory should be recorded');
+  assert(target._rebellionPressure >= 2, 'rebellion policy should pressure target faction');
+  assert(fac.aiStrategy && Array.isArray(fac.aiStrategy.goals) && fac.aiStrategy.goals.length > 0, 'engine should maintain long-term strategy memory');
+
+  var weakButUrgent = ctx.TM.FactionActionEngine.scoreFactionCandidate(fac, { turn: 11, playerFactionNames: ['玩家朝廷'] });
+  var strongQuiet = ctx.TM.FactionActionEngine.scoreFactionCandidate(target, { turn: 11, playerFactionNames: ['玩家朝廷'] });
+  assert(weakButUrgent.score > strongQuiet.score, 'crisis/war/intervention should outrank raw strength');
+  console.log('[action-engine] strategic actions and priority scoring assertions pass');
+}
+
+function localTemplateLedgerTest() {
+  var ctx = buildContext();
+  var fac = {
+    name: 'LocalNpc',
+    treasury: { money: 500000, grain: 0, cloth: 0 },
+    derivedEconomy: { annualTaxIncome: 1200000, annualMilitaryCost: 600000, fiscalStress: 30, economyHealth: 70 },
+    derivedHealth: { courtCohesion: 40, personnelHealth: 20, militaryStability: 80, _source: { partyImbalance: 0.6 } },
+    derivedCohesion: { ethnic: 80 },
+    derivedStrength: { value: 60 }
+  };
+  var ruler = { name: 'Ruler', role: 'ruler', faction: 'LocalNpc', party: 'A', loyalty: 80, alive: true };
+  var court = { name: 'CourtA', role: 'court', faction: 'LocalNpc', party: 'A', loyalty: 70, charisma: 75, alive: true };
+  var general = { name: 'GeneralB', role: 'general', faction: 'LocalNpc', party: 'B', loyalty: 82, charisma: 78, military: 82, valor: 72, alive: true };
+  var low = { name: 'LowB', role: 'general', faction: 'LocalNpc', party: 'B', loyalty: 25, charisma: 40, military: 76, valor: 66, alive: true };
+  ctx.P = { playerInfo: { factionName: 'PLAYER' }, conf: { npcAiPrecision: true }, ai: { key: 'fake' } };
+  ctx.GM = {
+    turn: 3,
+    facs: [{ name: 'PLAYER', isPlayer: true }, fac],
+    chars: [ruler, court, general, low],
+    _facIndex: {
+      LocalNpc: {
+        chars: [ruler, court, general, low],
+        parties: { A: { name: 'A', memberCount: 2 }, B: { name: 'B', memberCount: 2 } },
+        metrics: { charByRole: { court: 1 } }
+      }
+    }
+  };
+
+  ctx.TM.FactionNpcMemorial.generate();
+  ctx.TM.FactionNpcEdict.generate();
+  ctx.TM.FactionNpcChaoyi.generate();
+  ctx.TM.FactionNpcOffice.generate();
+  ctx.TM.FactionNpcGuoku.generate();
+
+  var types = (fac._npcLlmActionLedger || []).map(function(x){ return x.type; });
+  ['memorial','edict','court_alignment','office_change','fiscal_policy'].forEach(function(t) {
+    assert(types.indexOf(t) >= 0, 'local template action should enter shared ledger: ' + t);
+  });
+  assert((fac._npcLlmActionLedger || []).every(function(x){ return x.engine === 'local-template' || x.engine === 'FactionActionEngine'; }), 'local ledger entries should identify their source engine');
+  console.log('[local-template-ledger] shared ledger assertions pass');
+}
+
 async function playerIsPlayerGuardTest() {
   var ctx = buildContext();
   ctx.P = {
@@ -349,6 +438,10 @@ function promptContextExpansionTest() {
   hj.npcChaoyi = [{ turn: 4, type: 'infight', summary: '诸贝勒争议南下' }];
   hj.npcOfficeActions = [{ turn: 4, action: 'promote', target: '阿敏', reason: '边功' }];
   hj.npcFiscalLedger = [{ turn: 4, crisis: true, stress: 82, summary: '军饷吃紧' }];
+  hj.npcMilitaryActions = [{ turn: 4, action: 'military_order', army: 'BlueBannerPrompt', reason: 'Prompt frontier drill', effect: { commanderFrom: 'OldCmd', commanderTo: 'NewCmd', trainingDelta: 4 } }];
+  hj.npcDiplomacyActions = [{ turn: 4, action: 'diplomacy', to: 'MingPromptEnvoy', reason: 'Prompt peace probe', effect: { relationFrom: -80, relationTo: -70 } }];
+  hj.npcProvincePolicies = [{ turn: 4, action: 'province_policy', province: 'PromptLiaoyang', reason: 'Prompt grain levy', effect: { revenueDelta: 900 } }];
+  hj.npcFiscalActions = [{ turn: 4, action: 'fiscal_policy', resource: 'money', amount: 45000, reason: 'Prompt war levy', effect: { before: 100000, after: 145000 } }];
   hj._lastLlmRationale = { turn: 4, text: '先稳内部，再窥辽东' };
 
   ctx.GM.shijiHistory = [
@@ -410,6 +503,8 @@ function promptContextExpansionTest() {
   assert(combined.indexOf('密令辽东诸将互为声援') >= 0, 'prompt should include current-turn edicts snapshot');
   assert(combined.indexOf('本回合主推演提示') >= 0, 'prompt should include current-turn main AI result snapshot');
   assert(combined.indexOf('FACTION_TRAJECTORY') >= 0, 'prompt should include faction trajectory section');
+  assert(combined.indexOf('BlueBannerPrompt') >= 0 && combined.indexOf('MingPromptEnvoy') >= 0 && combined.indexOf('PromptLiaoyang') >= 0 && combined.indexOf('Prompt war levy') >= 0,
+    'prompt should include expanded NPC LLM action trajectory');
   assert(combined.indexOf('SC16_WORLD_DIRECTIVE') >= 0, 'prompt should include sc16 current-turn directive section');
   assert(combined.indexOf('\u6682\u7f13\u5357\u4e0b') >= 0, 'prompt should include sc16 faction action');
   assert(combined.indexOf('sc16') >= 0, 'prompt should explain sc16 continuity rule');
@@ -464,6 +559,10 @@ function sc16BridgeContextTest() {
   hj.npcEdicts = [{ turn: 3, type: '\u6574\u519b', trigger: '\u8fbd\u4e1c\u7d27\u5f20', content: '\u5148\u7a33\u5185\u90e8\uff0c\u6682\u4e0d\u8f7b\u8fdb' }];
   hj.npcChaoyi = [{ turn: 3, type: 'compromise', summary: '\u8bf8\u8d1d\u52d2\u8bae\u5b9a\u7f13\u56fe\u8fb9\u9632' }];
   hj.npcFiscalLedger = [{ turn: 3, crisis: true, stress: 75, summary: '\u519b\u7cae\u5403\u7d27' }];
+  hj.npcMilitaryActions = [{ turn: 3, action: 'military_order', army: 'BlueBannerSc16', reason: 'Sc16 frontier drill', effect: { commanderFrom: 'OldCmd', commanderTo: 'NewCmd' } }];
+  hj.npcDiplomacyActions = [{ turn: 3, action: 'diplomacy', to: 'MingSc16Envoy', reason: 'Sc16 probe peace', effect: { relationFrom: -80, relationTo: -72 } }];
+  hj.npcProvincePolicies = [{ turn: 3, action: 'province_policy', province: 'Sc16Liaoyang', reason: 'Sc16 grain levy', effect: { revenueDelta: 700 } }];
+  hj.npcFiscalActions = [{ turn: 3, action: 'fiscal_policy', resource: 'money', amount: 25000, reason: 'Sc16 war levy', effect: { before: 100000, after: 125000 } }];
   hj._lastLlmRationale = { turn: 3, text: '\u5148\u7a33\u5185\u90e8\uff0c\u518d\u7aa5\u8fb9\u673a' };
   ctx.GM.qijuHistory = [
     { turn: 3, _source: 'npc-in-turn-llm', _facName: '\u540e\u91d1', content: '\u3010\u52bf\u529b\u8fd1\u4e8b\u3011\u540e\u91d1\u56de\u5408\u5185\u8c03\u9a91\u7a33\u8fbd\u4e1c' },
@@ -481,6 +580,8 @@ function sc16BridgeContextTest() {
   var bridge = fld.buildRecentTrajectoryContextForSc16({ maxFactions: 6, maxChars: 4000 });
   assert(bridge.indexOf('FACTION_PRECISION_HISTORY') >= 0, 'sc16 bridge should include precision history marker');
   assert(bridge.indexOf('\u5148\u7a33\u5185\u90e8') >= 0, 'sc16 bridge should include previous faction rationale/edict');
+  assert(bridge.indexOf('BlueBannerSc16') >= 0 && bridge.indexOf('MingSc16Envoy') >= 0 && bridge.indexOf('Sc16Liaoyang') >= 0 && bridge.indexOf('Sc16 war levy') >= 0,
+    'sc16 bridge should include expanded NPC LLM action trajectory');
   assert(bridge.indexOf('npc-in-turn-llm') >= 0, 'sc16 bridge should include in-turn precision news');
   assert(bridge.indexOf('npc-bridge') >= 0, 'sc16 bridge should include post-endturn precision news');
 
@@ -495,6 +596,8 @@ async function main() {
   actionSchemaAndOfficeSyncTest();
   nativeExpandedActionsTest();
   nativeOfficeFiscalActionsTest();
+  actionEngineStrategicActionsTest();
+  localTemplateLedgerTest();
   await playerIsPlayerGuardTest();
   promptContextExpansionTest();
   sc16BridgeContextTest();

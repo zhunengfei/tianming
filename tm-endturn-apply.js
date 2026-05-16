@@ -419,6 +419,9 @@
                   else if (e.action === 'birth' && e.heirName) {
                     if (!ch.children) ch.children = [];
                     ch.children.push(e.heirName);
+                    if (typeof addPendingCharacter === 'function' && typeof findCharByName === 'function' && !findCharByName(e.heirName)) {
+                      addPendingCharacter({ name: e.heirName, source: '家事', snippet: e.target + '诞下子嗣：' + e.heirName });
+                    }
                   } else if (e.action === 'succession') ch.inheritedTitle = true;
                 }
                 if (!GM.turnChanges) GM.turnChanges = {};
@@ -503,8 +506,8 @@
           }
         }
 
-        // v5·人物生成 B · 取消每回合 API 调用·改为玩家在史记弹窗手动点击 pending 名时按需生成
-        // (原 scanMentionedCharacters 调用已废弃·扫描+自动 AI 生成会产生误抓且耗 token)
+        // v5·人物生成 B · 取消每回合 API 调用·改为玩家手动点击 pending 名时按需生成
+        // scanMentionedCharacters 只允许登记 pending，不允许在回合推演中自动调用 AI 生成人物
         // pending 名仍由 char-link 的 onclick 触发 _tmClickPendingChar → crystallizePendingCharacter
 
         shizhengji = _tmFirstText(p1.shizhengji, p1.shizheng, p1.szj, p1.zhengwen, p1.shilu_text);
@@ -1117,77 +1120,6 @@
         }
 
         applyCharacterDeaths(p1);  // R100 抽出·原 220 行 if-block → tm-ai-apply-deaths.js
-
-        // 处理AI新增角色（子嗣出生、新投奔者等）
-        if (p1.new_characters && Array.isArray(p1.new_characters)) {
-          p1.new_characters.forEach(function(nc) {
-            if (!nc.name) return;
-            // 防止重名
-            if (findCharByName(nc.name)) { _dbg('[NewChar] 重名跳过: ' + nc.name); return; }
-            var newCh = {
-              name: nc.name, title: nc.title || '', age: clamp(parseInt(nc.age) || 0, 0, 120), gender: nc.gender || '',
-              faction: nc.faction || (P.playerInfo ? P.playerInfo.factionName : '') || '',
-              personality: nc.personality || '', appearance: nc.appearance || '',
-              loyalty: 70, ambition: 30,
-              intelligence: 40 + Math.floor(random() * 30),
-              valor: 30 + Math.floor(random() * 20),
-              administration: 30 + Math.floor(random() * 20),
-              charisma: 30 + Math.floor(random() * 40),
-              diplomacy: 30 + Math.floor(random() * 40),
-              alive: true, stress: 0, health: 100, traitIds: [], children: [],
-              _memory: [], _memArchive: [], _scars: [], _impressions: {},
-              location: nc.location || GM._capital || '',
-              parentOf: nc.parentOf || null, bio: nc.reason || '',
-              family: nc.family || '', familyTier: nc.familyTier || 'common',
-              _createdTurn: GM.turn
-            };
-            // 子嗣继承父族家族与门第
-            if (nc.parentOf && !newCh.family) {
-              var _parent = findCharByName(nc.parentOf);
-              if (_parent) {
-                if (_parent.family) newCh.family = _parent.family;
-                if (_parent.familyTier) newCh.familyTier = _parent.familyTier;
-              }
-            }
-            // 如果是子嗣——标记母亲并更新母亲children列表
-            if (nc.motherName) {
-              var mother = findCharByName(nc.motherName);
-              if (mother) {
-                if (!mother.children) mother.children = [];
-                mother.children.push(nc.name);
-                newCh.motherClan = mother.motherClan || mother.faction || '';
-                // 子嗣自动加入继承人列表
-                if (mother.spouse && GM.harem && nc.gender !== '\u5973') {
-                  if (!GM.harem.heirs) GM.harem.heirs = [];
-                  GM.harem.heirs.push(nc.name);
-                }
-              }
-            }
-            GM.chars.push(newCh);
-            // 更新角色索引
-            if (GM._indices && GM._indices.charByName) GM._indices.charByName.set(newCh.name, newCh);
-            GM.allCharacters.push({name:newCh.name,title:newCh.title,age:newCh.age,gender:newCh.gender,personality:newCh.personality,loyalty:newCh.loyalty,faction:newCh.faction,recruited:true,recruitTurn:GM.turn,source:nc.reason||'\u65B0\u751F'});
-            // 加入家族注册表
-            if (newCh.family && typeof addToFamily === 'function') addToFamily(newCh.name, newCh.family);
-            // 设置血缘关系
-            if (newCh.family && newCh.parentOf && typeof setFamilyRelation === 'function') {
-              setFamilyRelation(newCh.family, nc.name, newCh.parentOf, '\u7236\u5B50');
-            }
-            if (newCh.family && nc.motherName && typeof setFamilyRelation === 'function') {
-              setFamilyRelation(newCh.family, nc.name, nc.motherName, '\u6BCD\u5B50');
-            }
-            addEB('\u65B0\u4EBA', nc.name + '\uFF1A' + (nc.reason || '\u65B0\u89D2\u8272'));
-            if (typeof recordCharacterArc === 'function') recordCharacterArc(nc.name, 'event', nc.reason || '\u5165\u4E16');
-            // 子嗣出生时记入母亲和玩家的记忆
-            if (nc.motherName && typeof NpcMemorySystem !== 'undefined') {
-              NpcMemorySystem.remember(nc.motherName, '\u8BDE\u4E0B' + (nc.gender === '\u5973' ? '\u516C\u4E3B' : '\u7687\u5B50') + nc.name, '\u559C', 10, nc.name);
-              if (P.playerInfo && P.playerInfo.characterName) {
-                NpcMemorySystem.remember(P.playerInfo.characterName, nc.motherName + '\u8BDE\u4E0B' + nc.name, '\u559C', 8, nc.motherName);
-              }
-            }
-            _dbg('[NewChar] ' + nc.name + ' (' + (nc.reason || '') + ')');
-          });
-        }
 
         // 检测AI叙事中的怀孕事件（从shizhengji中提取）
         if (typeof HaremSettlement !== 'undefined' && GM.chars) {
@@ -4801,8 +4733,7 @@
     ctx.record.hourenXishuo = hourenXishuo || "";
     _applied.chars = _applied.chars || {
       char_updates: p1 && Array.isArray(p1.char_updates) ? p1.char_updates.length : 0,
-      character_deaths: p1 && Array.isArray(p1.character_deaths) ? p1.character_deaths.length : 0,
-      new_characters: p1 && Array.isArray(p1.new_characters) ? p1.new_characters.length : 0
+      character_deaths: p1 && Array.isArray(p1.character_deaths) ? p1.character_deaths.length : 0
     };
     _applied.factions = _applied.factions || {
       faction_changes: p1 && Array.isArray(p1.faction_changes) ? p1.faction_changes.length : 0,

@@ -310,6 +310,17 @@
         if (char._memorialMemory.length > 10) char._memorialMemory = char._memorialMemory.slice(-10);
 
         fac.npcMemorials.push(mem);
+        if (global.TM && global.TM.FactionActionEngine && typeof global.TM.FactionActionEngine.recordLocalAction === 'function') {
+          try {
+            global.TM.FactionActionEngine.recordLocalAction(fac, 'memorial', {
+              from: mem.from,
+              type: mem.type,
+              content: mem.content,
+              rulerDecision: mem.status,
+              loyaltyDelta: dec.loyaltyDelta
+            }, mem);
+          } catch(_){}
+        }
         // Phase H2·重要事件入近事快报
         if (global.TM && global.TM.FactionNpcNewsBridge) {
           try { global.TM.FactionNpcNewsBridge.pushMemorial(fac, mem); } catch(_){}

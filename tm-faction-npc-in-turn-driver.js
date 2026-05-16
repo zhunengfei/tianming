@@ -8,7 +8,7 @@
  *
  * 触发:
  *   1. 每回合 endturn 后·setTimeout 30s 触发一次·让 player 喘口气先看 UI
- *   2. 选 1 个 NPC fac (按 derivedStrength 加权随机)·调 decideFor·apply + push 快报
+ *   2. 选 1 个 NPC fac (按战略评分加权随机)·调 decideFor·apply + push 快报
  *   3. 一回合最多触发 inTurnMaxPerTurn (默认 8) 次·分批投到近事快报
  *   4. 标 fac._inTurnLlmRanTurns·记录已跑 fac·避免重复
  *
@@ -95,7 +95,7 @@
     return 0;
   }
 
-  // 选 1 个 NPC fac (按 derivedStrength 加权随机·已跑 fac 不重复)
+  // 选 1 个 NPC fac (按战略评分加权随机·已跑 fac 不重复)
   function _pickOneFac(turn) {
     if (!global.GM || !Array.isArray(global.GM.facs)) return null;
     var playerFacNames = _resolvePlayerFactionNames();
@@ -108,8 +108,13 @@
       return true;
     });
     if (npcs.length === 0) return null;
-    // 按 derivedStrength 加权·strength 高的 fac 更可能被选 (重要势力)
+    // 优先战争、财政危机、刚被玩家干预过的势力；没有 action engine 时退回强度权重。
+    var engine = global.TM && global.TM.FactionActionEngine;
     var weights = npcs.map(function(f){
+      if (engine && typeof engine.scoreFactionCandidate === 'function') {
+        var row = engine.scoreFactionCandidate(f, { turn: turn, playerFactionNames: playerFacNames });
+        return Math.max(1, _safeNum(row && row.score) || 1);
+      }
       return Math.max(1, (f.derivedStrength && f.derivedStrength.value) || 50);
     });
     var sum = weights.reduce(function(a, b){ return a + b; }, 0);

@@ -542,6 +542,10 @@
     var chaoyi = Array.isArray(fac.npcChaoyi) ? fac.npcChaoyi : [];
     var officeActions = Array.isArray(fac.npcOfficeActions) ? fac.npcOfficeActions : [];
     var ledger = Array.isArray(fac.npcFiscalLedger) ? fac.npcFiscalLedger : [];
+    var militaryActions = Array.isArray(fac.npcMilitaryActions) ? fac.npcMilitaryActions : [];
+    var diplomacyActions = Array.isArray(fac.npcDiplomacyActions) ? fac.npcDiplomacyActions : [];
+    var provincePolicies = Array.isArray(fac.npcProvincePolicies) ? fac.npcProvincePolicies : [];
+    var fiscalActions = Array.isArray(fac.npcFiscalActions) ? fac.npcFiscalActions : [];
 
     var html = '<div style="padding:0.8rem;max-height:78vh;overflow-y:auto;">';
     html += '<div style="font-size:0.78rem;color:var(--txt-d);margin-bottom:0.8rem;">观察·' + esc(fac.name) + ' 内政 (read-only·情报视角)·勿言敌国之政非己事</div>';
@@ -623,7 +627,13 @@
       html += '</div></div>';
     }
 
-    if (memorials.length === 0 && edicts.length === 0 && chaoyi.length === 0 && officeActions.length === 0 && ledger.length === 0) {
+    html += _renderNpcActionSection('军务', militaryActions, 5, _npcMilitaryActionText);
+    html += _renderNpcActionSection('外交', diplomacyActions, 5, _npcDiplomacyActionText);
+    html += _renderNpcActionSection('地政', provincePolicies, 5, _npcProvincePolicyText);
+    html += _renderNpcActionSection('财计', fiscalActions, 5, _npcFiscalActionText);
+
+    if (memorials.length === 0 && edicts.length === 0 && chaoyi.length === 0 && officeActions.length === 0 && ledger.length === 0
+        && militaryActions.length === 0 && diplomacyActions.length === 0 && provincePolicies.length === 0 && fiscalActions.length === 0) {
       html += '<div style="color:var(--txt-d);padding:1rem;text-align:center;">暂无内政记录·该势力 chars 数据稀少或刚刚生成</div>';
     }
 
@@ -866,6 +876,51 @@
     if (!Array.isArray(list) || list.length === 0) return '<span class="frp-muted">暂无</span>';
     return list.slice(0, limit).map(render).join('') + (list.length > limit ? '<span class="frp-more">+' + (list.length - limit) + '</span>' : '');
   }
+  function _npcMilitaryActionText(x) {
+    x = x || {};
+    var e = x.effect || {};
+    var text = (x.army || x.target || x.action || '军务调度');
+    if (e.commanderFrom || e.commanderTo) text += ' ' + (e.commanderFrom || '?') + '→' + (e.commanderTo || '?');
+    if (e.trainingDelta || e.moraleDelta) text += ' 练+' + (e.trainingDelta || 0) + ' 士+' + (e.moraleDelta || 0);
+    if (x.reason) text += ' · ' + x.reason;
+    return text;
+  }
+  function _npcDiplomacyActionText(x) {
+    x = x || {};
+    var e = x.effect || {};
+    var text = (x.to || x.target || x.action || '外交处置');
+    if (e.relationFrom !== undefined || e.relationTo !== undefined) text += ' 关系' + (e.relationFrom !== undefined ? e.relationFrom : '?') + '→' + (e.relationTo !== undefined ? e.relationTo : '?');
+    if (x.reason) text += ' · ' + x.reason;
+    return text;
+  }
+  function _npcProvincePolicyText(x) {
+    x = x || {};
+    var e = x.effect || {};
+    var text = (x.province || x.target || x.action || '地块政策');
+    if (e.ownerFrom || e.ownerTo) text += ' 归属' + (e.ownerFrom || '?') + '→' + (e.ownerTo || '?');
+    if (e.revenueDelta) text += ' 财赋' + (e.revenueDelta > 0 ? '+' : '') + e.revenueDelta;
+    if (x.reason) text += ' · ' + x.reason;
+    return text;
+  }
+  function _npcFiscalActionText(x) {
+    x = x || {};
+    var e = x.effect || {};
+    var text = (x.resource || x.action || '财政政策');
+    if (x.amount !== undefined) text += ' ' + x.amount;
+    if (e.before !== undefined || e.after !== undefined) text += ' 库存' + (e.before !== undefined ? e.before : '?') + '→' + (e.after !== undefined ? e.after : '?');
+    if (x.reason) text += ' · ' + x.reason;
+    return text;
+  }
+  function _renderNpcActionSection(title, list, limit, renderText) {
+    if (!Array.isArray(list) || list.length === 0) return '';
+    var html = '<div style="margin-bottom:0.7rem;"><div style="font-weight:600;color:var(--gold);margin-bottom:0.3rem;">' + esc(title) + '·近' + Math.min(list.length, limit) + '项</div>';
+    html += '<div style="font-size:0.76rem;background:var(--bg-2);border-radius:4px;padding:0.4rem;">';
+    list.slice(-limit).reverse().forEach(function(a){
+      html += '<div style="margin-bottom:0.25rem;border-left:2px solid var(--gold);padding-left:0.5rem;">第' + esc(a.turn || '-') + '回·' + esc(renderText(a)) + '</div>';
+    });
+    html += '</div></div>';
+    return html;
+  }
   function _recentForFac(facName) {
     var out = [];
     var logs = (global.GM && Array.isArray(GM._factionMilitaryLog)) ? GM._factionMilitaryLog : [];
@@ -879,6 +934,10 @@
       (fac.npcEdicts || []).slice(-4).forEach(function(x){ out.push({ turn:x.turn, type:'诏令', text:x._enrichedContent || x.content || x.trigger || '' }); });
       (fac.npcMemorials || []).slice(-4).forEach(function(x){ out.push({ turn:x.turn, type:'奏疏', text:(x.from ? x.from + '：' : '') + (x._enrichedContent || x.content || '') }); });
       (fac.npcOfficeActions || []).slice(-3).forEach(function(x){ out.push({ turn:x.turn, type:'人事', text:(x.target || '') + ' · ' + (x.reason || x.action || '') }); });
+      (fac.npcMilitaryActions || []).slice(-3).forEach(function(x){ out.push({ turn:x.turn, type:'军务', text:_npcMilitaryActionText(x) }); });
+      (fac.npcDiplomacyActions || []).slice(-3).forEach(function(x){ out.push({ turn:x.turn, type:'外交', text:_npcDiplomacyActionText(x) }); });
+      (fac.npcProvincePolicies || []).slice(-3).forEach(function(x){ out.push({ turn:x.turn, type:'地政', text:_npcProvincePolicyText(x) }); });
+      (fac.npcFiscalActions || []).slice(-3).forEach(function(x){ out.push({ turn:x.turn, type:'财计', text:_npcFiscalActionText(x) }); });
     }
     return out.sort(function(a,b){ return _num(b.turn,0) - _num(a.turn,0); }).slice(0, 8);
   }

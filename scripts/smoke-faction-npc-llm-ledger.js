@@ -52,6 +52,7 @@ function makeContext(opts) {
   vm.createContext(ctx);
 
   runFile(ctx, 'tm-faction-npc-settings.js');
+  runFile(ctx, 'tm-faction-action-engine.js');
   runFile(ctx, 'tm-faction-npc-llm-decision.js');
   runFile(ctx, 'tm-faction-npc-in-turn-driver.js');
 

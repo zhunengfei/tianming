@@ -1226,7 +1226,7 @@ function buildAIContext(deepMode) {
       if (GM.harem && GM.harem.pregnancies && GM.harem.pregnancies.length > 0) {
         GM.harem.pregnancies.forEach(function(preg) {
           ctx += '  ' + preg.motherName + '\u6709\u5B55\u4E2D';
-          if (preg.dueThisTurn) ctx += '\uFF08\u5373\u5C06\u4EA7\u5B50\uFF0C\u8BF7\u901A\u8FC7new_characters\u5B89\u6392\u5B50\u55E3\u8BDE\u751F\uFF09';
+          if (preg.dueThisTurn) ctx += '\uFF08\u5373\u5C06\u4EA7\u5B50\uFF0C\u4EC5\u8BB0\u5F55\u751F\u80B2\u4E8B\u4EF6\uFF0C\u4E0D\u5728\u56DE\u5408\u63A8\u6F14\u4E2D\u81EA\u52A8\u521B\u5EFA\u89D2\u8272\uFF09';
           ctx += '\n';
         });
       }

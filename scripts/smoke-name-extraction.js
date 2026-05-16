@@ -45,7 +45,7 @@ vm.runInContext(fs.readFileSync(path.join(ROOT, 'tm-char-autogen.js'), 'utf8'), 
 // 改用模拟：通过 extractMentionedCharacterNames 间接测
 
 // 没有 extractMentionedCharacterNames 暴露·只能伪造一个 aiResult 对象
-// 检查 scanMentionedCharacters 是 global 暴露的·但它还要 push 到 GM.chars
+// 检查 scanMentionedCharacters 是 global 暴露的·它只登记 pending，不创建 GM.chars
 // 我们要测纯抓取·所以直接构造 aiResult={zhengwen: text}·让代码内部走 extract 路径
 
 function scan(text) {
@@ -59,16 +59,15 @@ function scan(text) {
   // 调内部 extractMentionedCharacterNames（虽然没 global·但函数声明在 IIFE·只能从 scan 间接测）
   // 实际方法：scanMentionedCharacters 已经走完整流程·我们只关心抓到了什么名字
 
-  // 我们 hack：scanMentionedCharacters 内部会把候选 push 到 _pendingCharacters 或调 aiGenerate（无 API key 时仍会 fallback）
-  // 但 aiGenerate 在无 key 时会调 _fallbackTemplate·会真正 push 到 chars
-  // 我们只关心"哪些字符串被认成是候选"·不关心是否真生成
+  // scanMentionedCharacters 内部会把候选 push 到 _pendingCharacters
+  // 我们只关心"哪些字符串被认成是候选"
 
   // 简化方案：直接读 _extractNames 的结果——通过 monkey patch 拦截
 
   // 或：监听 GM._pendingCharacters·和 chars 新增
 
   const before = sandbox.GM.chars.map(c => c.name);
-  // 阻止 AI 调用——P.ai 设为 null·走 fallback
+  // 扫描不应触发 AI 调用
   sandbox.P.ai = null;
   try {
     sandbox.scanMentionedCharacters({ zhengwen: text });

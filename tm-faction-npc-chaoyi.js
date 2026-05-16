@@ -187,6 +187,18 @@
       if (!Array.isArray(fac.npcChaoyi)) fac.npcChaoyi = [];
       if (fac.npcChaoyi.length > 30) fac.npcChaoyi = fac.npcChaoyi.slice(-30);
       fac.npcChaoyi.push(chaoyi);
+      if (global.TM && global.TM.FactionActionEngine && typeof global.TM.FactionActionEngine.recordLocalAction === 'function') {
+        try {
+          global.TM.FactionActionEngine.recordLocalAction(fac, 'court_alignment', {
+            type: chaoyi.type,
+            summary: chaoyi.summary,
+            parties: chaoyi.parties,
+            participants: chaoyi.participants,
+            partyImbalanceDelta: chaoyi.effects && chaoyi.effects.partyImbalanceDelta,
+            loyaltyDeltaByParty: chaoyi.effects && chaoyi.effects.loyaltyDeltaByParty
+          }, chaoyi);
+        } catch(_){}
+      }
       // Phase H2·attack/cooperate 入近事快报
       if (global.TM && global.TM.FactionNpcNewsBridge) {
         try { global.TM.FactionNpcNewsBridge.pushChaoyi(fac, chaoyi); } catch(_){}

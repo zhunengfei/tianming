@@ -232,6 +232,40 @@ setTimeout(() => {
       }
     }
 
+    // ============ Path D: NPC 私信截获应进入鸿雁 UI ============
+    console.log('\n========== Path D: NPC 私信截获与鸿雁 UI ==========');
+    const oldRandom = sandbox.Math.random;
+    const oldGetElD = sandbox.document.getElementById;
+    const elementsD = {};
+    sandbox.document.getElementById = (id) => {
+      if (!elementsD[id]) elementsD[id] = fakeEl();
+      return elementsD[id];
+    };
+    sandbox._$ = (id) => sandbox.document.getElementById(id);
+    sandbox.Math.random = () => 0;
+    GM._pendingLetterTo = '';
+    GM._npcCorrespondence = [];
+    GM._pendingNpcCorrespondence = [{
+      from: '袁崇焕',
+      to: '孙承宗',
+      content: '密议辽事，先守宁远，再图广宁。',
+      summary: '辽东私议',
+      implication: '边臣互通军情',
+      type: 'secret'
+    }];
+    sandbox._settleLettersAndTravel();
+    assertEq(GM._pendingNpcCorrespondence.length, 0, 'settled NPC correspondence should leave pending queue');
+    assert(GM._npcCorrespondence.some(c => c.from === '袁崇焕' && c.to === '孙承宗'),
+      'intercepted NPC correspondence should enter player-visible correspondence archive');
+    sandbox.renderLetterPanel();
+    const histHtml = elementsD['letter-history'] ? elementsD['letter-history'].innerHTML : '';
+    assert(histHtml.indexOf('袁崇焕') >= 0 && histHtml.indexOf('孙承宗') >= 0,
+      'letter UI should render intercepted NPC correspondence participants');
+    assert(histHtml.indexOf('密议辽事') >= 0,
+      'letter UI should render intercepted NPC correspondence content');
+    sandbox.Math.random = oldRandom;
+    sandbox.document.getElementById = oldGetElD;
+
     console.log('[smoke-letter-full] pass assertions=' + ASSERTS);
     process.exit(0);
   } catch (e) {
