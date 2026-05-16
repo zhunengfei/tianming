@@ -97,6 +97,132 @@ function unitTests() {
   console.log('[smoke-faction-npc-llm-decision] unit tests pass·9 assertions');
 }
 
+function actionSchemaAndOfficeSyncTest() {
+  var ctx = buildContext();
+  var fac = { name: '测试势力', treasury: { money: 300000 }, derivedHealth: { _source: { partyImbalance: 0.2 } } };
+  var ruler = { name: '测试君', faction: '测试势力', position: '主君', role: 'ruler', loyalty: 60, alive: true };
+  var minister = { name: '测试臣', faction: '测试势力', position: '旧职', officialTitle: '旧职', party: '清流', loyalty: 50, alive: true };
+  ctx.GM = {
+    turn: 7,
+    facs: [fac],
+    chars: [ruler, minister],
+    qijuHistory: [],
+    _facIndex: { '测试势力': { chars: [ruler, minister], parties: { '清流': { name: '清流' } }, metrics: {} } }
+  };
+  ctx.P = { conf: { npcAiPrecision: true }, ai: { key: 'fake' }, playerInfo: { factionName: '明朝廷' } };
+  ctx._appointmentCalls = [];
+  ctx.onAppointment = function(name, position, binding) {
+    ctx._appointmentCalls.push({ name: name, position: position, binding: binding });
+    var ch = ctx.GM.chars.find(function(c){ return c.name === name; });
+    if (ch) ch.officialTitle = position;
+    return { ok: true, treeUpdated: true };
+  };
+
+  var decision = ctx.TM.FactionNpcLlmDecision._validateDecision({
+    rationale: '测试君衡量内外，先行整饬朝班。',
+    memorials: [{ from: '测试臣', type: '人事', content: '臣请整饬官箴。', rulerDecision: 'approved', loyaltyDelta: 1 }],
+    edict: { type: '赏赐', content: '赐群臣银，以固人心。', trigger: '稳定', treasuryDelta: -10000, loyaltyDeltas: { court: 1 } },
+    chaoyi: { type: 'cooperate', summary: '清流暂与主君相和。', partyImbalanceDelta: -0.05, loyaltyDeltaByParty: { '清流': 2 } },
+    office: [{ kind: 'promote', target: '测试臣', newPosition: '议政大臣', loyaltyDelta: 3, reason: '才堪任事' }]
+  });
+
+  var actions = ctx.TM.FactionNpcLlmDecision._normalizeDecisionActions(fac, decision);
+  assert(Array.isArray(actions), 'normalized actions should be array');
+  assert(actions.map(function(a){ return a.type; }).join('|') === 'memorial|edict|court_alignment|office_change', 'decision should normalize into canonical action types');
+  assert(actions.every(function(a){ return a.decisionId && a.actionId; }), 'actions should carry decision/action ids');
+
+  var summary = ctx.TM.FactionNpcLlmDecision._applyDecision(fac, decision);
+  assert(summary.actions === 4, 'summary should report applied action count');
+  assert(ctx._appointmentCalls.length === 1, 'office change should use onAppointment hook when available');
+  assert(ctx._appointmentCalls[0].position === '议政大臣', 'onAppointment receives target office title');
+  assert(minister.position === '议政大臣', 'character position still syncs for old UI');
+  assert(minister.officialTitle === '议政大臣', 'officialTitle should sync through appointment hook');
+  assert(Array.isArray(fac._npcLlmActionLedger) && fac._npcLlmActionLedger.length === 4, 'faction should keep normalized LLM action ledger');
+  assert(fac.npcOfficeActions[fac.npcOfficeActions.length - 1]._actionType === 'office_change', 'office trajectory should be tagged with canonical action type');
+  console.log('[action-schema] normalization and office sync assertions pass');
+}
+
+function nativeExpandedActionsTest() {
+  var ctx = buildContext();
+  var ming = { name: '明朝廷', territories: ['辽东'] };
+  var hj = { name: '后金', territories: [] };
+  ctx.GM = {
+    turn: 8,
+    facs: [ming, hj],
+    chars: [{ name: '袁崇焕', faction: '明朝廷', alive: true }],
+    armies: [{ name: '关宁军', faction: '明朝廷', commander: '旧帅', soldiers: 30000 }],
+    factionRelations: [{ from: '明朝廷', to: '后金', type: '敌对', value: -60, desc: '辽东交兵' }],
+    provinceStats: { '辽东': { owner: '明朝廷', minxinLocal: 45, corruptionLocal: 30 } },
+    _provinceToFaction: { '辽东': '明朝廷' },
+    qijuHistory: [],
+    _facIndex: { '明朝廷': { chars: [{ name: '袁崇焕', faction: '明朝廷', alive: true }], parties: {}, metrics: {} } }
+  };
+  ctx.P = { conf: { npcAiPrecision: true }, ai: { key: 'fake' }, playerInfo: { factionName: '玩家外部势力' } };
+
+  var decision = ctx.TM.FactionNpcLlmDecision._validateDecision({
+    rationale: '边事急，先易将、绝盟、割据辽东。',
+    actions: [
+      { type: 'military_order', army: '关宁军', order: 'change_commander', commander: '袁崇焕', reason: '辽事专任' },
+      { type: 'diplomacy', targetFaction: '后金', relationDelta: -20, relationType: '敌对加深', reason: '边衅再起' },
+      { type: 'province_policy', province: '辽东', policy: 'transfer_owner', ownerFaction: '后金', reason: '战线失守' }
+    ]
+  });
+  var actions = ctx.TM.FactionNpcLlmDecision._normalizeDecisionActions(ming, decision);
+  assert(actions.map(function(a){ return a.type; }).join('|') === 'military_order|diplomacy|province_policy', 'native expanded actions should normalize');
+  assert(actions.every(function(a){ return a.source === 'native'; }), 'expanded actions should be tagged native');
+
+  var summary = ctx.TM.FactionNpcLlmDecision._applyDecision(ming, decision);
+  assert(summary.actions === 3, 'expanded native actions should apply');
+  assert(ctx.GM.armies[0].commander === '袁崇焕', 'military_order should update commander');
+  assert(ctx.GM.armies[0].general === '袁崇焕', 'military_order should sync commander aliases');
+  var rel = ctx.GM.factionRelations.find(function(r){ return r.from === '明朝廷' && r.to === '后金'; });
+  assert(rel && rel.value === -80, 'diplomacy should shift relation list value');
+  assert(ctx.GM._provinceToFaction['辽东'] === '后金', 'province_policy should update canonical owner');
+  assert(ctx.GM.provinceStats['辽东'].owner === '后金', 'province_policy should update provinceStats owner');
+  assert(hj.territories.indexOf('辽东') >= 0, 'province_policy should update receiving faction territories');
+  assert(Array.isArray(ming.npcMilitaryActions) && ming.npcMilitaryActions.length === 1, 'military action trajectory should be recorded');
+  assert(Array.isArray(ming.npcDiplomacyActions) && ming.npcDiplomacyActions.length === 1, 'diplomacy action trajectory should be recorded');
+  assert(Array.isArray(ming.npcProvincePolicies) && ming.npcProvincePolicies.length === 1, 'province policy trajectory should be recorded');
+  console.log('[native-actions] expanded military/diplomacy/province assertions pass');
+}
+
+function nativeOfficeFiscalActionsTest() {
+  var ctx = buildContext();
+  var fac = { name: '财政测试势力', treasury: { money: 100000, grain: 50000 } };
+  var minister = { name: '财政臣', faction: '财政测试势力', position: '旧职', officialTitle: '旧职', loyalty: 40, alive: true };
+  ctx.GM = {
+    turn: 9,
+    facs: [fac],
+    chars: [minister],
+    qijuHistory: [],
+    _facIndex: { '财政测试势力': { chars: [minister], parties: {}, metrics: {} } }
+  };
+  ctx.P = { conf: { npcAiPrecision: true }, ai: { key: 'fake' }, playerInfo: { factionName: '明朝廷' } };
+  ctx._appointmentCalls = [];
+  ctx.onAppointment = function(name, position) {
+    ctx._appointmentCalls.push({ name: name, position: position });
+    minister.officialTitle = position;
+    return { ok: true, treeUpdated: true };
+  };
+
+  var decision = ctx.TM.FactionNpcLlmDecision._validateDecision({
+    rationale: '财赋吃紧，擢臣督办。',
+    actions: [
+      { type: 'office_change', kind: 'promote', target: '财政臣', newPosition: '户部侍郎', loyaltyDelta: 4, reason: '督理饷务' },
+      { type: 'fiscal_policy', resource: 'money', treasuryDelta: 25000, reason: '清丈补入' }
+    ]
+  });
+  var summary = ctx.TM.FactionNpcLlmDecision._applyDecision(fac, decision);
+  assert(summary.actions === 2, 'native office/fiscal actions should apply');
+  assert(ctx._appointmentCalls.length === 1, 'native office_change should use appointment hook');
+  assert(minister.position === '户部侍郎' && minister.officialTitle === '户部侍郎', 'native office_change should sync character office fields');
+  assert(minister.loyalty === 44, 'native office_change should apply loyalty delta');
+  assert(fac.treasury.money === 125000, 'native fiscal_policy should change treasury money');
+  assert(Array.isArray(fac.npcOfficeActions) && fac.npcOfficeActions.length === 1, 'native office trajectory should be recorded');
+  assert(Array.isArray(fac.npcFiscalActions) && fac.npcFiscalActions.length === 1, 'native fiscal trajectory should be recorded');
+  console.log('[native-actions] office/fiscal assertions pass');
+}
+
 async function playerIsPlayerGuardTest() {
   var ctx = buildContext();
   ctx.P = {
@@ -293,6 +419,7 @@ function promptContextExpansionTest() {
   assert(combined.indexOf('CHAR_MEMORY') >= 0, 'prompt should include character memory section');
   assert(combined.indexOf('宁远败绩余痛') >= 0, 'prompt should include character scars');
   assert(combined.indexOf('镶蓝旗测试军') >= 0, 'prompt should include faction army context');
+  assert(combined.indexOf('"actions"') >= 0 && combined.indexOf('military_order|diplomacy|province_policy') >= 0, 'prompt should advertise native expanded action schema');
   console.log('[prompt] expansion assertions pass');
 }
 
@@ -365,6 +492,9 @@ function sc16BridgeContextTest() {
 
 async function main() {
   unitTests();
+  actionSchemaAndOfficeSyncTest();
+  nativeExpandedActionsTest();
+  nativeOfficeFiscalActionsTest();
   await playerIsPlayerGuardTest();
   promptContextExpansionTest();
   sc16BridgeContextTest();

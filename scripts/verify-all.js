@@ -51,6 +51,7 @@ const checks = [
   { name: 'faction-membership', file: 'smoke-faction-membership.js', estSec: 1, expectExit: 0 },
   { name: 'faction-panel-ui', file: 'smoke-faction-panel-ui.js', estSec: 1, expectExit: 0 },
   { name: 'faction-binding-lint', file: 'smoke-faction-binding-lint.js', estSec: 1, expectExit: 0 },
+  { name: 'faction-npc-llm-decision', file: 'smoke-faction-npc-llm-decision.js', estSec: 1, expectExit: 0 },
   { name: 'faction-npc-in-turn', file: 'smoke-faction-npc-in-turn-driver.js', estSec: 1, expectExit: 0 },
   { name: 'engine-phase0', file: 'smoke-engine-phase0.js', estSec: 1, expectExit: 0 },
   { name: 'office-dynastification', file: 'smoke-office-dynastification.js', estSec: 1, expectExit: 0 },

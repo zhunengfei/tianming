@@ -65,6 +65,8 @@ async function main() {
       letters: [],
       _pendingNpcLetters: [],
       _pendingNpcCorrespondence: [],
+      _pendingNpcConspiracies: [],
+      _npcHiddenMoves: [],
       _pendingAudiences: [],
       _npcActionLedger: [],
       _capital: 'Capital',
@@ -152,6 +154,19 @@ async function main() {
   assert(courtCandidates.every(function(c) { return typeof c.score === 'number' && c.score > 0; }),
     'candidate actions should carry positive motivation scores');
 
+  ctx.GM._pendingNpcCorrespondence.push({ from: 'ZhangSan', to: 'LiSi', intent: 'Pre-seeded private note', turn: ctx.GM.turn });
+  ctx.GM._pendingNpcConspiracies.push({ from: 'ZhangSan', target: 'LiSi', intent: 'Pre-seeded faction talk', turn: ctx.GM.turn });
+  ctx.GM._npcHiddenMoves.push({ actor: 'QianRival', target: 'ZhangSan', intent: 'Pre-seeded obstruction', turn: ctx.GM.turn });
+  const enrichedContext = ctx.buildNpcBehaviorContext();
+  assert(enrichedContext.courtWorkload && enrichedContext.courtWorkload.pendingNpcCorrespondence === 1,
+    'NPC behavior context should expose pending private correspondence pressure');
+  assert(enrichedContext.courtWorkload.pendingConspiracies === 1 && enrichedContext.courtWorkload.hiddenMoves === 1,
+    'NPC behavior context should expose hidden NPC activity counts');
+  assert(enrichedContext.npcInternalActions.some(function(x) { return x.kind === 'private_correspondence' && x.from === 'ZhangSan' && x.to === 'LiSi'; }),
+    'NPC behavior context should summarize recent private correspondence');
+  assert(enrichedContext.npcInternalActions.some(function(x) { return x.kind === 'hidden_move' && x.from === 'QianRival' && x.to === 'ZhangSan'; }),
+    'NPC behavior context should summarize recent hidden moves');
+
   const savedMemorials = ctx.GM.memorials;
   ctx.GM.memorials = Array.from({ length: 12 }, function(_, i) {
     return { id: 'busy-' + i, from: 'Busy' + i, status: 'pending_review', reviewed: false };
@@ -161,7 +176,34 @@ async function main() {
     'busy memorial queue should suppress low-priority new petition candidates');
   assert(pressureCourtCandidates.some(function(c) { return c.behaviorType === 'private_correspondence'; }),
     'busy court-facing queue should not suppress NPC-to-NPC private correspondence');
+  const pressureMilitaryCandidates = ctx._buildNpcActionCandidates(chars[2], behaviorContext);
+  assert(!pressureMilitaryCandidates.some(function(c) { return c.behaviorType === 'request_funds'; }),
+    'busy memorial queue should suppress low-priority military fund requests');
+  assert(pressureMilitaryCandidates.some(function(c) { return c.behaviorType === 'train_troops'; }),
+    'busy memorial queue should not suppress self-contained military training');
   ctx.GM.memorials = savedMemorials;
+
+  const savedAudiences = ctx.GM._pendingAudiences;
+  ctx.GM._pendingAudiences = Array.from({ length: 7 }, function(_, i) {
+    return { name: 'Audience' + i, reason: 'busy' };
+  });
+  const pressureAudienceCandidates = ctx._buildNpcActionCandidates(chars[3], behaviorContext);
+  assert(!pressureAudienceCandidates.some(function(c) { return c.behaviorType === 'seek_audience'; }),
+    'busy audience queue should suppress low-priority new audience requests');
+  assert(pressureAudienceCandidates.some(function(c) { return c.behaviorType === 'send_letter'; }),
+    'busy audience queue should still allow written reports');
+  ctx.GM._pendingAudiences = savedAudiences;
+
+  const savedLetters = ctx.GM._pendingNpcLetters;
+  ctx.GM._pendingNpcLetters = Array.from({ length: 11 }, function(_, i) {
+    return { from: 'Letter' + i };
+  });
+  const pressureLetterCandidates = ctx._buildNpcActionCandidates(chars[3], behaviorContext);
+  assert(!pressureLetterCandidates.some(function(c) { return c.behaviorType === 'send_letter'; }),
+    'busy letter queue should suppress low-priority new NPC letters');
+  assert(pressureLetterCandidates.some(function(c) { return c.behaviorType === 'seek_audience'; }),
+    'busy letter queue should still allow audience requests');
+  ctx.GM._pendingNpcLetters = savedLetters;
 
   await ctx.executeNpcBehaviors();
 
@@ -177,6 +219,8 @@ async function main() {
     'supplemental NPC decision should leave a readable NPC event');
   assert(/actionId/.test(lastPrompt) && /npcact/.test(lastPrompt),
     'batch NPC prompt should expose actionId candidate action cards');
+  assert(/CourtWorkload/.test(lastPrompt) && /NpcInternalActions/.test(lastPrompt),
+    'batch NPC prompt should expose court workload and internal NPC action context');
   assert(ctx.GM._npcActionLedger.some(function(x) { return x.actor === 'ZhangSan' && x.behaviorType === 'petition'; }),
     'executed NPC action should be recorded in structured action ledger');
   assert(!ctx._buildNpcActionCandidates(chars[0], behaviorContext).some(function(c) { return c.behaviorType === 'petition'; }),

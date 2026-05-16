@@ -945,9 +945,37 @@ function _recordNpcActionLedger(npc, decision) {
 }
 
 function _npcPendingMemorialCount() {
-  return Array.isArray(GM.memorials) ? GM.memorials.filter(function(m) {
-    return m && (m.status === 'pending_review' || m.reviewed === false || (!m.status && !m.reviewed));
-  }).length : 0;
+  var list = Array.isArray(GM.memorials) ? GM.memorials : [];
+  return list.filter(function(m) {
+    if (!m) return false;
+    var status = String(m.status || m.state || '').toLowerCase();
+    if (m.reviewed === true) return false;
+    return !status || status === 'pending_review' || status === 'pending' || status === 'new' || status === 'unread';
+  }).length;
+}
+
+function _npcPendingAudienceCount() {
+  return Array.isArray(GM._pendingAudiences) ? GM._pendingAudiences.length : 0;
+}
+
+function _npcPendingLetterCount() {
+  return Array.isArray(GM._pendingNpcLetters) ? GM._pendingNpcLetters.length : 0;
+}
+
+function _isNpcCandidateBlockedByQueuePressure(candidate) {
+  if (!candidate) return false;
+  var type = candidate.behaviorType;
+  var score = Number(candidate.score || candidate.baseScore || 0);
+  if ((type === 'petition' || type === 'request_funds') && _npcPendingMemorialCount() >= 10) {
+    return score < 45;
+  }
+  if (type === 'seek_audience' && _npcPendingAudienceCount() >= 6) {
+    return score < 45;
+  }
+  if (type === 'send_letter' && _npcPendingLetterCount() >= 10) {
+    return score < 45;
+  }
+  return false;
 }
 
 function _buildNpcActionCandidates(npc, context) {
@@ -981,7 +1009,8 @@ function _buildNpcActionCandidates(npc, context) {
     candidates.push(_makeNpcActionCandidate(npc, 'slander', rivalTarget, '散布微词，试探朝局风向', 10));
   }
   candidates = candidates.filter(function(c) {
-    return !_isNpcActionCoolingDown(npc, c.behaviorType, c.target, context, c.id);
+    return !_isNpcActionCoolingDown(npc, c.behaviorType, c.target, context, c.id)
+      && !_isNpcCandidateBlockedByQueuePressure(c);
   });
   candidates.sort(function(a, b) { return b.score - a.score; });
   return candidates;
@@ -1099,6 +1128,10 @@ function executeSendLetterBehavior(npc, target, decision, context) {
 function executePrivateCorrespondenceBehavior(npc, target, decision, context) {
   var list = _npcEnsureArray(GM, '_pendingNpcCorrespondence');
   var to = target || decision.to || decision.targetName || '';
+  if (!to || to === npc.name || (typeof findCharByName === 'function' && !findCharByName(to))) {
+    to = _selectNpcActionTarget(npc, 'private_correspondence', context || buildNpcBehaviorContext());
+  }
+  if (!to || to === npc.name) return;
   list.push({
     id: _npcGeneratedId('npc-corr', npc),
     from: npc.name,
@@ -1117,6 +1150,7 @@ function executePrivateCorrespondenceBehavior(npc, target, decision, context) {
   }
   addEB('私信', npc.name + '私下致书' + (to ? '·' + to : ''));
   _npcRemember(npc.name, '私下通信：' + _npcShortText(decision.intent, to, 50), '密', 5, to || '同僚');
+  _npcRemember(to, '收到' + npc.name + '私下来信：' + _npcShortText(decision.intent, '', 50), '密', 5, npc.name);
 }
 
 function executeSeekAudienceBehavior(npc, target, decision, context) {
@@ -1238,6 +1272,8 @@ function _normalizeNpcBehaviorType(type) {
     send_letter: 'send_letter',
     privateCorrespondence: 'private_correspondence',
     private_correspondence: 'private_correspondence',
+    npcCorrespondence: 'private_correspondence',
+    npc_correspondence: 'private_correspondence',
     seekAudience: 'seek_audience',
     seek_audience: 'seek_audience',
     requestFunds: 'request_funds',
@@ -1424,6 +1460,13 @@ async function batchNpcDecisions(npcs, context) {
     }
   }
 
+  if (context.courtWorkload) {
+    prompt += '\nCourtWorkload(JSON):' + JSON.stringify(context.courtWorkload) + '\n';
+  }
+  if (context.npcInternalActions && context.npcInternalActions.length) {
+    prompt += 'NpcInternalActions(JSON):' + JSON.stringify(context.npcInternalActions).slice(0, 900) + '\n';
+  }
+
   // 每个 NPC 简要信息
   prompt += '\n角色列表：\n';
   npcs.forEach(function(npc, idx) {
@@ -1551,6 +1594,31 @@ async function batchNpcDecisions(npcs, context) {
 }
 
 // 构建 NPC 行为推演的上下文
+function _collectRecentNpcInternalActions(limit) {
+  var out = [];
+  function push(kind, item) {
+    if (!item) return;
+    out.push({
+      kind: kind,
+      from: item.from || item.actor || item.name || '',
+      to: item.to || item.target || '',
+      intent: _npcShortText(item.intent || item.content || item.subjectLine || item.reason || '', '', 80),
+      turn: Number(item.turn || item.createdTurn || GM.turn || 0)
+    });
+  }
+  (Array.isArray(GM._pendingNpcCorrespondence) ? GM._pendingNpcCorrespondence : []).forEach(function(item) {
+    push('private_correspondence', item);
+  });
+  (Array.isArray(GM._pendingNpcConspiracies) ? GM._pendingNpcConspiracies : []).forEach(function(item) {
+    push('conspiracy', item);
+  });
+  (Array.isArray(GM._npcHiddenMoves) ? GM._npcHiddenMoves : []).forEach(function(item) {
+    push('hidden_move', item);
+  });
+  out.sort(function(a, b) { return (b.turn || 0) - (a.turn || 0); });
+  return out.slice(0, limit || 8);
+}
+
 function buildNpcBehaviorContext() {
   var context = {
     turn: GM.turn,
@@ -1585,6 +1653,16 @@ function buildNpcBehaviorContext() {
       context.pregnancies = GM.harem.pregnancies || [];
     }
   }
+
+  context.courtWorkload = {
+    pendingMemorials: _npcPendingMemorialCount(),
+    pendingAudiences: _npcPendingAudienceCount(),
+    pendingNpcLetters: _npcPendingLetterCount(),
+    pendingNpcCorrespondence: Array.isArray(GM._pendingNpcCorrespondence) ? GM._pendingNpcCorrespondence.length : 0,
+    pendingConspiracies: Array.isArray(GM._pendingNpcConspiracies) ? GM._pendingNpcConspiracies.length : 0,
+    hiddenMoves: Array.isArray(GM._npcHiddenMoves) ? GM._npcHiddenMoves.length : 0
+  };
+  context.npcInternalActions = _collectRecentNpcInternalActions(8);
 
   return context;
 }

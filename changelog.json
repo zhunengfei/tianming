@@ -3,6 +3,25 @@
   "entries": [
     {
       "date": "2026-05-16",
+      "module": "势力NPC推演·玩家边界与行动账本",
+      "title": "玩家势力不再被势力 LLM 接管，并补齐 NPC 行动落账",
+      "items": [
+        {
+          "what": "势力 NPC LLM 推演继续跳过玩家势力和玩家实际控制势力，避免每回合自动替玩家势力生成奏疏、诏令、朝议倾向或人事调整。",
+          "why": "玩家势力应由玩家亲自控制，NPC 势力推演只能用于非玩家势力。"
+        },
+        {
+          "what": "NPC 势力决策会标准化为 memorial、edict、court_alignment、office_change 等行动，并写入 decisionId、actionId 与势力行动账本。",
+          "why": "方便后续追踪某一次 LLM 决策究竟生成了哪些动作，也能区分已应用与被跳过的动作。"
+        },
+        {
+          "what": "势力 LLM 的人事任免会优先走 onAppointment / AIChangeApplier 钩子，并同步 position 与 officialTitle；NPC 自主行为在奏疏、问对、鸿雁队列过载时会压低低优先级新增请求。",
+          "why": "减少后台任免与旧 UI 字段脱节，也避免每回合低优先级奏疏、求见、来信堆满队列。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-16",
       "module": "正式界面·案牍面板",
       "title": "放大撰写诏书、百官奏疏、鸿雁传书与史官实录面板",
       "items": [
