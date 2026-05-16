@@ -3,6 +3,29 @@
   "entries": [
     {
       "date": "2026-05-16",
+      "module": "启动回归·策名馆·语义召回",
+      "title": "修正策名馆开窗报错，并让语义召回优先使用本地模型",
+      "items": [
+        {
+          "what": "策名馆对话框打开后改为调用 TM.ceming._switchTab('library')，不再调用不存在的局部 _switchTab。",
+          "why": "避免打开策名馆时控制台抛错，影响后续 UI 初始化。"
+        },
+        {
+          "what": "语义召回加载模型前会探测本地 vendor/models 下的 config.json 与 tokenizer.json，命中后强制走本地模型并关闭远程模型请求。",
+          "why": "减少网页端或桌面端在未授权情况下访问远程 HuggingFace/mirror 的失败噪音，优先使用可打包的本地资源。"
+        },
+        {
+          "what": "远程语义模型回退改为显式开关 semanticRecallRemoteFallback === true 才允许。",
+          "why": "默认离线/本地优先，只有玩家或配置明确允许时才走外部网络。"
+        },
+        {
+          "what": "新增 endturn-console-regressions smoke，并纳入 verify-all。",
+          "why": "锁住策名馆开窗和语义召回加载策略，防止后续回归。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-16",
       "module": "官制任免·忠诚日志·诏书面板",
       "title": "修正升迁被误判为罢免，并收紧同势力嫉妒扣忠诚规则",
       "items": [

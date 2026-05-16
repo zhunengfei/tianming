@@ -517,7 +517,9 @@
     document.body.appendChild(ov);
 
     // 初始渲染库内 tab
-    _switchTab('library');
+    if (TM.ceming && typeof TM.ceming._switchTab === 'function') {
+      TM.ceming._switchTab('library');
+    }
   };
 
   TM.ceming.closeDialog = function() {

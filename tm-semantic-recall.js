@@ -35,6 +35,37 @@
     downloadFile: ''       // 当前下载的文件名
   };
 
+  async function probeSemanticAsset(path) {
+    if (typeof fetch !== 'function') return false;
+    try {
+      var head = await fetch(path, { method: 'HEAD', cache: 'no-store' });
+      if (head && head.ok) return true;
+    } catch(_) {}
+    try {
+      var get = await fetch(path, { cache: 'no-store' });
+      return !!(get && get.ok);
+    } catch(_) {
+      return false;
+    }
+  }
+
+  function semanticRemoteFallbackAllowed() {
+    try {
+      return !!(typeof P !== 'undefined' && P && P.conf && P.conf.semanticRecallRemoteFallback === true);
+    } catch(_) {
+      return false;
+    }
+  }
+
+  function setSemanticUnavailable(message) {
+    STATE.modelLoading = false;
+    STATE.modelReady = false;
+    STATE.pipeline = null;
+    STATE.error = String(message || 'semantic recall model unavailable');
+    STATE.loadSource = 'unavailable';
+    return false;
+  }
+
   // ────── 模型加载 ──────
   async function ensureModel() {
     if (STATE.modelReady) return true;
@@ -63,24 +94,22 @@
       // P9.1·P9.2 模型加载策略
       // (a) Electron 端·若本地预打包 vendor/models 存在·优先用本地
       // (b) 网页端·首选 hf-mirror.com（CN 友好）·失败回退 huggingface.co
-      var isElectron = (typeof window !== 'undefined' && window.tianming) ||
-                       (typeof navigator !== 'undefined' && (navigator.userAgent || '').indexOf('Electron') >= 0);
-      // 检查本地预打包是否存在（Electron 端·HEAD 请求轻量检测）
-      var hasLocalModel = false;
-      if (isElectron) {
-        try {
-          var probe = await fetch('./vendor/models/' + STATE.modelName + '/config.json', { method: 'HEAD' });
-          hasLocalModel = probe.ok;
-        } catch(_pe) { hasLocalModel = false; }
-      }
-      transformers.env.allowLocalModels = true;
+      var localModelRoot = './vendor/models/';
+      var localModelPath = localModelRoot + STATE.modelName + '/';
+      var hasLocalModel = await probeSemanticAsset(localModelPath + 'config.json') &&
+                           await probeSemanticAsset(localModelPath + 'tokenizer.json');
       transformers.env.useBrowserCache = true;
       if (hasLocalModel) {
         // 完全离线·从本地 vendor 加载
-        transformers.env.localModelPath = './vendor/models/';
+        transformers.env.localModelPath = localModelRoot;
+        transformers.env.allowLocalModels = true;
         transformers.env.allowRemoteModels = false;
         STATE.loadSource = 'local-vendor';
       } else {
+        transformers.env.allowLocalModels = false;
+        if (!semanticRemoteFallbackAllowed()) {
+          return setSemanticUnavailable('local semantic model assets not reachable; remote fallback disabled');
+        }
         // 网页端·优先 hf-mirror·失败再回退 hf 主站
         transformers.env.allowRemoteModels = true;
         transformers.env.remoteHost = 'https://hf-mirror.com';
