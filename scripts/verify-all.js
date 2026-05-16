@@ -101,6 +101,8 @@ const checks = [
   // Phase 7 P7-β baseline·tm-endturn-ai-infer 行为快照·拆分前 lockdown (Claude own)
   { name: 'endturn-public-contract', file: 'smoke-endturn-public-contract.js', estSec: 1, expectExit: 0 },
   { name: 'endturn-subcall-registry', file: 'smoke-endturn-subcall-registry.js', estSec: 1, expectExit: 0 },
+  { name: 'postturn-court-turn-gating', file: 'smoke-postturn-court-turn-gating.js', estSec: 1, expectExit: 0 },
+  { name: 'postturn-court-deferred-finalize', file: 'smoke-postturn-court-deferred-finalize.js', estSec: 1, expectExit: 0 },
   { name: 'endturn-prompt-tokens', file: 'smoke-endturn-prompt-tokens.js', estSec: 1, expectExit: 0 },
   { name: 'endturn-helpers', file: 'smoke-endturn-helpers.js', estSec: 1, expectExit: 0 },
   { name: 'endturn-apply-fields', file: 'smoke-endturn-apply-fields.js', estSec: 1, expectExit: 0 },

@@ -662,6 +662,11 @@
   /** 核心七变量：guoku / neitang / population / corruption / minxin / huangquan / huangwei
    *  每回合执行 42 联动 */
 
+  function _allowPassiveAuthorityLinkage() {
+    var G = global.GM;
+    return !!(G && G.settings && G.settings.passiveAuthorityLinkage === true);
+  }
+
   function _tickVarLinkage(ctx, mr) {
     var G = global.GM;
     if (!G) return;
@@ -736,9 +741,9 @@
     // 腐败 → 民心（直接）
     if (corruptOverall > 50) adjustMinxin('localOfficial', -(corruptOverall - 50) * 0.005 * mr, '贪腐横行');
     // 腐败 → 皇权（虚报扭曲）
-    if (corruptOverall > 70) adjustHuangquan('idleGovern', -0.1 * mr, '虚报失真');
+    if (_allowPassiveAuthorityLinkage() && corruptOverall > 70) adjustHuangquan('idleGovern', -0.1 * mr, '虚报失真');
     // 腐败 → 皇威（官场贿赂公开化）
-    if (corruptOverall > 80) adjustHuangwei('courtScandal', -0.2 * mr, '贿赂公行');
+    if (_allowPassiveAuthorityLinkage() && corruptOverall > 80) adjustHuangwei('courtScandal', -0.2 * mr, '贿赂公行');
 
     // ── 民心 → 其他 ──
     var mx = _ensureMinxin();
@@ -751,10 +756,10 @@
         G.population.fugitives = (G.population.fugitives || 0) + Math.round(population.mouths * 0.001 * mr);
       }
       // 民心 → 皇权（民变威胁皇权）
-      if (mx.trueIndex < 30) adjustHuangquan('idleGovern', -0.15 * mr, '民心向背');
+      if (_allowPassiveAuthorityLinkage() && mx.trueIndex < 30) adjustHuangquan('idleGovern', -0.15 * mr, '民心向背');
       // 民心 → 皇威
-      if (mx.trueIndex > 80) adjustHuangwei('benevolence', 0.05 * mr, '民拥戴');
-      else if (mx.trueIndex < 30) adjustHuangwei('lostVirtueRumor', -0.1 * mr, '失德于民');
+      if (_allowPassiveAuthorityLinkage() && mx.trueIndex > 80) adjustHuangwei('benevolence', 0.05 * mr, '民拥戴');
+      else if (_allowPassiveAuthorityLinkage() && mx.trueIndex < 30) adjustHuangwei('lostVirtueRumor', -0.1 * mr, '失德于民');
     }
 
     // ── 皇权 → 其他 ──
@@ -765,8 +770,8 @@
         G.corruption.overall = Math.max(0, G.corruption.overall - 0.1 * mr);
       }
       // 皇权 → 皇威（强皇权 → 诏令执行，威增）
-      if (hq.index > 70) adjustHuangwei('structuralReform', 0.05 * mr);
-      else if (hq.index < 30) adjustHuangwei('memorialObjection', -0.1 * mr, '皇权旁落');
+      if (_allowPassiveAuthorityLinkage() && hq.index > 70) adjustHuangwei('structuralReform', 0.05 * mr);
+      else if (_allowPassiveAuthorityLinkage() && hq.index < 30) adjustHuangwei('memorialObjection', -0.1 * mr, '皇权旁落');
     }
 
     // ── 皇威 → 其他 ──
@@ -776,7 +781,7 @@
       if (hw.index > 80) adjustMinxin('imperialVirtue', 0.05 * mr);
       else if (hw.index < 30) adjustMinxin('imperialVirtue', -0.1 * mr);
       // 皇威 → 皇权
-      if (hw.index > 85) adjustHuangquan('personalRule', 0.03 * mr, '\u7687\u5a01\u6781\u76db\u4f20\u5bfc');
+      if (_allowPassiveAuthorityLinkage() && hw.index > 85) adjustHuangquan('personalRule', 0.03 * mr, '\u7687\u5a01\u6781\u76db\u4f20\u5bfc');
     }
   }
 

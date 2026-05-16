@@ -13,6 +13,70 @@
   window.TM = window.TM || {};
   TM.Endturn = TM.Endturn || {};
 
+  async function _runPostRenderTurnOpeners(ctx) {
+    try {
+      if (typeof window !== 'undefined' && window.TM && TM.FactionIndex && TM.FactionIndex.rebuild) {
+        TM.FactionIndex.rebuild();
+      }
+    } catch(_fxE) { try { console.warn('[pipeline.render-finalize] _facIndex 重建失败', _fxE); } catch(_){} }
+    try {
+      if (typeof window !== 'undefined' && window.TM && TM.FactionDerived && TM.FactionDerived.compute) {
+        TM.FactionDerived.compute();
+      }
+    } catch(_dhE) { try { console.warn('[pipeline.render-finalize] derivedHealth 计算失败', _dhE); } catch(_){} }
+    try {
+      if (typeof window !== 'undefined' && window.TM) {
+        if (TM.FactionDerivedEconomy && TM.FactionDerivedEconomy.compute) TM.FactionDerivedEconomy.compute();
+        if (TM.FactionDerivedCohesion && TM.FactionDerivedCohesion.compute) TM.FactionDerivedCohesion.compute();
+        if (TM.FactionDerivedStrength && TM.FactionDerivedStrength.compute) TM.FactionDerivedStrength.compute();
+      }
+    } catch(_dxE) { try { console.warn('[pipeline.render-finalize] derived B1-B3 失败', _dxE); } catch(_){} }
+    try {
+      if (typeof window !== 'undefined' && window.TM && TM.FactionNpcMemorial && TM.FactionNpcMemorial.generate) {
+        TM.FactionNpcMemorial.generate();
+      }
+    } catch(_npcmE) { try { console.warn('[pipeline.render-finalize] NPC memorial 生成失败', _npcmE); } catch(_){} }
+    try {
+      if (typeof window !== 'undefined' && window.TM && TM.FactionNpcEdict && TM.FactionNpcEdict.generate) {
+        TM.FactionNpcEdict.generate();
+      }
+    } catch(_npceE) { try { console.warn('[pipeline.render-finalize] NPC edict 生成失败', _npceE); } catch(_){} }
+    try {
+      if (typeof window !== 'undefined' && window.TM && TM.FactionNpcChaoyi && TM.FactionNpcChaoyi.generate) {
+        TM.FactionNpcChaoyi.generate();
+      }
+    } catch(_npccyE) { try { console.warn('[pipeline.render-finalize] NPC chaoyi 失败', _npccyE); } catch(_){} }
+    try {
+      if (typeof window !== 'undefined' && window.TM && TM.FactionNpcOffice && TM.FactionNpcOffice.generate) {
+        TM.FactionNpcOffice.generate();
+      }
+    } catch(_npcoE) { try { console.warn('[pipeline.render-finalize] NPC office 失败', _npcoE); } catch(_){} }
+    try {
+      if (typeof window !== 'undefined' && window.TM && TM.FactionNpcGuoku && TM.FactionNpcGuoku.generate) {
+        TM.FactionNpcGuoku.generate();
+      }
+    } catch(_npcgE) { try { console.warn('[pipeline.render-finalize] NPC guoku 失败', _npcgE); } catch(_){} }
+    try {
+      if (typeof window !== 'undefined' && window.TM && TM.FactionNpcLlmDecision && TM.FactionNpcSettings
+          && TM.FactionNpcSettings.isAiPrecisionEnabled() && TM.FactionNpcSettings.isEagerMode()) {
+        var _npcLlmTurn = (window.GM && GM.turn) || 1;
+        setTimeout(function() {
+          TM.FactionNpcLlmDecision.decideAll({ source: 'eager', turn: _npcLlmTurn }).then(function(r){
+            try { console.log('[npc-llm-decision/eager] turn ' + (window.GM && GM.turn) + ' applied=' + (r && r.applied) + ' attempted=' + (r && r.attempted)); } catch(_){}
+          }).catch(function(_e){
+            try { console.warn('[npc-llm-decision/eager] failed', _e); } catch(_){}
+          });
+        }, 300);
+      }
+    } catch(_npcdE) { try { console.warn('[pipeline.render-finalize] NPC LLM decision 调度失败', _npcdE); } catch(_){} }
+    try {
+      if (typeof window !== 'undefined' && window.TM && TM.FactionNpcInTurnDriver && TM.FactionNpcInTurnDriver.scheduleInTurnRuns) {
+        TM.FactionNpcInTurnDriver.scheduleInTurnRuns();
+      }
+    } catch(_npcInTurnE) { try { console.warn('[pipeline.render-finalize] NPC in-turn 调度失败', _npcInTurnE); } catch(_){} }
+    return ctx;
+  }
+
   /** @type {PipelineStep[]} */
   var list = [
     {
@@ -301,6 +365,7 @@
                 try { await step.fn(ctx); } catch(e) { try { console.warn('[deferred·legacy bridge] step ' + step.name + ' failed', e); } catch(_){} }
               }
             }
+            await _runPostRenderTurnOpeners(ctx);
           };
           return ctx; // deferred 路径完成
         }

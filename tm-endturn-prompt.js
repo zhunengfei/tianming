@@ -27,6 +27,30 @@
   if (typeof global.TM.Endturn.AI === 'undefined') global.TM.Endturn.AI = {};
   if (typeof global.TM.Endturn.AI.prompt === 'undefined') global.TM.Endturn.AI.prompt = {};
 
+  function _getCurrentChangchaoDecisions(gameState) {
+    var gm = gameState || {};
+    var decisions = Array.isArray(gm._lastChangchaoDecisions) ? gm._lastChangchaoDecisions : [];
+    if (decisions.length === 0) return [];
+
+    var meta = gm._lastChangchaoDecisionMeta || null;
+    var rawTargetTurn = null;
+    if (meta && meta.targetTurn != null && meta.targetTurn !== '') {
+      rawTargetTurn = meta.targetTurn;
+    } else if (gm._lastChangchaoDecisionsTargetTurn != null && gm._lastChangchaoDecisionsTargetTurn !== '') {
+      rawTargetTurn = gm._lastChangchaoDecisionsTargetTurn;
+    }
+
+    // Legacy saves may only have _lastChangchaoDecisions. Keep them readable.
+    if (rawTargetTurn == null) return decisions;
+
+    var targetTurn = Number(rawTargetTurn);
+    var currentTurn = Number(gm.turn || 0);
+    if (!isFinite(targetTurn)) return decisions;
+    return targetTurn === currentTurn ? decisions : [];
+  }
+
+  global.TM.Endturn.AI.prompt.getCurrentChangchaoDecisions = _getCurrentChangchaoDecisions;
+
   /**
    * §1·sysP prompt 构建 (R209 P7-γ)
    * 从 ctx.input read·写入 ctx.prompt
@@ -1042,7 +1066,8 @@
         });
       }
       // 常朝快速裁决（如果有）
-      if (GM._lastChangchaoDecisions && GM._lastChangchaoDecisions.length > 0) {
+      var _currentChangchaoDecisions = _getCurrentChangchaoDecisions(GM);
+      if (_currentChangchaoDecisions.length > 0) {
         tp += '\n【常朝裁决——本回合快速决策，必须在edict_feedback/npc_actions中体现执行】\n';
         tp += '【裁决类型语义·AI 严格区分】\n';
         tp += '  · 准奏：等同诏令·应即落实·edict_feedback 报告执行进度\n';
@@ -1054,7 +1079,7 @@
         tp += '  · 下廷议(escalate)：兹事体大转正式廷议·下回合可能开廷议\n';
         tp += '  · 追问(probe)：陛下要求详陈·主奏者下次须更详细回奏（extra 含玩家具体追问内容）\n';
         tp += '  · 训诫(admonish)·嘉奖(praise)·传召(summon)：人事性即时动作·影响 NPC 关系/行为\n';
-        GM._lastChangchaoDecisions.forEach(function(d) {
+        _currentChangchaoDecisions.forEach(function(d) {
           var _lbl = { approve: '准奏', reject: '驳奏', discuss: '转廷议', hold: '留中', ask: '追问',
                        modify: '改批', decree: '当庭口诏', refer: '发部议', escalate: '下廷议',
                        probe: '追问', admonish: '训诫', praise: '嘉奖', summon: '传召', skip: '免议' };

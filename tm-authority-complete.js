@@ -249,7 +249,9 @@
             if (typeof global.AuthorityEngines !== 'undefined' && global.AuthorityEngines.adjustHuangquan) {
               global.AuthorityEngines.adjustHuangquan('factionConsuming', -5, '\u9ad8\u7ea7\u6c11\u53d8\u5347\u7ea7');
             } else if (typeof global.GM.huangquan === 'object') global.GM.huangquan.index = Math.max(0, global.GM.huangquan.index - 5);
-            if (typeof global.GM.huangwei === 'object') global.GM.huangwei.index = Math.max(0, global.GM.huangwei.index - 8);
+            if (typeof global.AuthorityEngines !== 'undefined' && global.AuthorityEngines.adjustHuangwei) {
+              global.AuthorityEngines.adjustHuangwei('lostVirtueRumor', -8, '\u9ad8\u7ea7\u6c11\u53d8\u5347\u7ea7');
+            } else if (typeof global.GM.huangwei === 'object') global.GM.huangwei.index = Math.max(0, global.GM.huangwei.index - 8);
           }
           if (r.level === 5) {
             global.GM._gameOver = { type: 'dynasty_change', revolt: r.id, turn: ctx.turn };
@@ -804,6 +806,11 @@
   //  P2-15 · 42 联动矩阵剩余 19 项补完
   // ═══════════════════════════════════════════════════════════════════
 
+  function _allowPassiveAuthorityLinkage() {
+    var G = global.GM;
+    return !!(G && G.settings && G.settings.passiveAuthorityLinkage === true);
+  }
+
   function _tickFullLinkage(ctx, mr) {
     var G = global.GM;
 
@@ -839,7 +846,7 @@
 
     // 腐败 → 皇威（贪腐官绅横行 → 皇威损）
     var corruptLevel = G.corruption && typeof G.corruption === 'object' ? G.corruption.overall : 30;
-    if (corruptLevel > 70 && typeof global.AuthorityEngines !== 'undefined') {
+    if (_allowPassiveAuthorityLinkage() && corruptLevel > 70 && typeof global.AuthorityEngines !== 'undefined') {
       global.AuthorityEngines.adjustHuangwei('lostVirtueRumor', -0.1 * mr, '贪腐横行');
     }
 
@@ -882,7 +889,7 @@
       G.corruption.overall = Math.min(100, G.corruption.overall + 0.1 * mr);
     }
     // 皇威 → 皇权（威远 → 诏令更易推行，等效皇权提升）
-    if (G.huangwei && G.huangwei.index > 85 && G.huangquan) {
+    if (_allowPassiveAuthorityLinkage() && G.huangwei && G.huangwei.index > 85 && G.huangquan) {
       if (typeof global.AuthorityEngines !== 'undefined' && global.AuthorityEngines.adjustHuangquan) {
         global.AuthorityEngines.adjustHuangquan('personalRule', 0.02 * mr, '\u7687\u5a01\u9ad8\u6da8\u4f20\u5bfc');
       } else {

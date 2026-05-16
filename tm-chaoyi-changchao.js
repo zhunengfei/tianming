@@ -2828,6 +2828,13 @@ function _cc3_persistCourtRecord() {
     dept: d.item.dept || '',
     extra: d.extra ? (typeof d.extra === 'object' ? (d.extra.text || JSON.stringify(d.extra)) : String(d.extra)).slice(0, 150) : ''
   }));
+  GM._lastChangchaoDecisionMeta = {
+    turn: record.turn,
+    targetTurn: record.targetTurn,
+    phase: record.phase,
+    mode: record.mode
+  };
+  GM._lastChangchaoDecisionsTargetTurn = record.targetTurn;
 
   // ── 写起居注 (qijuHistory)·让 纪事 标签页能看到本次朝议 ──
   if (Array.isArray(GM.qijuHistory)) {
@@ -2848,7 +2855,7 @@ function _cc3_persistCourtRecord() {
       const titles = state.decisions.slice(0, 3).map(d => d.item.title).join('、');
       qjContent += '。议：' + titles + (state.decisions.length > 3 ? '等' : '');
     }
-    GM.qijuHistory.unshift({ turn: turn, date: date, content: qjContent });
+    GM.qijuHistory.unshift({ turn: turn, targetTurn: record.targetTurn, phase: record.phase, date: date, content: qjContent });
   }
 
   // ── 重大决议（modify / decree / 高重要性 confrontation）写入编年长期项 ──
