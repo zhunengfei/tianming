@@ -10,6 +10,7 @@ function assert(cond, msg) {
 }
 
 const played = [];
+const created = [];
 const hooks = {};
 const storage = new Map();
 
@@ -17,7 +18,11 @@ function FakeAudio(src) {
   this.src = src;
   this.volume = 1;
   this.loop = false;
+  this.preload = '';
   this.paused = true;
+  this.onerror = null;
+  this.onended = null;
+  created.push(this);
   this.play = () => {
     this.paused = false;
     played.push({ src: this.src, volume: this.volume, loop: this.loop });
@@ -98,6 +103,11 @@ assert(played.length === 1, 'default BGM should call Audio.play once');
 assert(played[0].src === context.TM_BGM_TRACKS[0].src, 'default BGM should use first configured track');
 assert(played[0].loop === false, 'sequence mode should advance tracks instead of looping one audio element');
 assert(Math.abs(played[0].volume - context.AudioSystem.bgmVolume) < 0.001, 'BGM volume should sync to audio element');
+assert(created[0].preload === 'none', 'BGM should avoid eager loading before play');
+assert(typeof created[0].onerror === 'function', 'BGM should install load error handler');
+created[0].onerror();
+context.AudioSystem.playDefaultBgm();
+assert(played.length === 1, 'recently failed BGM track should be cooled down instead of retried');
 assert(JSON.parse(storage.get('tianming_audio_settings')).bgmPlaylistVersion === context.TM_BGM_PLAYLIST_VERSION, 'saved settings should include current playlist version');
 
 const html = context.AudioSystem.renderShellPanelHtml();

@@ -65,6 +65,12 @@
 // ══════════════════════════════════════════════════════════════
 var AudioSystem = {
   bgm: null,
+  bgmUrl: '',
+  bgmLoading: false,
+  bgmFailedAt: {},
+  bgmFailureCooldownMs: 60 * 1000,
+  autoBgmAttemptedAt: 0,
+  autoBgmAttemptGapMs: 60 * 1000,
   playlist: [],
   currentTrackId: '',
   loopMode: 'sequence',
@@ -187,25 +193,46 @@ var AudioSystem = {
     if (!this.bgmEnabled) return;
 
     try {
+      if (url && this.bgm && this.bgmUrl === url && (this.bgmLoading || !this.bgm.paused)) {
+        return true;
+      }
+      if (url && this.bgmFailedAt && this.bgmFailedAt[url]) {
+        var elapsed = Date.now() - this.bgmFailedAt[url];
+        if (elapsed >= 0 && elapsed < this.bgmFailureCooldownMs) {
+          _dbg('[BGM] skip recently failed track:', url);
+          return false;
+        }
+      }
       if (this.bgm) {
         this.bgm.pause();
         this.bgm = null;
       }
 
       if (url) {
-        this.bgm = new Audio(url);
-        this.bgm.volume = this.bgmVolume;
-        this.bgm.loop = this.loopMode === 'single' || (this.playlist || []).length <= 1;
         var self = this;
-        this.bgm.onended = function() {
+        var audio = new Audio(url);
+        this.bgm = audio;
+        audio.preload = 'none';
+        audio.volume = this.bgmVolume;
+        audio.loop = this.loopMode === 'single' || (this.playlist || []).length <= 1;
+        audio.onerror = function() {
+          if (!self.bgmFailedAt) self.bgmFailedAt = {};
+          self.bgmFailedAt[url] = Date.now();
+          try { audio.pause(); } catch(_) {}
+          if (self.bgm === audio) self.bgm = null;
+          _dbg('[BGM] load failed; cooling down track:', url);
+        };
+        audio.onended = function() {
           if (self.loopMode !== 'single') self.nextTrack();
         };
-        this.bgm.play().catch(function(e) {
+        audio.play().catch(function(e) {
           _dbg('背景音乐播放失败（可能需要用户交互）:', e);
         });
+        return true;
       }
     } catch (e) {
       console.error('播放背景音乐失败:', e);
+      return false;
     }
   },
 
@@ -215,8 +242,7 @@ var AudioSystem = {
     if (!track) return false;
     this.currentTrackId = track.id;
     this.saveSettings();
-    this.playBgm(track.src);
-    return true;
+    return this.playBgm(track.src) !== false;
   },
 
   playDefaultBgm: function() {
@@ -441,12 +467,10 @@ function updateBgmVolume(value) {
 // 在游戏启动时初始化音频系统
 GameHooks.on('startGame:after', function() {
   AudioSystem.init();
-  AudioSystem.ensureBgmPlaying();
 });
 
 GameHooks.on('enterGame:after', function() {
   if (!AudioSystem.playlist || !AudioSystem.playlist.length) AudioSystem.init();
-  AudioSystem.ensureBgmPlaying();
 });
 
 // 在关键操作时播放音效

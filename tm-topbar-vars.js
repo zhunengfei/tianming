@@ -48,34 +48,65 @@ function _moneyNoun() {
   return U.money || '钱';
 }
 
+function _barToFiniteNumber(v) {
+  if (typeof v === 'number' && isFinite(v)) return v;
+  var n = Number(v);
+  return (typeof n === 'number' && isFinite(n)) ? n : null;
+}
+
+function _barAccountScalar(account, resource) {
+  if (!account) return null;
+  if (resource === 'money') {
+    var money = _barToFiniteNumber(account.money);
+    if (money !== null) return money;
+    return _barToFiniteNumber(account.balance);
+  }
+  return _barToFiniteNumber(account[resource]);
+}
+
+function _barAccountLedgerStock(account, resource) {
+  if (!account || !account.ledgers || !account.ledgers[resource]) return null;
+  return _barToFiniteNumber(account.ledgers[resource].stock);
+}
+
+function _barAccountStock(account, resource) {
+  var scalar = _barAccountScalar(account, resource);
+  if (scalar !== null) return scalar;
+  var ledgerStock = _barAccountLedgerStock(account, resource);
+  return ledgerStock !== null ? ledgerStock : 0;
+}
+
+function _barAccountDelta(account, prevAccount, resource, fallback) {
+  var current = _barAccountStock(account, resource);
+  var previous = _barAccountScalar(prevAccount, resource);
+  if (previous !== null) return current - previous;
+  if (account && account.ledgers && account.ledgers[resource]) {
+    var ledgerDelta = _barToFiniteNumber(account.ledgers[resource].turnDelta);
+    if (ledgerDelta !== null) return ledgerDelta;
+  }
+  var fb = _barToFiniteNumber(fallback);
+  return fb !== null ? fb : 0;
+}
+
 // ─────────────────────────────────────────────
 // 各变量的渲染逻辑
 // ─────────────────────────────────────────────
 
 function _renderGuoku() {
   var g = GM.guoku || {};
-  var money = (g.ledgers && g.ledgers.money && g.ledgers.money.stock) != null
-    ? g.ledgers.money.stock
-    : (g.money != null ? g.money : (g.balance || 0));
-  var grain = (g.ledgers && g.ledgers.grain && g.ledgers.grain.stock) != null
-    ? g.ledgers.grain.stock
-    : (g.grain || 0);
-  var cloth = (g.ledgers && g.ledgers.cloth && g.ledgers.cloth.stock) != null
-    ? g.ledgers.cloth.stock
-    : (g.cloth || 0);
+  var prevG = GM._prevGuoku || null;
+  var money = _barAccountStock(g, 'money');
+  var grain = _barAccountStock(g, 'grain');
+  var cloth = _barAccountStock(g, 'cloth');
   var phase = money < -(g.annualIncome || 1) * 0.5 ? 'bankrupt' : '';
   var U = (typeof CurrencyUnit !== 'undefined') ? CurrencyUnit.getUnit() : { money:'两', grain:'石', cloth:'匹' };
   var turnDays = g.turnDays || 30;
   var incomeLabel = turnDays === 30 ? '月入' : '回合入';
   var expenseLabel = turnDays === 30 ? '月支' : '回合支';
   // 三账本回预估变化
-  var moneyDelta = (g.turnIncome || g.monthlyIncome || 0) - (g.turnExpense || g.monthlyExpense || 0);
-  var grainDelta = (g.ledgers && g.ledgers.grain && g.ledgers.grain.turnDelta != null)
-    ? g.ledgers.grain.turnDelta
-    : ((g.turnGrainIncome || 0) - (g.turnGrainExpense || 0));
-  var clothDelta = (g.ledgers && g.ledgers.cloth && g.ledgers.cloth.turnDelta != null)
-    ? g.ledgers.cloth.turnDelta
-    : ((g.turnClothIncome || 0) - (g.turnClothExpense || 0));
+  var moneyDelta = _barAccountDelta(g, prevG, 'money', (g.turnIncome || g.monthlyIncome || 0) - (g.turnExpense || g.monthlyExpense || 0));
+  var grainDelta = _barAccountDelta(g, prevG, 'grain', (g.turnGrainIncome || 0) - (g.turnGrainExpense || 0));
+  var clothDelta = _barAccountDelta(g, prevG, 'cloth', (g.turnClothIncome || 0) - (g.turnClothExpense || 0));
   // 状态药丸
   var stateGk = { kind:'ok', label:'充裕' };
   if (g.bankruptcy && g.bankruptcy.active) {
@@ -127,26 +158,17 @@ function _renderGuoku() {
 
 function _renderNeitang() {
   var n = GM.neitang || {};
-  var money = (n.ledgers && n.ledgers.money && n.ledgers.money.stock) != null
-    ? n.ledgers.money.stock
-    : (n.money != null ? n.money : (n.balance || 0));
-  var grain = (n.ledgers && n.ledgers.grain && n.ledgers.grain.stock) != null
-    ? n.ledgers.grain.stock
-    : (n.grain || 0);
-  var cloth = (n.ledgers && n.ledgers.cloth && n.ledgers.cloth.stock) != null
-    ? n.ledgers.cloth.stock
-    : (n.cloth || 0);
+  var prevN = GM._prevNeitang || null;
+  var money = _barAccountStock(n, 'money');
+  var grain = _barAccountStock(n, 'grain');
+  var cloth = _barAccountStock(n, 'cloth');
   var U = (typeof CurrencyUnit !== 'undefined') ? CurrencyUnit.getUnit() : { money:'两', grain:'石', cloth:'匹' };
   var turnDays = (GM.guoku && GM.guoku.turnDays) || n.turnDays || 30;
   var incomeLabel = turnDays === 30 ? '月入' : '回合入';
   var expenseLabel = turnDays === 30 ? '月支' : '回合支';
-  var moneyDelta = (n.turnIncome || n.monthlyIncome || 0) - (n.turnExpense || n.monthlyExpense || 0);
-  var grainDelta = (n.ledgers && n.ledgers.grain && n.ledgers.grain.turnDelta != null)
-    ? n.ledgers.grain.turnDelta
-    : ((n.turnGrainIncome || 0) - (n.turnGrainExpense || 0));
-  var clothDelta = (n.ledgers && n.ledgers.cloth && n.ledgers.cloth.turnDelta != null)
-    ? n.ledgers.cloth.turnDelta
-    : ((n.turnClothIncome || 0) - (n.turnClothExpense || 0));
+  var moneyDelta = _barAccountDelta(n, prevN, 'money', (n.turnIncome || n.monthlyIncome || 0) - (n.turnExpense || n.monthlyExpense || 0));
+  var grainDelta = _barAccountDelta(n, prevN, 'grain', (n.turnGrainIncome || 0) - (n.turnGrainExpense || 0));
+  var clothDelta = _barAccountDelta(n, prevN, 'cloth', (n.turnClothIncome || 0) - (n.turnClothExpense || 0));
   // 状态
   var stateNt;
   if (n.crisis && n.crisis.active) {

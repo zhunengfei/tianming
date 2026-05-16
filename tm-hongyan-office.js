@@ -2356,6 +2356,26 @@ function _renderEdictSuggestions() {
   container.innerHTML = html;
 }
 
+function _edictUiRoot() {
+  var active = document.getElementById('tm-action-edict-overlay');
+  if (active && active.querySelector) return active;
+  return document;
+}
+
+function _edictEl(id) {
+  var root = _edictUiRoot();
+  if (root && root.querySelector) {
+    var scoped = root.querySelector('#' + id);
+    if (scoped) return scoped;
+  }
+  return typeof _$ === 'function' ? _$(id) : document.getElementById(id);
+}
+
+function _hidePolishedEdict() {
+  var panel = _edictEl('edict-polished');
+  if (panel) panel.style.display = 'none';
+}
+
 // ── 有司润色：将各类诏令合并为正式诏书 ──
 async function _polishEdicts() {
   var cats = [
@@ -2367,19 +2387,19 @@ async function _polishEdicts() {
   ];
   var parts = [];
   cats.forEach(function(cat) {
-    var el = _$(cat.id);
+    var el = _edictEl(cat.id);
     var val = el ? el.value.trim() : '';
     if (val) parts.push({ label: cat.label, content: val });
   });
   if (parts.length === 0) { toast('\u8BF7\u5148\u5728\u5404\u7C7B\u8BCF\u4EE4\u4E2D\u586B\u5199\u5185\u5BB9'); return; }
 
-  var panel = _$('edict-polished');
+  var panel = _edictEl('edict-polished');
   if (!panel) return;
   panel.style.display = 'block';
   panel.innerHTML = '<div style="text-align:center;color:var(--color-foreground-muted);padding:var(--space-4);">\u6709\u53F8\u6B63\u5728\u6DA6\u8272\u8BCF\u4E66\u2026\u2026</div>';
 
   // 读取风格选择
-  var styleEl = _$('edict-polish-style');
+  var styleEl = _edictEl('edict-polish-style');
   var style = styleEl ? styleEl.value : 'elegant';
   var styleDesc = {
     elegant: '\u5178\u96C5\u5E84\u91CD\u7684\u6587\u8A00\uFF0C\u5584\u7528\u5BF9\u5076\u9A88\u53E5',
@@ -2443,12 +2463,12 @@ function _renderPolishedEdict(panel, text) {
     +   '<button class="ed-scroll-btn" onclick="_polishEdicts()" title="\u91CD\u65B0\u7531\u6709\u53F8\u6DA6\u8272">\u91CD \u65B0 \u6DA6 \u8272</button>'
     +   '<button class="ed-scroll-btn" onclick="_applyPolishedEdict(\'keep\')" title="\u5B58\u4E3A\u8BCF\u4E66\u624B\u7A3F\u00B7\u5F52\u6863\u8D77\u5C45\u6CE8\u00B7\u672A\u9881\u884C">\u624B \u7A3F \u5165 \u6863</button>'
     +   '<button class="ed-scroll-btn primary" onclick="_applyPolishedEdict(\'replace\')" title="\u8BCF\u4E66\u9881\u884C\u5929\u4E0B\u00B7\u5F55\u5165\u653F\u4EE4\u680F\u00B7\u540C\u65F6\u5F52\u6863\u8D77\u5C45\u6CE8">\u9881 \u884C \u5929 \u4E0B</button>'
-    +   '<button class="ed-scroll-btn" onclick="_$(\'edict-polished\').style.display=\'none\'">\u6536 \u8D77</button>'
+    +   '<button class="ed-scroll-btn" onclick="_hidePolishedEdict()">\u6536 \u8D77</button>'
     + '</div>';
 }
 
 function _applyPolishedEdict(mode) {
-  var ta = _$('edict-polished-text');
+  var ta = _edictEl('edict-polished-text');
   if (!ta) return;
   var text = ta.value.trim();
   if (!text) { toast('\u8BCF\u4E66\u5185\u5BB9\u4E3A\u7A7A'); return; }
@@ -2461,7 +2481,7 @@ function _applyPolishedEdict(mode) {
     }
   }
 
-  var styleEl = _$('edict-polish-style');
+  var styleEl = _edictEl('edict-polish-style');
   var style = styleEl ? styleEl.value : 'elegant';
   var styleLabel = ({elegant:'\u5178\u96C5', concise:'\u7B80\u6D01', ornate:'\u534E\u4E3D', plain:'\u767D\u8BDD'})[style] || '\u5178\u96C5';
 
@@ -2477,10 +2497,10 @@ function _applyPolishedEdict(mode) {
     GM.edicts.forEach(function(e) {
       if (e.turn === _curTurn && e.status === 'promulgated') e.status = 'draft';
     });
-    var polEl = _$('edict-pol');
+    var polEl = _edictEl('edict-pol');
     if (polEl) polEl.value = text;
     ['edict-mil', 'edict-dip', 'edict-eco', 'edict-oth'].forEach(function(id) {
-      var el = _$(id); if (el) el.value = '';
+      var el = _edictEl(id); if (el) el.value = '';
     });
     toast('\u8BCF\u4E66\u9881\u884C\u5929\u4E0B\u00B7\u5DF2\u5F55\u5165\u653F\u4EE4\u680F');
   } else {
@@ -2514,7 +2534,7 @@ function _applyPolishedEdict(mode) {
     _edictRef: rec.id
   });
 
-  _$('edict-polished').style.display = 'none';
+  _hidePolishedEdict();
   if (typeof renderQiju === 'function') renderQiju();
 }
 
@@ -2524,6 +2544,12 @@ function _applyPolishedEdict(mode) {
 // 注册结算步骤（top-level·使存档加载路径也生效——
 // 历史问题：原先放在 startGame 内·loadFromSlot/fullLoadGame 不会走 startGame·
 // 导致存档玩家全部信件永远卡 traveling·UI 显示"信使逾期/失踪"。）
+if (typeof window !== 'undefined') {
+  window._polishEdicts = _polishEdicts;
+  window._applyPolishedEdict = _applyPolishedEdict;
+  window._hidePolishedEdict = _hidePolishedEdict;
+}
+
 if (typeof SettlementPipeline !== 'undefined') {
   SettlementPipeline.register('letters', '鸿雁传书', function() { _settleLettersAndTravel(); }, 42, 'perturn');
 }

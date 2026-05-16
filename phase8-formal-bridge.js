@@ -13,6 +13,7 @@
   state.mapScale = state.mapScale || 'region';
   state.mapView = state.mapView || { scale: 1, tx: 0, ty: 0 };
   state.legacyView = false;
+  state.runtimeChromeSig = state.runtimeChromeSig || '';
 
   function esc(v){
     return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){
@@ -6358,7 +6359,7 @@
     html += '<option value="ornate">华丽文藻</option>';
     html += '<option value="plain">白话文言</option>';
     html += '</select>';
-    html += '<button class="ed-polish-btn" onclick="if(window._polishEdicts)window._polishEdicts()">有 司 润 色</button>';
+    html += '<button class="ed-polish-btn" onclick="if(window._polishEdicts)window._polishEdicts();else if(window.toast)toast(\'诏书润色模块尚未载入\')">有 司 润 色</button>';
     html += '</div>';
     html += '<div id="edict-polished" style="display:none;margin-top:var(--space-3);"></div>';
     html += '<div class="ed-section-divider"><span class="label">主 角 行 止</span></div>';
@@ -9639,14 +9640,46 @@
     ].join('\n');
   }
 
-  function ensureFormalRuntimeChrome(){
-    if (!syncFormalShellVisibility()) return false;
+  function formalRuntimeChromeSignature(){
+    var body = document.body;
+    var visible = isGameVisible();
+    var active = !!(body && body.classList.contains('tm-phase8-game-active'));
+    var formal = !!(body && body.classList.contains('tm-phase8-formal'));
+    var running = !!(window.GM && GM.running);
+    var rail = !!(document.getElementById('tm-right-rail') || document.getElementById('tm-phase8-formal-rail'));
+    var shell = !!document.getElementById('tm-phase8-main-shell');
+    var tray = !!document.getElementById('tm-phase8-action-tray');
+    var shizheng = !!document.getElementById('shizheng-btn');
+    return [
+      visible ? 1 : 0,
+      active ? 1 : 0,
+      formal ? 1 : 0,
+      running ? 1 : 0,
+      rail ? 1 : 0,
+      shell ? 1 : 0,
+      tray ? 1 : 0,
+      shizheng ? 1 : 0,
+      state.activeSlot || '',
+      state.legacyView ? 1 : 0
+    ].join('|');
+  }
+
+  function ensureFormalRuntimeChrome(force){
+    var sig = formalRuntimeChromeSignature();
+    if (!force && state.runtimeChromeSig === sig) {
+      return !!(document.body && document.body.classList.contains('tm-phase8-game-active'));
+    }
+    if (!syncFormalShellVisibility()) {
+      state.runtimeChromeSig = formalRuntimeChromeSignature();
+      return false;
+    }
     installWenduiFormalReturnHook();
     ensureRail();
     ensureFormalChrome();
     ensureMainShell();
     bindFormalEntryRedirects();
     markPinnedCards();
+    state.runtimeChromeSig = formalRuntimeChromeSignature();
     return true;
   }
 
@@ -9670,13 +9703,13 @@
     installWenduiFormalReturnHook();
     if (!state.topbarSyncTimer && typeof setInterval === 'function') {
       state.topbarSyncTimer = setInterval(function(){
-        ensureFormalRuntimeChrome();
-      }, 1000);
+        ensureFormalRuntimeChrome(false);
+      }, 3000);
     }
     installContextMenu();
     installMapRefreshHooks();
     if (!syncFormalShellVisibility()) return;
-    ensureFormalRuntimeChrome();
+    ensureFormalRuntimeChrome(true);
     installContextMenu();
     installMapRefreshHooks();
     if (isGameVisible() && !state.legacyView) showHome();
@@ -9697,7 +9730,7 @@
       window.renderGameState = function(){
         var ret = oldRender.apply(this, arguments);
         setTimeout(function(){
-          if (!ensureFormalRuntimeChrome()) return;
+          if (!ensureFormalRuntimeChrome(true)) return;
           renderEventFeed();
           if (!state.legacyView) showHome();
           else renderFormalMapSoon();

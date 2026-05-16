@@ -444,10 +444,52 @@ function _wdOpenAudience(name) {
   }, 300);
 }
 
+function _wdAudienceOpeningFallback(name, ch) {
+  var fallback = '';
+  try {
+    fallback = _wdGenerateGreeting(name, ch);
+  } catch (_) {}
+  fallback = String(fallback || '').trim();
+  if (fallback) return fallback;
+  if (ch && ch._envoy) {
+    var fac = ch.fromFaction || ch.faction || '外藩';
+    var mission = String(ch.envoyMission || '').slice(0, 60);
+    var line = '外臣' + fac + '使节' + name + '，谨奉国书，参见陛下。';
+    if (mission) line += '此来——' + mission;
+    return line;
+  }
+  if (ch && ch.spouse) return '妾' + name + '参见陛下，陛下万安。';
+  return '臣' + name + '叩见陛下。臣有事启奏。';
+}
+
+function _wdResolveAudienceReplyText(name, ch, parsed, rawReply) {
+  var replyText = '';
+  if (parsed && Object.prototype.hasOwnProperty.call(parsed, 'reply')) {
+    replyText = parsed.reply;
+  } else {
+    replyText = rawReply;
+  }
+  replyText = String(replyText == null ? '' : replyText).trim();
+  if (!replyText) replyText = _wdAudienceOpeningFallback(name, ch);
+  return replyText;
+}
+
+function _wdCommitAudienceOpening(name, ch, replyText) {
+  var safeText = String(replyText == null ? '' : replyText).trim() || _wdAudienceOpeningFallback(name, ch);
+  var bubble = _$('wd-init-bubble');
+  if (bubble) { bubble.textContent = safeText; bubble.removeAttribute('id'); }
+  if (!GM.wenduiHistory) GM.wenduiHistory = {};
+  if (!GM.wenduiHistory[name]) GM.wenduiHistory[name] = [];
+  GM.wenduiHistory[name].push({ role: 'npc', content: safeText, turn: GM.turn });
+  if (!GM.jishiRecords) GM.jishiRecords = [];
+  GM.jishiRecords.push({ turn: GM.turn, char: name, playerSaid: '（NPC主动求见）', npcSaid: safeText, mode: 'formal' });
+  return bubble;
+}
+
 /** NPC主动开口（奏对模式）——AI生成NPC的开场陈述 */
 async function _wdNpcInitiateSpeak(name) {
   var ch = findCharByName(name);
-  if (!ch || !P.ai || !P.ai.key) return;
+  if (!ch) return;
   var chatEl = _$('wd-modal-chat');
   if (!chatEl) return;
   _wenduiSending = true;
@@ -462,61 +504,66 @@ async function _wdNpcInitiateSpeak(name) {
     + '<div class="wendui-npc-bubble wd-selectable" id="wd-init-bubble">\u2026</div></div>';
   chatEl.appendChild(div);
 
-  // 构建NPC主动开场的prompt
-  var sysP = _wdBuildPrompt(ch, name);
-  if (ch._envoy) {
-    // 外藩使节：不走本朝官员的情绪分支，而是以外交使命为主
-    sysP += '\n\n【特殊：外藩使节入朝陈事】';
-    sysP += '\n你刚刚入觐天朝皇帝，须主动开口——不要说"候陛下垂询"或"臣听候圣谕"。';
-    sysP += '\n第一句务必完成以下四件事：①自报家门（"外臣/小臣/使臣某某奉X国之命"）②到朝目的（奉命行X使命）③呈上主君意旨或条款 ④表明己方立场或期望。';
-    sysP += '\n开头示例（按身份风格选）：';
-    sysP += '\n  · 女真 / 蒙古：直率豪迈——"外臣奉天聪汗之命入朝，实有三事求见天朝皇帝"';
-    sysP += '\n  · 朝鲜：恭顺委婉——"小邦使臣叩谢天恩·有紧要军情告于陛下"';
-    sysP += '\n  · 海商/南洋：商人本色——"小使奉主公之命，特献方物，亦有一议奉陈"';
-    sysP += '\n  · 西洋：带外语译意感——"Your Majesty·外使奉总督大人之命远渡而来"';
-    sysP += '\n切忌说"臣有事启奏"（本朝辞令）——你是外臣，应明确使命与己方立场。';
-  } else {
-    sysP += '\n\n【特殊：NPC主动求见模式】';
-    sysP += '\n你是主动请求面圣的——你有准备好的话要说。不要问"陛下找臣何事"。';
-    sysP += '\n你应该直接开口陈述你的来意：';
-    if ((ch.stress||0) > 60) sysP += '\n  你心中有忧虑/困难/为难之事，想向皇帝倾诉或请求帮助。';
-    if ((ch.loyalty||50) > 90) sysP += '\n  你是忠臣，有重要的忠告或警示要进言。';
-    if ((ch.ambition||50) > 80) sysP += '\n  你有一个精心准备的计划/策论要呈上。';
-    // 检查未回复来函
-    var _unansLetter = (GM.letters||[]).find(function(l) { return l._npcInitiated && l.from === name && l._replyExpected && !l._playerReplied && l.status === 'returned'; });
-    if (_unansLetter) sysP += '\n  你之前写了一封信给皇帝但未获回复，内容是：「' + (_unansLetter.content||'').slice(0,80) + '」——你这次亲自来是为了当面追问此事。';
-    sysP += '\n直接以"臣有事启奏——"或类似开头，主动陈述你的来意和诉求。不要等皇帝先说话。';
+  if (!(typeof P !== 'undefined' && P.ai && P.ai.key && typeof callAIMessagesStream === 'function')) {
+    _wdCommitAudienceOpening(name, ch, _wdAudienceOpeningFallback(name, ch));
+    _wenduiSending = false;
+    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = '奉旨'; }
+    GM._wdAudienceMode = false;
+    return;
   }
-  sysP += '\n返回 JSON：{"reply":"主动陈述内容","loyaltyDelta":0,"emotionState":"当前情绪","suggestions":[{"topic":"针对什么问题/情境(10-25字具体说明上下文)","content":"详尽建议(80-200字，含具体执行者、手段、范围、时机；不要笼统套话)"}]}\n';
-  sysP += '【suggestions 要求】\n';
-  sysP += '  · 必须是 object 数组，每条含 topic(问题描述) + content(具体方案)\n';
-  sysP += '  · topic 示例："针对辽东军饷拖欠之困"、"应对江南士绅抗税"、"关于太子人选之议"\n';
-  sysP += '  · content 要具体：谁去办、怎么办、涉及哪些部门/地方/人——须有可操作性\n';
-  sysP += '  · 反面例子（不可接受）：\n';
-  sysP += '    ❌ "依靠清流与儒家礼法徐徐图之" —— 太笼统，无执行路径\n';
-  sysP += '    ❌ "整饬吏治" —— 空话\n';
-  sysP += '  · 正面例子：\n';
-  sysP += '    ✓ topic="针对吴地赋税连年欠缴"\n';
-  sysP += '      content="臣请陛下遣户部侍郎某某巡按江南，择苏松常三州先行清丈田亩，以三月为期。若豪右隐匿，许其自首减免，逾期则籍没半数。同时诏命漕运总督约束胥吏，不得骚扰民户。如此上体朝廷之公，下息百姓之怨"\n';
 
+  var _audienceOpeningCommitted = false;
   try {
+    // 构建NPC主动开场的prompt
+    var sysP = _wdBuildPrompt(ch, name);
+    if (ch._envoy) {
+      // 外藩使节：不走本朝官员的情绪分支，而是以外交使命为主
+      sysP += '\n\n【特殊：外藩使节入朝陈事】';
+      sysP += '\n你刚刚入觐天朝皇帝，须主动开口——不要说"候陛下垂询"或"臣听候圣谕"。';
+      sysP += '\n第一句务必完成以下四件事：①自报家门（"外臣/小臣/使臣某某奉X国之命"）②到朝目的（奉命行X使命）③呈上主君意旨或条款 ④表明己方立场或期望。';
+      sysP += '\n开头示例（按身份风格选）：';
+      sysP += '\n  · 女真 / 蒙古：直率豪迈——"外臣奉天聪汗之命入朝，实有三事求见天朝皇帝"';
+      sysP += '\n  · 朝鲜：恭顺委婉——"小邦使臣叩谢天恩·有紧要军情告于陛下"';
+      sysP += '\n  · 海商/南洋：商人本色——"小使奉主公之命，特献方物，亦有一议奉陈"';
+      sysP += '\n  · 西洋：带外语译意感——"Your Majesty·外使奉总督大人之命远渡而来"';
+      sysP += '\n切忌说"臣有事启奏"（本朝辞令）——你是外臣，应明确使命与己方立场。';
+    } else {
+      sysP += '\n\n【特殊：NPC主动求见模式】';
+      sysP += '\n你是主动请求面圣的——你有准备好的话要说。不要问"陛下找臣何事"。';
+      sysP += '\n你应该直接开口陈述你的来意：';
+      if ((ch.stress||0) > 60) sysP += '\n  你心中有忧虑/困难/为难之事，想向皇帝倾诉或请求帮助。';
+      if ((ch.loyalty||50) > 90) sysP += '\n  你是忠臣，有重要的忠告或警示要进言。';
+      if ((ch.ambition||50) > 80) sysP += '\n  你有一个精心准备的计划/策论要呈上。';
+      // 检查未回复来函
+      var _unansLetter = (GM.letters||[]).find(function(l) { return l._npcInitiated && l.from === name && l._replyExpected && !l._playerReplied && l.status === 'returned'; });
+      if (_unansLetter) sysP += '\n  你之前写了一封信给皇帝但未获回复，内容是：「' + (_unansLetter.content||'').slice(0,80) + '」——你这次亲自来是为了当面追问此事。';
+      sysP += '\n直接以"臣有事启奏——"或类似开头，主动陈述你的来意和诉求。不要等皇帝先说话。';
+    }
+    sysP += '\n返回 JSON：{"reply":"主动陈述内容","loyaltyDelta":0,"emotionState":"当前情绪","suggestions":[{"topic":"针对什么问题/情境(10-25字具体说明上下文)","content":"详尽建议(80-200字，含具体执行者、手段、范围、时机；不要笼统套话)"}]}\n';
+    sysP += '【suggestions 要求】\n';
+    sysP += '  · 必须是 object 数组，每条含 topic(问题描述) + content(具体方案)\n';
+    sysP += '  · topic 示例："针对辽东军饷拖欠之困"、"应对江南士绅抗税"、"关于太子人选之议"\n';
+    sysP += '  · content 要具体：谁去办、怎么办、涉及哪些部门/地方/人——须有可操作性\n';
+    sysP += '  · 反面例子（不可接受）：\n';
+    sysP += '    ❌ "依靠清流与儒家礼法徐徐图之" —— 太笼统，无执行路径\n';
+    sysP += '    ❌ "整饬吏治" —— 空话\n';
+    sysP += '  · 正面例子：\n';
+    sysP += '    ✓ topic="针对吴地赋税连年欠缴"\n';
+    sysP += '      content="臣请陛下遣户部侍郎某某巡按江南，择苏松常三州先行清丈田亩，以三月为期。若豪右隐匿，许其自首减免，逾期则籍没半数。同时诏命漕运总督约束胥吏，不得骚扰民户。如此上体朝廷之公，下息百姓之怨"\n';
+
     var msgs = [{ role: 'system', content: sysP + '\n' + (typeof _aiDialogueWordHint==='function'?_aiDialogueWordHint("wd"):'') }];
     var reply = await callAIMessagesStream(msgs, (typeof _aiDialogueTok==='function'?_aiDialogueTok("wd", 1):800), {
       tier: (typeof _useSecondaryTier === 'function' && _useSecondaryTier()) ? 'secondary' : undefined,  // M3·问对走次 API
       onChunk: function(txt) {
         var bubble = _$('wd-init-bubble');
-        if (bubble) { bubble.textContent = txt; }
+        if (bubble) { bubble.textContent = String(txt || '').trim() ? txt : '\u2026'; }
         chatEl.scrollTop = chatEl.scrollHeight;
       }
     });
     var parsed = (typeof extractJSON === 'function') ? extractJSON(reply) : null;
-    var replyText = (parsed && parsed.reply) ? parsed.reply : reply;
-    var bubble = _$('wd-init-bubble');
-    var _bubbleWrap = bubble; // 在 id 被移除前先捕获引用·供后面进言要点追加使用
-    if (bubble) { bubble.textContent = replyText; bubble.removeAttribute('id'); }
-    // 记录到历史
-    if (!GM.wenduiHistory[name]) GM.wenduiHistory[name] = [];
-    GM.wenduiHistory[name].push({ role: 'npc', content: replyText, turn: GM.turn });
+    var replyText = _wdResolveAudienceReplyText(name, ch, parsed, reply);
+    var _bubbleWrap = _wdCommitAudienceOpening(name, ch, replyText);
+    _audienceOpeningCommitted = true;
     // 情绪更新
     if (parsed && parsed.emotionState) {
       var _eMap2 = {'镇定':1,'从容':1,'平静':2,'恭敬':2,'紧张':3,'不安':3,'焦虑':4,'恐惧':4,'崩溃':5,'激动':4,'愤怒':4};
@@ -577,11 +624,8 @@ async function _wdNpcInitiateSpeak(name) {
         _bubbleWrap.parentNode.appendChild(_sugBox);
       }
     }
-    // 纪事
-    GM.jishiRecords.push({ turn: GM.turn, char: name, playerSaid: '（NPC主动求见）', npcSaid: replyText, mode: 'formal' });
   } catch(e) {
-    var bubble2 = _$('wd-init-bubble');
-    if (bubble2) { bubble2.textContent = '（未能陈词）'; bubble2.removeAttribute('id'); }
+    if (!_audienceOpeningCommitted) _wdCommitAudienceOpening(name, ch, _wdAudienceOpeningFallback(name, ch));
   }
   _wenduiSending = false;
   if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = '奉旨'; }
