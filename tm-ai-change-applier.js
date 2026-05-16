@@ -608,21 +608,25 @@
     if (!army) return false;
     commander = String(commander || '').trim();
     var changed = false;
-    ['commander', 'commanderName', 'general'].forEach(function(k) {
+    [
+      'commander',
+      'commanderName',
+      'commanderDisplayName',
+      'commander_name',
+      'general',
+      'generalName',
+      'leader',
+      'leaderName',
+      'commandingOfficer',
+      'chiefCommander',
+      'chiefGeneral',
+      'mainGeneral'
+    ].forEach(function(k) {
       if (army[k] !== commander) {
         army[k] = commander;
         changed = true;
       }
     });
-    if (Object.prototype.hasOwnProperty.call(army, 'leader')) {
-      var leader = String(army.leader || '').trim();
-      if (!leader || leader === oldCommander || leader === commander) {
-        if (army.leader !== commander) {
-          army.leader = commander;
-          changed = true;
-        }
-      }
-    }
     return changed;
   }
 
@@ -641,6 +645,10 @@
     var army = _findArmyForAIChange(G, name);
     var reason = change.reason || change.rationale || opts.reason || 'AI推演';
     var commanderInput = _armyCommanderField(change);
+    var factionInput = (change.faction != null) ? change.faction
+      : (change.owner != null) ? change.owner
+      : (change.factionName != null) ? change.factionName
+      : null;
     var changed = false;
     var created = false;
 
@@ -721,6 +729,21 @@
         }
         changed = true;
       }
+      if (factionInput != null && String(factionInput).trim()) {
+        var newFaction = String(factionInput).trim();
+        var oldFaction = String(army.faction || army.owner || '').trim();
+        if (oldFaction !== newFaction) {
+          try {
+            if (global.TM && TM.FactionMembership && typeof TM.FactionMembership.assignArmy === 'function') {
+              TM.FactionMembership.assignArmy(army, newFaction, { reason: reason, silent: true });
+            }
+          } catch(_) {}
+          if (String(army.faction || army.owner || '').trim() === newFaction) {
+            if (G._turnReport) G._turnReport.push({ type:'military', armyName:army.name || name, field:'faction', old:oldFaction, new:newFaction, reason:reason, source:opts.source || '', turn:G.turn||0 });
+            changed = true;
+          }
+        }
+      }
       if (change.morale_delta || change.morale != null) {
         var oldM = army.morale == null ? 50 : Number(army.morale);
         army.morale = change.morale != null ? _clampNum(change.morale, 0, 100) : _clampNum(oldM + Number(change.morale_delta || 0), 0, 100);
@@ -737,6 +760,21 @@
         army.supply = change.supply != null ? _clampNum(change.supply, 0, 100) : _clampNum(oldSupply + Number(change.supply_delta || 0), 0, 100);
         changed = true;
       }
+      if (change.loyalty_delta || change.loyalty != null) {
+        var oldLoyalty = army.loyalty == null ? 60 : Number(army.loyalty);
+        army.loyalty = change.loyalty != null ? _clampNum(change.loyalty, 0, 100) : _clampNum(oldLoyalty + Number(change.loyalty_delta || 0), 0, 100);
+        changed = true;
+      }
+      if (change.control_delta || change.control != null || change.controlLevel_delta || change.controlLevel != null) {
+        var oldControl = army.control == null ? (army.controlLevel == null ? 60 : Number(army.controlLevel)) : Number(army.control);
+        var controlDelta = Number(change.control_delta != null ? change.control_delta : change.controlLevel_delta || 0);
+        var newControl = (change.control != null || change.controlLevel != null)
+          ? _clampNum(change.control != null ? change.control : change.controlLevel, 0, 100)
+          : _clampNum(oldControl + controlDelta, 0, 100);
+        army.control = newControl;
+        army.controlLevel = newControl;
+        changed = true;
+      }
       if (change.destination && typeof change.destination === 'string') {
         army.destination = change.destination;
         army._remainingDistance = 0;
@@ -744,8 +782,13 @@
         changed = true;
       }
       if ((change.location || change.garrison) && !change.destination) {
+        var oldLoc = String(army.location || army.garrison || '').trim();
+        var newLoc = String(change.location || change.garrison || '').trim();
         army.location = change.location || change.garrison;
         army.garrison = change.garrison || change.location;
+        if (oldLoc !== newLoc && G._turnReport) {
+          G._turnReport.push({ type:'military', armyName:army.name || name, field:'location', old:oldLoc, new:newLoc, reason:reason, source:opts.source || '', turn:G.turn||0 });
+        }
         changed = true;
       }
     }
@@ -760,6 +803,772 @@
       var res = applyAIArmyChange(change, Object.assign({}, opts || {}, { source: source }));
       if (res && res.ok && res.changed) count++;
     });
+    return count;
+  }
+
+  function _escapeRegExp(s) {
+    return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function _armyLooseNamePattern(name) {
+    var raw = String(name || '').trim();
+    if (!raw) return '';
+    var parts = raw.split(/[\s,，、。？！；：:·•・\-—–_]+/).filter(Boolean);
+    if (parts.length > 1) {
+      return parts.map(_escapeRegExp).join('[\\s,，、。？！；：:·•・\\-—–_]*');
+    }
+    return _escapeRegExp(raw);
+  }
+
+  function _armyNarrativeAliases(army) {
+    var out = [];
+    ['name', 'armyName', 'title', 'id'].forEach(function(k) {
+      var v = army && army[k];
+      if (v != null && String(v).trim()) out.push(String(v).trim());
+    });
+    return out.filter(function(v, idx) { return v && out.indexOf(v) === idx; });
+  }
+
+  function _cleanCommanderCandidate(raw) {
+    var text = String(raw || '').trim();
+    text = text.replace(/^[\s"'“”‘’《》【】「」『』：:，,。；;]+|[\s"'“”‘’《》【】「」『』：:，,。；;]+$/g, '');
+    text = text.replace(/^(?:为|任|由|以|命|令|擢|拜|简|调|改由|更正为|改任为|改为|更为|调整为|换为|易为|新任|继任)\s*/, '');
+    text = text.replace(/\s*(?:为|任|充|领|统领|统带|统辖|节制|督率|督|管带|出任|出掌|接掌|掌管|总理|总督|提督|署理|兼领|兼统|镇守|坐镇|移镇|领军|领兵|掌军|统帅|主将|将领|将帅|总兵|督师|指挥).*$/g, '');
+    return text.trim();
+  }
+
+  function _resolveNarrativeCommanderName(G, raw) {
+    var text = _cleanCommanderCandidate(raw);
+    if (!text) return '';
+    var chars = Array.isArray(G && G.chars) ? G.chars : [];
+    var exact = chars.find(function(c) { return c && c.name && String(c.name).trim() === text; });
+    if (exact) return String(exact.name).trim();
+    var contained = chars.find(function(c) {
+      var name = c && c.name ? String(c.name).trim() : '';
+      return name && text.indexOf(name) >= 0;
+    });
+    if (contained) return String(contained.name).trim();
+    var m = text.match(/[\u4e00-\u9fff·]{2,8}/);
+    return m ? m[0] : text.slice(0, 20);
+  }
+
+  function _applyNarrativeArmyCommanderFallback(G, aiOutput) {
+    if (!G || !Array.isArray(G.armies) || !aiOutput) return 0;
+    var narrative = _getNarrativeText(aiOutput);
+    if (!narrative) return 0;
+    var seen = {};
+    var count = 0;
+    var roleTerms = '统帅|主帅|主将|将领|将帅|总兵|督师|统领|统带|统辖|节制|督率|管带|提督|总督|指挥|掌军|领军|领兵|镇守';
+    var leadTerms = '出任|出掌|接掌|掌管|领|统领|统带|统辖|节制|督率|管带|总督|提督|署理|署|兼领|兼统|镇守|坐镇|移镇|掌军|领军|领兵';
+    var commandTerms = '命|令|着|诏令|诏|旨令|敕|遣|派|委|委任|任命|授|擢|起用|简|拜|以';
+    var handoverTerms = '交由|交与|交付|交|付与|付|委|委任|授|托付|移交|归|令归|改隶|转隶';
+    var roleWords = '(?:' + roleTerms + ')';
+    var leadVerbs = '(?:' + leadTerms + ')';
+    var commandVerbs = '(?:' + commandTerms + ')';
+    var handoverVerbs = '(?:' + handoverTerms + ')';
+    G.armies.forEach(function(army) {
+      _armyNarrativeAliases(army).forEach(function(alias) {
+        var namePat = _armyLooseNamePattern(alias);
+        if (!namePat) return;
+        var patterns = [
+          new RegExp(namePat + '[^。；;\\n]{0,32}?' + roleWords + '[^。；;\\n]{0,16}?由[^。；;\\n]{0,16}?改为\\s*([^，,。；;\\n\\s]{2,16})', 'g'),
+          new RegExp(namePat + '[^。；;\\n]{0,32}?' + roleWords + '[^。；;\\n]{0,12}?(?:更正为|改任为|改为|更为|调整为|换为|易为|任为|新任|继任|补为|补授)\\s*([^，,。；;\\n\\s]{2,16})', 'g'),
+          new RegExp(namePat + '[^。；;\\n]{0,32}?(?:改由|由|转由|交由|移交|付与)\\s*([^，,。；;\\n\\s]{2,16})\\s*(?:接掌|' + leadTerms + ')', 'g'),
+          new RegExp(namePat + '[^。；;\\n]{0,24}?' + handoverVerbs + '\\s*([^，,。；;\\n\\s]{2,16})\\s*(?:' + roleTerms + ')', 'g'),
+          new RegExp(commandVerbs + '\\s*([^，,。；;\\n\\s]{2,16})\\s*(?:为|任|充|领|统领|统带|统辖|节制|督率|督|管带|接掌|' + leadTerms + ')[^。；;\\n]{0,24}?' + namePat + '(?:[^。；;\\n]{0,10}?' + roleWords + ')?', 'g'),
+          new RegExp('([^，,。；;\\n\\s]{2,16})\\s*' + leadVerbs + '[^。；;\\n]{0,24}?' + namePat + '(?:[^。；;\\n]{0,10}?' + roleWords + ')?', 'g'),
+          new RegExp('([^，,。；;\\n\\s]{2,16})\\s*(?:为|任|充|出任|署|署理|兼)\\s*' + namePat + '[^。；;\\n]{0,10}?' + roleWords, 'g')
+        ];
+        patterns.forEach(function(pat) {
+          var m;
+          while ((m = pat.exec(narrative)) !== null) {
+            var commander = _resolveNarrativeCommanderName(G, m[1]);
+            if (!commander) continue;
+            var key = (army.id || army.name || alias) + '|' + commander;
+            if (seen[key]) continue;
+            seen[key] = true;
+            var res = applyAIArmyChange(
+              { name: army.name || alias, commander: commander, reason: '叙事统帅补录' },
+              { source: 'narrative.army_commander' }
+            );
+            if (res && res.ok && res.changed) count++;
+          }
+        });
+      });
+    });
+    return count;
+  }
+
+  function _cleanNarrativeToken(raw) {
+    var text = String(raw || '').trim();
+    text = text.replace(/^[\s"'“”‘’《》【】「」『』：:，,。；;]+|[\s"'“”‘’《》【】「」『』：:，,。；;]+$/g, '');
+    text = text.replace(/^(?:于|至|往|赴|入|进|驻|驻于|驻防|移驻|调往|调驻|迁都|定都|都于|为|由|归|归属)\s*/, '');
+    text = text.replace(/(?:一带|等地|附近|城下|境内|境外|驻防|驻扎|屯驻|防守|节制|统带|统辖|所据|所有|控制).*$/g, '');
+    return text.trim();
+  }
+
+  function _cleanNarrativeFieldValue(raw) {
+    var text = String(raw || '').trim();
+    text = text.replace(/^[\s"'“”‘’《》【】「」『』：:，,。；;]+|[\s"'“”‘’《》【】「」『』：:，,。；;]+$/g, '');
+    return text.trim();
+  }
+
+  function _parseNarrativeNumber(raw) {
+    var text = String(raw || '').trim();
+    if (!text) return NaN;
+    text = text.replace(/,/g, '');
+    var unitWan = /万/.test(text);
+    var n = parseFloat(text);
+    if (isNaN(n)) {
+      var cn = {'零':0,'〇':0,'一':1,'二':2,'两':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9};
+      function section(s) {
+        var total = 0, num = 0;
+        for (var i = 0; i < s.length; i += 1) {
+          var ch = s.charAt(i);
+          if (cn[ch] != null) num = cn[ch];
+          else if (ch === '十') { total += (num || 1) * 10; num = 0; }
+          else if (ch === '百') { total += (num || 1) * 100; num = 0; }
+          else if (ch === '千') { total += (num || 1) * 1000; num = 0; }
+        }
+        return total + num;
+      }
+      if (text.indexOf('万') >= 0) {
+        var parts = text.split('万');
+        n = section(parts[0]) * 10000 + section(parts[1] || '');
+        unitWan = false;
+      } else {
+        n = section(text);
+      }
+    }
+    if (unitWan) n *= 10000;
+    return isFinite(n) ? n : NaN;
+  }
+
+  function _narrativeValuePattern(entityPat, labelTerms) {
+    return new RegExp(entityPat + '[^。；;\\n]{0,80}?(?:' + labelTerms + ')[^。；;\\n]{0,8}?(?:增至|升至|提高到|提高至|降至|降为|减至|减为|改为|更为|为|达到|定为|调整为)\\s*([\\d,.一二两三四五六七八九十百千万〇零]+)\\s*(万)?', 'g');
+  }
+
+  function _narrativeTextPattern(entityPat, labelTerms) {
+    return new RegExp(entityPat + '[^。；;\\n]{0,80}?(?:' + labelTerms + ')[^。；;\\n]{0,8}?(?:改为|更为|转为|定为|确立为|调整为|奉为|为)\\s*([^，,。；;\\n]{2,24})', 'g');
+  }
+
+  function _entityLoosePattern(entity) {
+    var names = [];
+    ['name','id','label','short','title','officialName'].forEach(function(k) {
+      var v = entity && entity[k];
+      if (v != null && String(v).trim()) names.push(String(v).trim());
+    });
+    names = names.filter(function(v, idx) { return v && names.indexOf(v) === idx; });
+    if (!names.length) return '';
+    return '(?:' + names.map(_armyLooseNamePattern).filter(Boolean).join('|') + ')';
+  }
+
+  function _findNarrativeFaction(G, raw) {
+    var text = _cleanNarrativeToken(raw);
+    if (!text || !G || !Array.isArray(G.facs)) return null;
+    var clean = _normalizeArmyKey(text);
+    return G.facs.find(function(f) {
+      if (!f) return false;
+      var vals = [f.name, f.id, f.label, f.short, f.scenarioFactionName].filter(Boolean);
+      return vals.some(function(v) {
+        var n = _normalizeArmyKey(v);
+        return n && (n === clean || clean.indexOf(n) >= 0 || n.indexOf(clean) >= 0);
+      });
+    }) || null;
+  }
+
+  function _resolveNarrativePlaceName(G, raw) {
+    var text = _cleanNarrativeToken(raw);
+    if (!text) return '';
+    var known = [];
+    if (G && G.mapData && Array.isArray(G.mapData.regions)) {
+      G.mapData.regions.forEach(function(r) {
+        ['name','id','title','officialName'].forEach(function(k) {
+          if (r && r[k]) known.push(String(r[k]));
+        });
+      });
+    }
+    _collectAdminDivisions(G).forEach(function(d) {
+      if (d && d.name) known.push(String(d.name));
+      if (d && d.id) known.push(String(d.id));
+    });
+    var clean = _normalizeArmyKey(text);
+    var hit = known.find(function(n) {
+      var nk = _normalizeArmyKey(n);
+      return nk && (nk === clean || clean.indexOf(nk) >= 0 || nk.indexOf(clean) >= 0);
+    });
+    if (hit) return hit;
+    var m = text.match(/[\u4e00-\u9fff·]{2,12}/);
+    return m ? m[0] : text.slice(0, 20);
+  }
+
+  function _collectAdminDivisions(G) {
+    var out = [];
+    function walk(list) {
+      (list || []).forEach(function(d) {
+        if (!d) return;
+        out.push(d);
+        walk(d.children || d.divisions || d.prefectures || d.counties || []);
+      });
+    }
+    if (G && G.adminHierarchy) {
+      Object.keys(G.adminHierarchy).forEach(function(k) {
+        var tree = G.adminHierarchy[k];
+        walk(tree && (tree.divisions || tree.children || []));
+      });
+    }
+    return out;
+  }
+
+  function _mapRegionByNameOrId(G, ref) {
+    if (!G || !G.mapData || !Array.isArray(G.mapData.regions) || !ref) return null;
+    var clean = _normalizeArmyKey(ref);
+    return G.mapData.regions.find(function(r) {
+      if (!r) return false;
+      return [r.id, r.name, r.title, r.officialName].filter(Boolean).some(function(v) {
+        var n = _normalizeArmyKey(v);
+        return n && n === clean;
+      });
+    }) || null;
+  }
+
+  function _regionNarrativeRecords(G) {
+    var records = [];
+    var seen = {};
+    function add(name, id, mapRegion, adminDiv) {
+      if (!name && !id) return;
+      var key = _normalizeArmyKey(id || name);
+      if (seen[key]) {
+        if (mapRegion && !seen[key].mapRegion) seen[key].mapRegion = mapRegion;
+        if (adminDiv && !seen[key].adminDiv) seen[key].adminDiv = adminDiv;
+        return;
+      }
+      var rec = { name:name || id, id:id || name, mapRegion:mapRegion || null, adminDiv:adminDiv || null };
+      seen[key] = rec;
+      records.push(rec);
+    }
+    if (G && G.mapData && Array.isArray(G.mapData.regions)) {
+      G.mapData.regions.forEach(function(r) {
+        var div = _findDivisionByNameOrId(G, r && (r.name || r.id));
+        add(r && r.name, r && r.id, r, div);
+      });
+    }
+    _collectAdminDivisions(G).forEach(function(d) {
+      add(d && d.name, d && d.id, _mapRegionByNameOrId(G, d && (d.name || d.id)), d);
+    });
+    return records;
+  }
+
+  function _refreshMapFieldViews() {
+    try { if (typeof global.updateMapColors === 'function') global.updateMapColors(); } catch(_) {}
+    try { if (typeof global.renderMap === 'function') global.renderMap(); } catch(_) {}
+    try {
+      if (global.TMPhase8FormalBridge && typeof global.TMPhase8FormalBridge.refresh === 'function') {
+        global.TMPhase8FormalBridge.refresh();
+      }
+    } catch(_) {}
+  }
+
+  function _writeRegionOwnerAliases(obj, facName, facId, idBacked) {
+    if (!obj) return false;
+    var changed = false;
+    function set(k, v) {
+      if (v == null || v === '') return;
+      if (obj[k] !== v) {
+        obj[k] = v;
+        changed = true;
+      }
+    }
+    var ownerValue = idBacked ? facId : facName;
+    ['owner', 'currentOwner', 'controller'].forEach(function(k) { set(k, ownerValue); });
+    ['factionId', 'factionKey', 'ownerKey', 'currentOwnerKey', 'controllerKey', 'stableOwnerKey', 'stableFactionId', 'mapFactionId'].forEach(function(k) { set(k, facId); });
+    ['factionName', 'ownerName', 'currentOwnerName', 'controllerName', 'currentFactionName'].forEach(function(k) { set(k, facName); });
+    return changed;
+  }
+
+  function _setRegionOwnerMirrors(G, rec, fac, reason) {
+    if (!G || !rec || !fac) return false;
+    var facName = fac.name || fac.id || '';
+    var facId = fac.id || fac.name || '';
+    var regionRef = rec.id || rec.name;
+    var mapRegion = rec.mapRegion || _mapRegionByNameOrId(G, regionRef);
+    var oldOwner = mapRegion ? (mapRegion.ownerName || mapRegion.factionName || mapRegion.owner || '') : '';
+    var changed = false;
+    try {
+      if (global.TMMapRuntime && typeof global.TMMapRuntime.setRegionOwner === 'function') {
+        var updated = global.TMMapRuntime.setRegionOwner(regionRef, facName, { mapData:G.mapData, reason:reason || '叙事地块归属补录' });
+        if (updated) mapRegion = updated;
+      }
+    } catch(_) {}
+    if (mapRegion) {
+      if (_writeRegionOwnerAliases(mapRegion, facName, facId, true)) changed = true;
+      if (!mapRegion.data || typeof mapRegion.data !== 'object') mapRegion.data = {};
+      if (_writeRegionOwnerAliases(mapRegion.data, facName, facId, false)) changed = true;
+      if (fac.color) mapRegion.color = fac.color;
+    }
+    var div = rec.adminDiv || _findDivisionByNameOrId(G, rec.name || rec.id);
+    if (div) {
+      if (_writeRegionOwnerAliases(div, facName, facId, false)) changed = true;
+    }
+    if (!G._provinceToFaction) G._provinceToFaction = {};
+    try {
+      if (global.TM && TM.FactionMembership && typeof TM.FactionMembership.assignProvince === 'function') {
+        TM.FactionMembership.assignProvince(rec.name || rec.id, facName, { reason: reason || '叙事地块归属补录', silent: true });
+      }
+    } catch(_) {}
+    [rec.name, rec.id, mapRegion && mapRegion.name, mapRegion && mapRegion.id].filter(Boolean).forEach(function(k) {
+      G._provinceToFaction[k] = facName;
+    });
+    if (G.provinceStats && typeof G.provinceStats === 'object') {
+      var touched = false;
+      Object.keys(G.provinceStats).forEach(function(k) {
+        var st = G.provinceStats[k];
+        if (!st || typeof st !== 'object') return;
+        if ([rec.name, rec.id, mapRegion && mapRegion.name, mapRegion && mapRegion.id].filter(Boolean).some(function(v){ return _normalizeArmyKey(v) === _normalizeArmyKey(k); })) {
+          _writeRegionOwnerAliases(st, facName, facId, false);
+          touched = true;
+        }
+      });
+      if (!touched && (rec.id || rec.name)) {
+        G.provinceStats[rec.id || rec.name] = {};
+        _writeRegionOwnerAliases(G.provinceStats[rec.id || rec.name], facName, facId, false);
+      }
+    }
+    if (G._turnReport && oldOwner !== facName) {
+      G._turnReport.push({ type:'region_update', entity:rec.name || rec.id, field:'owner', old:oldOwner, new:facName, reason:reason || '叙事地块归属补录', turn:G.turn||0 });
+    }
+    _refreshMapFieldViews();
+    return changed || oldOwner !== facName;
+  }
+
+  function _cleanRegionOfficeTitle(raw) {
+    var text = String(raw || '').trim();
+    if (!text) return '';
+    var m = text.match(/巡抚|总督|经略|督抚|布政使|按察使|知府|知州|知县|县令|太守|刺史|郡守|守臣|主官|地方官/);
+    return m ? m[0] : text.replace(/[^\u4e00-\u9fff·]/g, '').slice(0, 12);
+  }
+
+  function _writeRegionGovernorAliases(obj, governor, position) {
+    if (!obj) return false;
+    var changed = false;
+    function set(k, v) {
+      if (v == null || v === '') return;
+      if (obj[k] !== v) {
+        obj[k] = v;
+        changed = true;
+      }
+    }
+    ['governor', 'governorName', 'currentGovernor', 'official', 'currentOfficial', 'administrator', 'administratorName', 'localOfficial', 'chiefOfficial'].forEach(function(k) {
+      set(k, governor);
+    });
+    if (position) {
+      ['officialPosition', 'office', 'governorTitle', 'officialTitle', 'positionTitle'].forEach(function(k) {
+        set(k, position);
+      });
+    }
+    return changed;
+  }
+
+  function _syncRegionGovernorCharacter(G, governor, rec, position) {
+    if (!G || !Array.isArray(G.chars) || !governor) return false;
+    var ch = G.chars.find(function(c) { return c && c.name && String(c.name).trim() === governor; });
+    if (!ch) return false;
+    var changed = false;
+    function set(k, v) {
+      if (v == null || v === '') return;
+      if (ch[k] !== v) {
+        ch[k] = v;
+        changed = true;
+      }
+    }
+    var regionName = (rec && (rec.name || rec.id)) || '';
+    if (position) {
+      set('officialTitle', position);
+      set('office', position);
+      set('position', position);
+    }
+    set('location', regionName);
+    set('currentRegion', regionName);
+    set('governorOf', regionName);
+    return changed;
+  }
+
+  function _setRegionGovernorMirrors(G, rec, governor, reason, position) {
+    if (!G || !rec || !governor) return false;
+    position = _cleanRegionOfficeTitle(position);
+    var mapRegion = rec.mapRegion || _mapRegionByNameOrId(G, rec.id || rec.name);
+    var div = rec.adminDiv || _findDivisionByNameOrId(G, rec.name || rec.id);
+    var oldGov = (div && (div.governor || div.official)) || (mapRegion && (mapRegion.governor || mapRegion.official)) || '';
+    var changed = false;
+    if (mapRegion) {
+      if (_writeRegionGovernorAliases(mapRegion, governor, position)) changed = true;
+      if (!mapRegion.data || typeof mapRegion.data !== 'object') mapRegion.data = {};
+      if (_writeRegionGovernorAliases(mapRegion.data, governor, position)) changed = true;
+    }
+    if (div) {
+      if (_writeRegionGovernorAliases(div, governor, position)) changed = true;
+    }
+    if (G.provinceStats && typeof G.provinceStats === 'object') {
+      Object.keys(G.provinceStats).forEach(function(k) {
+        var st = G.provinceStats[k];
+        if (!st || typeof st !== 'object') return;
+        if ([rec.name, rec.id, mapRegion && mapRegion.name, mapRegion && mapRegion.id].filter(Boolean).some(function(v){ return _normalizeArmyKey(v) === _normalizeArmyKey(k); })) {
+          if (_writeRegionGovernorAliases(st, governor, position)) changed = true;
+        }
+      });
+    }
+    if (_syncRegionGovernorCharacter(G, governor, rec, position)) changed = true;
+    if (G._turnReport && oldGov !== governor) {
+      G._turnReport.push({ type:'region_update', entity:rec.name || rec.id, field:'governor', old:oldGov, new:governor, office:position || '', reason:reason || '叙事主官补录', turn:G.turn||0 });
+    }
+    _refreshMapFieldViews();
+    return changed || oldGov !== governor;
+  }
+
+  function _setRegionScalarMirrors(G, rec, fields, value, reason) {
+    if (!G || !rec || !fields || !fields.length || !isFinite(value)) return false;
+    var mapRegion = rec.mapRegion || _mapRegionByNameOrId(G, rec.id || rec.name);
+    var div = rec.adminDiv || _findDivisionByNameOrId(G, rec.name || rec.id);
+    var changed = false;
+    var oldValue = mapRegion ? mapRegion[fields[0]] : (div ? div[fields[0]] : undefined);
+    function write(obj) {
+      if (!obj) return;
+      fields.forEach(function(field) {
+        if (obj[field] !== value) {
+          obj[field] = value;
+          changed = true;
+        }
+      });
+    }
+    write(mapRegion);
+    write(div);
+    if (G.provinceStats && typeof G.provinceStats === 'object') {
+      Object.keys(G.provinceStats).forEach(function(k) {
+        var st = G.provinceStats[k];
+        if (!st || typeof st !== 'object') return;
+        if ([rec.name, rec.id, mapRegion && mapRegion.name, mapRegion && mapRegion.id].filter(Boolean).some(function(v){ return _normalizeArmyKey(v) === _normalizeArmyKey(k); })) {
+          write(st);
+        }
+      });
+    }
+    if (G._turnReport && changed) {
+      G._turnReport.push({ type:'region_update', entity:rec.name || rec.id, field:fields[0], old:oldValue, new:value, reason:reason || '叙事地块数值补录', turn:G.turn||0 });
+    }
+    _refreshMapFieldViews();
+    return changed;
+  }
+
+  function _applyNarrativeArmyFieldFallback(G, aiOutput) {
+    if (!G || !Array.isArray(G.armies) || !aiOutput) return 0;
+    var narrative = _getNarrativeText(aiOutput);
+    if (!narrative) return 0;
+    var count = 0;
+    var seen = {};
+    G.armies.forEach(function(army) {
+      _armyNarrativeAliases(army).forEach(function(alias) {
+        var namePat = _armyLooseNamePattern(alias);
+        if (!namePat) return;
+        var locPat = new RegExp(namePat + '[^。；;\\n]{0,18}?(?:移驻|调驻|驻防|进驻|开赴|开往|调往|移镇|屯驻|驻扎于|驻于|移师)\\s*([^，,。；;\\n\\s]{2,16})', 'g');
+        var m;
+        while ((m = locPat.exec(narrative)) !== null) {
+          var place = _resolveNarrativePlaceName(G, m[1]);
+          var key = (army.id || army.name || alias) + '|location|' + place;
+          if (!place || seen[key]) continue;
+          seen[key] = true;
+          var r = applyAIArmyChange({ name: army.name || alias, location: place, garrison: place, reason:'叙事驻地补录' }, { source:'narrative.army_fields' });
+          if (r && r.ok && r.changed) count++;
+        }
+        var armyNumberRules = [
+          { labels:'兵力|兵员|军额|人数|兵数', field:'soldiers', clamp:false },
+          { labels:'士气|军心', field:'morale', clamp:true },
+          { labels:'训练|操练|训练度', field:'training', clamp:true },
+          { labels:'补给|粮饷|供给', field:'supply', clamp:true },
+          { labels:'忠诚|军忠', field:'loyalty', clamp:true },
+          { labels:'控制|军纪|掌控|控制度', field:'control', clamp:true }
+        ];
+        armyNumberRules.forEach(function(rule) {
+          var pat = _narrativeValuePattern(namePat, rule.labels);
+          var nm;
+          while ((nm = pat.exec(narrative)) !== null) {
+            var rawNum = (nm[1] || '') + (nm[2] || '');
+            var value = _parseNarrativeNumber(rawNum);
+            if (!isFinite(value)) continue;
+            value = rule.clamp ? Math.round(_clampNum(value, 0, 100)) : Math.max(0, Math.round(value));
+            var nkey = (army.id || army.name || alias) + '|' + rule.field + '|' + value;
+            if (seen[nkey]) continue;
+            seen[nkey] = true;
+            var change = { name: army.name || alias, reason:'叙事军队数值补录' };
+            if (rule.field === 'soldiers') {
+              var oldS = Math.max(0, Math.round(Number(army.soldiers || army.size || army.strength || 0) || 0));
+              change.delta = value - oldS;
+            } else {
+              change[rule.field] = value;
+            }
+            var nr = applyAIArmyChange(change, { source:'narrative.army_fields' });
+            if (nr && nr.ok && nr.changed) count++;
+          }
+        });
+        (G.facs || []).forEach(function(fac) {
+          var facPat = _entityLoosePattern(fac);
+          if (!facPat) return;
+          var factionPatterns = [
+            new RegExp(namePat + '[^。；;\\n]{0,18}?(?:改隶|转隶|划归|归属|隶属|归附|投归|拨归)\\s*' + facPat, 'g'),
+            new RegExp(facPat + '[^。；;\\n]{0,12}?(?:接收|收编|统辖|节制|领有)[^。；;\\n]{0,12}?' + namePat, 'g')
+          ];
+          factionPatterns.forEach(function(pat) {
+            var fm;
+            while ((fm = pat.exec(narrative)) !== null) {
+              var fkey = (army.id || army.name || alias) + '|faction|' + (fac.name || fac.id);
+              if (seen[fkey]) continue;
+              seen[fkey] = true;
+              var fr = applyAIArmyChange({ name: army.name || alias, faction: fac.name || fac.id, reason:'叙事军队归属补录' }, { source:'narrative.army_fields' });
+              if (fr && fr.ok && fr.changed) count++;
+            }
+          });
+        });
+      });
+    });
+    return count;
+  }
+
+  function _applyNarrativeRegionFieldFallback(G, aiOutput) {
+    if (!G || !aiOutput) return 0;
+    var narrative = _getNarrativeText(aiOutput);
+    if (!narrative) return 0;
+    var records = _regionNarrativeRecords(G);
+    if (!records.length) return 0;
+    var count = 0;
+    var seen = {};
+    records.forEach(function(rec) {
+      var regionPat = _entityLoosePattern({ name:rec.name, id:rec.id });
+      if (!regionPat) return;
+      (G.facs || []).forEach(function(fac) {
+        var facPat = _entityLoosePattern(fac);
+        if (!facPat) return;
+        var ownerPatterns = [
+          new RegExp(facPat + '[^。；;\\n]{0,12}?(?:占领|攻取|夺取|据有|控制|接管|吞并|兼并|收复)[^。；;\\n]{0,8}?' + regionPat, 'g'),
+          new RegExp(regionPat + '[^。；;\\n]{0,14}?(?:归|归属|改属|划归|并入|转归|落入|归入|易手于)\\s*' + facPat, 'g'),
+          new RegExp(regionPat + '[^。；;\\n]{0,8}?为\\s*' + facPat + '\\s*所(?:据|占|有|控)', 'g')
+        ];
+        ownerPatterns.forEach(function(pat) {
+          var m;
+          while ((m = pat.exec(narrative)) !== null) {
+            var key = (rec.id || rec.name) + '|owner|' + (fac.id || fac.name);
+            if (seen[key]) continue;
+            seen[key] = true;
+            if (_setRegionOwnerMirrors(G, rec, fac, '叙事地块归属补录')) count++;
+          }
+        });
+      });
+      var officeTerms = '巡抚|总督|经略|督抚|布政使|按察使|知府|知州|知县|县令|太守|刺史|郡守|守臣|主官|地方官';
+      var govPatterns = [
+        { re:new RegExp(regionPat + '[^。；;\\n]{0,14}?(' + officeTerms + ')[^。；;\\n]{0,12}?(?:改任为|任为|更为|换为|改由|补授|起用|任命为|授为|署为)\\s*([^，,。；;\\n\\s]{2,16})', 'g'), role:1, person:2 },
+        { re:new RegExp('(?:命|以|任|擢|调|起用|授)\\s*([^，,。；;\\n\\s]{2,16})\\s*(?:为|任|署|出任)\\s*' + regionPat + '[^。；;\\n]{0,8}?(' + officeTerms + ')', 'g'), role:2, person:1 },
+        { re:new RegExp('(?:命|以|任|擢|调|起用|授)\\s*([^，,。；;\\n\\s]{2,16})\\s*(?:为|任|署|出任)\\s*(' + officeTerms + ')[^。；;\\n]{0,12}?' + regionPat, 'g'), role:2, person:1 },
+        { re:new RegExp('([^，,。；;\\n\\s]{2,16})\\s*(?:出任|接任|署理|改任|补任|就任)\\s*' + regionPat + '[^。；;\\n]{0,8}?(' + officeTerms + ')', 'g'), role:2, person:1 },
+        { re:new RegExp('(?:命|以|任|擢|调|起用|授)\\s*([^，,。；;\\n\\s]{2,16})\\s*(?:主政|治理|镇抚|镇守|抚治|出镇)[^。；;\\n]{0,12}?' + regionPat, 'g'), role:0, person:1 }
+      ];
+      govPatterns.forEach(function(ruleObj) {
+        var pat = ruleObj.re;
+        var gm;
+        while ((gm = pat.exec(narrative)) !== null) {
+          var person = _resolveNarrativeCommanderName(G, gm[ruleObj.person]);
+          var office = ruleObj.role ? _cleanRegionOfficeTitle(gm[ruleObj.role]) : '';
+          var gkey = (rec.id || rec.name) + '|governor|' + person;
+          if (!person || seen[gkey]) continue;
+          seen[gkey] = true;
+          if (_setRegionGovernorMirrors(G, rec, person, '叙事主官补录', office)) count++;
+        }
+      });
+      var regionNumberRules = [
+        { labels:'驻军|守军|兵力|军力', fields:['troops'], clamp:false },
+        { labels:'开发|发展|开发度|发展度', fields:['development'], clamp:true },
+        { labels:'繁荣|富庶|繁荣度', fields:['prosperity'], clamp:true },
+        { labels:'民心|民情|地方民心', fields:['minxinLocal'], clamp:true },
+        { labels:'腐败|贪腐|吏治腐败', fields:['corruptionLocal'], clamp:true },
+        { labels:'税负|税压|赋役|税负水平', fields:['taxBurden','taxLevel'], clamp:true }
+      ];
+      regionNumberRules.forEach(function(rule) {
+        var pat = _narrativeValuePattern(regionPat, rule.labels);
+        var rm;
+        while ((rm = pat.exec(narrative)) !== null) {
+          var rawNum = (rm[1] || '') + (rm[2] || '');
+          var value = _parseNarrativeNumber(rawNum);
+          if (!isFinite(value)) continue;
+          value = rule.clamp ? Math.round(_clampNum(value, 0, 100)) : Math.max(0, Math.round(value));
+          var rkey = (rec.id || rec.name) + '|' + rule.fields[0] + '|' + value;
+          if (seen[rkey]) continue;
+          seen[rkey] = true;
+          if (_setRegionScalarMirrors(G, rec, rule.fields, value, '叙事地块数值补录')) count++;
+        }
+      });
+    });
+    return count;
+  }
+
+  function _setFactionLeader(fac, leader, G, reason) {
+    if (!fac || !leader) return false;
+    var old = fac.leader || fac.ruler || (fac.leadership && fac.leadership.ruler) || '';
+    if (old === leader && fac.leader === leader && fac.ruler === leader) return false;
+    fac.leader = leader;
+    fac.ruler = leader;
+    if (!fac.leadership || typeof fac.leadership !== 'object') fac.leadership = {};
+    fac.leadership.ruler = leader;
+    if (G && G._turnReport) G._turnReport.push({ type:'faction_update', entity:fac.name || fac.id, field:'leader', old:old, new:leader, reason:reason || '叙事首领补录', turn:G.turn||0 });
+    return true;
+  }
+
+  function _setFactionCapital(fac, capital, G, reason) {
+    if (!fac || !capital) return false;
+    var old = fac.capital || fac.capitalName || '';
+    if (old === capital && fac.capital === capital) return false;
+    fac.capital = capital;
+    fac.capitalName = capital;
+    if (G && G._turnReport) G._turnReport.push({ type:'faction_update', entity:fac.name || fac.id, field:'capital', old:old, new:capital, reason:reason || '叙事都城补录', turn:G.turn||0 });
+    return true;
+  }
+
+  function _setFactionFields(fac, fields, value, G, reason) {
+    if (!fac || !fields || !fields.length || value == null || value === '') return false;
+    var old = fac[fields[0]];
+    var changed = false;
+    fields.forEach(function(field) {
+      if (fac[field] !== value) {
+        fac[field] = value;
+        changed = true;
+      }
+    });
+    if (G && G._turnReport && changed) {
+      G._turnReport.push({ type:'faction_update', entity:fac.name || fac.id, field:fields[0], old:old, new:value, reason:reason || '叙事势力字段补录', turn:G.turn||0 });
+    }
+    return changed;
+  }
+
+  function _setFactionRelationPair(G, a, b, kind) {
+    if (!G || !a || !b || a === b) return false;
+    var hostile = /绝交|断交|宣战|开战|敌对|犯界|寇边|背盟/.test(kind || '');
+    var friendly = /结盟|缔盟|和好|通使|修好|朝贡|纳贡|称臣|封贡/.test(kind || '');
+    if (!hostile && !friendly) return false;
+    var val = hostile ? -80 : 65;
+    var oldA = a.relations && a.relations[b.name || b.id];
+    var oldB = b.relations && b.relations[a.name || a.id];
+    if (!a.relations) a.relations = {};
+    if (!b.relations) b.relations = {};
+    a.relations[b.name || b.id] = val;
+    b.relations[a.name || a.id] = val;
+    a.attitude = hostile ? 'hostile' : (kind === '称臣' ? 'vassal' : 'friendly');
+    b.attitude = hostile ? 'hostile' : 'friendly';
+    var listName = hostile ? 'enemies' : 'allies';
+    var otherList = hostile ? 'allies' : 'enemies';
+    if (!Array.isArray(a[listName])) a[listName] = [];
+    if (!Array.isArray(b[listName])) b[listName] = [];
+    if (a[listName].indexOf(b.name || b.id) < 0) a[listName].push(b.name || b.id);
+    if (b[listName].indexOf(a.name || a.id) < 0) b[listName].push(a.name || a.id);
+    if (Array.isArray(a[otherList])) a[otherList] = a[otherList].filter(function(x){ return x !== (b.name || b.id); });
+    if (Array.isArray(b[otherList])) b[otherList] = b[otherList].filter(function(x){ return x !== (a.name || a.id); });
+    if (G._turnReport && (oldA !== val || oldB !== val)) {
+      G._turnReport.push({ type:'faction_update', entity:(a.name || a.id) + '/' + (b.name || b.id), field:'relation', old:oldA, new:val, reason:'叙事外交补录:' + kind, turn:G.turn||0 });
+    }
+    return oldA !== val || oldB !== val;
+  }
+
+  function _applyNarrativeFactionFieldFallback(G, aiOutput) {
+    if (!G || !Array.isArray(G.facs) || !aiOutput) return 0;
+    var narrative = _getNarrativeText(aiOutput);
+    if (!narrative) return 0;
+    var count = 0;
+    var seen = {};
+    G.facs.forEach(function(fac) {
+      var facPat = _entityLoosePattern(fac);
+      if (!facPat) return;
+      var leaderPatterns = [
+        new RegExp(facPat + '[^。；;\\n]{0,10}?(?:奉|拥立|推戴|立|共推)\\s*([^，,。；;\\n\\s]{2,16})\\s*(?:为主|为首|为首领|为汗|为王|为帝|继位|嗣位|掌权)', 'g'),
+        new RegExp(facPat + '[^。；;\\n]{0,12}?(?:首领|君主|国主|大汗|汗|主|领袖)[^。；;\\n]{0,12}?(?:改为|更为|换为|由[^，,。；;\\n]{0,10}?改为)\\s*([^，,。；;\\n\\s]{2,16})', 'g'),
+        new RegExp('([^，,。；;\\n\\s]{2,16})\\s*(?:继为|成为|出任|接掌|掌管)[^。；;\\n]{0,8}?' + facPat + '[^。；;\\n]{0,8}?(?:首领|国主|大汗|汗|君主|领袖|之主)', 'g')
+      ];
+      leaderPatterns.forEach(function(pat) {
+        var m;
+        while ((m = pat.exec(narrative)) !== null) {
+          var leader = _resolveNarrativeCommanderName(G, m[1]);
+          var key = (fac.id || fac.name) + '|leader|' + leader;
+          if (!leader || seen[key]) continue;
+          seen[key] = true;
+          if (_setFactionLeader(fac, leader, G, '叙事首领补录')) count++;
+        }
+      });
+      var capPat = new RegExp(facPat + '[^。；;\\n]{0,12}?(?:迁都|定都|建都|移都|都于|驻跸于)\\s*([^，,。；;\\n\\s]{2,16})', 'g');
+      var cm;
+      while ((cm = capPat.exec(narrative)) !== null) {
+        var capital = _resolveNarrativePlaceName(G, cm[1]);
+        var ckey = (fac.id || fac.name) + '|capital|' + capital;
+        if (!capital || seen[ckey]) continue;
+        seen[ckey] = true;
+        if (_setFactionCapital(fac, capital, G, '叙事都城补录')) count++;
+      }
+      var factionTextRules = [
+        { labels:'政体|政府形态|体制', fields:['government'] },
+        { labels:'类型|势力类型|性质', fields:['type','factionType'] },
+        { labels:'战略目标|目标|大略', fields:['goal','strategicGoal'] },
+        { labels:'战态|战争状态|军事态势', fields:['warState'] },
+        { labels:'国策|政策|施政方针', fields:['policy','statePolicy'] },
+        { labels:'经济政策|财政方略', fields:['economicPolicy'] },
+        { labels:'意识形态|理念', fields:['ideology'] },
+        { labels:'战略重点|军政方略', fields:['strategicPriorities'] }
+      ];
+      factionTextRules.forEach(function(rule) {
+        var pat = _narrativeTextPattern(facPat, rule.labels);
+        var tm;
+        while ((tm = pat.exec(narrative)) !== null) {
+          var value = _cleanNarrativeFieldValue(tm[1]);
+          var tkey = (fac.id || fac.name) + '|' + rule.fields[0] + '|' + value;
+          if (!value || seen[tkey]) continue;
+          seen[tkey] = true;
+          if (_setFactionFields(fac, rule.fields, value, G, '叙事势力字段补录')) count++;
+        }
+      });
+      var factionNumberRules = [
+        { labels:'动员程度|动员率|动员水平', fields:['mobilization','mobilizationLevel'], clamp:true },
+        { labels:'凝聚|凝聚度|内部凝聚', fields:['cohesion'], clamp:true },
+        { labels:'稳定|稳定度|政权稳定', fields:['stability'], clamp:true },
+        { labels:'民望|声望|威望', fields:['publicOpinion','prestige'], clamp:true }
+      ];
+      factionNumberRules.forEach(function(rule) {
+        var pat = _narrativeValuePattern(facPat, rule.labels);
+        var nm;
+        while ((nm = pat.exec(narrative)) !== null) {
+          var rawNum = (nm[1] || '') + (nm[2] || '');
+          var value = _parseNarrativeNumber(rawNum);
+          if (!isFinite(value)) continue;
+          value = rule.clamp ? Math.round(_clampNum(value, 0, 100)) : Math.max(0, Math.round(value));
+          var nkey = (fac.id || fac.name) + '|' + rule.fields[0] + '|' + value;
+          if (seen[nkey]) continue;
+          seen[nkey] = true;
+          if (_setFactionFields(fac, rule.fields, value, G, '叙事势力数值补录')) count++;
+        }
+      });
+    });
+    for (var i = 0; i < G.facs.length; i += 1) {
+      for (var j = 0; j < G.facs.length; j += 1) {
+        if (i === j) continue;
+        var a = G.facs[i], b = G.facs[j];
+        var aPat = _entityLoosePattern(a), bPat = _entityLoosePattern(b);
+        if (!aPat || !bPat) continue;
+        var relPat = new RegExp(aPat + '[^。；;\\n]{0,8}?(?:与|同|和)' + bPat + '[^。；;\\n]{0,8}?(绝交|断交|宣战|开战|结盟|缔盟|和好|修好|通使|朝贡|纳贡|称臣|封贡)', 'g');
+        var rm;
+        while ((rm = relPat.exec(narrative)) !== null) {
+          var rkey = (a.id || a.name) + '|' + (b.id || b.name) + '|' + rm[1];
+          if (seen[rkey]) continue;
+          seen[rkey] = true;
+          if (_setFactionRelationPair(G, a, b, rm[1])) count++;
+        }
+      }
+    }
+    try { if (global.TM && TM.FactionIndex && typeof TM.FactionIndex.rebuild === 'function') TM.FactionIndex.rebuild(); } catch(_) {}
+    try {
+      if (global.TMPhase8FormalBridge && typeof global.TMPhase8FormalBridge.refresh === 'function') {
+        global.TMPhase8FormalBridge.refresh();
+      }
+    } catch(_) {}
     return count;
   }
 
@@ -1487,6 +2296,10 @@
       militaryChangeCount += _applyAIArmyChangeList(aiOutput.army_changes, 'army_changes');
     }
     if (militaryChangeCount > 0) applied.semantic.military_changes = militaryChangeCount;
+    var armyCommanderFallbackCount = _applyNarrativeArmyCommanderFallback(G, aiOutput);
+    if (armyCommanderFallbackCount > 0) applied.semantic.army_commander_fallback = armyCommanderFallbackCount;
+    var armyFieldFallbackCount = _applyNarrativeArmyFieldFallback(G, aiOutput);
+    if (armyFieldFallbackCount > 0) applied.semantic.army_field_fallback = armyFieldFallbackCount;
 
     // ═══════════════════════════════════════════════════════════════════
     // v2·AI 至高权力扩展通道（全域语义化快捷+兜底 anyPathChanges）
@@ -1883,6 +2696,8 @@
       if (fu.updates) facCount += _mergeUpdatesToEntity(fac, fu.updates, 'faction_update', fac.name, fu.reason || '');
     });
     if (facCount > 0) applied.semantic.faction_updates = facCount;
+    var factionFieldFallbackCount = _applyNarrativeFactionFieldFallback(G, aiOutput);
+    if (factionFieldFallbackCount > 0) applied.semantic.faction_field_fallback = factionFieldFallbackCount;
 
     // ── 12. party_updates ──
     var partyCount = 0;
@@ -1915,6 +2730,8 @@
       if (ru.updates) regionCount += _mergeUpdatesToEntity(div, ru.updates, 'region_update', div.name || div.id, ru.reason || '');
     });
     if (regionCount > 0) applied.semantic.region_updates = regionCount;
+    var regionFieldFallbackCount = _applyNarrativeRegionFieldFallback(G, aiOutput);
+    if (regionFieldFallbackCount > 0) applied.semantic.region_field_fallback = regionFieldFallbackCount;
 
     // ── 15. project_updates：长期工程/商队/学堂/道路等 ──
     // schema: [{ name, type:'工程|商队|学堂|道路|etc', status:'planning|active|completed|abandoned', cost, progress, leader, region, startTurn, endTurn, description }]
@@ -2226,6 +3043,7 @@
   function _getNarrativeText(aiOutput) {
     var t = '';
     if (!aiOutput) return t;
+    if (aiOutput.narrative)    t += String(aiOutput.narrative) + '\n';
     if (aiOutput.shilu_text)   t += String(aiOutput.shilu_text) + '\n';
     if (aiOutput.shizhengji)   t += String(aiOutput.shizhengji) + '\n';
     if (aiOutput.yupiHuiting)  t += String(aiOutput.yupiHuiting) + '\n';
@@ -2694,7 +3512,9 @@
     if (!startKw && !endKw) return;
     // facs.attitude / relations 是否本回合有 update
     var fuArr = aiOutput.faction_updates || [];
-    var hasFactionUpdate = fuArr.length > 0 || (G.turnChanges && (G.turnChanges.factions||[]).length > 0);
+    var hasRelationFallback = applied && applied.semantic && applied.semantic.faction_field_fallback > 0 &&
+      (G._turnReport || []).some(function(r){ return r && r.turn === (G.turn || 0) && r.type === 'faction_update' && r.field === 'relation'; });
+    var hasFactionUpdate = fuArr.length > 0 || hasRelationFallback || (G.turnChanges && (G.turnChanges.factions||[]).length > 0);
     if (hasFactionUpdate) return;
     var warnings = [];
     if (startKw) warnings.push({ kind: 'diplomacy_friendly_missing', keyword: startKw, snippet: _snippetAround(narrative, startKw, 30) });
@@ -2783,6 +3603,8 @@
     var haremKw = _firstHit(narrative, ['册立','册封','晋为妃','晋为贵妃','立为皇后','废后','废妃','降为','贬为','出宫','选秀','纳妃']);
     if (!moveCapKw && !titleKw && !haremKw) return;
     var charUpdates = aiOutput.char_updates || [];
+    var hasCapitalMove = (G._turnReport || []).some(function(r){ return r && r.turn === (G.turn || 0) && r.type === 'faction_update' && r.field === 'capital'; }) ||
+      (aiOutput.faction_updates || []).some(function(fu){ return fu && fu.updates && (fu.updates.capital || fu.updates.capitalName); });
     // 简单粗略：char_updates 中是否含 title/posthumous/spouse 修改
     var hasRelevantUpdate = charUpdates.some(function(c){
       if (!c || !c.changes) return false;
@@ -2790,7 +3612,7 @@
       return chKeys.some(function(k){return /title|posthumous|spouse|wife|consort/i.test(k);});
     });
     var warnings = [];
-    if (moveCapKw) warnings.push({ kind: 'capital_move_missing', keyword: moveCapKw, snippet: _snippetAround(narrative, moveCapKw, 30) });
+    if (moveCapKw && !hasCapitalMove) warnings.push({ kind: 'capital_move_missing', keyword: moveCapKw, snippet: _snippetAround(narrative, moveCapKw, 30) });
     if (titleKw && !hasRelevantUpdate) warnings.push({ kind: 'title_change_missing', keyword: titleKw, snippet: _snippetAround(narrative, titleKw, 30) });
     if (haremKw && !hasRelevantUpdate) warnings.push({ kind: 'harem_change_missing', keyword: haremKw, snippet: _snippetAround(narrative, haremKw, 30) });
     if (!warnings.length) return;

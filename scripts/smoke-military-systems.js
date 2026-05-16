@@ -112,6 +112,7 @@ load('tm-region-enrich.js');
 load('tm-char-full-schema.js');
 load('tm-rel-graph.js');
 load('tm-migration.js');
+load('tm-map-system.js');
 load('tm-ai-schema.js');
 load('tm-ai-output-validator.js');
 load('tm-ai-change-applier.js');
@@ -182,6 +183,11 @@ context.GM = {
     commander: '旧将',
     commanderName: '旧将',
     general: '旧将',
+    leader: '旧将',
+    generalName: '旧将',
+    commanderDisplayName: '旧将',
+    commandingOfficer: '旧将',
+    chiefCommander: '旧将',
     soldiers: 12000,
     size: 12000,
     strength: 12000
@@ -195,11 +201,388 @@ check(commanderSwap && commanderSwap.ok && commanderSwap.changed, 'existing army
 checkEq(context.GM.armies[0].commander, '新将', 'army.commander should update on existing army');
 checkEq(context.GM.armies[0].commanderName, '新将', 'army commanderName alias should stay live');
 checkEq(context.GM.armies[0].general, '新将', 'army general alias should stay live');
+checkEq(context.GM.armies[0].leader, '新将', 'army leader alias should stay live');
+checkEq(context.GM.armies[0].generalName, '新将', 'army generalName alias should stay live');
+checkEq(context.GM.armies[0].commanderDisplayName, '新将', 'army commanderDisplayName alias should stay live');
+checkEq(context.GM.armies[0].commandingOfficer, '新将', 'army commandingOfficer alias should stay live');
+checkEq(context.GM.armies[0].chiefCommander, '新将', 'army chiefCommander alias should stay live');
 check(militaryRefreshHits >= 4, 'army commander change should refresh military views');
 check(formalBridgeRefreshHits >= 1, 'army commander change should refresh phase8 formal bridge');
 check(context.GM._turnReport.some(function(r) {
   return r && r.type === 'military' && r.field === 'commander' && r.old === '旧将' && r.new === '新将';
 }), 'army commander change should be recorded in turn report');
+
+context.GM = {
+  turn: 8,
+  chars: [{ name: '张惟贤', faction: '明朝廷' }],
+  facs: [],
+  armies: [{
+    id: 'jingying_wujun',
+    name: '京营 - 五军营',
+    faction: '明朝廷',
+    commander: '崔呈秀',
+    commanderName: '崔呈秀',
+    general: '崔呈秀',
+    soldiers: 60000
+  }]
+};
+const narrativeCommander = context.applyAITurnChanges({
+  narrative: '京营·五军营 统帅更正为 张惟贤。'
+});
+check(narrativeCommander && narrativeCommander.ok, 'narrative commander turn should apply');
+checkEq(context.GM.armies[0].commander, '张惟贤', 'narrative army commander correction should update army.commander');
+checkEq(context.GM.armies[0].commanderName, '张惟贤', 'narrative army commander correction should update commanderName');
+checkEq(context.GM.armies[0].general, '张惟贤', 'narrative army commander correction should update general');
+check(narrativeCommander.applied &&
+      narrativeCommander.applied.semantic &&
+      narrativeCommander.applied.semantic.army_commander_fallback === 1,
+  'narrative army commander fallback should be counted');
+check(context.GM._turnReport.some(function(r) {
+  return r && r.type === 'military' && r.field === 'commander' && r.old === '崔呈秀' && r.new === '张惟贤';
+}), 'narrative army commander correction should be recorded in turn report');
+
+function runNarrativeCommanderCase(text, initialCommander, expectedCommander, message) {
+  context.GM = {
+    turn: 8,
+    chars: [{ name: expectedCommander, faction: '明朝廷' }],
+    facs: [],
+    armies: [{
+      id: 'jingying_wujun',
+      name: '京营 - 五军营',
+      faction: '明朝廷',
+      commander: initialCommander,
+      commanderName: initialCommander,
+      general: initialCommander,
+      soldiers: 60000
+    }]
+  };
+  const res = context.applyAITurnChanges({ narrative: text });
+  check(res && res.ok, message + ' should apply turn');
+  checkEq(context.GM.armies[0].commander, expectedCommander, message);
+  checkEq(context.GM.armies[0].commanderName, expectedCommander, message + ' commanderName');
+  checkEq(context.GM.armies[0].general, expectedCommander, message + ' general');
+}
+
+runNarrativeCommanderCase(
+  '张惟贤出掌京营·五军营。',
+  '',
+  '张惟贤',
+  'person-first direct army command appointment should update commander'
+);
+runNarrativeCommanderCase(
+  '京营·五军营交张惟贤统带。',
+  '崔呈秀',
+  '张惟贤',
+  'army-first handover to commander should update commander'
+);
+runNarrativeCommanderCase(
+  '以京营·五军营付张惟贤节制。',
+  '崔呈秀',
+  '张惟贤',
+  'army-first entrusted command should update commander'
+);
+runNarrativeCommanderCase(
+  '命张惟贤提督京营·五军营。',
+  '',
+  '张惟贤',
+  'imperial order direct command appointment should update commander'
+);
+
+context.GM = {
+  turn: 9,
+  chars: [],
+  facs: [{ id:'fac-ming', name:'明朝廷' }, { id:'fac-later-jin', name:'后金' }],
+  armies: [{
+    id: 'jingying_wujun',
+    name: '京营 - 五军营',
+    faction: '明朝廷',
+    location: '京师',
+    garrison: '京师',
+    soldiers: 60000
+  }]
+};
+const narrativeArmyFields = context.applyAITurnChanges({
+  narrative: '京营·五军营移驻山海关，改隶后金。'
+});
+check(narrativeArmyFields && narrativeArmyFields.ok, 'narrative army field turn should apply');
+checkEq(context.GM.armies[0].location, '山海关', 'narrative army location should update');
+checkEq(context.GM.armies[0].garrison, '山海关', 'narrative army garrison alias should update');
+checkEq(context.GM.armies[0].faction, '后金', 'narrative army faction should update');
+check(narrativeArmyFields.applied &&
+      narrativeArmyFields.applied.semantic &&
+      narrativeArmyFields.applied.semantic.army_field_fallback >= 2,
+  'narrative army field fallback should count location and faction');
+
+context.GM = {
+  turn: 10,
+  chars: [{ name: '袁崇焕', faction: '明朝廷' }],
+  facs: [{ id:'fac-ming', name:'明朝廷' }, { id:'fac-later-jin', name:'后金' }],
+  mapData: {
+    enabled: true,
+    factions: {},
+    regions: [{
+      id: 'liaodong',
+      name: '辽东',
+      owner: 'fac-ming',
+      currentOwner: 'fac-ming',
+      ownerKey: 'fac-ming',
+      currentOwnerKey: 'fac-ming',
+      controllerKey: 'fac-ming',
+      factionName: '明朝廷',
+      ownerName: '明朝廷',
+      currentOwnerName: '明朝廷',
+      controllerName: '明朝廷',
+      governor: '旧官',
+      officialPosition: '旧巡抚',
+      data: {
+        ownerName: '明朝廷',
+        currentOwnerName: '明朝廷',
+        governor: '旧官',
+        officialPosition: '旧巡抚'
+      },
+      points: [[0,0],[1,0],[1,1]],
+      coords: [0,0,1,0,1,1],
+      center: [0,0]
+    }]
+  },
+  adminHierarchy: {
+    ming: {
+      divisions: [{
+        id: 'liaodong',
+        name: '辽东',
+        owner: '明朝廷',
+        currentOwner: '明朝廷',
+        factionName: '明朝廷',
+        governor: '旧官',
+        officialPosition: '旧巡抚',
+        children: []
+      }]
+    }
+  },
+  _provinceToFaction: { '辽东': '明朝廷' },
+  provinceStats: { liaodong: { owner: '明朝廷', currentOwner: '明朝廷', governor: '旧官', officialPosition: '旧巡抚' } }
+};
+context.P = { map: context.GM.mapData, mapData: context.GM.mapData, battleConfig: { enabled: true } };
+const narrativeRegionFields = context.applyAITurnChanges({
+  narrative: '后金占领辽东。辽东巡抚改任为袁崇焕。'
+});
+check(narrativeRegionFields && narrativeRegionFields.ok, 'narrative region field turn should apply');
+checkEq(context.GM.mapData.regions[0].owner, 'fac-later-jin', 'narrative region owner should update mapData owner');
+checkEq(context.GM.mapData.regions[0].ownerName, '后金', 'narrative region ownerName should update');
+checkEq(context.GM.mapData.regions[0].currentOwnerName, '后金', 'narrative region currentOwnerName should update');
+checkEq(context.GM.mapData.regions[0].controllerName, '后金', 'narrative region controllerName should update');
+checkEq(context.GM.mapData.regions[0].ownerKey, 'fac-later-jin', 'narrative region ownerKey should update');
+checkEq(context.GM.mapData.regions[0].controllerKey, 'fac-later-jin', 'narrative region controllerKey should update');
+checkEq(context.GM.mapData.regions[0].factionKey, 'fac-later-jin', 'narrative region factionKey should update');
+checkEq(context.GM.mapData.regions[0].data.ownerName, '后金', 'narrative region nested ownerName should update');
+checkEq(context.GM._provinceToFaction['辽东'], '后金', 'narrative region province owner mirror should update');
+checkEq(context.GM.adminHierarchy.ming.divisions[0].owner, '后金', 'narrative region admin owner should update');
+checkEq(context.GM.adminHierarchy.ming.divisions[0].ownerKey, 'fac-later-jin', 'narrative region admin ownerKey should update');
+checkEq(context.GM.provinceStats.liaodong.ownerName, '后金', 'narrative region provinceStats ownerName should update');
+checkEq(context.GM.provinceStats.liaodong.ownerKey, 'fac-later-jin', 'narrative region provinceStats ownerKey should update');
+checkEq(context.GM.adminHierarchy.ming.divisions[0].governor, '袁崇焕', 'narrative region governor should update admin division');
+checkEq(context.GM.mapData.regions[0].governor, '袁崇焕', 'narrative region governor should update mapData region');
+checkEq(context.GM.mapData.regions[0].governorName, '袁崇焕', 'narrative region governorName should update mapData region');
+checkEq(context.GM.mapData.regions[0].administrator, '袁崇焕', 'narrative region administrator should update mapData region');
+checkEq(context.GM.mapData.regions[0].officialPosition, '巡抚', 'narrative region officialPosition should be inferred');
+checkEq(context.GM.mapData.regions[0].data.governor, '袁崇焕', 'narrative region nested governor should update');
+checkEq(context.GM.mapData.regions[0].data.officialPosition, '巡抚', 'narrative region nested officialPosition should update');
+checkEq(context.GM.adminHierarchy.ming.divisions[0].governorName, '袁崇焕', 'narrative region admin governorName should update');
+checkEq(context.GM.adminHierarchy.ming.divisions[0].administrator, '袁崇焕', 'narrative region admin administrator should update');
+checkEq(context.GM.adminHierarchy.ming.divisions[0].officialPosition, '巡抚', 'narrative region admin officialPosition should update');
+checkEq(context.GM.provinceStats.liaodong.governorName, '袁崇焕', 'narrative region provinceStats governorName should update');
+checkEq(context.GM.provinceStats.liaodong.officialPosition, '巡抚', 'narrative region provinceStats officialPosition should update');
+checkEq(context.GM.chars[0].officialTitle, '巡抚', 'narrative region governor char officialTitle should update');
+checkEq(context.GM.chars[0].location, '辽东', 'narrative region governor char location should update');
+check(narrativeRegionFields.applied &&
+      narrativeRegionFields.applied.semantic &&
+      narrativeRegionFields.applied.semantic.region_field_fallback >= 2,
+  'narrative region field fallback should count owner and governor');
+
+context.GM = {
+  turn: 10,
+  chars: [{ name: '孙承宗', faction: '明朝廷' }],
+  facs: [{ id:'fac-ming', name:'明朝廷' }],
+  mapData: {
+    enabled: true,
+    factions: {},
+    regions: [{
+      id: 'guangning',
+      name: '广宁',
+      owner: 'fac-ming',
+      ownerName: '明朝廷',
+      governor: '',
+      points: [[0,0],[1,0],[1,1]],
+      coords: [0,0,1,0,1,1],
+      center: [0,0]
+    }]
+  },
+  adminHierarchy: { ming: { divisions: [{ id:'guangning', name:'广宁', children: [] }] } },
+  provinceStats: { guangning: {} }
+};
+context.P = { map: context.GM.mapData, mapData: context.GM.mapData, battleConfig: { enabled: true } };
+const narrativeDirectGovernor = context.applyAITurnChanges({
+  narrative: '孙承宗出任广宁经略。'
+});
+check(narrativeDirectGovernor && narrativeDirectGovernor.ok, 'direct narrative governor appointment should apply');
+checkEq(context.GM.mapData.regions[0].governor, '孙承宗', 'direct narrative governor appointment should update governor');
+checkEq(context.GM.mapData.regions[0].officialPosition, '经略', 'direct narrative governor appointment should infer office');
+checkEq(context.GM.adminHierarchy.ming.divisions[0].governorName, '孙承宗', 'direct narrative governor appointment should mirror admin governorName');
+checkEq(context.GM.provinceStats.guangning.officialTitle, '经略', 'direct narrative governor appointment should mirror provinceStats officialTitle');
+checkEq(context.GM.chars[0].governorOf, '广宁', 'direct narrative governor appointment should mark character region');
+
+context.GM = {
+  turn: 11,
+  chars: [{ name: '皇太极', faction: '后金' }],
+  facs: [
+    { id:'fac-ming', name:'明朝廷', leader:'天启帝', relations:{ '后金': -20 }, enemies:[] },
+    { id:'fac-later-jin', name:'后金', leader:'努尔哈赤', ruler:'努尔哈赤', capital:'赫图阿拉', relations:{ '明朝廷': -20 }, enemies:[] }
+  ],
+  armies: []
+};
+const narrativeFactionFields = context.applyAITurnChanges({
+  narrative: '后金奉皇太极为主，迁都沈阳。后金与明朝廷绝交。'
+});
+var houjin = context.GM.facs[1];
+var mingFac = context.GM.facs[0];
+check(narrativeFactionFields && narrativeFactionFields.ok, 'narrative faction field turn should apply');
+checkEq(houjin.leader, '皇太极', 'narrative faction leader should update');
+checkEq(houjin.ruler, '皇太极', 'narrative faction ruler alias should update');
+checkEq(houjin.capital, '沈阳', 'narrative faction capital should update');
+check(houjin.relations['明朝廷'] <= -60, 'narrative hostile diplomacy should update source relation');
+check(mingFac.relations['后金'] <= -60, 'narrative hostile diplomacy should update target relation');
+check(houjin.enemies.indexOf('明朝廷') >= 0, 'narrative hostile diplomacy should update enemies list');
+check(narrativeFactionFields.applied &&
+      narrativeFactionFields.applied.semantic &&
+      narrativeFactionFields.applied.semantic.faction_field_fallback >= 3,
+  'narrative faction field fallback should count leader capital diplomacy');
+
+context.GM = {
+  turn: 12,
+  chars: [],
+  facs: [{ id:'fac-ming', name:'明朝廷' }],
+  armies: [{
+    id: 'jingying_wujun',
+    name: '京营 - 五军营',
+    faction: '明朝廷',
+    soldiers: 60000,
+    size: 60000,
+    strength: 60000,
+    morale: 50,
+    training: 40,
+    supply: 70,
+    loyalty: 55,
+    control: 60
+  }]
+};
+const narrativeArmyNumericFields = context.applyAITurnChanges({
+  narrative: '京营·五军营兵力增至65000，士气升至72，训练升至63，补给降至44，忠诚升至68，控制升至71。'
+});
+check(narrativeArmyNumericFields && narrativeArmyNumericFields.ok, 'narrative army numeric field turn should apply');
+checkEq(context.GM.armies[0].soldiers, 65000, 'narrative army soldiers should update');
+checkEq(context.GM.armies[0].size, 65000, 'narrative army size should mirror soldiers');
+checkEq(context.GM.armies[0].strength, 65000, 'narrative army strength should mirror soldiers');
+checkEq(context.GM.armies[0].morale, 72, 'narrative army morale should update');
+checkEq(context.GM.armies[0].training, 63, 'narrative army training should update');
+checkEq(context.GM.armies[0].supply, 44, 'narrative army supply should update');
+checkEq(context.GM.armies[0].loyalty, 68, 'narrative army loyalty should update');
+checkEq(context.GM.armies[0].control, 71, 'narrative army control should update');
+check(narrativeArmyNumericFields.applied &&
+      narrativeArmyNumericFields.applied.semantic &&
+      narrativeArmyNumericFields.applied.semantic.army_field_fallback >= 6,
+  'narrative army numeric fields should be counted');
+
+context.GM = {
+  turn: 13,
+  chars: [],
+  facs: [{ id:'fac-ming', name:'明朝廷' }],
+  mapData: {
+    enabled: true,
+    factions: {},
+    regions: [{
+      id: 'liaodong',
+      name: '辽东',
+      owner: 'fac-ming',
+      currentOwner: 'fac-ming',
+      ownerKey: 'fac-ming',
+      currentOwnerKey: 'fac-ming',
+      factionName: '明朝廷',
+      ownerName: '明朝廷',
+      troops: 4000,
+      development: 50,
+      prosperity: 52,
+      minxinLocal: 45,
+      corruptionLocal: 33,
+      taxBurden: 50,
+      points: [[0,0],[1,0],[1,1]],
+      coords: [0,0,1,0,1,1],
+      center: [0,0]
+    }]
+  },
+  adminHierarchy: {
+    ming: {
+      divisions: [{
+        id: 'liaodong',
+        name: '辽东',
+        troops: 4000,
+        development: 50,
+        prosperity: 52,
+        minxinLocal: 45,
+        corruptionLocal: 33,
+        taxBurden: 50,
+        children: []
+      }]
+    }
+  },
+  provinceStats: { liaodong: { troops: 4000, development: 50, prosperity: 52, minxinLocal: 45, corruptionLocal: 33, taxBurden: 50 } }
+};
+context.P = { map: context.GM.mapData, mapData: context.GM.mapData, battleConfig: { enabled: true } };
+const narrativeRegionNumericFields = context.applyAITurnChanges({
+  narrative: '辽东驻军增至8000，开发升至61，繁荣升至64，民心升至58，腐败降至22，税负降至35。'
+});
+check(narrativeRegionNumericFields && narrativeRegionNumericFields.ok, 'narrative region numeric field turn should apply');
+checkEq(context.GM.mapData.regions[0].troops, 8000, 'narrative region troops should update');
+checkEq(context.GM.mapData.regions[0].development, 61, 'narrative region development should update');
+checkEq(context.GM.mapData.regions[0].prosperity, 64, 'narrative region prosperity should update');
+checkEq(context.GM.mapData.regions[0].minxinLocal, 58, 'narrative region local minxin should update');
+checkEq(context.GM.mapData.regions[0].corruptionLocal, 22, 'narrative region local corruption should update');
+checkEq(context.GM.mapData.regions[0].taxBurden, 35, 'narrative region tax burden should update');
+checkEq(context.GM.adminHierarchy.ming.divisions[0].taxBurden, 35, 'narrative region numeric should mirror admin division');
+checkEq(context.GM.provinceStats.liaodong.taxBurden, 35, 'narrative region numeric should mirror provinceStats');
+check(narrativeRegionNumericFields.applied &&
+      narrativeRegionNumericFields.applied.semantic &&
+      narrativeRegionNumericFields.applied.semantic.region_field_fallback >= 6,
+  'narrative region numeric fields should be counted');
+
+context.GM = {
+  turn: 14,
+  chars: [],
+  facs: [{
+    id:'fac-later-jin',
+    name:'后金',
+    government:'部落联盟',
+    goal:'固守辽东',
+    mobilization:40,
+    warState:'休整',
+    policy:'联姻抚部'
+  }],
+  armies: []
+};
+const narrativeFactionExtendedFields = context.applyAITurnChanges({
+  narrative: '后金政体改为汗国，战略目标改为入主辽东，动员程度升至72，战态改为备战，国策改为整军备边。'
+});
+var laterJinExtended = context.GM.facs[0];
+check(narrativeFactionExtendedFields && narrativeFactionExtendedFields.ok, 'narrative faction extended field turn should apply');
+checkEq(laterJinExtended.government, '汗国', 'narrative faction government should update');
+checkEq(laterJinExtended.goal, '入主辽东', 'narrative faction goal should update');
+checkEq(laterJinExtended.strategicGoal, '入主辽东', 'narrative faction strategicGoal alias should update');
+checkEq(laterJinExtended.mobilization, 72, 'narrative faction mobilization should update');
+checkEq(laterJinExtended.warState, '备战', 'narrative faction warState should update');
+checkEq(laterJinExtended.policy, '整军备边', 'narrative faction policy should update');
+check(narrativeFactionExtendedFields.applied &&
+      narrativeFactionExtendedFields.applied.semantic &&
+      narrativeFactionExtendedFields.applied.semantic.faction_field_fallback >= 5,
+  'narrative faction extended fields should be counted');
 
 context.GM = {
   armies: [

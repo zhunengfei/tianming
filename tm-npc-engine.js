@@ -453,6 +453,11 @@ var NpcEngine = (function() {
     // Step 1: 清理过期任务
     cleanupExpiredTasks();
 
+    if (!hasExecutableBehaviors()) {
+      _dbg('[NpcEngine] skip: no executable behavior modules');
+      return;
+    }
+
     // Step 2: 收集所有决策者（有决策权的角色）
     var actors = collectActors();
     _dbg('[NpcEngine] 收集到 ' + actors.length + ' 个决策者');
@@ -463,6 +468,16 @@ var NpcEngine = (function() {
     });
 
     _dbg('[NpcEngine] NPC Engine 运行完成');
+  }
+
+  function hasExecutableBehaviors() {
+    var behaviors = (P.npcEngine && Array.isArray(P.npcEngine.behaviors)) ? P.npcEngine.behaviors : [];
+    return behaviors.some(function(behavior) {
+      return behavior
+        && behavior.enabled !== false
+        && typeof behavior.generateTask === 'function'
+        && (typeof behavior.executeAsNpc === 'function' || typeof behavior.executeFallback === 'function');
+    });
   }
 
   /**
@@ -539,6 +554,7 @@ var NpcEngine = (function() {
     var behaviors = P.npcEngine.behaviors || [];
 
     behaviors.forEach(function(behavior) {
+      if (!behavior || behavior.enabled === false) return;
       var task = generateTask(behavior, actor);
       if (task) {
         tasks.push(task);
@@ -749,6 +765,7 @@ var NpcEngine = (function() {
   return {
     initialize: initialize,
     runEngine: runEngine,
+    hasExecutableBehaviors: hasExecutableBehaviors,
     completePlayerTask: completePlayerTask,
     getPlayerTasks: getPlayerTasks,
     switchPlayerCharacter: switchPlayerCharacter,

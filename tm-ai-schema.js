@@ -132,7 +132,7 @@
     // ──────────────────────────────────────────────
     // 军事
     // ──────────────────────────────────────────────
-    army_changes: { type: 'array', desc: '修改部队兵力/士气/训练（降至0→覆没）' },
+    army_changes: { type: 'array', desc: '修改部队兵力/士气/训练/统帅（降至0→覆没；换帅写 commander/newCommander）' },
     battleResult: {
       type: 'object',
       desc: '结构化战斗结果：胜负、占城、伤亡、受影响军队、主将命运和战后效果',
@@ -407,7 +407,7 @@
     },
     {
       name: 'record_military_changes',
-      description: '记录军队人数变化（delta 正=补充/募兵·负=战损/逃散）。仅当 narrative 提到但 military_changes 漏录时调用。',
+      description: '记录军队变化（delta 正=补充/募兵·负=战损/逃散；commander/newCommander=统帅或主将变更）。仅当 narrative 提到但 military_changes 漏录时调用。',
       parameters: {
         type: 'object',
         properties: {
@@ -418,10 +418,12 @@
               type: 'object',
               properties: {
                 armyName: { type: 'string', description: '部队名（与 GM.armies[].name 对齐）' },
-                delta: { type: 'number', description: '人数变化（正补充·负战损）' },
+                delta: { type: 'number', description: '人数变化（正补充·负战损；仅换帅可留空）' },
+                commander: { type: 'string', description: '新统帅/主将（换帅时填写）' },
+                newCommander: { type: 'string', description: '新统帅/主将别名字段（换帅时填写）' },
                 reason: { type: 'string', description: '原因（不超过30字）' }
               },
-              required: ['armyName','delta']
+              required: ['armyName']
             }
           }
         },

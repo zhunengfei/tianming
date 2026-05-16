@@ -96,6 +96,7 @@ const checks = [
   { name: 'p5-alpha-namespaces', file: 'smoke-p5-alpha-namespaces.js', estSec: 1, expectExit: 0 },
   // P5-β (2026-05-04) NPC/Char namespace facade smoke (Codex own)
   { name: 'p5-beta-npc-char', file: 'smoke-p5-beta-npc-char.js', estSec: 1, expectExit: 0 },
+  { name: 'npc-action-logic', file: 'smoke-npc-action-logic.js', estSec: 1, expectExit: 0 },
   // P5-γ (2026-05-04) Edict namespace facade smoke·EDICT_TYPES 两版本隔离·R12b 后 v2 (Claude own)
   { name: 'p5-gamma-edict', file: 'smoke-p5-gamma-edict.js', estSec: 1, expectExit: 0 },
   // P5-δ (2026-05-04) Fiscal/Economy/Guoku/Neitang facade fill·tick 跨 7 engine 强隔离 (Claude own)

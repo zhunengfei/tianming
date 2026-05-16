@@ -66,6 +66,7 @@
 var AudioSystem = {
   bgm: null,
   bgmUrl: '',
+  bgmScope: '',
   bgmLoading: false,
   bgmFailedAt: {},
   bgmFailureCooldownMs: 3 * 60 * 1000,
@@ -78,6 +79,7 @@ var AudioSystem = {
   bgmVolume: 0.3,
   enabled: true,
   bgmEnabled: true,
+  menuTrack: null,
 
   // 音效库
   sounds: {
@@ -110,9 +112,21 @@ var AudioSystem = {
       }
     }
 
+    this.loadMenuTrack();
     this.loadPlaylist();
     // 创建音效（使用 Web Audio API 生成简单音效）
     this.generateSounds();
+  },
+
+  loadMenuTrack: function() {
+    var track = window.TM_MENU_BGM && window.TM_MENU_BGM.src ? window.TM_MENU_BGM : null;
+    this.menuTrack = track ? {
+      id: String(track.id || 'menu-bgm'),
+      title: track.title || track.id || 'Menu BGM',
+      meta: track.meta || '',
+      src: track.src
+    } : null;
+    return this.menuTrack;
   },
 
   loadPlaylist: function() {
@@ -189,11 +203,13 @@ var AudioSystem = {
   },
 
   // 播放背景音乐
-  playBgm: function(url) {
+  playBgm: function(url, opts) {
+    opts = opts || {};
     if (!this.bgmEnabled) return;
 
     try {
-      if (url && this.bgm && this.bgmUrl === url && (this.bgmLoading || !this.bgm.paused)) {
+      var scope = opts.scope || 'game';
+      if (url && this.bgm && this.bgmUrl === url && this.bgmScope === scope && (this.bgmLoading || !this.bgm.paused)) {
         return true;
       }
       if (url && this.bgmFailedAt && this.bgmFailedAt[url]) {
@@ -207,6 +223,7 @@ var AudioSystem = {
         this.bgm.pause();
         this.bgm = null;
         this.bgmUrl = '';
+        this.bgmScope = '';
         this.bgmLoading = false;
       }
 
@@ -215,16 +232,18 @@ var AudioSystem = {
         var audio = new Audio(url);
         this.bgm = audio;
         this.bgmUrl = url;
+        this.bgmScope = scope;
         this.bgmLoading = true;
         audio.preload = 'none';
         audio.volume = this.bgmVolume;
-        audio.loop = this.loopMode === 'single' || (this.playlist || []).length <= 1;
+        audio.loop = opts.loop !== undefined ? !!opts.loop : (this.loopMode === 'single' || (this.playlist || []).length <= 1);
         audio.onerror = function() {
           if (!self.bgmFailedAt) self.bgmFailedAt = {};
           self.bgmFailedAt[url] = Date.now();
           try { audio.pause(); } catch(_) {}
           if (self.bgm === audio) self.bgm = null;
           if (self.bgmUrl === url) self.bgmUrl = '';
+          if (self.bgmScope === scope) self.bgmScope = '';
           self.bgmLoading = false;
           _dbg('[BGM] load failed; cooling down track:', url);
         };
@@ -254,7 +273,13 @@ var AudioSystem = {
     if (!track) return false;
     this.currentTrackId = track.id;
     this.saveSettings();
-    return this.playBgm(track.src) !== false;
+    return this.playBgm(track.src, { scope: 'game' }) !== false;
+  },
+
+  playMenuBgm: function() {
+    var track = this.menuTrack || this.loadMenuTrack();
+    if (!track) return false;
+    return this.playBgm(track.src, { scope: 'menu', loop: true }) !== false;
   },
 
   playDefaultBgm: function() {
@@ -274,7 +299,7 @@ var AudioSystem = {
       this.autoBgmAttemptedAt = now;
     }
     if (this.bgmLoading) return true;
-    if (this.bgm && !this.bgm.paused) return true;
+    if (this.bgm && !this.bgm.paused && this.bgmScope === 'game') return true;
     return this.playDefaultBgm();
   },
 
@@ -303,6 +328,7 @@ var AudioSystem = {
       this.bgm = null;
     }
     this.bgmUrl = '';
+    this.bgmScope = '';
     this.bgmLoading = false;
   },
 
@@ -494,13 +520,31 @@ function updateBgmVolume(value) {
 // 在游戏启动时初始化音频系统
 GameHooks.on('startGame:after', function() {
   AudioSystem.init();
-  AudioSystem.autoEnsureBgmPlaying('startGame');
 });
 
 GameHooks.on('enterGame:after', function() {
   if (!AudioSystem.playlist || !AudioSystem.playlist.length) AudioSystem.init();
+  AudioSystem.stopBgm();
   AudioSystem.autoEnsureBgmPlaying('enterGame');
 });
+
+(function(){
+  var wired = false;
+  function isGameplayRunning() {
+    try { return !!(window.GM && GM.running); } catch(_) { return false; }
+  }
+  function tryPlayMenu() {
+    if (isGameplayRunning()) return;
+    if (!AudioSystem.playlist || !AudioSystem.playlist.length) AudioSystem.init();
+    AudioSystem.playMenuBgm();
+  }
+  window.TM_playMenuBgm = tryPlayMenu;
+  if (typeof document !== 'undefined' && document && typeof document.addEventListener === 'function' && !wired) {
+    wired = true;
+    document.addEventListener('pointerdown', tryPlayMenu, { once: true, passive: true });
+    document.addEventListener('keydown', tryPlayMenu, { once: true });
+  }
+})();
 
 // 在关键操作时播放音效
 // 注意：此包装层已废弃，功能已迁移到 EndTurnHooks 系统（钩子13）

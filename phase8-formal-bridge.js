@@ -1796,14 +1796,18 @@
     if (!record || typeof record !== 'object') return '';
     return firstValue(
       record.currentOwner,
+      record.currentOwnerName,
       record.controller,
+      record.controllerName,
       record.owner,
+      record.ownerName,
       record.currentOwnerKey,
       record.controllerKey,
       record.ownerKey,
       record.factionId,
       record.factionKey,
       record.factionName,
+      record.currentFactionName,
       record.power,
       record.realm
     );
@@ -2842,6 +2846,44 @@
       data.factionName = liveOwner;
       data.ownerName = liveOwner;
     }
+    var liveGovernor = firstValue(
+      liveStats && liveStats.governor,
+      liveStats && liveStats.governorName,
+      liveStats && liveStats.currentGovernor,
+      liveStats && liveStats.administrator,
+      liveStats && liveStats.administratorName,
+      liveStats && liveStats.localOfficial,
+      liveStats && liveStats.official,
+      liveStats && liveStats.currentOfficial,
+      liveDivision && liveDivision.governor,
+      liveDivision && liveDivision.governorName,
+      liveDivision && liveDivision.currentGovernor,
+      liveDivision && liveDivision.administrator,
+      liveDivision && liveDivision.administratorName,
+      liveDivision && liveDivision.localOfficial,
+      liveDivision && liveDivision.official,
+      liveDivision && liveDivision.currentOfficial
+    );
+    if (hasValue(liveGovernor)) {
+      data.governor = liveGovernor;
+      data.official = liveGovernor;
+    }
+    var liveOffice = firstValue(
+      liveStats && liveStats.officialPosition,
+      liveStats && liveStats.officialTitle,
+      liveStats && liveStats.governorTitle,
+      liveStats && liveStats.positionTitle,
+      liveStats && liveStats.office,
+      liveDivision && liveDivision.officialPosition,
+      liveDivision && liveDivision.officialTitle,
+      liveDivision && liveDivision.governorTitle,
+      liveDivision && liveDivision.positionTitle,
+      liveDivision && liveDivision.office
+    );
+    if (hasValue(liveOffice)) {
+      data.officialPosition = liveOffice;
+      data.office = liveOffice;
+    }
     var pop = assignKnown({},
       plainObject(base.populationDetail),
       plainObject(liveDivision && liveDivision.populationDetail),
@@ -2932,10 +2974,65 @@
       plainObject(liveDivision && liveDivision.armyDetail),
       plainObject(liveStats && liveStats.armyDetail)
     );
+    var liveDivisionArmy = plainObject(liveDivision && liveDivision.armyDetail);
+    var liveStatsArmy = plainObject(liveStats && liveStats.armyDetail);
     var troops = firstValue(liveStats && liveStats.soldiers, liveStats && liveStats.troops, liveStats && liveStats.garrison, liveStats && liveStats.strength, liveDivision && liveDivision.garrison, liveDivision && liveDivision.troops);
     if (hasValue(troops)) {
       army.troops = troops;
       data.garrison = troops;
+    }
+    var regionCommander = firstValue(
+      liveStatsArmy.commander,
+      liveStatsArmy.commanderName,
+      liveStatsArmy.general,
+      liveStatsArmy.generalName,
+      liveStatsArmy.commandingOfficer,
+      liveStatsArmy.chiefCommander,
+      liveStats && liveStats.commander,
+      liveStats && liveStats.commanderName,
+      liveStats && liveStats.general,
+      liveStats && liveStats.generalName,
+      liveStats && liveStats.commandingOfficer,
+      liveStats && liveStats.chiefCommander,
+      liveDivisionArmy.commander,
+      liveDivisionArmy.commanderName,
+      liveDivisionArmy.general,
+      liveDivisionArmy.generalName,
+      liveDivisionArmy.commandingOfficer,
+      liveDivisionArmy.chiefCommander,
+      liveDivision && liveDivision.commander,
+      liveDivision && liveDivision.commanderName,
+      liveDivision && liveDivision.general,
+      liveDivision && liveDivision.generalName,
+      army.commander,
+      army.commanderName,
+      army.general,
+      army.generalName
+    );
+    if (hasValue(regionCommander)) {
+      army.commander = regionCommander;
+      data.commander = regionCommander;
+    }
+    var regionSupply = firstValue(
+      liveStatsArmy.supply,
+      liveStatsArmy.supplies,
+      liveStatsArmy.supplyState,
+      liveStats && liveStats.supply,
+      liveStats && liveStats.supplies,
+      liveStats && liveStats.supplyState,
+      liveDivisionArmy.supply,
+      liveDivisionArmy.supplies,
+      liveDivisionArmy.supplyState,
+      liveDivision && liveDivision.supply,
+      liveDivision && liveDivision.supplies,
+      liveDivision && liveDivision.supplyState,
+      army.supply,
+      army.supplies,
+      army.supplyState
+    );
+    if (hasValue(regionSupply)) {
+      army.supply = regionSupply;
+      data.supply = regionSupply;
     }
     var minxin = firstValue(liveStats && liveStats.minxin, liveStats && liveStats.mood, liveStats && liveStats.stability, liveDivision && liveDivision.minxinLocal, liveDivision && liveDivision.minxin);
     if (hasValue(minxin)) data.minxinLocal = minxin;
@@ -8304,7 +8401,7 @@
     var supply = rightArmyPercent(a, ['supply','supplies'], 70);
     var mutiny = rightArmyPercent(a, ['mutinyRisk','rebellionRisk'], 0);
     var hot = morale < 45 || supply < 35 || mutiny >= 55;
-    var commander = rightArmyFirst(a, ['commander','commanderName','general','leader'], '未置统帅');
+    var commander = rightArmyFirst(a, ['commander','commanderName','commanderDisplayName','commander_name','general','generalName','leader','leaderName','commandingOfficer','chiefCommander','chiefGeneral','mainGeneral'], '未置统帅');
     var location = rightArmyFirst(a, ['location','garrison','station','theater','region'], '未置驻地');
     var activity = rightArmyFirst(a, ['activity','state','status','currentAction'], '驻防');
     var desc = rightArmyFirst(a, ['description','desc','note','memo','reason'], '暂无军情说明');
@@ -8356,7 +8453,7 @@
           list.map(function(a){
             var key = rightArmyKey(a, armies.indexOf(a));
             var active = selected && key === state.selectedArmy;
-            var commander = rightArmyFirst(a, ['commander','commanderName','general','leader'], '未置统帅');
+          var commander = rightArmyFirst(a, ['commander','commanderName','commanderDisplayName','commander_name','general','generalName','leader','leaderName','commandingOfficer','chiefCommander','chiefGeneral','mainGeneral'], '未置统帅');
             var location = rightArmyFirst(a, ['location','garrison','station','theater','region'], '未置驻地');
             return '<button type="button" class="tmrp-person ' + (active ? 'active' : '') + '" data-right-action="army-select" data-id="' + attr(key) + '">' +
               '<span class="tmrp-avatar">军</span><span><b>' + esc(rightArmyName(a)) + '</b><span>' + esc(commander) + ' · ' + esc(location) + '</span></span><small>' + esc(rightArmyFmtNum(rightArmySoldiers(a))) + '</small></button>';

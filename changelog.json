@@ -3,6 +3,29 @@
   "entries": [
     {
       "date": "2026-05-16",
+      "module": "任命与地块归属·动态字段扩展",
+      "title": "补齐地方主官、地块归属与军事将领的 live 字段同步",
+      "items": [
+        {
+          "what": "任命地方主官会同步 governor、official、administrator、localOfficial 等主官字段，并同步 officialPosition、office、governorTitle、officialTitle 等官职名字段。",
+          "why": "避免诏令或 AI 已改任巡抚、经略、知府等地方官，但地块档案仍显示开局死字段。"
+        },
+        {
+          "what": "地块势力归属变更会同步 owner、currentOwner、controller、factionId、ownerKey、currentOwnerName、controllerName 等字段，并写入地图、行政区与统计镜像。",
+          "why": "避免地块已经转属新势力后，地图、地块面板、势力面板各读一套旧归属。"
+        },
+        {
+          "what": "任命军事将领会同步 commander、commanderName、commanderDisplayName、generalName、leaderName、commandingOfficer、chiefCommander 等别名。",
+          "why": "让换帅、直接任将、AI 叙事写回和军务面板都指向同一名真实统帅。"
+        },
+        {
+          "what": "新 UI 的地块详情、地块军务、右侧军队列表和军队详情浮层改为读取这些 live 别名，并增加对应烟测。",
+          "why": "继续压低“后台数据已经变化、界面仍显示旧值”的死字段风险。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-16",
       "module": "地块与势力面板·动态字段",
       "title": "修正地块/势力档案继续读取死数值的问题",
       "items": [

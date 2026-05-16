@@ -162,6 +162,10 @@ const OLD_HOUJIN_LABEL = '\u65e7\u540e\u91d1\u6807\u7b7e';
 const LIVE_HOUJIN_LABEL = '\u5927\u91d1\u56fd';
 const LIVE_LEADER = '\u7687\u592a\u6781';
 const LIVE_ARMY_TOTAL = 2468;
+const ALIAS_REGION = '\u5e7f\u5b81';
+const ALIAS_GOV = '\u5b59\u627f\u5b97';
+const ALIAS_OFFICE = '\u7ecf\u7565';
+const ALIAS_COMMANDER = '\u8d75\u7387\u6559';
 
 const sandbox = loadGame();
 installTrackedDom(sandbox);
@@ -418,6 +422,11 @@ function regionTab(tab) {
   return ppopHtml();
 }
 
+function regionTabById(id, tab) {
+  sandbox.TMPhase8FormalBridge.openRegionTab(id, tab);
+  return ppopHtml();
+}
+
 function factionTab(tab) {
   sandbox.TMPhase8FormalBridge.openFactionTab('houjin', tab);
   return ppopHtml();
@@ -491,6 +500,52 @@ assertAll(factionTab('relations'), [LIVE_FACTION_RELATIONS, 'LIVE allies field 9
 assertAll(factionTab('records'), ['LIVE description field 969', 'LIVE history field 970', 'LIVE events field 971', 'LIVE ai profile field 972', 'LIVE long strategy field 973', 'LIVE victory field 974', 'LIVE defeat field 975'], 'faction records tab');
 const allFactionTabsHtml = ['overview', 'territory', 'military', 'finance', 'relations', 'records'].map(factionTab).join('\n');
 assertNone(allFactionTabsHtml, [OLD_HOUJIN_LABEL, OLD_FACTION_GOAL, OLD_FACTION_RELATIONS, '\u65e7\u9996\u9886'], 'faction all tabs');
+
+sandbox.GM.mapData.regions.push({
+  id: 'region-alias-guangning',
+  name: ALIAS_REGION,
+  ownerKey: 'ming',
+  data: {
+    name: ALIAS_REGION,
+    ownerName: MING,
+    governor: OLD_OFFICIAL,
+    officialPosition: 'OLD alias office field',
+    armyDetail: { commander: OLD_COMMANDER },
+    garrison: 100
+  }
+});
+sandbox.GM.provinceStats[ALIAS_REGION] = {
+  name: ALIAS_REGION,
+  currentOwnerName: HOUJIN,
+  governorName: ALIAS_GOV,
+  officialTitle: ALIAS_OFFICE,
+  troops: 3456,
+  armyDetail: { commanderName: ALIAS_COMMANDER, supply: 'ALIAS supply field' }
+};
+sandbox.TMPhase8FormalBridge.openRegionById('region-alias-guangning');
+const aliasRegionHtml = ppopHtml();
+assertAll(aliasRegionHtml, [ALIAS_REGION, HOUJIN, ALIAS_GOV, ALIAS_OFFICE], 'region alias overview');
+assertNone(aliasRegionHtml, [OLD_OFFICIAL, 'OLD alias office field'], 'region alias overview');
+assertAll(regionTabById('region-alias-guangning', 'army'), ['3456', ALIAS_COMMANDER, 'ALIAS supply field'], 'region alias army tab');
+
+sandbox.GM.armies.push({
+  id: 'army-alias-commander',
+  name: '\u522b\u540d\u519b',
+  faction: MING,
+  soldiers: 1111,
+  commanderDisplayName: ALIAS_COMMANDER,
+  generalName: ALIAS_COMMANDER
+});
+sandbox.GM.running = true;
+sandbox.P.playerInfo = { factionName: MING };
+const gameRoot = sandbox.document.createElement('div');
+gameRoot.id = 'G';
+gameRoot.style.display = 'block';
+sandbox.document.body.appendChild(gameRoot);
+sandbox.TMPhase8FormalBridge.openPanel('army');
+const rightPanel = sandbox.document.getElementById('tm-phase8-formal-panel');
+const armyPanelHtml = rightPanel && rightPanel.innerHTML || '';
+assertAll(armyPanelHtml, ['\u522b\u540d\u519b', ALIAS_COMMANDER], 'right army panel alias commander');
 
 console.log('[smoke-phase8-map-live-panels] PASS');
 process.exit(0);

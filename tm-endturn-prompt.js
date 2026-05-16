@@ -929,7 +929,7 @@
     tp += '    · 颁政令/诏书 → edict_lifecycle_update[{edictId, stage:"drafting"或"promulgation", stageProgress:0.05~0.2, ...}]\n';
     tp += '    · 营造工程/商队/学堂/造船/水利 → project_updates[{name, type, status:"planning"或"active", progress:5~15, leader, ...}]\n';
     tp += '    · 剿抚民变/介入既有起义 → revolt_update[{revoltId, phase, ...}]（新起义用 class_revolt 创建）\n';
-    tp += '    · 募兵/调兵/出征 → military_changes 或 fiscal_adjustments 含征调记录\n';
+    tp += '    · 募兵/调兵/出征/换帅 → military_changes 或 army_changes；换帅必须写 commander/newCommander，财政征调另写 fiscal_adjustments\n';
     tp += '    · 派遣使节/出使 → char_updates.travelTo + edict_lifecycle_update 双写（人走+诏走）\n';
     tp += '    · 改革变法 → edict_lifecycle_update 含 reformPhase:"pilot"·配 pilotRegion\n';
     tp += '  ※ 错误模式：zhengwen 写"上命修黄河堤·拨银十万"·但 project_updates/fiscal_adjustments 无对应 entry → 下回合系统看着没工程·AI 又"重新启动"·相当于诏令晚一回合生效。\n';
@@ -2910,7 +2910,7 @@
     sysP += '\n- class_alert_responses: \u56DE\u5E94\u9636\u5C42\u4E34\u754C\u8B66\u62A5\uFF08alertId\u3001action=address/defer/partial\u3001reason\uFF09';
     sysP += '\n- regent_decisions: \u6444\u653f\u51b3\u65ad\uFF08action\u3001subject\u3001regentName\u3001hardCeiling\u3001reason\uFF09';
     sysP += '\n- reissue_topics: \u5efa\u8bae\u5c06\u7559\u4e2d\u518c\u8bae\u9898\u8d77\u590d\u518d\u8bae\uff08topic\u3001reason\uff09';
-    sysP += '\n- army_changes: 修改部队兵力/士气/训练（降至0→全军覆没）';
+    sysP += '\n- army_changes: 修改部队兵力/士气/训练/统帅（降至0→全军覆没；统帅或主将变更必须写 commander/newCommander，不能只写在叙事里）';
     sysP += '\n- item_changes: 让角色获得或失去物品';
     sysP += '\n- era_state_delta: 调整时代参数（社会稳定/经济/集权/军事等）';
     sysP += '\n- global_state_delta: 调整税压';

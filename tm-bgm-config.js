@@ -7,6 +7,12 @@
 (function(){
   window.TM_BGM_PLAYLIST_VERSION = 'theme-quartet-20260513';
   window.TM_BGM_DEFAULT_LOOP = 'sequence';
+  window.TM_MENU_BGM = {
+    id: 'tianming-hegui',
+    title: '\u5929\u547D\u4F55\u5F52',
+    meta: '\u542F\u52A8\u9875\u4E3B\u9898\u66F2',
+    src: 'assets/audio/bgm/tianming-hegui.mp3'
+  };
   window.TM_BGM_TRACKS = [
     {
       id: 'gucheng-junqi',
