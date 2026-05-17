@@ -63,8 +63,8 @@ assert(/_buildLateSpecialtySummary/.test(followupSrc), 'SC27 can consume late sp
 assert(/id:\s*'sc19'[\s\S]{0,220}priority:\s*'background'/.test(followupSrc), 'SC19 sparse detail enrichment runs as background work');
 assert(/id:\s*'sc19'[\s\S]{0,260}timeoutMs:\s*45000/.test(followupSrc), 'SC19 sparse detail enrichment has a bounded timeout');
 assert(/id:\s*'sc19'[\s\S]{0,280}maxRetries:\s*0/.test(followupSrc), 'SC19 sparse detail enrichment has no retry amplification');
-assert(/_enrichExpectedKeys\.push\('factions_enriched'\)/.test(followupSrc), 'SC19 validates faction enrichment with the actual requested key');
-assert(/_enrichExpectedKeys\.push\('characters_enriched'\)/.test(followupSrc), 'SC19 validates character enrichment with the actual requested key');
+assert(/_enrichExpectedKeys[\s\S]{0,180}factions_enriched/.test(followupSrc), 'SC19 validates faction enrichment with the actual requested key');
+assert(/_enrichExpectedKeys[\s\S]{0,260}characters_enriched/.test(followupSrc), 'SC19 validates character enrichment with the actual requested key');
 assert(/repair:\s*false/.test(followupSrc), 'SC19 sparse detail enrichment does not launch foreground repair');
 assert(/_reviewText27\.length > 7000/.test(followupSrc), 'SC27 trims very long narrative review text');
 assert(/id:\s*'sc27'[\s\S]{0,180}priority:\s*'high'/.test(followupSrc), 'SC27 foreground review uses high queue priority');

@@ -1288,11 +1288,7 @@
           }
           var dataE = _enrichCall.data;
           var cE = _enrichCall.raw || '';
-          var _enrichExpectedKeys = [];
-          if (_sparseFacs.length) _enrichExpectedKeys.push('factions_enriched');
-          if (_sparseClasses.length) _enrichExpectedKeys.push('classes_enriched');
-          if (_sparseParties.length) _enrichExpectedKeys.push('parties_enriched');
-          if (_sparseChars.length) _enrichExpectedKeys.push('characters_enriched');
+          var _enrichExpectedKeys = (_sparseFacs.length ? ['factions_enriched'] : []).concat(_sparseClasses.length ? ['classes_enriched'] : [], _sparseParties.length ? ['parties_enriched'] : [], _sparseChars.length ? ['characters_enriched'] : []);
           var _pEParse = await _parseOrRepairJsonResult(cE, dataE, '角色势力细节补全', { url: url, key: P.ai.key, body: _enrichBody, expectedKeys: _enrichExpectedKeys, priority: 'background', repair: false });
           if (_pEParse && _pEParse.raw) cE = _pEParse.raw;
           var pE = _pEParse ? _pEParse.parsed : null;
@@ -1869,9 +1865,7 @@
       showLoading("\u53D9\u4E8B\u8D28\u91CF\u5BA1\u67E5",85);
       try {
         var _reviewText27 = String(zhengwen || '');
-        if (_reviewText27.length > 7000) {
-          _reviewText27 = _reviewText27.slice(0, 4200) + '\n\n【中略：正文过长，仅抽审首尾与关键段；不可据中略编造新事实】\n\n' + _reviewText27.slice(-2600);
-        }
+        if (_reviewText27.length > 7000) _reviewText27 = _reviewText27.slice(0, 4200) + '\n\n【中略：正文过长，仅抽审首尾与关键段；不可据中略编造新事实】\n\n' + _reviewText27.slice(-2600);
         var tp27 = '请审查以下叙事正文的质量：\n' + _reviewText27 + '\n\n';
         var _lateSpecialtyFor27 = _buildLateSpecialtySummary();
         if (_lateSpecialtyFor27) {
