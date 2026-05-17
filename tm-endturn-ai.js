@@ -2243,6 +2243,7 @@
         _sc1Body.stream = true;
         try {
           c1 = await callAIMessagesStream(_sc1Body.messages, _sc1Body.max_tokens !== undefined ? _sc1Body.max_tokens : _sc1BaseTok, {
+            priority: 'critical',
             temperature: _sc1Temp,
             extraBody: _modelFamily === 'openai' ? { response_format: { type: 'json_object' } } : undefined,
             onChunk: function(text) {

@@ -21,6 +21,8 @@ const stepsSrc = read('tm-endturn-pipeline-steps.js');
 const postJobsSrc = read('tm-post-turn-jobs.js');
 const followupSrc = read('tm-endturn-followup.js');
 const infraSrc = read('tm-ai-infra.js');
+const applySrc = read('tm-endturn-apply.js');
+const factionDecisionSrc = read('tm-faction-npc-llm-decision.js');
 
 assert(fs.existsSync(timingPath), 'endturn timing ledger module exists');
 assert(indexSrc.indexOf('tm-endturn-timing-ledger.js') >= 0, 'timing ledger is loaded by index.html');
@@ -66,5 +68,10 @@ assert(/_queuePostTurnSubcall\('compress_ai_memory'/.test(followupSrc), 'AI memo
 assert(/_queuePostTurnSubcall\('compress_foreshadows'/.test(followupSrc), 'foreshadow compression is queued post-turn');
 assert(/_queuePostTurnSubcall\('compress_conversation'/.test(followupSrc), 'conversation compression is queued post-turn');
 assert(!/await\s+fetch\(opts\.url/.test(inferSrc + '\n' + read('tm-endturn-ai.js')), 'JSON repair uses controlled AI queue instead of raw fetch');
+assert(/function\s+_callAIMessagesStreamDirect/.test(infraSrc) && /_aiQueue\.enqueue\(function\(\)\s*\{\s*return _callAIMessagesStreamDirect/.test(infraSrc), 'streaming AI calls are routed through the shared AI queue');
+assert(/priority:\s*opts\.priority/.test(infraSrc), 'generic AI helpers forward explicit priority into the queue');
+assert(/callAIMessagesStream\(_sc1Body\.messages[\s\S]*priority:\s*'critical'/.test(read('tm-endturn-ai.js')), 'SC1 streaming request is queued as critical foreground work');
+assert(/callAIWithTools\(_reconcilePrompt[\s\S]*priority:\s*'high'/.test(applySrc), 'foreground reconciliation tool call is queued as high priority');
+assert(/global\.callAI\(promptText,\s*maxTokens,\s*null,\s*'secondary',\s*\{\s*priority:\s*'background'/.test(factionDecisionSrc), 'background faction NPC LLM uses background queue priority');
 
 console.log('[smoke-endturn-performance-optimizations] pass assertions=' + passed.value);

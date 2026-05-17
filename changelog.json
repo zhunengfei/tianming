@@ -4,6 +4,25 @@
     {
       "date": "2026-05-17",
       "module": "回合推演性能",
+      "title": "AI 调用入口统一调度：减少后台请求挤占主推演通道",
+      "items": [
+        {
+          "what": "callAI、callAIMessages、callAIMessagesStream 和 callAIWithTools 均支持显式 priority，并统一进入共享 AI 队列；SC1 流式主推演标记为 critical。",
+          "why": "避免流式主推演或工具调用绕过队列导致真实并发超过配置，降低 429、排队抖动和慢响应概率。"
+        },
+        {
+          "what": "后台 NPC 势力 LLM 决策改为 background 优先级；一致性自审 tool_use 保持 high 优先级。",
+          "why": "后台势力活动继续生成，但不会抢占玩家正在等待的主推演通道；真正影响当回合落地的一致性修复仍优先完成。"
+        },
+        {
+          "what": "扩展 endturn-performance-optimizations smoke，覆盖流式调用入队、优先级传递、SC1 critical、NPC 后台 background 与 tool_use high。",
+          "why": "防止后续新增 AI 入口再次绕过统一调度。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-17",
+      "module": "回合推演性能",
       "title": "过回合等待链路收紧：后台任务继续执行，但不再无谓卡住玩家",
       "items": [
         {

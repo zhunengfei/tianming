@@ -624,7 +624,12 @@ async function _aiFetchWithRetryInner(url, body, signal, opts) {
  * @param {AbortSignal} [signal] - 中断信号
  * @returns {Promise<string>} AI 响应文本
  */
-async function callAI(prompt,maxTok,signal,tier){
+async function callAI(prompt,maxTok,signal,tier,opts){
+  if (tier && typeof tier === 'object') {
+    opts = tier;
+    tier = opts.tier;
+  }
+  opts = opts || {};
   // M3·按 tier 取配置·secondary 未配回退 primary·防御 _getAITier 未定义
   var _aiCfg = null;
   try { if (typeof _getAITier === 'function') _aiCfg = _getAITier(tier); } catch(_){}
@@ -634,7 +639,7 @@ async function callAI(prompt,maxTok,signal,tier){
   if(!url)throw new Error("API\u5730\u5740\u672A\u914D\u7F6E");
   var _scaledTok = Math.round((maxTok||2000) * ((typeof getCompressionParams==='function') ? Math.max(1.0, getCompressionParams().scale) : 1.0));
   var body = { model: _aiCfg.model || (P.ai&&P.ai.model) || "gpt-4o", messages:[{role:"user",content:prompt}], temperature: P.ai.temp||0.8, max_tokens: _scaledTok };
-  var data = await _aiFetchWithRetry(url, body, signal, { apiKey: key });
+  var data = await _aiFetchWithRetry(url, body, signal, { apiKey: key, priority: opts.priority || 'normal' });
   if(data.usage && typeof TokenUsageTracker !== 'undefined') TokenUsageTracker.record(data.usage);
   if(data.choices&&data.choices[0]&&data.choices[0].message)return data.choices[0].message.content;
   if(data.content&&Array.isArray(data.content))return data.content.map(function(b){return b.text||"";}).join("");
@@ -697,7 +702,7 @@ async function callAIWithTools(prompt, tools, opts) {
   }
   async function _runFallback() {
     try {
-      var raw = await callAI(_fallbackPromptWithSchema(), maxTok, opts.signal, opts.tier);
+      var raw = await callAI(_fallbackPromptWithSchema(), maxTok, opts.signal, opts.tier, { priority: opts.priority || 'normal' });
       var parsed = null;
       try {
         if (typeof robustParseJSON === 'function') parsed = robustParseJSON(raw);
@@ -776,23 +781,35 @@ async function callAIWithTools(prompt, tools, opts) {
     parseMode = 'openai';
   }
   // ─── 调用（自带 abort+timeout·不走 _aiFetchWithRetry 因为 header 不一定 Bearer） ───
-  var ctrl = new AbortController();
-  var timer = setTimeout(function() { ctrl.abort(); }, 180000);
-  if (opts.signal) opts.signal.addEventListener('abort', function() { ctrl.abort(); });
   var data;
-  try {
-    var resp = await fetch(url, { method: 'POST', headers: headers, body: JSON.stringify(body), signal: ctrl.signal });
-    clearTimeout(timer);
-    if (!resp.ok) {
-      var errT = '';
-      try { errT = await resp.text(); } catch(_){ }
-      console.warn('[callAIWithTools] HTTP ' + resp.status + ' (parseMode=' + parseMode + '): ' + errT.substring(0, 200));
-      // 4xx 多数是不支持 tools 字段·走 fallback；5xx/网络异常也 fallback 而非抛错·避免破坏 endturn
-      return await _runFallback();
+  async function _toolFetchQueued() {
+    var ctrl = new AbortController();
+    var timer = setTimeout(function() { ctrl.abort(); }, 180000);
+    if (opts.signal) opts.signal.addEventListener('abort', function() { ctrl.abort(); });
+    try {
+      var resp = await fetch(url, { method: 'POST', headers: headers, body: JSON.stringify(body), signal: ctrl.signal });
+      if (!resp.ok) {
+        var errT = '';
+        try { errT = await resp.text(); } catch(_){ }
+        console.warn('[callAIWithTools] HTTP ' + resp.status + ' (parseMode=' + parseMode + '): ' + errT.substring(0, 200));
+        var err = new Error('HTTP ' + resp.status);
+        err.status = resp.status;
+        err.toolFallback = true;
+        throw err;
+      }
+      return await resp.json();
+    } finally {
+      clearTimeout(timer);
     }
-    data = await resp.json();
+  }
+  try {
+    if (typeof _aiQueue !== 'undefined' && _aiQueue && typeof _aiQueue.enqueue === 'function') {
+      data = await _aiQueue.enqueue(_toolFetchQueued, opts.priority || 'normal');
+    } else {
+      data = await _toolFetchQueued();
+    }
   } catch(e) {
-    clearTimeout(timer);
+    try { if (typeof timer !== 'undefined') clearTimeout(timer); } catch(_) {}
     console.warn('[callAIWithTools] fetch 异常·走 fallback:', e && e.message || e);
     return await _runFallback();
   }
@@ -937,7 +954,12 @@ async function callAISmart(prompt, maxTok, options) {
  * @param {AbortSignal} [signal]
  * @returns {Promise<string>}
  */
-async function callAIMessages(messages,maxTok,signal,tier){
+async function callAIMessages(messages,maxTok,signal,tier,opts){
+  if (tier && typeof tier === 'object') {
+    opts = tier;
+    tier = opts.tier;
+  }
+  opts = opts || {};
   // M3·按 tier 取配置·secondary 未配回退 primary·防御 _getAITier 未定义
   var _aiCfgM = null;
   try { if (typeof _getAITier === 'function') _aiCfgM = _getAITier(tier); } catch(_){}
@@ -963,7 +985,7 @@ async function callAIMessages(messages,maxTok,signal,tier){
     }
   }
   var body = { model: _aiCfgM.model || (P.ai&&P.ai.model) || "gpt-4o", messages: _msgs, temperature: 0.8, max_tokens: _scaledTok2 };
-  var data = await _aiFetchWithRetry(url, body, signal, { apiKey: key });
+  var data = await _aiFetchWithRetry(url, body, signal, { apiKey: key, priority: opts.priority || 'normal' });
   if(data.usage && typeof TokenUsageTracker !== 'undefined') TokenUsageTracker.record(data.usage);
   if(data.choices&&data.choices[0]&&data.choices[0].message)return data.choices[0].message.content;
   if(data.content&&Array.isArray(data.content))return data.content.map(function(b){return b.text||"";}).join("");
@@ -977,7 +999,7 @@ async function callAIMessages(messages,maxTok,signal,tier){
  * @param {{signal?:AbortSignal, onChunk?:function(string):void, onDone?:function(string):void}} [opts]
  * @returns {Promise<string>} 完整回复
  */
-async function callAIMessagesStream(messages, maxTok, opts) {
+async function _callAIMessagesStreamDirect(messages, maxTok, opts) {
   opts = opts || {};
   // M3·按 tier 取 API 配置·默认 primary·secondary 未配自动回退（带 try 兜底以防万一）
   var _aiCfg = null;
@@ -1060,6 +1082,17 @@ async function callAIMessagesStream(messages, maxTok, opts) {
     if (opts.onDone) opts.onDone(full);
     return full;
   } finally { clearTimeout(timer); }
+}
+
+async function callAIMessagesStream(messages, maxTok, opts) {
+  opts = opts || {};
+  if (opts.skipQueue || typeof _aiQueue === 'undefined' || !_aiQueue || typeof _aiQueue.enqueue !== 'function') {
+    return _callAIMessagesStreamDirect(messages, maxTok, opts);
+  }
+  var queuedOpts = Object.assign({}, opts, { skipQueue: true });
+  return _aiQueue.enqueue(function() {
+    return _callAIMessagesStreamDirect(messages, maxTok, queuedOpts);
+  }, opts.priority || 'normal');
 }
 
 // ============================================================
