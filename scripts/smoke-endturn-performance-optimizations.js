@@ -45,8 +45,8 @@ assert(/_markSystemStage/.test(systemsSrc), 'systems step records fine-grained s
 assert(/GM\._lastEndturnSystemsTimings/.test(systemsSrc), 'systems step stores last detailed timings');
 assert(/showLoading\("检查历史事件"/.test(systemsSrc), 'systems tail updates loading after ChangeQueue');
 assert(/changeQueueApply/.test(systemsSrc), 'ChangeQueue apply stage is timed separately');
-assert(/变动队列为空，跳过应用/.test(systemsSrc), 'systems step skips empty ChangeQueue without applyAll');
-assert(/queueLength:\s*_changeQueueLen/.test(systemsSrc), 'systems timing records ChangeQueue length');
+assert(/_changeQueueLen <= 0/.test(systemsSrc) && /skipped:\s*true/.test(systemsSrc), 'systems step skips empty ChangeQueue without applyAll');
+assert(/queueLength:\s*_changeQueueLen/.test(systemsSrc) && /byType:\s*_changeQueueStats/.test(systemsSrc), 'systems timing records ChangeQueue stats');
 assert(/_scheduleNpcBehaviorPostRender/.test(stepsSrc), 'pipeline schedules NPC behavior after render');
 assert(/npc_behavior/.test(stepsSrc), 'NPC behavior is tracked as a post-turn job');
 
