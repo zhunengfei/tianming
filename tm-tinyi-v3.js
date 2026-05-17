@@ -43,9 +43,18 @@
   if (typeof document === 'undefined') return;
   if (document.getElementById('ty3-css')) return;
   var link = document.createElement('link');
+  var cssHref = 'tm-tinyi-v3.css?v=20260426y';
   link.id = 'ty3-css';
   link.rel = 'stylesheet';
-  link.href = 'tm-tinyi-v3.css?v=20260426y';
+  link.href = cssHref;
+  link.setAttribute('data-css-base', cssHref);
+  link.setAttribute('data-css-fallback', 'https://cdn.jsdelivr.net/gh/misfit-user/tianming@main/tm-tinyi-v3.css?v=20260426y');
+  link.onload = function() {
+    if (typeof window !== 'undefined' && window.TM_CSS_LOADED) window.TM_CSS_LOADED(link);
+  };
+  link.onerror = function() {
+    if (typeof window !== 'undefined' && window.TM_CSS_RETRY) window.TM_CSS_RETRY(link);
+  };
   document.head.appendChild(link);
 })();
 

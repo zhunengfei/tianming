@@ -36,6 +36,7 @@ const checks = [
   { name: 'formal-edict-portrait', file: 'smoke-formal-edict-portrait.js', estSec: 1, expectExit: 0 },
   { name: 'formal-edict-polish-scope', file: 'smoke-formal-edict-polish-scope.js', estSec: 1, expectExit: 0 },
   { name: 'formal-runtime-chrome-throttle', file: 'smoke-formal-runtime-chrome-throttle.js', estSec: 1, expectExit: 0 },
+  { name: 'css-resource-retry', file: 'smoke-css-resource-retry.js', estSec: 1, expectExit: 0 },
   { name: 'formal-module-modal-size', file: 'smoke-formal-module-modal-size.js', estSec: 1, expectExit: 0 },
   { name: 'audio-bgm', file: 'smoke-audio-bgm.js', estSec: 1, expectExit: 0 },
   { name: 'wendui-active-audience', file: 'smoke-wendui-active-audience.js', estSec: 1, expectExit: 0 },

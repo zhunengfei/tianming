@@ -15,7 +15,49 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>天命 · AI历史模拟</title>
-<link rel="stylesheet" href="styles.css?v=20260516-home-redesign">
+<script>
+(function(){
+  var root = (typeof window !== 'undefined') ? window : null;
+  if (!root || root.TM_CSS_RETRY) return;
+  var delays = [1000, 4000, 8000, 30000, 180000];
+
+  function retryHref(href, count) {
+    var sep = href.indexOf('?') >= 0 ? '&' : '?';
+    return href + sep + 'cssRetry=' + Date.now() + '-' + count;
+  }
+
+  root.TM_CSS_LOADED = function(link) {
+    if (!link) return;
+    link.setAttribute('data-css-ok', '1');
+    if (link._tmCssRetryTimer) {
+      clearTimeout(link._tmCssRetryTimer);
+      link._tmCssRetryTimer = null;
+    }
+  };
+
+  root.TM_CSS_RETRY = function(link) {
+    if (!link || link.getAttribute('data-css-ok') === '1') return;
+    var count = parseInt(link.getAttribute('data-css-retry-count') || '0', 10);
+    if (!isFinite(count) || count < 0) count = 0;
+    var base = link.getAttribute('data-css-base') || link.getAttribute('href') || '';
+    var fallback = link.getAttribute('data-css-fallback') || '';
+    var useFallback = !!fallback && count >= 2 && count < 4;
+    var target = useFallback ? fallback : base;
+    if (!target) return;
+    var delay = delays[Math.min(count, delays.length - 1)];
+    link.setAttribute('data-css-retry-count', String(count + 1));
+    if (link._tmCssRetryTimer) clearTimeout(link._tmCssRetryTimer);
+    link._tmCssRetryTimer = setTimeout(function(){
+      if (link.getAttribute('data-css-ok') === '1') return;
+      link.href = retryHref(target, count + 1);
+    }, delay);
+    if (root.console && root.console.warn) {
+      root.console.warn('[tm-css] stylesheet failed; retry scheduled in ' + delay + 'ms', base);
+    }
+  };
+})();
+</script>
+<link id="tm-main-css" rel="stylesheet" href="styles.css?v=20260516-home-redesign" data-css-base="styles.css?v=20260516-home-redesign" data-css-fallback="https://cdn.jsdelivr.net/gh/misfit-user/tianming@main/styles.css?v=20260516-home-redesign" onload="window.TM_CSS_LOADED&&window.TM_CSS_LOADED(this)" onerror="window.TM_CSS_RETRY&&window.TM_CSS_RETRY(this)">
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
 <script src="map-converter.js"></script>
 <script src="map-integration.js"></script>

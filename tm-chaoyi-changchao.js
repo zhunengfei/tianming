@@ -3748,9 +3748,18 @@ function _cc3_createModal() {
   // 加载 CSS（一次性）
   if (!document.getElementById('cc3-css')) {
     const link = document.createElement('link');
+    const cssHref = 'tm-chaoyi-changchao.css';
     link.id = 'cc3-css';
     link.rel = 'stylesheet';
-    link.href = 'tm-chaoyi-changchao.css';
+    link.href = cssHref;
+    link.setAttribute('data-css-base', cssHref);
+    link.setAttribute('data-css-fallback', 'https://cdn.jsdelivr.net/gh/misfit-user/tianming@main/tm-chaoyi-changchao.css');
+    link.onload = function() {
+      if (typeof window !== 'undefined' && window.TM_CSS_LOADED) window.TM_CSS_LOADED(link);
+    };
+    link.onerror = function() {
+      if (typeof window !== 'undefined' && window.TM_CSS_RETRY) window.TM_CSS_RETRY(link);
+    };
     document.head.appendChild(link);
   }
 
