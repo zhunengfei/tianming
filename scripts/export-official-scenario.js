@@ -32,6 +32,77 @@ const ATTACH_TIANQI_MAP = path.resolve(__dirname, 'attach-tianqi-map-to-official
 const SID = 'sc-tianqi7-1627';
 const args = new Set(process.argv.slice(2));
 
+function readJsonIfExists(file) {
+  if (!fs.existsSync(file)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (err) {
+    console.warn('[export] previous JSON unreadable, skip preserve: ' + err.message);
+    return null;
+  }
+}
+
+function arrayItemKeys(item, arrayName) {
+  if (!item || typeof item !== 'object') return [];
+  const keys = [];
+  if (arrayName === 'characters') {
+    if (item.name) keys.push('name:' + item.name);
+    else if (item.id) keys.push('id:' + item.id);
+    return keys;
+  }
+  if (arrayName === 'families') {
+    if (item.name) keys.push('name:' + item.name);
+    else if (item.id) keys.push('id:' + item.id);
+    return keys;
+  }
+  if (item.from && item.to && item.type) keys.push('rel:' + item.from + '|' + item.to + '|' + item.type);
+  if (item.id) keys.push('id:' + item.id);
+  if (item.name) keys.push('name:' + item.name);
+  if (item.key) keys.push('key:' + item.key);
+  if (item.title) keys.push('title:' + item.title);
+  return keys;
+}
+
+function preservePreviousArrays(out, previous) {
+  if (!previous || !out || typeof previous !== 'object' || typeof out !== 'object') return {};
+  const preserved = {};
+  const arrayNames = ['characters', 'families', 'relations', 'factionRelations'];
+  for (const arrayName of arrayNames) {
+    const prevList = Array.isArray(previous[arrayName]) ? previous[arrayName] : [];
+    if (!prevList.length) continue;
+    if (!Array.isArray(out[arrayName])) out[arrayName] = [];
+    const keyToIndex = new Map();
+    out[arrayName].forEach(function (item, index) {
+      for (const key of arrayItemKeys(item, arrayName)) {
+        if (!keyToIndex.has(key)) keyToIndex.set(key, index);
+      }
+    });
+    let merged = 0;
+    const added = [];
+    for (const item of prevList) {
+      const itemKeys = arrayItemKeys(item, arrayName);
+      if (!itemKeys.length) continue;
+      const existingIndex = itemKeys.map(key => keyToIndex.get(key)).find(index => index !== undefined);
+      if (existingIndex !== undefined) {
+        out[arrayName][existingIndex] = Object.assign({}, out[arrayName][existingIndex], item);
+        for (const key of itemKeys) {
+          if (!keyToIndex.has(key)) keyToIndex.set(key, existingIndex);
+        }
+        merged++;
+        continue;
+      }
+      out[arrayName].push(item);
+      const newIndex = out[arrayName].length - 1;
+      for (const key of itemKeys) keyToIndex.set(key, newIndex);
+      added.push(item.name || item.id || itemKeys[0]);
+    }
+    if (merged || added.length) preserved[arrayName] = { merged, added };
+  }
+  return preserved;
+}
+
+const previousOut = readJsonIfExists(TARGET_JSON);
+
 if (args.has('--help') || args.has('-h')) {
   console.log([
     'Usage: node web/scripts/export-official-scenario.js [--base-only]',
@@ -94,10 +165,20 @@ setTimeout(function () {
     }
   }
 
-  const finalOut = JSON.parse(fs.readFileSync(TARGET_JSON, 'utf8'));
+  let finalOut = JSON.parse(fs.readFileSync(TARGET_JSON, 'utf8'));
+  const preserved = preservePreviousArrays(finalOut, previousOut);
+  if (Object.keys(preserved).length) {
+    fs.writeFileSync(TARGET_JSON, JSON.stringify(finalOut, null, 2) + '\n', 'utf8');
+    finalOut = JSON.parse(fs.readFileSync(TARGET_JSON, 'utf8'));
+  }
   const stat = fs.statSync(TARGET_JSON);
 
   console.log('[export] written → ' + TARGET_JSON);
+  if (Object.keys(preserved).length) {
+    console.log('[export] preserved arrays: ' + Object.keys(preserved).map(function (key) {
+      return key + '=merged:' + preserved[key].merged + ',added:' + preserved[key].added.length;
+    }).join(' '));
+  }
   console.log('[export] size: ' + (stat.size / 1024).toFixed(1) + ' KB');
   console.log('[export] counts: chars=' + finalOut.characters.length
     + ' facs=' + finalOut.factions.length

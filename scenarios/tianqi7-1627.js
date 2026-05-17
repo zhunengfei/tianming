@@ -34,6 +34,56 @@
   'use strict';
 
   var SID = 'sc-tianqi7-1627';
+  var _TIANQI7_PORTRAIT_BASE = 'assets/portraits/tianqi7/';
+  var _TIANQI7_GENERIC_PORTRAIT_BASE = _TIANQI7_PORTRAIT_BASE + 'generic/';
+  var _TIANQI7_SPECIFIC_PORTRAITS = [
+    '仁祖李倧','代善','佟养性','侯世禄','冯铨','刘诏','刘鸿训','卢象升','吴三桂','周延儒','周应秋','周皇后','哲哲','囊囊太后','多尔衮','多铎','奢崇明','孙承宗','宁完我','客氏','布木布泰','崇祯','崔呈秀','张懿安','张献忠','张瑞图','徐光启','成基命','施凤来','春日局','朱梅','朱由检','李养正','李国普','李标','李永芳','李永贞','李自成','李选侍','杜文焕','来宗道','杨所修','杨鹤','林丹汗','林尧俞','武之望','毛一鹭','毛文龙','济尔哈朗','洪承畴','海兰珠','涂文辅','渠家祯','温体仁','满桂','潘汝桢','王体乾','王嘉胤','王在晋','田尔耕','田川松','田贵妃','皇太极','祖大寿','秦良玉','胡廷宴','苏泰太后','范文程','莽古尔泰','薛凤翔','薛贞','袁崇焕','袁贵妃','许显纯','豪格','赵率教','郭允厚','郑芝龙','钱龙锡','阎鸣泰','阿敏','阿济格','陈新甲','韩爌','高迎祥','魏忠贤','黄立极'
+  ].reduce(function(acc, name) {
+    acc[name] = _TIANQI7_PORTRAIT_BASE + name + '.png';
+    return acc;
+  }, {});
+
+  function _portraitText(c) {
+    return [
+      c && c.name, c && c.faction, c && c.factionId, c && c.party,
+      c && c.title, c && c.officialTitle, c && c.role, c && c.class,
+      c && c.occupation, c && c.gender, c && c.family, c && c.ethnicity
+    ].filter(Boolean).join(' ');
+  }
+
+  function _portraitHash(text) {
+    text = String(text || '');
+    var hash = 0;
+    for (var i = 0; i < text.length; i++) hash = ((hash * 31) + text.charCodeAt(i)) >>> 0;
+    return hash;
+  }
+
+  function _portraitPick(c, one, two) {
+    return _TIANQI7_GENERIC_PORTRAIT_BASE + ((_portraitHash(c && c.name) % 2) ? two : one);
+  }
+
+  function _genericTianqi7Portrait(c) {
+    var text = _portraitText(c);
+    if (/皇后|太后|贵妃|妃|选侍|宫人|女|夫人|春日局|海兰珠|布木布泰|哲哲|苏泰|囊囊|田川/.test(text)) return _portraitPick(c, 'generic-court-woman-01.png', 'generic-court-woman-02.png');
+    if (/后金|女真|满洲|八旗|建州|爱新觉罗|佟养性|李永芳|宁完我|鲍承先|豪格|济尔哈朗|阿济格|多铎|皇太极|代善|多尔衮|莽古尔泰|阿敏/.test(text)) return _portraitPick(c, 'generic-later-jin-manchu-mongol-01.png', 'generic-later-jin-manchu-mongol-02.png');
+    if (/蒙古|察哈尔|科尔沁|土默特|哈喇|台吉|汗|林丹|奥巴|寨桑|额哲/.test(text)) return _portraitPick(c, 'generic-steppe-khan-noble-01.png', 'generic-steppe-khan-noble-02.png');
+    if (/朝鲜|李倧|昭显|金瑬|金尚宪|崔鸣吉|林庆业/.test(text)) return _portraitPick(c, 'generic-joseon-court-01.png', 'generic-joseon-court-02.png');
+    if (/日本|德川|松前|幕府|春日局|田川|虾夷|阿伊努/.test(text)) return _portraitPick(c, 'generic-japan-ainu-01.png', 'generic-japan-ainu-01.png');
+    if (/葡萄牙|西班牙|荷兰|东印度|欧洲|罗保|马士加路也|罗儒望|阳玛诺|曾德昭|包加禄|德威特|纳茨|普特曼斯|尼尼奥|阿杜亚特/.test(text)) return _portraitPick(c, 'generic-european-contact-01.png', 'generic-european-contact-01.png');
+    if (/郑氏|海商|福建水师|郑芝龙|郑芝虎|郑鸿逵|郑芝豹|李魁奇|许心素|田川/.test(text)) return _portraitPick(c, 'generic-maritime-zheng-01.png', 'generic-maritime-zheng-02.png');
+    if (/流寇|饥民|起义|叛|土司|播州|奢安|王嘉胤|高迎祥|李自成|张献忠|罗汝才|马守应|贺一龙|贺锦|刘宗敏|奢崇明|安邦彦/.test(text)) return _portraitPick(c, 'generic-rebel-tusi-bandit-01.png', 'generic-rebel-tusi-bandit-02.png');
+    if (/太监|宦|司礼监|内臣|魏忠贤|王体乾|涂文辅|李永贞|王承恩|曹化淳|方正化/.test(text)) return _portraitPick(c, 'generic-ming-eunuch-01.png', 'generic-ming-eunuch-02.png');
+    if (/阉党|魏党|崔呈秀|田尔耕|许显纯|黄立极|施凤来|冯铨|周应秋|潘汝桢|张瑞图|薛贞|薛凤翔|李养正|杨所修|毛一鹭/.test(text)) return _portraitPick(c, 'generic-ming-yandang-official-01.png', 'generic-ming-yandang-official-02.png');
+    if (/总兵|参将|游击|都督|将军|经略|督师|巡抚|辽东|蓟辽|关宁|山海|边军|水师|袁崇焕|孙承宗|毛文龙|满桂|赵率教|祖大寿|洪承畴|卢象升|孙传庭|秦良玉|吴三桂|侯世禄|杜文焕|渠家祯|朱燮元|杨嗣昌|熊文灿/.test(text)) return _portraitPick(c, 'generic-ming-general-01.png', 'generic-ming-general-02.png');
+    if (/翰林|讲官|学士|进士|书院|东林|复社|儒|徐光启|韩爌|钱龙锡|成基命|刘鸿训|李标|毕自严|温体仁|周延儒|孙元化|顾炎武|黄宗羲|王夫之|张溥|陈子龙|侯恂|黄道周|刘宗周|倪元璐|钱谦益|查继佐|方以智/.test(text)) return _portraitPick(c, 'generic-ming-scholar-official-01.png', 'generic-ming-scholar-official-02.png');
+    return _portraitPick(c, 'generic-ming-civil-official-01.png', 'generic-ming-civil-official-02.png');
+  }
+
+  function _resolveTianqi7Portrait(c) {
+    if (!c) return '';
+    if (_TIANQI7_SPECIFIC_PORTRAITS[c.name]) return _TIANQI7_SPECIFIC_PORTRAITS[c.name];
+    return c.portrait || _genericTianqi7Portrait(c) || '';
+  }
 
   function _uid(prefix) {
     return (prefix || 'x_') + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -2069,7 +2119,7 @@
     }
 
     // ─── portrait 兜空字符串 ───
-    if (!c.portrait) c.portrait = '';
+    c.portrait = _resolveTianqi7Portrait(c);
     // 籍贯/民族/信仰/门第
     if (!c.ethnicity) c.ethnicity = (c.faction === '后金') ? '女真' : (c.faction === '察哈尔' ? '蒙古' : (c.faction === '朝鲜' ? '朝鲜' : '汉'));
     if (!c.faith) c.faith = (c.faction === '后金' ? '萨满' : (c.faction === '察哈尔' ? '藏传佛教' : (c.faction === '朝鲜' ? '儒教' : '儒')));
@@ -2125,7 +2175,7 @@
   }
 
   // ※ 版本号——每次扩充须 bump，强制覆盖 localStorage 中的旧数据
-  var SCENARIO_VERSION = 'v46-2026.04.19-popConfig-envConfig-topLevel-fix';
+  var SCENARIO_VERSION = 'v47-2026.05.17-tianqi-portrait-refresh';
 
   function _countRegisteredRows(key) {
     var arr = global.P && global.P[key];

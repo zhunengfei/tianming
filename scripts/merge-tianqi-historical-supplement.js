@@ -33,6 +33,65 @@ function uniq(values) {
   return [...new Set((values || []).filter(Boolean))];
 }
 
+const portraitDir = path.join(webRoot, 'assets', 'portraits', 'tianqi7');
+const portraitBase = 'assets/portraits/tianqi7/';
+const genericPortraitBase = `${portraitBase}generic/`;
+
+function listSpecificPortraits() {
+  if (!fs.existsSync(portraitDir)) return new Map();
+  const files = fs.readdirSync(portraitDir)
+    .filter(name => name.endsWith('.png'))
+    .filter(name => fs.statSync(path.join(portraitDir, name)).isFile());
+  return new Map(files.map(file => [file.replace(/\.png$/i, ''), `${portraitBase}${file}`]));
+}
+
+function portraitText(character) {
+  return [
+    character?.name, character?.faction, character?.factionId, character?.party,
+    character?.title, character?.officialTitle, character?.role, character?.class,
+    character?.occupation, character?.gender, character?.family, character?.ethnicity,
+  ].filter(Boolean).join(' ');
+}
+
+function portraitHash(text) {
+  let hash = 0;
+  for (const ch of String(text || '')) hash = ((hash * 31) + ch.charCodeAt(0)) >>> 0;
+  return hash;
+}
+
+function portraitPick(character, one, two = one) {
+  return `${genericPortraitBase}${portraitHash(character?.name) % 2 ? two : one}`;
+}
+
+function genericTianqiPortrait(character) {
+  const text = portraitText(character);
+  if (/皇后|太后|贵妃|妃|选侍|宫人|女|夫人|春日局|海兰珠|布木布泰|哲哲|苏泰|囊囊|田川/.test(text)) return portraitPick(character, 'generic-court-woman-01.png', 'generic-court-woman-02.png');
+  if (/后金|女真|满洲|八旗|建州|爱新觉罗|佟养性|李永芳|宁完我|鲍承先|豪格|济尔哈朗|阿济格|多铎|皇太极|代善|多尔衮|莽古尔泰|阿敏/.test(text)) return portraitPick(character, 'generic-later-jin-manchu-mongol-01.png', 'generic-later-jin-manchu-mongol-02.png');
+  if (/蒙古|察哈尔|科尔沁|土默特|哈喇|台吉|汗|林丹|奥巴|寨桑|额哲/.test(text)) return portraitPick(character, 'generic-steppe-khan-noble-01.png', 'generic-steppe-khan-noble-02.png');
+  if (/朝鲜|李倧|昭显|金瑬|金尚宪|崔鸣吉|林庆业/.test(text)) return portraitPick(character, 'generic-joseon-court-01.png', 'generic-joseon-court-02.png');
+  if (/日本|德川|松前|幕府|春日局|田川|虾夷|阿伊努/.test(text)) return portraitPick(character, 'generic-japan-ainu-01.png');
+  if (/葡萄牙|西班牙|荷兰|东印度|欧洲|罗保|马士加路也|罗儒望|阳玛诺|曾德昭|包加禄|德威特|纳茨|普特曼斯|尼尼奥|阿杜亚特/.test(text)) return portraitPick(character, 'generic-european-contact-01.png');
+  if (/郑氏|海商|福建水师|郑芝龙|郑芝虎|郑鸿逵|郑芝豹|李魁奇|许心素|田川/.test(text)) return portraitPick(character, 'generic-maritime-zheng-01.png', 'generic-maritime-zheng-02.png');
+  if (/流寇|饥民|起义|叛|土司|播州|奢安|王嘉胤|高迎祥|李自成|张献忠|罗汝才|马守应|贺一龙|贺锦|刘宗敏|奢崇明|安邦彦/.test(text)) return portraitPick(character, 'generic-rebel-tusi-bandit-01.png', 'generic-rebel-tusi-bandit-02.png');
+  if (/太监|宦|司礼监|内臣|魏忠贤|王体乾|涂文辅|李永贞|王承恩|曹化淳|方正化/.test(text)) return portraitPick(character, 'generic-ming-eunuch-01.png', 'generic-ming-eunuch-02.png');
+  if (/阉党|魏党|崔呈秀|田尔耕|许显纯|黄立极|施凤来|冯铨|周应秋|潘汝桢|张瑞图|薛贞|薛凤翔|李养正|杨所修|毛一鹭/.test(text)) return portraitPick(character, 'generic-ming-yandang-official-01.png', 'generic-ming-yandang-official-02.png');
+  if (/总兵|参将|游击|都督|将军|经略|督师|巡抚|辽东|蓟辽|关宁|山海|边军|水师|袁崇焕|孙承宗|毛文龙|满桂|赵率教|祖大寿|洪承畴|卢象升|孙传庭|秦良玉|吴三桂|侯世禄|杜文焕|渠家祯|朱燮元|杨嗣昌|熊文灿/.test(text)) return portraitPick(character, 'generic-ming-general-01.png', 'generic-ming-general-02.png');
+  if (/翰林|讲官|学士|进士|书院|东林|复社|儒|徐光启|韩爌|钱龙锡|成基命|刘鸿训|李标|毕自严|温体仁|周延儒|孙元化|顾炎武|黄宗羲|王夫之|张溥|陈子龙|侯恂|黄道周|刘宗周|倪元璐|钱谦益|查继佐|方以智/.test(text)) return portraitPick(character, 'generic-ming-scholar-official-01.png', 'generic-ming-scholar-official-02.png');
+  return portraitPick(character, 'generic-ming-civil-official-01.png', 'generic-ming-civil-official-02.png');
+}
+
+function applyTianqiPortraits(characters) {
+  const specificPortraits = listSpecificPortraits();
+  for (const character of characters || []) {
+    const exact = specificPortraits.get(character.name);
+    if (exact) {
+      character.portrait = exact;
+    } else if (!character.portrait) {
+      character.portrait = genericTianqiPortrait(character);
+    }
+  }
+}
+
 function deriveFactionType(name, faction) {
   if (faction.type) return faction.type;
   if (faction.factionType) return faction.factionType;
@@ -673,6 +732,7 @@ function main() {
   const supplementRef = 'web/data/scenario-supplements/tianqi7-ming2-historical-supplement.json';
   if (!scenario.refFiles.includes(supplementRef)) scenario.refFiles.push(supplementRef);
   scenario.isFullyDetailed = true;
+  applyTianqiPortraits(scenario.characters);
 
   writeJson(scenarioPath, scenario);
   fs.mkdirSync(path.dirname(auditOut), { recursive: true });
