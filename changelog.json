@@ -3,6 +3,25 @@
   "entries": [
     {
       "date": "2026-05-17",
+      "module": "回合推演 / 御案交互",
+      "title": "修复系统结算阶段过回合崩溃，并保留御案草稿输入",
+      "items": [
+        {
+          "what": "集权财政结算前统一补齐人物 finance 与 expenses 字段，兼容旧存档、剧本人物和系统生成角色的缺字段数据。",
+          "why": "避免 AI 推演已经成功后，在 systems 阶段因 undefined.fixed 或非数字财政字段导致整轮过回合失败。"
+        },
+        {
+          "what": "新增 centralization-finance-guard 与 formal-ui-bridge-state 烟测，并纳入 verify-all。",
+          "why": "覆盖缺 finance、缺 expenses、字符串数值、空人物条目和御案草稿保留，防止同类财政结算与交互状态回归。"
+        },
+        {
+          "what": "御案奏疏批复与鸿雁书信输入增加草稿保留。",
+          "why": "玩家切换或刷新御案面板后，已输入的批复、收信人和正文不再轻易丢失。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-17",
       "module": "回合推演性能",
       "title": "继续压缩前台等待：修复 SC1 长段压缩与 JSON 修复优先级",
       "items": [

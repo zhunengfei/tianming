@@ -5553,6 +5553,11 @@
         updateFormalLetterDraft(draft);
         return;
       }
+      var memorialReply = e.target && e.target.closest ? e.target.closest('[data-desk-memorial-reply]') : null;
+      if (memorialReply) {
+        updateFormalMemorialReply(memorialReply);
+        return;
+      }
       var edict = e.target && e.target.closest ? e.target.closest('[data-desk-edict-cat],[data-desk-edict-body],[data-desk-player-action],#edict-pol,#edict-mil,#edict-dip,#edict-eco,#edict-oth,#xinglu-pub') : null;
       if (edict) updateFormalEdictDraft(edict);
     });
@@ -5560,6 +5565,11 @@
       var draft = e.target && e.target.closest ? e.target.closest('[data-letter-draft-field]') : null;
       if (draft) {
         updateFormalLetterDraft(draft);
+        return;
+      }
+      var memorialReply = e.target && e.target.closest ? e.target.closest('[data-desk-memorial-reply]') : null;
+      if (memorialReply) {
+        updateFormalMemorialReply(memorialReply);
         return;
       }
       var edict = e.target && e.target.closest ? e.target.closest('[data-desk-edict-cat],[data-desk-edict-body],[data-desk-player-action],#edict-pol,#edict-mil,#edict-dip,#edict-eco,#edict-oth,#xinglu-pub') : null;
@@ -5596,6 +5606,14 @@
     state.letterDraft = draft;
   }
 
+  function updateFormalMemorialReply(el){
+    if (!el) return;
+    var key = (el.getAttribute && (el.getAttribute('data-memorial-reply-id') || el.getAttribute('id'))) || '';
+    if (!key) return;
+    state.memorialReplies = state.memorialReplies || {};
+    state.memorialReplies[key] = String(el.value == null ? '' : el.value);
+  }
+
   function updateFormalEdictDraft(el){
     if (!el) return;
     var value = String(el.value == null ? '' : el.value);
@@ -5620,6 +5638,7 @@
   function captureDeskOverlayState(root){
     if (!root || !root.querySelectorAll) return;
     Array.prototype.forEach.call(root.querySelectorAll('[data-letter-draft-field]'), updateFormalLetterDraft);
+    Array.prototype.forEach.call(root.querySelectorAll('[data-desk-memorial-reply]'), updateFormalMemorialReply);
     Array.prototype.forEach.call(root.querySelectorAll('[data-desk-edict-cat],[data-desk-edict-body],[data-desk-player-action],#edict-pol,#edict-mil,#edict-dip,#edict-eco,#edict-oth,#xinglu-pub'), updateFormalEdictDraft);
   }
 
@@ -5861,6 +5880,9 @@
     var m = found.raw;
     var replyEl = replyId ? document.getElementById(replyId) : null;
     var reply = (replyEl ? String(replyEl.value || '') : deskValue('[data-desk-memorial-reply]', '')) || '着有关衙门速核，限期具册。';
+    if ((!replyEl || !String(replyEl.value || '').trim()) && replyId && state.memorialReplies && Object.prototype.hasOwnProperty.call(state.memorialReplies, replyId) && String(state.memorialReplies[replyId] || '').trim()) {
+      reply = String(state.memorialReplies[replyId] || '').trim();
+    }
     if (decision === 'hold') {
       m.status = 'pending_review';
       m.reply = reply || '再议';
@@ -5880,6 +5902,7 @@
     if (decision !== 'hold') deskRemember(m.from, '奏疏已得朱批：' + reply, decision === 'rejected' ? '忧' : '敬', 5);
     deskRefreshLegacy();
     toast(decision === 'approved' ? '已准奏，过回合前生效' : decision === 'rejected' ? '已驳回，过回合前生效' : decision === 'court_debate' ? '已发交廷议' : decision === 'referred' ? '已转交有司' : decision === 'hold' ? '已留中' : '已批示');
+    if (replyId && state.memorialReplies) delete state.memorialReplies[replyId];
     openYueZouPreviewPanel();
   }
 
@@ -5914,16 +5937,18 @@
 
   function deskSendLetter(draftOnly){
     var gm = deskGM();
-    var to = deskValue('[data-desk-letter-to]', (gm._pendingLetterTo || '')).trim();
+    Array.prototype.forEach.call(document.querySelectorAll('.tm-desk-overlay'), captureDeskOverlayState);
+    var letterDraft = state.letterDraft || {};
+    var to = deskValue('[data-desk-letter-to]', (letterDraft.to || gm._pendingLetterTo || '')).trim();
     if (!to) { toast('请先选择收信人'); return; }
     var selfName = (window.P && P.playerInfo && P.playerInfo.characterName) || '';
     if (selfName && to === selfName) { toast('不能自寄信函'); return; }
-    var body = deskValue('[data-desk-letter-body]', '').trim();
+    var body = deskValue('[data-desk-letter-body]', letterDraft.body || '').trim();
     if (!body) { toast('请先写下书信正文'); return; }
-    var letterType = deskValue('[data-desk-letter-type]', 'personal') || 'personal';
-    var urgency = deskValue('[data-desk-letter-urgency]', 'normal') || 'normal';
-    var cipher = deskValue('[data-desk-letter-cipher]', 'none') || 'none';
-    var sendMode = deskValue('[data-desk-letter-sendmode]', 'multi_courier') || 'multi_courier';
+    var letterType = deskValue('[data-desk-letter-type]', letterDraft.type || 'personal') || 'personal';
+    var urgency = deskValue('[data-desk-letter-urgency]', letterDraft.urgency || 'normal') || 'normal';
+    var cipher = deskValue('[data-desk-letter-cipher]', letterDraft.cipher || 'none') || 'none';
+    var sendMode = deskValue('[data-desk-letter-sendmode]', letterDraft.sendMode || 'multi_courier') || 'multi_courier';
     var capital = gm._capital || '京城';
     var ch = (typeof window.findCharByName === 'function') ? window.findCharByName(to) : findPerson(to);
     var toLoc = (ch && ch.location) || capital;
@@ -6006,8 +6031,10 @@
 
   function deskStoreLetterMemory(){
     var gm = deskGM();
-    var to = deskValue('[data-desk-letter-to]', (gm._pendingLetterTo || '')).trim();
-    var body = deskValue('[data-desk-letter-body]', '').trim();
+    Array.prototype.forEach.call(document.querySelectorAll('.tm-desk-overlay'), captureDeskOverlayState);
+    var letterDraft = state.letterDraft || {};
+    var to = deskValue('[data-desk-letter-to]', (letterDraft.to || gm._pendingLetterTo || '')).trim();
+    var body = deskValue('[data-desk-letter-body]', letterDraft.body || '').trim();
     if (!to || !body) { toast('请先写明人物与内容'); return; }
     deskRemember(to, '御前留记：' + compactText(body, 80), '平', 4);
     deskRecord('人物记忆', to, body, ['鸿雁','人物记忆']);
@@ -6926,6 +6953,8 @@
       ? '<div class="mem-body collapsed wd-selectable" id="' + attr(mid) + '-body">' + esc(body) + '</div><button type="button" class="mem-toggle" onclick="var b=document.getElementById(&quot;' + attr(mid) + '-body&quot;);if(b){var col=b.classList.toggle(&quot;collapsed&quot;);this.textContent=col?&quot;▼ 展开全文&quot;:&quot;▲ 收起&quot;;}">▼ 展开全文</button>'
       : '<div class="mem-body wd-selectable">' + esc(body) + '</div>';
     var replyId = mid + '-reply';
+    state.memorialReplies = state.memorialReplies || {};
+    if (Object.prototype.hasOwnProperty.call(state.memorialReplies, replyId)) reply = state.memorialReplies[replyId];
     var btnData = function(decision){ return { id:m.id || '', decision:decision, replyid:replyId }; };
     return '<article class="memorial-card-v4 ' + cls + '">' +
       '<div class="memorial-card-head-v4"><span class="memorial-avatar-v4">' + esc((m.from || m.sender || '奏').slice(0, 1)) + '</span><span><b>' + esc(m.title || m.topic || '奏疏') + '</b><span>' + esc(meta) + '</span></span><span class="tm-chip-row">' + actionChip(key === 'urgent' ? '急奏' : key === 'done' ? '已批' : key === 'held' ? '留中' : '待批', key === 'urgent' ? 'hot' : key === 'done' ? 'green' : '') + '</span></div>' +

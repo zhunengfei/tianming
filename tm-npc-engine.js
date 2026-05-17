@@ -1548,13 +1548,34 @@ function executeNpcDecisions(context, actor, maxActions) {
  * 2. 自顶向下回拨（按回拨率 × 贡献占比）
  */
 var CentralizationSystem = (function() {
+  function _num(v) {
+    var n = Number(v);
+    return isFinite(n) ? n : 0;
+  }
+
+  function _ensureFinance(char) {
+    if (!char || typeof char !== 'object') return null;
+    if (!char.finance || typeof char.finance !== 'object') char.finance = {};
+    char.finance.income = _num(char.finance.income);
+    char.finance.tribute = _num(char.finance.tribute);
+    char.finance.redistribution = _num(char.finance.redistribution);
+    char.finance.netIncome = _num(char.finance.netIncome);
+    if (!char.finance.expenses || typeof char.finance.expenses !== 'object') char.finance.expenses = {};
+    if (!Array.isArray(char.finance.expenses.fixed)) char.finance.expenses.fixed = [];
+    if (!Array.isArray(char.finance.expenses.discretionary)) char.finance.expenses.discretionary = [];
+    if (!Array.isArray(char.finance.expenses.illicit)) char.finance.expenses.illicit = [];
+    if (!Array.isArray(char.finance.expenses.imperial)) char.finance.expenses.imperial = [];
+    return char.finance;
+  }
+
   /**
    * 初始化角色的集权数据
    */
   function initializeCharacters() {
     if (!P.centralizationSystem || !P.centralizationSystem.enabled) return;
 
-    GM.chars.forEach(function(char) {
+    (GM.chars || []).forEach(function(char) {
+      if (!char || typeof char !== 'object') return;
       // 初始化集权等级（如果没有）
       if (char.centralization === undefined) {
         char.centralization = P.centralizationSystem.defaultCentralization || 2;
@@ -1566,14 +1587,7 @@ var CentralizationSystem = (function() {
       }
 
       // 初始化财政数据
-      if (!char.finance) {
-        char.finance = {
-          income: 0,        // 本回合收入
-          tribute: 0,       // 本回合上缴
-          redistribution: 0, // 本回合回拨
-          netIncome: 0      // 本回合净收入
-        };
-      }
+      _ensureFinance(char);
     });
 
     _dbg('[Centralization] 角色集权数据初始化完成');
@@ -1604,7 +1618,9 @@ var CentralizationSystem = (function() {
     var roots = [];
     var childrenMap = {};
 
-    GM.chars.forEach(function(char) {
+    (GM.chars || []).forEach(function(char) {
+      if (!char || typeof char !== 'object') return;
+      _ensureFinance(char);
       if (!char.overlordId) {
         // 没有上级，是根节点
         roots.push(char);
@@ -1627,16 +1643,21 @@ var CentralizationSystem = (function() {
    * @returns {number} 该角色收到的总贡赋
    */
   function collectTributeBottomUp(char, childrenMap) {
+    var finance = _ensureFinance(char);
+    if (!char || !finance) return 0;
     var totalTribute = 0;
 
     // 递归收集所有下属的贡赋
     var children = childrenMap[char.id] || [];
     children.forEach(function(child) {
+      if (!child || typeof child !== 'object') return;
+      var childFinance = _ensureFinance(child);
+      if (!childFinance) return;
       // 先递归处理子节点
       collectTributeBottomUp(child, childrenMap);
 
       // 计算该下属的上缴额
-      var childIncome = child.finance.income || 0;
+      var childIncome = _num(child.finance && child.finance.income);
       var tributeRate = getTributeRate(child.centralization, child.territoryType || 'civil');
       var tribute = childIncome * tributeRate;
 
@@ -1652,7 +1673,7 @@ var CentralizationSystem = (function() {
     });
 
     // 更新本角色的收入（原有收入 + 下属贡赋）
-    char.finance.income = (char.finance.income || 0) + totalTribute;
+    finance.income = _num(finance.income) + totalTribute;
 
     return totalTribute;
   }
@@ -1663,6 +1684,8 @@ var CentralizationSystem = (function() {
    * @param {Object} childrenMap - 子节点映射
    */
   function redistributeTopDown(char, childrenMap) {
+    var finance = _ensureFinance(char);
+    if (!char || !finance) return;
     var children = childrenMap[char.id] || [];
     if (children.length === 0) return;
 
@@ -1670,7 +1693,9 @@ var CentralizationSystem = (function() {
     var totalTribute = 0;
     var tributeMap = {};
     children.forEach(function(child) {
-      var tribute = child.finance.tribute || 0;
+      if (!child || typeof child !== 'object') return;
+      var childFinance = _ensureFinance(child);
+      var tribute = childFinance ? _num(childFinance.tribute) : 0;
       totalTribute += tribute;
       tributeMap[child.id] = tribute;
     });
@@ -1686,12 +1711,15 @@ var CentralizationSystem = (function() {
 
     // 按贡献占比分配回拨
     children.forEach(function(child) {
+      if (!child || typeof child !== 'object') return;
+      var childFinance = _ensureFinance(child);
+      if (!childFinance) return;
       var childTribute = tributeMap[child.id];
       var contributionRatio = childTribute / totalTribute;
       var redistribution = totalRedistribution * contributionRatio;
 
       // 记录回拨
-      child.finance.redistribution = redistribution;
+      childFinance.redistribution = redistribution;
 
       _dbg('[Centralization] 角色', child.name, '获得回拨', redistribution.toFixed(2),
                   '(贡献占比:', (contributionRatio * 100).toFixed(1) + '%)');
@@ -1701,22 +1729,24 @@ var CentralizationSystem = (function() {
     });
 
     // 上级扣除回拨后的净收入
-    char.finance.income -= totalRedistribution;
+    finance.income = _num(finance.income) - totalRedistribution;
   }
 
   /**
    * 计算所有角色的净收入
    */
   function calculateNetIncome() {
-    GM.chars.forEach(function(char) {
-      var income = char.finance.income || 0;
-      var tribute = char.finance.tribute || 0;
-      var redistribution = char.finance.redistribution || 0;
+    (GM.chars || []).forEach(function(char) {
+      var finance = _ensureFinance(char);
+      if (!char || !finance) return;
+      var income = _num(finance.income);
+      var tribute = _num(finance.tribute);
+      var redistribution = _num(finance.redistribution);
 
       // 净收入 = 原始收入 - 上缴 + 回拨
-      char.finance.netIncome = income - tribute + redistribution;
+      finance.netIncome = income - tribute + redistribution;
 
-      _dbg('[Centralization] 角色', char.name, '净收入:', char.finance.netIncome.toFixed(2),
+      _dbg('[Centralization] 角色', char.name, '净收入:', finance.netIncome.toFixed(2),
                   '(收入:', income.toFixed(2), '上缴:', tribute.toFixed(2), '回拨:', redistribution.toFixed(2) + ')');
     });
   }
@@ -1728,6 +1758,7 @@ var CentralizationSystem = (function() {
     if (!P.centralizationSystem || !P.centralizationSystem.enabled) return;
 
     _dbg('[Centralization] ========== 财政结算开始 ==========');
+    initializeCharacters();
 
     // 1. 构建层级树
     var tree = buildHierarchyTree();
@@ -1753,14 +1784,13 @@ var CentralizationSystem = (function() {
    * 重置财政数据（回合开始时）
    */
   function resetFinance() {
-    GM.chars.forEach(function(char) {
-      if (!char.finance) {
-        char.finance = {};
-      }
-      char.finance.income = 0;
-      char.finance.tribute = 0;
-      char.finance.redistribution = 0;
-      char.finance.netIncome = 0;
+    (GM.chars || []).forEach(function(char) {
+      var finance = _ensureFinance(char);
+      if (!finance) return;
+      finance.income = 0;
+      finance.tribute = 0;
+      finance.redistribution = 0;
+      finance.netIncome = 0;
     });
   }
 
@@ -1807,7 +1837,8 @@ var CentralizationSystem = (function() {
     resetFinance: resetFinance,
     setCentralization: setCentralization,
     setRedistributionRate: setRedistributionRate,
-    getTributeRate: getTributeRate
+    getTributeRate: getTributeRate,
+    _ensureFinance: _ensureFinance
   };
 })();
 

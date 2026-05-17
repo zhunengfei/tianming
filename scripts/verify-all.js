@@ -36,6 +36,7 @@ const checks = [
   { name: 'formal-edict-portrait', file: 'smoke-formal-edict-portrait.js', estSec: 1, expectExit: 0 },
   { name: 'formal-edict-polish-scope', file: 'smoke-formal-edict-polish-scope.js', estSec: 1, expectExit: 0 },
   { name: 'formal-edict-endturn-bridge', file: 'smoke-formal-edict-endturn-bridge.js', estSec: 1, expectExit: 0 },
+  { name: 'formal-ui-bridge-state', file: 'smoke-formal-ui-bridge-state.js', estSec: 1, expectExit: 0 },
   { name: 'formal-runtime-chrome-throttle', file: 'smoke-formal-runtime-chrome-throttle.js', estSec: 1, expectExit: 0 },
   { name: 'css-resource-retry', file: 'smoke-css-resource-retry.js', estSec: 1, expectExit: 0 },
   { name: 'formal-module-modal-size', file: 'smoke-formal-module-modal-size.js', estSec: 1, expectExit: 0 },
@@ -107,6 +108,7 @@ const checks = [
   // P5-β (2026-05-04) NPC/Char namespace facade smoke (Codex own)
   { name: 'p5-beta-npc-char', file: 'smoke-p5-beta-npc-char.js', estSec: 1, expectExit: 0 },
   { name: 'npc-action-logic', file: 'smoke-npc-action-logic.js', estSec: 1, expectExit: 0 },
+  { name: 'centralization-finance-guard', file: 'smoke-centralization-finance-guard.js', estSec: 1, expectExit: 0 },
   // P5-γ (2026-05-04) Edict namespace facade smoke·EDICT_TYPES 两版本隔离·R12b 后 v2 (Claude own)
   { name: 'p5-gamma-edict', file: 'smoke-p5-gamma-edict.js', estSec: 1, expectExit: 0 },
   // P5-δ (2026-05-04) Fiscal/Economy/Guoku/Neitang facade fill·tick 跨 7 engine 强隔离 (Claude own)
