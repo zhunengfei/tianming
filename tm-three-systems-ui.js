@@ -862,7 +862,7 @@
       return;
     }
     _toast('LLM 主君决策中...约 3-5 秒');
-    TM.FactionNpcLlmDecision.decideFor(facName).then(function(r){
+    TM.FactionNpcLlmDecision.decideFor(facName, { source: 'manual', turn: (GM && GM.turn) || 1 }).then(function(r){
       if (r.applied) {
         var s = r.summary || {};
         _toast('✓决策应用·mem=' + (s.memorials || 0) + ' edict=' + (s.edicts || 0) + ' chaoyi=' + (s.chaoyi || 0) + ' office=' + (s.office || 0));

@@ -183,6 +183,34 @@ function _hidePostTurnCourtBanner() {
   if (_el) _el.remove();
 }
 
+function _postTurnCourtShowRenderFallback(error) {
+  var msg = (error && (error.message || error.toString())) || 'unknown render error';
+  var safeMsg = String(msg).replace(/[&<>"']/g, function(ch) {
+    return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch];
+  });
+  try { if (typeof hideLoading === 'function') hideLoading(); } catch(_hideE) {}
+  var html =
+    '<div style="padding:1rem;line-height:1.8;color:var(--txt);">' +
+      '<h3 style="color:var(--gold);margin:0 0 0.8rem;">史记弹窗渲染失败</h3>' +
+      '<p>本回合推演与数值结算已经完成，但结果弹窗在渲染时出错。游戏已解除等待状态，可继续操作；请把控制台诊断发给开发者。</p>' +
+      '<pre style="white-space:pre-wrap;color:var(--red,#c44);background:rgba(0,0,0,0.22);padding:0.75rem;border:1px solid rgba(200,80,70,0.35);">' + safeMsg + '</pre>' +
+    '</div>';
+  try {
+    if (typeof showTurnResult === 'function') {
+      var idx = Math.max(0, ((GM && GM.shijiHistory && GM.shijiHistory.length) || 1) - 1);
+      showTurnResult(html, idx);
+    } else if (typeof toast === 'function') {
+      toast('史记弹窗渲染失败，但回合推演已完成。');
+    }
+  } catch(_fallbackE) {
+    try { console.error('[postTurnCourt] fallback render failed:', _fallbackE); } catch(_){}
+  }
+  try {
+    var btn = (typeof _$ === 'function') ? (_$('btn-end') || _$('btn-end-turn')) : null;
+    if (btn) { btn.textContent = '⏳ 静待时变'; btn.style.opacity = '1'; }
+  } catch(_btnE) {}
+}
+
 // 朝会结束时调用——顺序：先弹史记，其他模态（keju/事件等）排队其后
 async function _onPostTurnCourtEnd() {
   if (!GM._pendingShijiModal) { GM._isPostTurnCourt = false; return; }
@@ -206,7 +234,12 @@ async function _onPostTurnCourtEnd() {
 
   // 1) 先弹史记（临时放开 courtDone，让 showTurnResult 直通）
   GM._pendingShijiModal.courtDone = true;
-  try { _endTurn_render.apply(null, _payload); } catch(_e){ (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_e, 'postTurnCourt] render:') : console.error('[postTurnCourt] render:', _e); }
+  try {
+    _endTurn_render.apply(null, _payload);
+  } catch(_e) {
+    (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_e, 'postTurnCourt] render:') : console.error('[postTurnCourt] render:', _e);
+    _postTurnCourtShowRenderFallback(_e);
+  }
 
   // 2) 重新启用"队列模式"，让 phase5 产生的模态都进队列·不立即弹
   GM._pendingShijiModal.courtDone = false; // 假装朝会还在

@@ -955,6 +955,16 @@
       score += 14;
       reasons.push('sc16-context');
     }
+    var sc16Priority = directive ? _safeNum(directive.priorityScore || directive.priority || (directive.raw && directive.raw.priority)) : 0;
+    if (sc16Priority > 0) {
+      score += Math.min(70, sc16Priority * 0.75);
+      reasons.push('sc16-priority');
+    }
+    var sc16Rank = directive ? _safeNum(directive.priorityRank) : 0;
+    if (sc16Rank > 0 && sc16Rank <= 5) {
+      score += Math.max(4, 16 - sc16Rank * 2);
+      reasons.push('sc16-rank');
+    }
     var hotspot = 0;
     _arr(G.currentIssues).slice(-12).forEach(function(i){ if (_mentionsFac(i, fac)) hotspot += 8; });
     _arr(G.factionEvents).slice(-12).forEach(function(e){ if (_mentionsFac(e, fac)) hotspot += 8; });

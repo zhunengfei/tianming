@@ -326,6 +326,10 @@ function _prepareGMForSave() {
   if (GM._npcActionLedger && GM._npcActionLedger.length > 0) GM._savedNpcActionLedger = _safeClone(GM._npcActionLedger);
   if (GM._npcPlans && GM._npcPlans.length > 0) GM._savedNpcPlans = _safeClone(GM._npcPlans);
   if (GM._npcDecisionDiagnostics && GM._npcDecisionDiagnostics.length > 0) GM._savedNpcDecisionDiagnostics = _safeClone(GM._npcDecisionDiagnostics.slice(-120));
+  if (GM._npcFactionAiTurnLedger) GM._savedNpcFactionAiTurnLedger = _safeClone(GM._npcFactionAiTurnLedger);
+  if (GM._npcFactionLlmLedger) GM._savedNpcFactionLlmLedger = _safeClone(GM._npcFactionLlmLedger);
+  if (GM._npcFactionLlmDispatchLedger) GM._savedNpcFactionLlmDispatchLedger = _safeClone(GM._npcFactionLlmDispatchLedger);
+  if (GM._sc16FactionDirectives) GM._savedSc16FactionDirectives = _safeClone(GM._sc16FactionDirectives);
   if (GM._officeCollapsed) GM._savedOfficeCollapsed = _safeClone(GM._officeCollapsed);
   if (GM._wdState && Object.keys(GM._wdState).length > 0) GM._savedWdState = _safeClone(GM._wdState);
   if (GM._playerDirectives && GM._playerDirectives.length > 0) GM._savedPlayerDirectives = _safeClone(GM._playerDirectives);
@@ -602,6 +606,10 @@ function _restoreSavedFields() {
   if (GM._savedNpcActionLedger) { GM._npcActionLedger = GM._savedNpcActionLedger; delete GM._savedNpcActionLedger; }
   if (GM._savedNpcPlans) { GM._npcPlans = GM._savedNpcPlans; delete GM._savedNpcPlans; }
   if (GM._savedNpcDecisionDiagnostics) { GM._npcDecisionDiagnostics = GM._savedNpcDecisionDiagnostics; delete GM._savedNpcDecisionDiagnostics; }
+  if (GM._savedNpcFactionAiTurnLedger) { GM._npcFactionAiTurnLedger = GM._savedNpcFactionAiTurnLedger; delete GM._savedNpcFactionAiTurnLedger; }
+  if (GM._savedNpcFactionLlmLedger) { GM._npcFactionLlmLedger = GM._savedNpcFactionLlmLedger; delete GM._savedNpcFactionLlmLedger; }
+  if (GM._savedNpcFactionLlmDispatchLedger) { GM._npcFactionLlmDispatchLedger = GM._savedNpcFactionLlmDispatchLedger; delete GM._savedNpcFactionLlmDispatchLedger; }
+  if (GM._savedSc16FactionDirectives) { GM._sc16FactionDirectives = GM._savedSc16FactionDirectives; delete GM._savedSc16FactionDirectives; }
   if (GM._savedOfficeCollapsed) { GM._officeCollapsed = GM._savedOfficeCollapsed; delete GM._savedOfficeCollapsed; }
   if (GM._savedWdState) { GM._wdState = GM._savedWdState; delete GM._savedWdState; }
   if (GM._savedPlayerDirectives) { GM._playerDirectives = GM._savedPlayerDirectives; delete GM._savedPlayerDirectives; }

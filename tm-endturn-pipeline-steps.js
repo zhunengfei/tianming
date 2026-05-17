@@ -358,7 +358,7 @@
         }
 
         // 非 deferred 路径·正常 render + 4.5 + 4.6 + 5
-        // 注：render 不 wrap try/catch·让 error 跟 legacy 同 propagate
+        // render 失败时弹 fallback，避免推演已完成但玩家停在 loading 遮罩。
         if (typeof _endTurn_render === 'function') {
           try {
             try { if (typeof showLoading === 'function') showLoading('生成史记弹窗', 97); } catch(_progressE) {}
