@@ -28,15 +28,26 @@ async function main() {
     { id: 'c5', name: 'QianRival', alive: true, loyalty: 45, ambition: 77, intelligence: 72, officialTitle: 'Censor', location: 'Capital', faction: 'Ming', party: 'RivalBloc' },
     { id: 'c6', name: 'ChenAlly', alive: true, loyalty: 80, ambition: 25, intelligence: 50, officialTitle: 'Secretary', location: 'Capital', faction: 'Ming', party: 'CourtBloc' },
     { id: 'c7', name: 'CleanCensor', alive: true, loyalty: 82, ambition: 42, intelligence: 86, integrity: 92, officialTitle: 'Censor', location: 'Capital', faction: 'Ming', party: 'CourtBloc' },
-    { id: 'c8', name: 'LocalMagistrate', alive: true, loyalty: 68, ambition: 45, intelligence: 66, integrity: 72, officialTitle: 'Magistrate', location: 'Liaodong', faction: 'Ming', jurisdiction: 'Liaodong' }
+    { id: 'c8', name: 'LocalMagistrate', alive: true, loyalty: 68, ambition: 45, intelligence: 66, integrity: 72, administration: 74, management: 68, officialTitle: 'Magistrate', location: 'Liaodong', faction: 'Ming', jurisdiction: 'Liaodong' },
+    { id: 'c9', name: 'FreeScholar', alive: true, loyalty: 55, ambition: 58, intelligence: 72, integrity: 62, management: 70, location: 'Capital', faction: 'Ming', resources: { privateWealth: { money: 1200 } } },
+    { id: 'c10', name: 'ConsortSun', alive: true, loyalty: 62, ambition: 72, intelligence: 68, integrity: 45, charisma: 82, spouse: true, spouseRank: 'consort', motherClan: 'SunClan', location: 'InnerPalace' },
+    { id: 'c11', name: 'ConsortWu', alive: true, loyalty: 74, ambition: 48, intelligence: 64, integrity: 70, charisma: 76, spouse: true, spouseRank: 'consort', motherClan: 'WuClan', location: 'InnerPalace' }
   ];
   const events = [];
+  const timers = [];
+  const aiCalls = [];
   let lastPrompt = '';
 
   const ctx = {
     console: console,
-    setTimeout: function(fn) { if (typeof fn === 'function') fn(); return 1; },
-    clearTimeout: function(){},
+    setTimeout: function(fn, delay) {
+      const timer = { fn: fn, delay: delay, cleared: false };
+      timers.push(timer);
+      return timer;
+    },
+    clearTimeout: function(timer) {
+      if (timer) timer.cleared = true;
+    },
     Promise: Promise,
     Math: Math,
     Date: Date,
@@ -58,10 +69,13 @@ async function main() {
       }
     },
     GM: {
+      running: true,
       turn: 3,
       vars: {},
       rels: {},
       facs: [],
+      guoku: { balance: 100000, money: 100000, ledgers: { money: { stock: 100000 } } },
+      corruption: { trueIndex: 30, subDepts: { central: { true: 25 }, fiscal: { true: 30 }, provincial: { true: 35 } } },
       chars: chars,
       armies: [{ name: 'Border Army', commander: 'GeneralWang', training: 40, morale: 50 }],
       memorials: [],
@@ -108,8 +122,14 @@ async function main() {
       ch._lastLoyaltyReason = reason;
       ch._lastLoyaltyMeta = meta;
     },
-    callAI: async function(prompt) {
+    callAI: async function(prompt, maxTok, signal, tier, opts) {
       lastPrompt = String(prompt || '');
+      aiCalls.push({ prompt: lastPrompt, maxTok: maxTok, tier: tier, opts: opts || {} });
+      if (tier === 'secondary') {
+        return JSON.stringify([
+          { name: 'LiSi', behaviorType: 'none', shouldExecute: false }
+        ]);
+      }
       const behaviorContext = ctx.buildNpcBehaviorContext();
       const zhangPetition = ctx._buildNpcActionCandidates(chars[0], behaviorContext).find(function(c) { return c.behaviorType === 'petition'; });
       const wangTrain = ctx._buildNpcActionCandidates(chars[2], behaviorContext).find(function(c) { return c.behaviorType === 'train_troops'; });
@@ -163,6 +183,10 @@ async function main() {
     'supplemental NPC autonomy should record decisions through the unified NPC action ledger');
   assert(decisionSrc.indexOf('TM.NPC.ActionLedger.getHandledNames') >= 0,
     'supplemental NPC autonomy should dedupe through the unified handled-name list');
+  assert(decisionSrc.indexOf('npcIdleAutonomyDelayMs') >= 0,
+    'NPC idle autonomy should expose a 30-second configurable delay');
+  assert(decisionSrc.indexOf('npcIdleAutonomyMaxRounds') >= 0,
+    'NPC idle autonomy should expose a per-turn maximum round cap');
 
   const handledFromMainAi = ctx.TM.NPC.ActionLedger.collectHandledNamesFromP1({
     npc_actions: [{ name: 'ZhangSan', action: 'petition' }],
@@ -227,6 +251,8 @@ async function main() {
   const remoteCandidates = ctx._buildNpcActionCandidates(chars[3], behaviorContext);
   const censorCandidates = ctx._buildNpcActionCandidates(chars[6], behaviorContext);
   const localCandidates = ctx._buildNpcActionCandidates(chars[7], behaviorContext);
+  const freeCandidates = ctx._buildNpcActionCandidates(chars[8], behaviorContext);
+  const consortCandidates = ctx._buildNpcActionCandidates(chars[9], behaviorContext);
   const zhangMotives = ctx._buildNpcMotiveProfile(chars[0], behaviorContext);
   const crowdedNpcs = [];
   for (let i = 0; i < 14; i++) {
@@ -255,8 +281,8 @@ async function main() {
     'military NPC should receive train_troops candidate');
   assert(remoteCandidates.some(function(c) { return c.behaviorType === 'send_letter'; }),
     'remote NPC should receive send_letter candidate');
-  assert(remoteCandidates.some(function(c) { return c.behaviorType === 'seek_audience'; }),
-    'remote NPC should receive seek_audience candidate');
+  assert(!remoteCandidates.some(function(c) { return c.behaviorType === 'seek_audience'; }),
+    'remote NPC should not receive direct seek_audience candidate');
   assert(militaryCandidates.some(function(c) { return c.behaviorType === 'request_funds'; }),
     'military NPC should receive request_funds candidate');
   assert(militaryCandidates.some(function(c) { return c.behaviorType === 'patrol'; }),
@@ -269,10 +295,18 @@ async function main() {
     'high-integrity intelligent censor should receive impeach candidate');
   assert(courtCandidates.some(function(c) { return c.behaviorType === 'build_network'; }),
     'ambitious court NPC should receive a multi-turn build_network candidate');
+  assert(courtCandidates.some(function(c) { return c.behaviorType === 'office_duty'; }),
+    'office-holding NPC should receive office_duty candidate');
+  assert(courtCandidates.some(function(c) { return c.behaviorType === 'court_politics'; }),
+    'court NPC should receive court_politics candidate');
   assert(localCandidates.some(function(c) { return c.behaviorType === 'develop_local'; }),
     'local official should receive develop_local candidate');
   assert(localCandidates.some(function(c) { return c.behaviorType === 'relief'; }),
     'local official in unrest province should receive relief candidate');
+  assert(freeCandidates.some(function(c) { return c.behaviorType === 'private_life'; }),
+    'unappointed NPC should receive private_life candidate for daily wealth/life actions');
+  assert(consortCandidates.some(function(c) { return c.behaviorType === 'palace_intrigue'; }),
+    'consort NPC should receive palace_intrigue candidate');
   assert(courtCandidates.every(function(c) { return typeof c.score === 'number' && c.score > 0; }),
     'candidate actions should carry positive motivation scores');
 
@@ -337,8 +371,8 @@ async function main() {
   const pressureLetterCandidates = ctx._buildNpcActionCandidates(chars[3], behaviorContext);
   assert(!pressureLetterCandidates.some(function(c) { return c.behaviorType === 'send_letter'; }),
     'busy letter queue should suppress low-priority new NPC letters');
-  assert(pressureLetterCandidates.some(function(c) { return c.behaviorType === 'seek_audience'; }),
-    'busy letter queue should still allow audience requests');
+  assert(pressureLetterCandidates.some(function(c) { return c.behaviorType === 'develop_local' || c.behaviorType === 'relief'; }),
+    'busy letter queue should still allow local self-contained actions');
   ctx.GM._pendingNpcLetters = savedLetters;
 
   await ctx.executeNpcBehaviors();
@@ -359,6 +393,31 @@ async function main() {
     'batch NPC prompt should expose court workload and internal NPC action context');
   assert(ctx.GM._npcActionLedger.some(function(x) { return x.actor === 'ZhangSan' && x.behaviorType === 'petition'; }),
     'executed NPC action should be recorded in structured action ledger');
+  assert(typeof ctx._scheduleNpcIdleAutonomyLoop === 'function',
+    'NPC decision layer should expose the idle autonomy loop scheduler');
+  assert(typeof ctx._cancelNpcIdleAutonomyLoop === 'function',
+    'NPC decision layer should expose the idle autonomy loop cancel helper');
+  timers.length = 0;
+  aiCalls.length = 0;
+  const scheduledIdle = ctx._scheduleNpcIdleAutonomyLoop({ delayMs: 5, maxRounds: 2, source: 'smoke' });
+  assert(scheduledIdle === true,
+    'idle NPC autonomy should schedule after the first post-render NPC round');
+  assert(timers.length === 1 && timers[0].delay === 5,
+    'idle NPC autonomy should wait the configured delay before the next round');
+  await timers[0].fn();
+  assert(aiCalls.length === 1 && aiCalls[0].tier === 'secondary',
+    'idle NPC autonomy should use the secondary API tier');
+  assert(aiCalls[0].opts && aiCalls[0].opts.priority === 'background',
+    'idle NPC autonomy should remain a background AI queue job');
+  assert(ctx.GM._npcIdleAutonomy && ctx.GM._npcIdleAutonomy.rounds === 1,
+    'idle NPC autonomy should count completed idle rounds');
+  assert(timers.length === 2,
+    'idle NPC autonomy should schedule another round while the player remains in the same turn');
+  ctx.GM.busy = true;
+  await timers[1].fn();
+  assert(ctx.GM._npcIdleAutonomy.stopped === true,
+    'idle NPC autonomy should stop when the next end-turn begins');
+  ctx.GM.busy = false;
   assert(!ctx._buildNpcActionCandidates(chars[0], behaviorContext).some(function(c) { return c.behaviorType === 'petition'; }),
     'same NPC action type should cool down after it has just executed');
   const repeatPetitionOk = ctx._executeNormalizedNpcDecision({
@@ -402,14 +461,16 @@ async function main() {
     'supplemental NPC executor should reject player-controlled actors through unified preflight');
   chars[1].isPlayer = false;
 
+  const remoteLettersBeforeAudience = ctx.GM._pendingNpcLetters.length;
+  const remoteAudiencesBeforeAudience = ctx.GM._pendingAudiences.length;
   const audienceOk = ctx._executeNormalizedNpcDecision({
     actor: 'RemoteZhao',
     behaviorType: 'seek_audience',
     action: 'Ask for audience',
     shouldExecute: true
   }, chars[3], behaviorContext);
-  assert(audienceOk === true && ctx.GM._pendingAudiences.some(function(q) { return q.name === 'RemoteZhao'; }),
-    'seek_audience behavior should enqueue pending audience');
+  assert(audienceOk === true && ctx.GM._pendingAudiences.length === remoteAudiencesBeforeAudience && ctx.GM._pendingNpcLetters.length === remoteLettersBeforeAudience + 1,
+    'remote seek_audience behavior should redirect to NPC letter instead of pending audience');
 
   const memorialsBeforeFunds = ctx.GM.memorials.length;
   const fundsOk = ctx._executeNormalizedNpcDecision({
@@ -498,6 +559,47 @@ async function main() {
     'NPC action diagnostics should report durable NPC plans');
   assert(ctx.GM._npcDecisionDiagnostics.some(function(d) { return d.actor === 'ZhangSan' && d.status === 'executed'; }),
     'NPC executor should record decision diagnostics for executed actions');
+
+  const beforeGuoku = ctx.GM.guoku.balance;
+  const dutyOk = ctx._executeNormalizedNpcDecision({
+    actor: 'LocalMagistrate',
+    behaviorType: 'office_duty',
+    target: 'Liaodong',
+    action: 'Handle magistrate duties',
+    shouldExecute: true
+  }, chars[7], behaviorContext);
+  assert(dutyOk === true && ctx.GM.guoku.balance !== beforeGuoku,
+    'office_duty should execute real public-fund effects');
+
+  const beforePrivateMoney = chars[8].resources.privateWealth.money;
+  const privateOk = ctx._executeNormalizedNpcDecision({
+    actor: 'FreeScholar',
+    behaviorType: 'private_life',
+    action: 'Manage private estate',
+    shouldExecute: true
+  }, chars[8], behaviorContext);
+  assert(privateOk === true && chars[8].resources.privateWealth.money !== beforePrivateMoney,
+    'private_life should change character private wealth');
+
+  const palaceOk = ctx._executeNormalizedNpcDecision({
+    actor: 'ConsortSun',
+    behaviorType: 'palace_intrigue',
+    target: 'ConsortWu',
+    action: 'Compete for influence in the inner palace',
+    shouldExecute: true
+  }, chars[9], behaviorContext);
+  assert(palaceOk === true && ctx.GM._npcInternalActionHistory.some(function(x) { return x.kind === 'palace_intrigue' && x.from === 'ConsortSun' && x.to === 'ConsortWu'; }),
+    'palace_intrigue should persist inner-palace political activity');
+
+  const politicsOk = ctx._executeNormalizedNpcDecision({
+    actor: 'ZhangSan',
+    behaviorType: 'court_politics',
+    target: 'QianRival',
+    action: 'Contest a rival at court',
+    shouldExecute: true
+  }, chars[0], behaviorContext);
+  assert(politicsOk === true && ctx.GM._npcInternalActionHistory.some(function(x) { return x.kind === 'court_politics' && x.from === 'ZhangSan' && x.to === 'QianRival'; }),
+    'court_politics should persist court struggle activity');
 
   ctx.GM._pendingNpcCorrespondence = [];
   ctx.GM._pendingNpcConspiracies = [];

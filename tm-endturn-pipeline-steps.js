@@ -84,6 +84,9 @@
             TM.Endturn.Timing.mark(ctx, 'background', { id: 'npc_behavior', phase: 'start', turn: queuedTurn });
           }
           await executeNpcBehaviors();
+          if (typeof _scheduleNpcIdleAutonomyLoop === 'function') {
+            _scheduleNpcIdleAutonomyLoop({ source: 'post_render_npc_behavior' });
+          }
           if (TM.Endturn && TM.Endturn.Timing && typeof TM.Endturn.Timing.mark === 'function') {
             TM.Endturn.Timing.mark(ctx, 'background', { id: 'npc_behavior', phase: 'done', turn: queuedTurn, ok: true, ms: Date.now() - _t0 });
           }

@@ -438,7 +438,7 @@
           if ((c.stress || 0) > 20) parts.push('\u538B\u529B' + c.stress);
           if (c._mood && c._mood !== '\u5E73') parts.push('\u60C5:' + c._mood);
           if (c.personality) parts.push('\u6027:' + c.personality);
-          if (c.spouse) parts.push('[\u540E\u5BAB]');
+          if (typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(c) : c.spouse === true) parts.push('[\u540E\u5BAB]');
           if (c.personalGoal) parts.push('\u6C42:' + c.personalGoal.substring(0, 30));
           // 伤疤/勋章——永久影响此人行为的刻骨经历
           if (c._scars && c._scars.length > 0) {

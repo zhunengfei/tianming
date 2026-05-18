@@ -202,7 +202,7 @@ function applyCharacterDeaths(p1) {
               });
             }
             // 级联清理：配偶死亡→后宫更新
-            if (ch.spouse && GM.harem) {
+            if ((typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(ch) : ch.spouse === true) && GM.harem) {
               // 从继承人列表移除该配偶的子嗣（如果子嗣也死了的话由子嗣的死亡事件处理）
               // 从孕期列表移除
               if (GM.harem.pregnancies) {

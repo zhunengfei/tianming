@@ -159,7 +159,7 @@ async function genMemorialsAI(count){
       }
       // 后宫身份标注
       var spouseInfo = '';
-      if (ch.spouse) {
+      if (typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(ch) : ch.spouse === true) {
         var _rkN2 = {'empress':'\u7687\u540E','queen':'\u738B\u540E','consort':'\u5983','concubine':'\u59BE','attendant':'\u4F8D\u59BE'};
         spouseInfo = ' [\u540E\u5BAB:' + (_rkN2[ch.spouseRank] || '\u59BB\u5BA4');
         if (ch.motherClan) spouseInfo += ',\u6BCD\u65CF' + ch.motherClan;

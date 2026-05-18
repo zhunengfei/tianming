@@ -213,8 +213,8 @@ async function aiDeepReadScenario() {
   // 压缩模式下，按重要性排序：玩家>后妃>高品级>高记忆>其他
   if (_compressChars) {
     _aliveChars.sort(function(a, b) {
-      var sa = (a.isPlayer ? 100 : 0) + (a.spouse ? 30 : 0) + ((10 - (a.rankLevel||9)) * 5) + ((a._memory||[]).length * 2) + ((a._scars||[]).length * 5);
-      var sb = (b.isPlayer ? 100 : 0) + (b.spouse ? 30 : 0) + ((10 - (b.rankLevel||9)) * 5) + ((b._memory||[]).length * 2) + ((b._scars||[]).length * 5);
+      var sa = (a.isPlayer ? 100 : 0) + ((typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(a) : a.spouse === true) ? 30 : 0) + ((10 - (a.rankLevel||9)) * 5) + ((a._memory||[]).length * 2) + ((a._scars||[]).length * 5);
+      var sb = (b.isPlayer ? 100 : 0) + ((typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(b) : b.spouse === true) ? 30 : 0) + ((10 - (b.rankLevel||9)) * 5) + ((b._memory||[]).length * 2) + ((b._scars||[]).length * 5);
       return sb - sa;
     });
     blockB += '（角色较多，前30位高重要角色详述，其余精简。精简角色可参与群体事件但不宜作为独立行动主角）\n';
@@ -300,7 +300,7 @@ async function aiDeepReadScenario() {
     }
     if (c.personality) line += ' \u6027\u683C:' + String(c.personality);
     if (c.appearance) line += ' \u5916\u8C8C:' + String(c.appearance);
-    if (c.spouse) line += ' [\u914D\u5076]';
+    if (typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(c) : c.spouse === true) line += ' [\u914D\u5076]';
     if (c.family) line += ' \u5BB6\u65CF:' + c.family;
     if (c.vassalType) line += ' 封臣:' + c.vassalType;
     blockB += '  ' + line + '\n';
@@ -338,7 +338,7 @@ async function aiDeepReadScenario() {
       var maxImp = hasMemory ? c._memory.reduce(function(m,e){return Math.max(m,e.importance||0);},0) : 0;
 
       // 后妃/首领/高容量(≥50)角色→tier1
-      if (c.spouse || cap.active >= 50) { _tier1.push(c); return; }
+      if ((typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(c) : c.spouse === true) || cap.active >= 50) { _tier1.push(c); return; }
       // 有高importance记忆(≥6)或伤疤或高容量(≥30)→tier2
       if (maxImp >= 6 || hasScars || cap.active >= 30) { _tier2.push(c); return; }
       // 有记忆或情绪→tier3
@@ -1007,7 +1007,7 @@ async function aiDeepReadScenario() {
     if (GM.harem.rankSystem && GM.harem.rankSystem.length > 0) {
       blockH += '  位份:' + GM.harem.rankSystem.map(function(r){return r.name+'(Lv'+r.level+')';}).join('→') + '\n';
     }
-    var _spouses = (GM.chars||[]).filter(function(c){return c.alive!==false&&c.spouse;});
+    var _spouses = (GM.chars||[]).filter(function(c){return c.alive!==false && (typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(c) : c.spouse === true);});
     if (_spouses.length > 0) {
       blockH += '  妃嫔:' + _spouses.map(function(s){return s.name+(s.spouseRank?'('+s.spouseRank+')':'');}).join('、') + '\n';
     }
@@ -1091,7 +1091,7 @@ async function aiDeepReadScenario() {
       if (c.bio) charDeepBlock += ' 经历:' + c.bio;
       if (c.faction) charDeepBlock += ' 势力:' + c.faction;
       if (c.party) charDeepBlock += ' 党派:' + c.party;
-      if (c.spouse) charDeepBlock += ' [有配偶]';
+      if (typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(c) : c.spouse === true) charDeepBlock += ' [有配偶]';
     });
     var r9 = await _call(sysPre, charDeepBlock + '\n\n请返回JSON：{"character_profiles":"每个角色的内心独白——他们真正想要什么、害怕什么、会为什么铤而走险(300字)","relationship_tensions":"角色间最紧张的5对关系及爆发条件(200字)","betrayal_risks":"最可能背叛的角色及其动机和时机(150字)","alliance_opportunities":"最可能结盟的角色组合及其共同利益(150字)","emotional_triggers":"各角色的情感触发点——什么事件会让他们暴怒/崩溃/感动(200字)"}', 1500);
 
@@ -1800,4 +1800,3 @@ var EndTurnHooks = (function() {
     collectFragments: collectFragments
   };
 })();
-

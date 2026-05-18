@@ -958,7 +958,7 @@ async function _logicAuditOnStart(sc) {
     needLocation.forEach(function(c) {
       var tags = [];
       if (c.isPlayer) tags.push('玩家');
-      if (c.spouse) tags.push('后妃');
+      if (typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(c) : c.spouse === true) tags.push('后妃');
       if (c.faction) tags.push('势力:' + c.faction);
       prompt += '  ' + c.name + '（' + (c.title || '无官职') + '）' + (tags.length ? ' [' + tags.join(',') + ']' : '');
       if (c.bio) prompt += ' \u7B80\u4ECB:' + c.bio;
@@ -982,7 +982,7 @@ async function _logicAuditOnStart(sc) {
   haveLocation.forEach(function(c) {
     prompt += '  ' + c.name + '（' + (c.title || '') + '）在: ' + c.location;
     if (c.isPlayer) prompt += ' [玩家]';
-    if (c.spouse) prompt += ' [后妃]';
+    if (typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(c) : c.spouse === true) prompt += ' [后妃]';
     if (c._locationExplicit) prompt += ' [手动设置]';
     prompt += '\n';
   });

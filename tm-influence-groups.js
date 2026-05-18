@@ -199,7 +199,7 @@
     }
     var hasConsortRank = !!(ch.spouseRank || containsAny(text, consort.titleKeywords));
     var hasConsortRelation = !!(ch.royalRelation || containsAny(text, consort.relationKeywords));
-    if (isFemale(ch) && hasConsortRank && hasConsortRelation) {
+    if (isFemale(ch) && hasConsortRank && hasConsortRelation && (typeof _tmIsPlayerConsort !== 'function' || _tmIsPlayerConsort(ch))) {
       out.push('consort');
     }
     var hasWaiqiRelation = containsAny(text, waiqi.relationKeywords);

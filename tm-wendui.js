@@ -12,19 +12,107 @@
 var _wenduiMode = 'formal';
 var _wenduiSending = false;
 
+function _wdFactionValues(src) {
+  var out = [];
+  if (!src) return out;
+  if (Array.isArray(src)) {
+    src.forEach(function(f) { if (f) out.push(f); });
+    return out;
+  }
+  if (typeof src === 'object') {
+    Object.keys(src).forEach(function(k) {
+      var v = src[k];
+      if (!v || typeof v !== 'object') return;
+      if (!v.name && k) {
+        try {
+          var copy = {};
+          Object.keys(v).forEach(function(vk) { copy[vk] = v[vk]; });
+          copy.name = k;
+          out.push(copy);
+        } catch (_) {
+          v.name = k;
+          out.push(v);
+        }
+      } else {
+        out.push(v);
+      }
+    });
+  }
+  return out;
+}
+
+function _wdFindFaction(name) {
+  if (!name) return null;
+  var lists = [];
+  if (typeof GM !== 'undefined' && GM) lists.push(GM.facs, GM.factions);
+  if (typeof P !== 'undefined' && P) lists.push(P.facs, P.factions);
+  try {
+    var sc = (typeof findScenarioById === 'function' && GM && GM.sid) ? findScenarioById(GM.sid) : null;
+    if (sc) lists.push(sc.factions);
+  } catch (_) {}
+  var target = String(name).replace(/[\s·\-—]/g, '');
+  var seen = {};
+  var all = [];
+  lists.forEach(function(list) {
+    _wdFactionValues(list).forEach(function(f) {
+      var key = f && (f.name || f.id || f.label || f.title);
+      if (!key || seen[key]) return;
+      seen[key] = true;
+      all.push(f);
+    });
+  });
+  return all.find(function(f) {
+    if (!f) return false;
+    var keys = [f.name, f.id, f.label, f.title, f.shortName, f.alias];
+    return keys.some(function(k) {
+      return k && String(k).replace(/[\s·\-—]/g, '') === target;
+    });
+  }) || null;
+}
+
+function _wdIsPlayerConsort(ch) {
+  if (typeof _tmIsPlayerConsort === 'function') {
+    try { return !!_tmIsPlayerConsort(ch); } catch (_) {}
+  }
+  return !!(ch && ch.spouse === true);
+}
+
+function _wdIsPlayerSideChar(ch) {
+  if (!ch || ch.alive === false || ch.dead || ch.isPlayer) return false;
+  if (ch._envoy || ch.isEnvoy || ch.fromFaction) return false;
+  if (_wdIsPlayerConsort(ch)) return true;
+  if (typeof _tmIsPlayerFactionCharLoose === 'function') {
+    try { if (_tmIsPlayerFactionCharLoose(ch)) return true; } catch (_) {}
+  }
+  var explicit = [];
+  if (typeof _tmCharacterFactionValues === 'function') {
+    try { explicit = _tmCharacterFactionValues(ch); } catch (_) { explicit = []; }
+  } else {
+    explicit = [ch.faction, ch.factionName, ch.currentFaction, ch.allegiance, ch.country, ch.polity, ch.realm, ch.kingdom, ch.force, ch.camp];
+  }
+  explicit = explicit.filter(function(x) { return x != null && String(x).trim(); });
+  if (explicit.length === 0) return true;
+  return false;
+}
+
+function _wdCanDirectAudience(ch) {
+  return !!(ch && _wdIsPlayerSideChar(ch) && _wdIsAtCapital(ch));
+}
+
 /**
  * 渲染问对面板中的角色网格（仅在京臣子可点击）
  */
 function renderWenduiChars(){
   var el=_$("wendui-chars");if(!el)return;
-  var atCap = (GM.chars||[]).filter(function(c){return c.alive!==false && !c.isPlayer && _wdIsAtCapital(c);});
-  var away = (GM.chars||[]).filter(function(c){return c.alive!==false && !c.isPlayer && !_wdIsAtCapital(c);});
+  var wenduiPeople = (GM.chars||[]).filter(function(c){ return _wdIsPlayerSideChar(c); });
+  var atCap = wenduiPeople.filter(function(c){return _wdIsAtCapital(c);});
+  var away = wenduiPeople.filter(function(c){return !_wdIsAtCapital(c);});
   var html = '';
 
   // 工具：根据角色推断卡片左边色类
   function _wdCardClass(ch) {
     var t = (ch.title || '') + ' ' + (ch.officialTitle || '');
-    if (ch.spouse) return 'wdp-consort';
+    if (_wdIsPlayerConsort(ch)) return 'wdp-consort';
     if (/\u4E1C\u5382|\u53F8\u793C|\u5B98|\u592A\u76D1/.test(t)) return 'wdp-eunuch'; // 宦官
     if (/\u5C06\u519B|\u603B\u5175|\u603B\u7763|\u6307\u6325|\u6307\u6325\u4F7F/.test(t)) return 'wdp-mili'; // 武将
     if (ch.party === '\u4E1C\u6797\u515A' || ch.faction === '\u4E1C\u6797') return 'wdp-dongin';
@@ -40,7 +128,7 @@ function renderWenduiChars(){
   }
   // 工具：派系标签
   function _wdFactionTag(ch) {
-    if (ch.spouse) return '<span class="wdp-tag" style="color:var(--vermillion-300);">\u5BAB\u773B</span>';
+    if (_wdIsPlayerConsort(ch)) return '<span class="wdp-tag" style="color:var(--vermillion-300);">\u5BAB\u773B</span>';
     if (ch.party) return '<span class="wdp-tag" style="color:var(--celadon-400);">' + escHtml(String(ch.party).slice(0,4)) + '</span>';
     if (ch.faction && ch.faction !== '\u671D\u5EF7') return '<span class="wdp-tag" style="color:var(--indigo-400);">' + escHtml(String(ch.faction).slice(0,4)) + '</span>';
     if (/\u5C06\u519B|\u603B\u5175|\u603B\u7763/.test(ch.title||'')) return '<span class="wdp-tag" style="color:var(--vermillion-400);">\u6B66\u5C06</span>';
@@ -122,7 +210,7 @@ function renderWenduiChars(){
       var _loyDisp = typeof _fmtNum1==='function' ? _fmtNum1(ch.loyalty) : (ch.loyalty||0);
       var _initial = escHtml(String(ch.name||'?').charAt(0));
       var _portraitHtml = ch.portrait ? '<img src="'+escHtml(ch.portrait)+'">' : _initial;
-      var _spouseMark = ch.spouse ? '<span class="spouse">\u2766</span>' : '';
+      var _spouseMark = _wdIsPlayerConsort(ch) ? '<span class="spouse">\u2766</span>' : '';
       html += '<div class="wdp-char-card ' + _cardCls + ' ' + _loyCls + (_hasHist?' has-hist':'') + '" onclick="openWenduiPick(\'' + ch.name.replace(/'/g,"") + '\')">';
       html += '<div class="wdp-char-top">';
       html += '<div class="wdp-portrait">' + _portraitHtml + '</div>';
@@ -181,7 +269,7 @@ function openWenduiPick(name) {
   var hist = GM.wenduiHistory && GM.wenduiHistory[name] && GM.wenduiHistory[name].length > 0;
   var _initial = escHtml(String(name||'?').charAt(0));
   var _portraitHtml = ch.portrait ? '<img src="'+escHtml(ch.portrait)+'">' : _initial;
-  var _subTitle = escHtml((ch.officialTitle || ch.title || '').slice(0,20)) + (ch.spouse ? ' \u00B7 \u540E\u59C3' : '');
+  var _subTitle = escHtml((ch.officialTitle || ch.title || '').slice(0,20)) + (_wdIsPlayerConsort(ch) ? ' \u00B7 \u540E\u59C3' : '');
   var modal = document.createElement('div');
   modal.className = 'modal-bg show';
   modal.id = 'wd-pick-modal';
@@ -239,6 +327,10 @@ function openWenduiModal(name, mode, prefillMsg) {
   // 位置/状态 gate·不在京师/下狱/流放/死亡者不得召对·改导向鸿雁传书
   var _gCh = (typeof findCharByName === 'function') ? findCharByName(name) : null;
   if (_gCh) {
+    if (!_gCh._envoy && !_wdIsPlayerSideChar(_gCh)) {
+      if (typeof toast === 'function') toast(name + '不属本朝可直接召见人员，请经使节或鸿雁往来。');
+      return;
+    }
     var _reasons = [];
     if (_gCh.alive === false || _gCh.dead) _reasons.push('已薨');
     if (_gCh._imprisoned || _gCh.imprisoned) _reasons.push('下狱');
@@ -281,7 +373,7 @@ function openWenduiModal(name, mode, prefillMsg) {
 
   var ch = findCharByName(name);
   // 后宫干政触发——与后妃在朝堂模式问对，登记事件供下回合大臣反应
-  if (ch && ch.spouse && _wenduiMode === 'formal') {
+  if (ch && _wdIsPlayerConsort(ch) && _wenduiMode === 'formal') {
     if (!GM._consortFormalAudiences) GM._consortFormalAudiences = [];
     GM._consortFormalAudiences.push({
       name: name, turn: GM.turn,
@@ -357,7 +449,7 @@ function openWenduiModal(name, mode, prefillMsg) {
     // 按性格/关系推荐
     if ((ch.loyalty || 50) > 80) _topics.push('\u670B\u515A\u4E4B\u5F0A');
     if ((ch.ambition || 50) > 70) _topics.push('\u5BF9\u5F53\u524D\u5C40\u52BF\u6709\u4F55\u770B\u6CD5');
-    if (ch.spouse) _topics.push('\u5BB6\u5E38\u8BDD');
+    if (_wdIsPlayerConsort(ch)) _topics.push('\u5BB6\u5E38\u8BDD');
     // 按局势推荐
     if (GM.activeWars && GM.activeWars.length > 0) _topics.push('\u6218\u4E8B\u8FDB\u5C55');
     // 通用
@@ -420,7 +512,7 @@ var _wdConfronter = null;
 function _wdSummonConfronter() {
   var capital = GM._capital || '\u4EAC\u57CE';
   var current = GM.wenduiTarget;
-  var candidates = (GM.chars || []).filter(function(c) { return c.alive !== false && c.name !== current && _wdIsAtCapital(c); });
+  var candidates = (GM.chars || []).filter(function(c) { return c.alive !== false && c.name !== current && _wdCanDirectAudience(c); });
   if (candidates.length === 0) { toast('\u65E0\u53EF\u53EC\u89C1\u4E4B\u4EBA'); return; }
   var html = '<div style="max-height:50vh;overflow-y:auto;">';
   candidates.slice(0, 20).forEach(function(c) {
@@ -435,6 +527,12 @@ function _wdSummonConfronter() {
 
 /** NPC求见——打开问对，NPC先主动开口 */
 function _wdOpenAudience(name) {
+  var ch = (typeof findCharByName === 'function') ? findCharByName(name) : null;
+  if (ch && !ch._envoy && !_wdCanDirectAudience(ch)) {
+    if (typeof toast === 'function') toast(name + '不在御前，不能直接召见。');
+    if (typeof renderWenduiChars === 'function') renderWenduiChars();
+    return;
+  }
   // 直接打开正式模式问对
   openWenduiModal(name, 'formal');
   // NPC先主动发言（不等皇帝问）——标记为奏对模式
@@ -459,7 +557,7 @@ function _wdAudienceOpeningFallback(name, ch) {
     if (mission) line += '此来——' + mission;
     return line;
   }
-  if (ch && ch.spouse) return '妾' + name + '参见陛下，陛下万安。';
+  if (ch && _wdIsPlayerConsort(ch)) return '妾' + name + '参见陛下，陛下万安。';
   return '臣' + name + '叩见陛下。臣有事启奏。';
 }
 
@@ -572,7 +670,7 @@ async function _wdNpcInitiateSpeak(name) {
       if (_st2) { _st2.emotion = _eMap2[parsed.emotionState] || 3; _wdUpdateEmotionBar(name); }
     }
     // 后妃留宿请求——挂起 pending，由玩家按钮决定接受/婉拒
-    if (ch && ch.spouse && (parsed && parsed.requestOvernight || ch._audienceRequestOvernight)) {
+    if (ch && _wdIsPlayerConsort(ch) && (parsed && parsed.requestOvernight || ch._audienceRequestOvernight)) {
       GM._pendingOvernightReq = { name: name, turn: GM.turn };
       // 在对话下方渲染接受/婉拒按钮
       setTimeout(function(){
@@ -646,13 +744,11 @@ function _wdDenyAudience(name) {
 function _wdOpenAudienceQueue(qi) {
   var q = GM._pendingAudiences && GM._pendingAudiences[qi]; if (!q) return;
   var name = q.name;
-  // 移出队列
-  GM._pendingAudiences.splice(qi, 1);
   // 若是外藩使节，记入 NPC（否则可能角色不存在）
   var ch = findCharByName(name);
   if (!ch && q.isEnvoy) {
     // 为使节创建临时角色对象，挂钩势力+保留来意/外交类型供 AI 使用
-    var _factionObj = q.fromFaction ? (GM.factions||[]).find(function(f){return f.name===q.fromFaction;}) : null;
+    var _factionObj = q.fromFaction ? _wdFindFaction(q.fromFaction) : null;
     ch = {
       name: name, alive: true, _envoy: true,
       faction: q.fromFaction || '',  // 关键：挂钩势力（标准字段）
@@ -695,8 +791,31 @@ function _wdOpenAudienceQueue(qi) {
     ch.position = ch.position || '使节';
     ch.officialTitle = ch.officialTitle || '使节';
   }
+  var isPlayerConsortQueue = !!(ch && q.isConsort && _wdIsPlayerConsort(ch));
+  if (q.isConsort && !isPlayerConsortQueue) {
+    GM._pendingAudiences.splice(qi, 1);
+    if (typeof toast === 'function') toast(name + '并非本朝后宫，已移出求见。');
+    renderWenduiChars();
+    return;
+  }
+  if (!q.isEnvoy) {
+    if (!ch) {
+      GM._pendingAudiences.splice(qi, 1);
+      if (typeof toast === 'function') toast('求见人物不存在，已移出队列。');
+      renderWenduiChars();
+      return;
+    }
+    if (!_wdCanDirectAudience(ch)) {
+      GM._pendingAudiences.splice(qi, 1);
+      if (typeof toast === 'function') toast(name + '不在御前，不能直接接见。');
+      renderWenduiChars();
+      return;
+    }
+  }
+  // 移出队列
+  GM._pendingAudiences.splice(qi, 1);
   // 后妃请见：标记情绪/留宿上下文
-  if (ch && ch.spouse && q.isConsort) {
+  if (isPlayerConsortQueue) {
     ch._audienceMood = q.consortMood || '企盼';
     ch._audienceRequestOvernight = !!q.requestOvernight;
     ch._audienceReason = q.reason || '';
@@ -704,7 +823,7 @@ function _wdOpenAudienceQueue(qi) {
   // 打开问对
   if (typeof _wdOpenAudience === 'function') {
     // 后妃：大概率私下，小概率朝堂——受能力/性格/家族/关系影响
-    if (ch && ch.spouse && q.isConsort) {
+    if (isPlayerConsortQueue) {
       var wantFormal = 0.1;  // 基础 10% 走朝堂
       // 野心高/好干政 → 更愿在朝堂
       if ((ch.ambition||50) > 70) wantFormal += 0.15;
@@ -1089,7 +1208,7 @@ function _wdGenerateGreeting(name, _ch) {
   var _isSycophant = _isAmbitious && (_ch.loyalty || 50) >= 40 && (_ch.loyalty || 50) <= 80;
 
   // 配偶
-  if (_ch.spouse) {
+  if (_wdIsPlayerConsort(_ch)) {
     var _spRk = _ch.spouseRank || 'consort';
     var _spLoy = _ch.loyalty || 50;
     if (_isPrv) {
@@ -1377,7 +1496,7 @@ async function sendWendui(){
           });
 
           // 外国势力间谍（在京使节/暗探获知→写入截获情报池，与截获系统共享）
-          (GM.facs || []).forEach(function(f) {
+          _wdFactionValues(GM.facs).forEach(function(f) {
             if (f.isPlayer || !f.name) return;
             // 有在京成员且关系敌对的势力
             var _hasAgent = (GM.chars || []).some(function(c) {
@@ -1426,6 +1545,7 @@ async function sendWendui(){
  * 构建问对AI提示词
  */
 function _wdBuildPrompt(ch, name) {
+  var _isPlayerConsort = _wdIsPlayerConsort(ch);
   var traitDesc = '';
   if (ch.traitIds && ch.traitIds.length > 0 && P.traitDefinitions) {
     traitDesc = ch.traitIds.map(function(id) { var d = P.traitDefinitions.find(function(t) { return t.id === id; }); return d ? d.name : id; }).join('、');
@@ -1499,7 +1619,7 @@ function _wdBuildPrompt(ch, name) {
     : '【场景：朝堂问对】正式君臣对话，谨守君臣之礼。汇报以政务、军务、国事为主。\n此人会注意措辞，不轻易流露私人情感。\n';
   _modeDesc += _tyrantCtx;
   var _spouseCtx = '';
-  if (ch.spouse) {
+  if (_isPlayerConsort) {
     var _rkNames2 = { 'empress': '皇后/正妻', 'queen': '王后', 'consort': '妃', 'concubine': '嫔', 'attendant': '侍妾' };
     _spouseCtx = '\n【身份特殊】此人是君主的' + (_rkNames2[ch.spouseRank] || '妻室') + '。\n';
     if (ch.motherClan) _spouseCtx += '母族：' + ch.motherClan + '\n';
@@ -1625,7 +1745,7 @@ function _wdBuildPrompt(ch, name) {
   if (ch.faction) _triId2.push('势力:' + ch.faction);
   if (ch.party) _triId2.push('党派:' + ch.party);
   if (ch.class) {
-    var _cObjW = (GM.classes||[]).find(function(c){return c.name===ch.class;});
+    var _cObjW = _wdFactionValues(GM.classes).find(function(c){return c.name===ch.class;});
     _triId2.push('阶层:' + ch.class + (_cObjW && _cObjW.demands ? '(诉求:'+_cObjW.demands.slice(0,20)+')' : ''));
   }
   var _triIdInfo = _triId2.length > 0 ? '\n【身份】' + _triId2.join(' · ') + '——言谈须体现此三重立场' : '';
@@ -1656,8 +1776,8 @@ function _wdBuildPrompt(ch, name) {
     var _typeLabels = {send_envoy:'遣使通好',demand_tribute:'索贡问罪',pay_tribute:'献贡朝见',sue_for_peace:'请和议款',form_confederation:'请结盟约',break_confederation:'宣告毁约',royal_marriage:'和亲之议',send_hostage:'送质为信',cultural_exchange:'文化互通',religious_mission:'宗教使节',gift_treasure:'奉献珍宝',pay_indemnity:'赔款赎罪',open_market:'请开互市',trade_embargo:'宣布禁运',recognize_independence:'请承独立'};
     var _typeLabel = _typeLabels[ch.interactionType] || '外交使命';
     var _facName = ch.faction || ch.fromFaction || '外藩';
-    // 挂钩势力：从 GM.factions 取详细信息
-    var _facObj = (GM.factions||[]).find(function(f){return f.name===_facName;});
+    // 挂钩势力：兼容 GM.facs / GM.factions / P.factions / 剧本势力表
+    var _facObj = _wdFindFaction(_facName);
     p = '你扮演' + _facName + '派遣的使节' + ch.name + '，此次来朝的使命是：【' + _typeLabel + '】。\n';
     p += '【身份】你是外臣——' + _facName + '所派使节，不是本朝大臣。自称用"外臣/小臣/使臣"，不用"臣"独称；称对方"陛下/天朝"。\n';
     // 势力背景注入（兼容多种字段命名）
@@ -1719,12 +1839,12 @@ function _wdBuildPrompt(ch, name) {
     p = '\u4F60\u626E\u6F14' + eraCtx + '\u65F6\u671F\u7684' + ch.name + '(' + (ch.title || '') + ')' + ageInfo + '\u3002\n'
     + '【人设】特质:' + traitDesc + '，立场:' + (ch.stance || '中立')
     + (ch.personalGoal ? '，心中所求:' + ch.personalGoal.slice(0, 40) : '') + stressInfo + '\n'
-    + (ch.spouse ? '【夫妻关系】好感:' + opinionVal + '\n' : '【态度】对君主好感:' + opinionVal + '\n')
+    + (_isPlayerConsort ? '【夫妻关系】好感:' + opinionVal + '\n' : '【态度】对君主好感:' + opinionVal + '\n')
     + arcInfo + affInfo + appearInfo + familyInfo + worksInfo + memInfo + _courtCtx + _edictCtx + _triIdInfo + '\n' + _modeDesc + _spouseCtx;
   }
     // 仪制差异（按身份）
     var _rank = ch.officialPosition || ch.officialTitle || ch.title || '';
-    if (ch.spouse) {
+    if (_isPlayerConsort) {
       // 后妃——已在_spouseCtx处理
     } else if (_rank.indexOf('\u738B') >= 0 || _rank.indexOf('\u4EB2\u738B') >= 0) {
       p += '\u3010\u4EEA\u5236\u3011\u89C1\u5BA2\u4E3A\u7687\u65CF\u5B97\u5BA4\uFF0C\u79F0\u8C13\u7528\u201C\u7687\u53D4/\u7687\u5144/\u7687\u5F1F\u201D\u7B49\uFF0C\u793C\u8282\u7565\u7B80\u4F46\u4FDD\u6301\u5C0A\u5351\u3002\n';
@@ -1755,7 +1875,7 @@ function _wdBuildPrompt(ch, name) {
     p += '\u3010\u80FD\u529B\u3011\u667A' + (ch.intelligence || 50) + ' \u6B66\u52C7' + (ch.valor || 50) + ' \u519B\u4E8B' + (ch.military || 50) + ' \u653F' + (ch.administration || 50) + ' \u9B45' + (ch.charisma || 50) + ' \u4EA4' + (ch.diplomacy || 50) + ' \u4EC1' + (ch.benevolence || 50) + '\n';
     p += '\u3010\u8981\u6C42\u3011\n';
     p += '\u2022 \u5B8C\u5168\u4EE5' + ch.name + '\u7684\u53E3\u543B\u5E94\u7B54\uFF0C\u8981\u6709\u4E2A\u4EBA\u60C5\u611F\u3001\u7ACB\u573A\u3001\u5C0F\u5FC3\u601D\n';
-    p += ch.spouse
+    p += _isPlayerConsort
       ? '\u2022 \u592B\u59BB\u5BF9\u8BDD\uFF0C\u53EF\u4EB2\u6602\u3001\u62B1\u6028\u3001\u6492\u5A07\u3001\u51B7\u6DE1\n'
       : (_isPrivateMode
         ? '\u2022 \u8BED\u6C14\u81EA\u7136\u4EB2\u5207\uFF0C\u53EF\u804A\u79C1\u4E8B\u3001\u8BF4\u671D\u5802\u4E0A\u4E0D\u65B9\u4FBF\u8BF4\u7684\u8BDD\n'

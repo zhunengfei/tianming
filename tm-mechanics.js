@@ -1542,7 +1542,7 @@ var NpcMemorySystem = {
     // 玩家角色
     if (ch.isPlayer) { active = 80; archive = 40; scars = 30; }
     // 后妃
-    else if (ch.spouse) { active = 70; archive = 35; scars = 25; }
+    else if (typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(ch) : ch.spouse === true) { active = 70; archive = 35; scars = 25; }
     else {
       // 官职品位加成
       var rank = 0;

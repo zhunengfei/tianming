@@ -53,7 +53,9 @@
  */
 function _generateConsortAudiences() {
   if (!GM.chars) return;
-  var consorts = GM.chars.filter(function(c){ return c && c.alive !== false && c.spouse; });
+  var consorts = GM.chars.filter(function(c){
+    return c && c.alive !== false && (typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(c) : c.spouse === true);
+  });
   if (consorts.length === 0) return;
   if (!GM._pendingAudiences) GM._pendingAudiences = [];
   // 已在队列中的不重复加
@@ -111,7 +113,9 @@ function _generateConsortAudiences() {
  */
 function _generateConsortLiterary() {
   if (!GM.chars) return;
-  var spouses = GM.chars.filter(function(c){ return c && c.alive !== false && c.spouse; });
+  var spouses = GM.chars.filter(function(c){
+    return c && c.alive !== false && (typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(c) : c.spouse === true);
+  });
   if (spouses.length === 0) return;
   if (!GM.culturalWorks) GM.culturalWorks = [];
   var scn = typeof findScenarioById === 'function' ? findScenarioById(GM.sid) : null;
@@ -570,13 +574,13 @@ function _endTurn_collectInput() {
     if (_visitMatch) {
       var _visitName = _visitMatch[1] || _visitMatch[2] || _visitMatch[3] || _visitMatch[4];
       var _visitCh = findCharByName(_visitName);
-      if (_visitCh && _visitCh.spouse && _visitCh.alive !== false) {
+      if (_visitCh && _visitCh.alive !== false && (typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(_visitCh) : _visitCh.spouse === true)) {
         // 增加亲疏度
         if (typeof AffinityMap !== 'undefined' && P.playerInfo) {
           AffinityMap.add(P.playerInfo.characterName, _visitCh.name, 5, '\u5BA0\u5E78');
           // 其他妃嫔的嫉妒
           GM.chars.forEach(function(other) {
-            if (other.spouse && other.alive !== false && other.name !== _visitCh.name) {
+            if (other.alive !== false && other.name !== _visitCh.name && (typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(other) : other.spouse === true)) {
               AffinityMap.add(other.name, _visitCh.name, -3, '\u5AC9\u5992');
               if ((other.loyalty || 50) < 50) AffinityMap.add(other.name, P.playerInfo.characterName, -2, '\u88AB\u51B7\u843D');
             }

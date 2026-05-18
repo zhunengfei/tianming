@@ -577,7 +577,7 @@ function renderSidePanels(){
 
   // 后宫/妃嫔面板
   if(GM.chars&&GM.harem){
-    var _spouseChars=GM.chars.filter(function(c){return c.alive!==false&&c.spouse;});
+    var _spouseChars=GM.chars.filter(function(c){return c.alive!==false && (typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(c) : c.spouse === true);});
     if(_spouseChars.length>0){
       var hp=document.createElement("div");hp.style.marginBottom="0.8rem";
       var _hHtml="<div class=\"pt\">\uD83D\uDC90 \u540E\u5BAB</div>";

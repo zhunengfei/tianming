@@ -2136,7 +2136,7 @@ function renderGameState(){
         var ambTag=(ch.ambition||50)>75?'<span style="font-size:0.58rem;color:var(--purple,#9b59b6);">\u91CE</span>':'';
         // 后宫/配偶标记
         var spouseTag='';
-        if(ch.spouse){
+        if(typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(ch) : ch.spouse === true){
           var _spIc = typeof getHaremRankIcon === 'function' ? getHaremRankIcon(ch.spouseRank) : '\u{1F490}';
           spouseTag=' <span style="font-size:0.62rem;color:#e84393;">'+_spIc+'</span>';
         }

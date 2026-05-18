@@ -80,6 +80,18 @@ vm.createContext(sandbox);
 vm.runInContext(src, sandbox, { filename: 'tm-wendui.js' });
 
 assert(typeof sandbox._wdResolveAudienceReplyText === 'function', 'active audience reply resolver missing');
+assert(typeof sandbox._wdFindFaction === 'function', 'wendui faction resolver missing');
+
+sandbox.GM.factions = {
+  MaritimeLeague: { culture: 'sea trade', diplomacy: 72, leaderName: 'Sea Lord' }
+};
+sandbox.GM.facs = [
+  { name: 'Court', culture: 'court', diplomacy: 60 }
+];
+assert(sandbox._wdFindFaction('MaritimeLeague').culture === 'sea trade',
+  'wendui faction resolver should accept object-shaped GM.factions');
+assert(sandbox._wdFindFaction('Court').culture === 'court',
+  'wendui faction resolver should prefer runtime GM.facs');
 
 const envoy = {
   name: '郑氏海商使节',
@@ -103,5 +115,6 @@ assert(normal === '外臣奉命来议海贸。', 'non-empty parsed reply should 
 const fnMatch = src.match(/async function _wdNpcInitiateSpeak\(name\) \{[\s\S]*?\n\}/);
 assert(fnMatch && fnMatch[0].includes('_wdResolveAudienceReplyText(name, ch, parsed, reply)'), 'active audience path must use resolver for AI replies');
 assert(fnMatch && !fnMatch[0].includes('if (!ch || !P.ai || !P.ai.key) return;'), 'active audience path must not silently return before drawing fallback when API is unavailable');
+assert(!src.includes('(GM.factions||[]).find'), 'wendui must not assume GM.factions is an array');
 
 console.log(`[smoke-wendui-active-audience] PASS ${passed} assertions`);

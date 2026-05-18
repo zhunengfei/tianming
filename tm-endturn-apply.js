@@ -1135,7 +1135,7 @@
           var _pregMatch = (shizhengji || '').match(_pregKeywords);
           if (_pregMatch) {
             var _pregMother = findCharByName(_pregMatch[1]);
-            if (_pregMother && _pregMother.spouse) {
+            if (_pregMother && (typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(_pregMother) : _pregMother.spouse === true)) {
               HaremSettlement.registerPregnancy(_pregMother.name);
             }
           }
@@ -3623,7 +3623,7 @@
               // 从pregnancies移除
               if (GM.harem.pregnancies) GM.harem.pregnancies = GM.harem.pregnancies.filter(function(p) { return p.mother !== he.character; });
             } else if (he.type === 'rank_change') {
-              var sp = GM.chars ? GM.chars.find(function(c) { return c.name === he.character && c.spouse; }) : null;
+              var sp = GM.chars ? GM.chars.find(function(c) { return c.name === he.character && (typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(c) : c.spouse === true); }) : null;
               if (sp) {
                 // 优先使用结构化newRank字段，回退到detail文本
                 var _newRankId = he.newRank || he.detail || '';
@@ -3649,7 +3649,7 @@
               addEB('\u540E\u5BAB', he.character + '\u85A8\u901D' + (he.detail ? '\uFF1A' + he.detail : ''));
             } else if (he.type === 'favor_change') {
               // 宠爱变化
-              var spf = GM.chars ? GM.chars.find(function(c) { return c.name === he.character && c.spouse; }) : null;
+              var spf = GM.chars ? GM.chars.find(function(c) { return c.name === he.character && (typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(c) : c.spouse === true); }) : null;
               if (spf) {
                 if (spf.favor === undefined) spf.favor = 50;
                 spf.favor = clamp(spf.favor + clamp(parseInt(he.favor_delta) || 0, -30, 30), 0, 100);
@@ -3660,7 +3660,7 @@
               }
             } else if (he.type === 'scandal') {
               // 丑闻/纠纷
-              var sps = GM.chars ? GM.chars.find(function(c) { return c.name === he.character && c.spouse; }) : null;
+              var sps = GM.chars ? GM.chars.find(function(c) { return c.name === he.character && (typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(c) : c.spouse === true); }) : null;
               if (sps) {
                 sps.stress = Math.min(100, (sps.stress || 0) + 15);
                 if (sps.favor !== undefined) sps.favor = Math.max(0, sps.favor - 10);

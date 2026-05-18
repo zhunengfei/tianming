@@ -597,7 +597,7 @@ function updateConsortClanInfluence() {
   if (!playerName) return;
 
   GM.chars.forEach(function(sp) {
-    if (!sp.spouse || sp.alive === false || !sp.motherClan) return;
+    if (sp.alive === false || !sp.motherClan || !(typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(sp) : sp.spouse === true)) return;
 
     // 查找母族对应的势力
     var clanFac = GM.facs.find(function(f) { return f.name === sp.motherClan || (f.name && f.name.indexOf(sp.motherClan) >= 0); });

@@ -281,7 +281,7 @@
     }
 
     // 2.95 后宫嫔御
-    var _consorts = (GM.chars||[]).filter(function(c){return c && c.alive!==false && c.spouse;}).slice(0,6);
+    var _consorts = (GM.chars||[]).filter(function(c){return c && c.alive!==false && (typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(c) : c.spouse === true);}).slice(0,6);
     if (_consorts.length){
       var hp2 = document.createElement('div');
       hp2.className='gs-panel p-harem';
@@ -616,7 +616,7 @@
         c._travelTo ? '<span class="gs-cd-loc-badge">→'+esc((c._travelTo||'').slice(0,6))+'</span>' :
         c.location ? '<span class="gs-cd-loc-badge">'+esc((c.location||'').slice(0,6))+'</span>' : '';
       // 配偶/脸面
-      var spouseBadge = c.spouse ? '<span class="gs-cd-spouse">🌸</span>' : '';
+      var spouseBadge = (typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(c) : c.spouse === true) ? '<span class="gs-cd-spouse">🌸</span>' : '';
       var faceBadge = (c._faceLost || c._humiliated) ? '<span class="gs-cd-face-badge">颜面尽失</span>' : '';
       // 特质 tags (最多 3 个)·优先 traitIds(英文 id→中文 name)·后 traits 数组
       var tagsHtml = '';

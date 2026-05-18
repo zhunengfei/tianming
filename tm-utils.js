@@ -939,6 +939,143 @@ function _isSameLocation(a, b) {
   return false;
 }
 
+function _tmCleanIdentityName(value) {
+  return String(value || '').replace(/[\s·\-—_、，。,.()（）【】\[\]：:；;\/\\]/g, '').trim();
+}
+
+function _tmPushUnique(out, value) {
+  value = String(value || '').trim();
+  if (value && out.indexOf(value) < 0) out.push(value);
+}
+
+function _tmPlayerNames() {
+  var out = [];
+  try {
+    if (typeof P !== 'undefined' && P && P.playerInfo) {
+      _tmPushUnique(out, P.playerInfo.characterName);
+      _tmPushUnique(out, P.playerInfo.name);
+    }
+  } catch (_) {}
+  try {
+    if (typeof GM !== 'undefined' && GM) {
+      _tmPushUnique(out, GM.playerName);
+      if (Array.isArray(GM.chars)) {
+        GM.chars.forEach(function(c) {
+          if (c && (c.isPlayer || c.player || c.playerControlled || c.controlledBy === 'player')) _tmPushUnique(out, c.name);
+        });
+      }
+    }
+  } catch (_) {}
+  return out;
+}
+
+function _tmPlayerFactionNames() {
+  var out = [];
+  function add(value) {
+    if (!value) return;
+    if (typeof value === 'object') {
+      add(value.name || value.factionName || value.id || value.key);
+      return;
+    }
+    _tmPushUnique(out, value);
+  }
+  try {
+    if (typeof P !== 'undefined' && P) {
+      var pi = P.playerInfo || {};
+      add(pi.factionName);
+      add(pi.characterFaction);
+      add(P.playerFactionName);
+      add(P.playerFaction);
+    }
+  } catch (_) {}
+  try {
+    if (typeof GM !== 'undefined' && GM) {
+      add(GM.playerFactionName);
+      add(GM.playerFaction);
+      if (GM.playerInfo) add(GM.playerInfo.factionName);
+      if (Array.isArray(GM.chars)) {
+        GM.chars.forEach(function(c) {
+          if (c && (c.isPlayer || c.player || c.playerControlled || c.controlledBy === 'player')) add(c.faction || c.factionName || c.ownerFaction);
+        });
+      }
+      [GM.facs, GM.factions].forEach(function(list) {
+        if (!Array.isArray(list)) return;
+        list.forEach(function(f) {
+          if (f && (f.isPlayer || f.player || f.isPlayerFaction || f.controlledBy === 'player' || f.controller === 'player' || f.controlType === 'player')) add(f.name || f.id);
+        });
+      });
+    }
+  } catch (_) {}
+  return out;
+}
+
+function _tmCleanFactionName(value) {
+  return String(value || '').replace(/[\s·\-—_、，。,.()（）【】\[\]]/g, '').replace(/(朝廷|王朝|政权|汗国|幕府|国)$/g, '').trim();
+}
+
+function _tmFactionMatches(value, names) {
+  var clean = _tmCleanFactionName(value);
+  if (!clean) return false;
+  return (names || []).some(function(name) {
+    var n = _tmCleanFactionName(name);
+    return n && (clean === n || clean.indexOf(n) >= 0 || n.indexOf(clean) >= 0);
+  });
+}
+
+function _tmIsGenericCourtFaction(value) {
+  return /^(朝廷|本朝|官府|内廷|宫廷|皇室|王室|帝室|朝中|中枢|内府|禁中)$/.test(String(value || '').trim());
+}
+
+function _tmCharacterFactionValues(ch) {
+  if (!ch) return [];
+  return [ch.faction, ch.factionName, ch.currentFaction, ch.allegiance, ch.country, ch.polity, ch.realm, ch.kingdom, ch.force, ch.camp]
+    .filter(function(x) { return x != null && String(x).trim(); });
+}
+
+function _tmIsPlayerFactionCharLoose(ch) {
+  if (!ch) return false;
+  if (typeof _isPlayerFactionChar === 'function') {
+    try { if (_isPlayerFactionChar(ch)) return true; } catch (_) {}
+  }
+  var explicit = _tmCharacterFactionValues(ch);
+  if (explicit.some(_tmIsGenericCourtFaction)) return true;
+  var playerFactions = _tmPlayerFactionNames();
+  if (playerFactions.length && explicit.some(function(x) { return _tmFactionMatches(x, playerFactions); })) return true;
+  return false;
+}
+
+function _tmIsPlayerConsort(ch) {
+  if (!ch || ch.alive === false || ch.dead) return false;
+  var playerNames = _tmPlayerNames().map(_tmCleanIdentityName).filter(Boolean);
+  var spouseFields = [ch.spouse, ch.spouseOf, ch.husband, ch.partner, ch.marriedTo, ch.consortOf, ch.belongsTo];
+  for (var i = 0; i < spouseFields.length; i++) {
+    var v = spouseFields[i];
+    if (typeof v === 'string' && v.trim()) {
+      var cv = _tmCleanIdentityName(v);
+      if (playerNames.indexOf(cv) >= 0) return true;
+      return false;
+    }
+  }
+  var rel = String(ch.playerRelation || ch.relationToPlayer || ch.relationshipToPlayer || '');
+  if (/(夫妻|夫妾|妻妾|帝妃|帝后|后妃|妃嫔|皇后|贵妃|爱妃|宠妃)/.test(rel)) return true;
+  if (!(ch.spouse === true || ch._isConsort || ch.isConsort || ch.spouseRank)) return false;
+  var text = [ch.title, ch.officialTitle, ch.role, ch.position, ch.occupation, ch.rank, ch.spouseRank].join(' ');
+  if (/(先朝|遗妃|遗孀|皇嫂|嫂叔|太后|皇太后|太皇太后|太妃|王太妃|乳母|奉圣夫人|国夫人|郡夫人|县君|乡君|公主|郡主|县主|福晋|王妃|王后|可汗|大汗|汗妃)/.test(text)) return false;
+  if (_tmCharacterFactionValues(ch).length > 0 && !_tmIsPlayerFactionCharLoose(ch)) return false;
+  return /(皇后|贵妃|妃|嫔|才人|选侍|淑人|常在|答应|宫人|侍妾|后宫|中宫|正妻|妻室|consort|empress|queen|concubine|attendant)/i.test(text);
+}
+
+function _tmIsAtPlayerLocation(ch) {
+  if (!ch || ch.alive === false || ch.dead) return false;
+  if (ch._travelTo || ch._enRouteToOffice || ch._imprisoned || ch.imprisoned || ch._exiled || ch.exiled || ch._fled || ch._missing) return false;
+  var playerLoc = '';
+  try { if (typeof _getPlayerLocation === 'function') playerLoc = _getPlayerLocation(); } catch (_) {}
+  if (!playerLoc) playerLoc = (typeof GM !== 'undefined' && GM && (GM._capital || GM.capital)) || '京师';
+  var loc = ch.location || ch.place || ch.currentLocation || playerLoc;
+  return (typeof _isSameLocation === 'function') ? _isSameLocation(loc, playerLoc) : (_tmCleanIdentityName(loc) === _tmCleanIdentityName(playerLoc));
+}
+
+
 /** 模糊查找角色（精确→去空格标点→前2字唯一→别名→null） */
 function _fuzzyFindChar(name) {
   if (!name || !GM.chars) return null;

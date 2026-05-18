@@ -1076,11 +1076,11 @@ function buildAIContext(deepMode) {
     }
     // 外戚任职信息
     if (GM.chars && GM.harem) {
-      var _spouseNames = GM.chars.filter(function(c) { return c.spouse && c.alive !== false; }).map(function(c) { return c.motherClan || c.family || ''; }).filter(function(s) { return s; });
+      var _spouseNames = GM.chars.filter(function(c) { return c.alive !== false && (typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(c) : c.spouse === true); }).map(function(c) { return c.motherClan || c.family || ''; }).filter(function(s) { return s; });
       if (_spouseNames.length > 0) {
         var _clanOfficials = [];
         GM.chars.forEach(function(c) {
-          if (c.alive !== false && c.family && _spouseNames.indexOf(c.family) !== -1 && !c.spouse) {
+          if (c.alive !== false && c.family && _spouseNames.indexOf(c.family) !== -1 && !(typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(c) : c.spouse === true)) {
             var _hasOffice = false;
             if (GM.officeTree) {
               (function _chk(nodes) { nodes.forEach(function(n) { if (n.positions) n.positions.forEach(function(p) { if (p.holder === c.name) _hasOffice = true; }); if (n.subs) _chk(n.subs); }); })(GM.officeTree);
@@ -1195,7 +1195,7 @@ function buildAIContext(deepMode) {
     if (GM.harem.successionNote) ctx += '  \u7EE7\u627F\u89C4\u5219:' + GM.harem.successionNote.slice(0, 60) + '\n';
   }
   if (GM.chars) {
-    var _spouses = GM.chars.filter(function(c) { return c.alive !== false && c.spouse; });
+    var _spouses = GM.chars.filter(function(c) { return c.alive !== false && (typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(c) : c.spouse === true); });
     if (_spouses.length > 0) {
       ctx += '\u3010\u540E\u5BAB/\u59BB\u5BA4\u3011\n';
       // 按位份排序

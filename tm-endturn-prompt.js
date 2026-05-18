@@ -2215,7 +2215,7 @@
         }
         // 后宫/妻室信息注入系统提示（动态位分名称）
         if (GM.chars) {
-          var _sysSpouses = GM.chars.filter(function(c) { return c.alive !== false && c.spouse; });
+          var _sysSpouses = GM.chars.filter(function(c) { return c.alive !== false && (typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(c) : c.spouse === true); });
           if (_sysSpouses.length > 0) {
             // 按位分排序
             _sysSpouses.sort(function(a,b){

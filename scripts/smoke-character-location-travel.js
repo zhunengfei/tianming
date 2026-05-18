@@ -117,6 +117,32 @@ assert(typeof sandbox._isSameLocation === 'function', 'location alias helper exi
 assert(sandbox._isSameLocation('顺天府', '京师'), '顺天府 matches 京师');
 assert(sandbox._isSameLocation('顺天府', '京师·乾清宫'), '顺天府 matches palace sub-location');
 
+sandbox.P.playerInfo.characterName = 'Emperor';
+sandbox.P.playerInfo.factionName = 'Ming';
+sandbox.GM.playerName = 'Emperor';
+sandbox.GM.playerFactionName = 'Ming';
+sandbox.GM._capital = 'Capital';
+sandbox.GM.chars = [
+  { name: 'Emperor', isPlayer: true, alive: true, faction: 'Ming', location: 'Capital' },
+  { name: 'PlayerConsort', alive: true, gender: 'female', spouse: 'Emperor', spouseRank: 'consort', faction: 'Ming', location: 'Capital' },
+  { name: 'ForeignConsort', alive: true, gender: 'female', spouse: 'ForeignKhan', spouseRank: 'consort', faction: 'Khorchin', location: 'Mukden' },
+  { name: 'FormerConsort', alive: true, gender: 'female', spouse: true, title: '先朝选侍', faction: 'Ming', location: 'Capital' }
+];
+assert(sandbox._tmIsPlayerConsort(sandbox.GM.chars[1]), 'player spouse string is recognized as player consort');
+assert(!sandbox._tmIsPlayerConsort(sandbox.GM.chars[2]), 'foreign spouse string is not recognized as player consort');
+assert(!sandbox._tmIsPlayerConsort(sandbox.GM.chars[3]), 'former-regime consort title is not recognized as player consort');
+assert(sandbox._wdIsPlayerSideChar(sandbox.GM.chars[1]), 'player consort remains in wendui roster');
+assert(!sandbox._wdIsPlayerSideChar(sandbox.GM.chars[2]), 'foreign consort is excluded from wendui roster');
+sandbox.GM._pendingAudiences = [{ name: 'ForeignConsort', isConsort: true, reason: 'bad queue' }];
+sandbox.__toasts = [];
+sandbox._wdOpenAudienceQueue(0);
+assert(sandbox.GM._pendingAudiences.length === 0, 'invalid foreign consort queue entry is removed');
+sandbox.GM._pendingAudiences = [];
+sandbox.P.playerInfo.characterName = '朱由检';
+sandbox.GM.playerName = '朱由检';
+sandbox.GM.playerFactionName = '';
+sandbox.GM._capital = '京师';
+
 sandbox.GM.chars = [
   { name: '朱由检', isPlayer: true, alive: true, location: '京师' },
   { name: '魏忠贤', alive: true, location: '顺天府', loyalty: 40 }

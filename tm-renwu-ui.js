@@ -54,6 +54,13 @@ function _rwMakeRenderContext(allChars){
   };
 }
 
+function _rwIsPlayerConsort(c) {
+  if (typeof _tmIsPlayerConsort === 'function') {
+    try { return !!_tmIsPlayerConsort(c); } catch (_) {}
+  }
+  return !!(c && c.spouse === true);
+}
+
 function renderRenwu(force){
   var el=_$("rw-grid");var cnt=_$("rw-cnt");if(!el)return;
   if(!force&&!_rwIsPanelVisible()){_rwNeedsRender=true;return;}
@@ -90,7 +97,7 @@ function renderRenwu(force){
   var _stat = { all: 0, civil: 0, mili: 0, harem: 0, bu: 0, dead: 0 };
   _all.forEach(function(c) {
     if (c.alive === false) { _stat.dead++; return; }
-    if (c.spouse) _stat.harem++;
+    if (_rwIsPlayerConsort(c)) _stat.harem++;
     else if (c.officialTitle || c.title) {
       _stat.all++;
       if ((c.military||0) >= (c.administration||0) && (c.military||0) >= 40) _stat.mili++;
@@ -118,10 +125,10 @@ function renderRenwu(force){
   if (_rwFaction !== 'all') filtered = filtered.filter(function(c) { return c.faction === _rwFaction; });
   if (_rwRole !== 'all') {
     filtered = filtered.filter(function(c) {
-      if (_rwRole === 'civil') return (c.administration||0) > (c.military||0) && !c.spouse;
-      if (_rwRole === 'military') return (c.military||0) >= (c.administration||0) && !c.spouse;
-      if (_rwRole === 'harem') return c.spouse;
-      if (_rwRole === 'none') return !c.officialTitle && !c.spouse;
+      if (_rwRole === 'civil') return (c.administration||0) > (c.military||0) && !_rwIsPlayerConsort(c);
+      if (_rwRole === 'military') return (c.military||0) >= (c.administration||0) && !_rwIsPlayerConsort(c);
+      if (_rwRole === 'harem') return _rwIsPlayerConsort(c);
+      if (_rwRole === 'none') return !c.officialTitle && !_rwIsPlayerConsort(c);
       return true;
     });
   }
@@ -180,14 +187,14 @@ function renderRenwu(force){
 
 /** 派系→CSS 类 */
 function _rwFacClass(c) {
-  if (c.spouse) return 'rw-consort';
+  if (_rwIsPlayerConsort(c)) return 'rw-consort';
   var fac = c.faction || '';
   if (fac.indexOf('\u4E1C\u6797') >= 0 || fac.indexOf('\u590D\u793E') >= 0) return 'rw-dongin';
   if (fac.indexOf('\u6D59') >= 0) return 'rw-zhe';
   if (fac.indexOf('\u5BA6') >= 0 || fac.indexOf('\u9609') >= 0 || fac.indexOf('\u5185\u5EF7') >= 0) return 'rw-yan';
   if (fac.indexOf('\u6606') >= 0 || fac.indexOf('\u9F50') >= 0 || fac.indexOf('\u695A') >= 0) return 'rw-kun';
   if (fac.indexOf('\u6E05\u6D41') >= 0 || fac.indexOf('\u6B63\u5B66') >= 0) return 'rw-qing';
-  if (!c.officialTitle && !c.title && !c.spouse) return 'rw-bu';
+  if (!c.officialTitle && !c.title && !_rwIsPlayerConsort(c)) return 'rw-bu';
   if ((c.military || 0) >= 60 && (c.military || 0) >= (c.administration || 0)) return 'rw-mili';
   return '';
 }
@@ -290,7 +297,7 @@ function _rwRenderCard(c,ctx) {
   else if (_ch.title) _offRow += '<span class="rw-pos">'+escHtml(_ch.title)+'</span>';
   else if (_ch.role) _offRow += '<span class="rw-pos" style="color:#d4c9b0;">'+escHtml(_ch.role)+'</span>';
   else if (_ch.occupation) _offRow += '<span class="rw-pos" style="color:#d4c9b0;">'+escHtml(_ch.occupation)+'</span>';
-  else if (_ch.spouse) _offRow += '<span class="rw-pos" style="color:var(--vermillion-300,#d15c47);">\u540E\u5BAB</span>';
+  else if (_rwIsPlayerConsort(_ch)) _offRow += '<span class="rw-pos" style="color:var(--vermillion-300,#d15c47);">\u540E\u5BAB</span>';
   else _offRow += '<span class="rw-pos" style="color:#d4c9b0;">\u5E03\u8863</span>';
   _offRow += _rwRankChip(_ch);
   if (_ch.faction) _offRow += '<span class="rw-fac-chip">'+escHtml(_ch.faction)+'</span>';
@@ -565,11 +572,11 @@ function viewRenwu(i){
       var _siblings = _myRels.filter(function(r) { return r.relation === '\u5144\u5F1F' || r.relation === '\u5144\u59B9'; });
       var _childRels = (ch.children || []).map(function(cn) { return { name: cn }; });
       // 配偶
-      var _spouses = (GM.chars || []).filter(function(c2) { return c2.alive !== false && c2.spouse && c2.family !== ch.family; });
+      var _spouses = (GM.chars || []).filter(function(c2) { return c2.alive !== false && _rwIsPlayerConsort(c2) && c2.family !== ch.family; });
       // 这里用关联spouse（如果当前角色是玩家）
       var _mySpouses = [];
       if (ch.isPlayer || (P.playerInfo && P.playerInfo.characterName === ch.name)) {
-        _mySpouses = (GM.chars || []).filter(function(c2) { return c2.spouse && c2.alive !== false; });
+        _mySpouses = (GM.chars || []).filter(function(c2) { return _rwIsPlayerConsort(c2) && c2.alive !== false; });
       }
 
       // 渲染函数
@@ -578,7 +585,7 @@ function viewRenwu(i){
         var cls = 'fam-tree-name';
         if (name === ch.name) cls += ' current';
         if (c2 && c2.alive === false) cls += ' dead';
-        if (c2 && c2.spouse) cls += ' spouse-node';
+        if (c2 && _rwIsPlayerConsort(c2)) cls += ' spouse-node';
         var titleStr = c2 ? (c2.title || '') : '';
         return '<div class="fam-tree-node"><span class="' + cls + '" onclick="closeGenericModal();viewRenwu(\'' + name.replace(/'/g, "\\'") + '\')">' + escHtml(name) + '</span><span class="fam-tree-role">' + escHtml(titleStr) + (extra || '') + '</span></div>';
       };
@@ -607,7 +614,7 @@ function viewRenwu(i){
           var _childCh = findCharByName(cn);
           var _motherInfo = '';
           if (_childCh) {
-            var _mom = (GM.chars || []).find(function(m) { return m.children && m.children.indexOf(cn) >= 0 && m.spouse; });
+            var _mom = (GM.chars || []).find(function(m) { return m.children && m.children.indexOf(cn) >= 0 && _rwIsPlayerConsort(m); });
             if (_mom) _motherInfo = '\u6BCD:' + _mom.name;
           }
           html += _nodeHtml(cn, _motherInfo);
@@ -895,7 +902,7 @@ function viewRenwu(i){
   // ── 家庭关系（妻妾+子嗣+亲属——后宫继承仅势力领袖） ──
   var _isLeader2 = false;
   if (GM.facs) _isLeader2 = GM.facs.some(function(f) { return f.leader === ch.name; });
-  if (ch.spouse) {
+  if (_rwIsPlayerConsort(ch)) {
     var _rkDisplay = {'empress':'\u7687\u540E','queen':'\u738B\u540E','consort':'\u5983','concubine':'\u5ABE','attendant':'\u4F8D\u59BE'};
     html += '<div style="margin-bottom:0.6rem;padding:0.5rem;background:linear-gradient(135deg,rgba(232,67,147,0.05),rgba(253,121,168,0.05));border-radius:6px;border-left:3px solid #e84393;">';
     html += '<div style="font-weight:600;color:#e84393;font-size:0.85rem;margin-bottom:0.3rem;">\uD83D\uDC90 ' + (_rkDisplay[ch.spouseRank] || '\u59BB\u5BA4') + '</div>';
@@ -921,8 +928,8 @@ function viewRenwu(i){
     html += '</div>';
   }
   // 势力领袖（含玩家）查看时显示完整后宫和继承人；普通角色不显示后宫
-  if ((_isPlayerChar || _isLeader2) && GM.chars) {
-    var _mySpouses = GM.chars.filter(function(c) { return c.alive !== false && c.spouse; });
+  if (_isPlayerChar && GM.chars) {
+    var _mySpouses = GM.chars.filter(function(c) { return c.alive !== false && _rwIsPlayerConsort(c); });
     if (_mySpouses.length > 0) {
       html += '<div style="margin-bottom:0.6rem;"><div style="font-weight:600;color:#e84393;font-size:0.85rem;margin-bottom:0.3rem;">\uD83C\uDFDB\uFE0F \u540E\u5BAE</div>';
       var _rkOrder = {'empress':0,'queen':0,'consort':1,'concubine':2,'attendant':3};
@@ -974,7 +981,7 @@ function viewRenwu(i){
   // 动态标题含头衔
   var _modalTitle = ch.name;
   if(ch.title) _modalTitle += ' · ' + ch.title;
-  if(ch.spouse) {
+  if(_rwIsPlayerConsort(ch)) {
     var _rkT = {'empress':'\u7687\u540E','queen':'\u738B\u540E','consort':'\u5983','concubine':'\u5ABE','attendant':'\u4F8D\u59BE'};
     _modalTitle += ' · ' + (_rkT[ch.spouseRank] || '\u59BB\u5BA4');
   }

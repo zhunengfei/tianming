@@ -8102,9 +8102,16 @@
     return /^(朝廷|本朝|官府|内廷|宫廷|皇室|王室|帝室|朝中|中枢)$/.test(String(value || '').trim());
   }
 
+  function rightIssueIsPlayerConsort(p){
+    if (typeof window._tmIsPlayerConsort === 'function') {
+      try { return !!window._tmIsPlayerConsort(p); } catch(_) {}
+    }
+    return !!(p && p.spouse === true);
+  }
+
   function rightIssueIsPlayerFactionPerson(p){
     if (!p || p.alive === false || p.dead || rightIssueIsPlayer(p)) return false;
-    if (p.spouse) return true;
+    if (rightIssueIsPlayerConsort(p)) return true;
     var playerFactions = rightCollectPlayerFactionNames();
     if (typeof window._isPlayerFactionChar === 'function') {
       try { if (window._isPlayerFactionChar(p)) return true; } catch(_) {}
@@ -8298,7 +8305,7 @@
 
   function rightWenduiFactionTag(p){
     if (!p) return '';
-    if (p.spouse) return '宫眷';
+    if (rightIssueIsPlayerConsort(p)) return '宫眷';
     if (p.party) return String(p.party).slice(0, 4);
     if (p.faction && p.faction !== '朝廷') return String(p.faction).slice(0, 4);
     var office = rightIssuePersonTitle(p);
@@ -8316,7 +8323,7 @@
     var tag = rightWenduiFactionTag(p);
     return '<button type="button" class="tmrp-wd-person' + cls + (hist.length ? ' has-hist' : '') + '" data-right-action="' + attr(action || 'wendui-pick') + '" data-id="' + attr(key) + '"' + (extraAttrs || '') + '>' +
       rightIssuePortrait(p) +
-      '<span class="main"><b>' + esc(name) + (p.spouse ? '<i>❦</i>' : '') + '</b><small>' + esc(rightIssuePersonTitle(p)) + '</small></span>' +
+      '<span class="main"><b>' + esc(name) + (rightIssueIsPlayerConsort(p) ? '<i>❦</i>' : '') + '</b><small>' + esc(rightIssuePersonTitle(p)) + '</small></span>' +
       '<span class="meta"><em>忠 ' + esc(Math.round(loyalty)) + '</em>' + (tag ? '<em>' + esc(tag) + '</em>' : '') + (note ? '<em>' + esc(note) + '</em>' : '') + '</span>' +
       '</button>';
   }
@@ -8360,7 +8367,17 @@
   function renderRightWenduiPanel(){
     var people = rightIssuePeople();
     var gm = window.GM || {};
-    var pendingAudiences = Array.isArray(gm._pendingAudiences) ? gm._pendingAudiences : [];
+    var rawPendingAudiences = Array.isArray(gm._pendingAudiences) ? gm._pendingAudiences : [];
+    var pendingAudiences = rawPendingAudiences.filter(function(q){
+      if (!q || !q.name) return false;
+      if (!q.isConsort) return true;
+      var p = findPerson(q.name);
+      if (!p && typeof window.findCharByName === 'function') {
+        try { p = window.findCharByName(q.name); } catch(_) {}
+      }
+      return !!(p && rightIssueIsPlayerConsort(p));
+    });
+    if (pendingAudiences.length !== rawPendingAudiences.length) gm._pendingAudiences = pendingAudiences;
     var atCourt = people.filter(rightIssueAtCourt);
     var seekers = atCourt.filter(rightWenduiIsSeeker);
     var waiting = atCourt.filter(function(p){ return seekers.indexOf(p) < 0; });
@@ -9308,6 +9325,8 @@
   function rightOpenWenduiAudience(data){
     var p = rightSelectedPersonFromData(data || {});
     if (!p) { toast('暂无求见人物'); return; }
+    if (!rightIssueIsPlayerFactionPerson(p)) { toast('此人不属本朝可直接问对人员，请走使节或鸿雁流程'); return; }
+    if (!rightIssueAtCourt(p)) { toast('此人不在御前，不能直接接见'); return; }
     var name = p.name || personKey(p);
     closeDeskOverlay();
     closeModule();

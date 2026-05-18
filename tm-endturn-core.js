@@ -13,6 +13,11 @@
 // ============================================================
 
 async function _endTurnInternal() {
+  try {
+    if (typeof _cancelNpcIdleAutonomyLoop === 'function') _cancelNpcIdleAutonomyLoop('endturn_start');
+  } catch(_idleCancelE) {
+    try { console.warn('[endTurn] NPC idle autonomy cancel failed', _idleCancelE); } catch(_){}
+  }
   // 原 endTurn 的完整内容移入此处，方便并发调用
   return await _endTurnCore();
 }

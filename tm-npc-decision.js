@@ -584,6 +584,10 @@ NpcBehaviorRegistry.register('fortify', function(npc, target, d, ctx) { executeF
 NpcBehaviorRegistry.register('develop_local', function(npc, target, d, ctx) { executeDevelopLocalBehavior(npc, target, d, ctx); });
 NpcBehaviorRegistry.register('relief', function(npc, target, d, ctx) { executeReliefBehavior(npc, target, d, ctx); });
 NpcBehaviorRegistry.register('build_network', function(npc, target, d, ctx) { executeBuildNetworkBehavior(npc, target, d, ctx); });
+NpcBehaviorRegistry.register('office_duty', function(npc, target, d, ctx) { executeOfficeDutyBehavior(npc, target, d, ctx); });
+NpcBehaviorRegistry.register('private_life', function(npc, target, d, ctx) { executePrivateLifeBehavior(npc, target, d, ctx); });
+NpcBehaviorRegistry.register('palace_intrigue', function(npc, target, d, ctx) { executePalaceIntrigueBehavior(npc, target, d, ctx); });
+NpcBehaviorRegistry.register('court_politics', function(npc, target, d, ctx) { executeCourtPoliticsBehavior(npc, target, d, ctx); });
 
 // ===== 执行层 =====
 
@@ -806,6 +810,10 @@ function _npcMotiveForBehavior(type) {
     seek_audience: 'career',
     develop_local: 'local',
     relief: 'local',
+    office_duty: 'career',
+    private_life: 'survival',
+    palace_intrigue: 'networking',
+    court_politics: 'networking',
     obstruct: 'grievance',
     slander: 'grievance'
   };
@@ -854,6 +862,22 @@ function _scoreNpcActionCandidate(candidate, npc, context) {
   } else if (candidate.behaviorType === 'develop_local' || candidate.behaviorType === 'relief') {
     score += npc.location && npc.location !== (GM._capital || 'Capital') ? 8 : 2;
     score += Math.max(0, (npc.integrity || 50) - 50) * 0.1;
+  } else if (candidate.behaviorType === 'office_duty') {
+    score += hasOffice(npc.name) ? 14 : 4;
+    score += Math.max(0, (npc.administration || npc.management || 50) - 50) * 0.18;
+    score += Math.max(0, (npc.integrity || 50) - 45) * 0.1;
+  } else if (candidate.behaviorType === 'private_life') {
+    score += !hasOffice(npc.name) ? 12 : 1;
+    score += Math.max(0, (npc.management || npc.intelligence || 50) - 50) * 0.16;
+    score += Math.max(0, ambition - 50) * 0.08;
+  } else if (candidate.behaviorType === 'palace_intrigue') {
+    score += _npcIsPlayerConsort(npc) ? 16 : 0;
+    score += Math.max(0, (npc.charisma || 50) - 50) * 0.18;
+    score += Math.max(0, ambition - 55) * 0.22;
+  } else if (candidate.behaviorType === 'court_politics') {
+    score += hasOffice(npc.name) ? 10 : 2;
+    score += Math.max(0, ambition - 55) * 0.22;
+    score += Math.max(0, intel - 50) * 0.12;
   } else if (candidate.behaviorType === 'obstruct' || candidate.behaviorType === 'slander') {
     score += Math.max(0, ambition - 60) * 0.25;
     score += Math.max(0, 50 - loyalty) * 0.15;
@@ -901,6 +925,49 @@ function _npcSameFaction(a, b) {
   return !!af && af === bf;
 }
 
+function _npcCleanIdentityName(value) {
+  return String(value || '').replace(/[\s·\-—、，。,.()（）【】\[\]：:\/\\]/g, '').trim();
+}
+
+function _npcIsPlayerConsort(npc) {
+  if (typeof _tmIsPlayerConsort === 'function') {
+    try { return !!_tmIsPlayerConsort(npc); } catch (_) {}
+  }
+  if (!npc || npc.alive === false || npc.dead) return false;
+  var spouse = npc.spouse;
+  if (typeof spouse === 'string' && spouse.trim()) {
+    var names = [];
+    try {
+      if (typeof P !== 'undefined' && P && P.playerInfo) {
+        if (P.playerInfo.characterName) names.push(P.playerInfo.characterName);
+        if (P.playerInfo.name) names.push(P.playerInfo.name);
+      }
+      if (typeof GM !== 'undefined' && GM && GM.playerName) names.push(GM.playerName);
+    } catch (_) {}
+    var clean = _npcCleanIdentityName(spouse);
+    if (names.map(_npcCleanIdentityName).indexOf(clean) >= 0) return true;
+    return false;
+  }
+  var rel = String(npc.playerRelation || npc.relationToPlayer || npc.relationshipToPlayer || '');
+  if (/(夫妻|夫妾|妻妾|帝妃|帝后|后妃|妃嫔|皇后|贵妃|爱妃|宠妃)/.test(rel)) return true;
+  if (!(spouse === true || npc._isConsort || npc.isConsort || npc.spouseRank)) return false;
+  var text = [npc.title, npc.officialTitle, npc.role, npc.position, npc.rank, npc.spouseRank].join(' ');
+  if (/(先朝|遗妃|遗孀|皇嫂|嫂叔|太后|皇太后|太皇太后|太妃|王太妃|福晋|王妃|王后|可汗|大汗|汗妃)/.test(text)) return false;
+  return /(皇后|贵妃|妃|嫔|才人|选侍|淑人|常在|答应|宫人|侍妾|后宫|中宫|正妻|妻室|consort|empress|queen|concubine|attendant)/i.test(text);
+}
+
+function _npcIsAtPlayerLocation(npc) {
+  if (typeof _tmIsAtPlayerLocation === 'function') {
+    try { return !!_tmIsAtPlayerLocation(npc); } catch (_) {}
+  }
+  if (!npc || npc.alive === false || npc.dead || npc._travelTo || npc._enRouteToOffice || npc._imprisoned || npc.imprisoned || npc._exiled || npc.exiled || npc._fled || npc._missing) return false;
+  var playerLoc = '';
+  try { if (typeof _getPlayerLocation === 'function') playerLoc = _getPlayerLocation(); } catch (_) {}
+  if (!playerLoc) playerLoc = (typeof GM !== 'undefined' && GM && (GM._capital || GM.capital)) || '京师';
+  var loc = npc.location || npc.place || npc.currentLocation || playerLoc;
+  return (typeof _isSameLocation === 'function') ? _isSameLocation(loc, playerLoc) : (_npcCleanIdentityName(loc) === _npcCleanIdentityName(playerLoc));
+}
+
 function _npcTargetSort(a, b) {
   return (b.score || 0) - (a.score || 0) || String(a.ch.name).localeCompare(String(b.ch.name));
 }
@@ -909,6 +976,8 @@ function _npcHistoryKindForAction(type) {
   if (type === 'conspire') return 'conspiracy';
   if (type === 'private_correspondence') return 'private_correspondence';
   if (type === 'obstruct' || type === 'slander') return 'hidden_move';
+  if (type === 'palace_intrigue') return 'palace_intrigue';
+  if (type === 'court_politics') return 'court_politics';
   return type || '';
 }
 
@@ -1012,6 +1081,32 @@ function _selectNpcActionTarget(npc, type, context) {
     return rivals[0] ? rivals[0].ch.name : '';
   }
 
+  if (type === 'palace_intrigue') {
+    var consorts = people.map(function(ch) {
+      var score = 0;
+      if (_npcIsPlayerConsort(ch)) score += 30;
+      if (ch.motherClan && npc.motherClan && ch.motherClan !== npc.motherClan) score += 10;
+      score += Math.max(0, (ch.charisma || 50) - 50) * 0.08;
+      score += Math.max(0, (ch.ambition || 50) - 45) * 0.12;
+      score -= _npcRecentTargetPenalty(npc, type, ch.name);
+      return { ch: ch, score: score };
+    }).filter(function(item) { return item.score > 0; }).sort(_npcTargetSort);
+    return consorts[0] ? consorts[0].ch.name : '';
+  }
+
+  if (type === 'court_politics') {
+    var politicalTargets = people.map(function(ch) {
+      var score = 0;
+      if (findNpcOffice(ch.name)) score += 16;
+      if (_npcHasRealParty(npc) && _npcHasRealParty(ch) && ch.party !== npc.party) score += 28;
+      if (_npcSameFaction(npc, ch)) score += 8;
+      score += Math.max(0, (ch.ambition || 50) - 50) * 0.1;
+      score -= _npcRecentTargetPenalty(npc, type, ch.name);
+      return { ch: ch, score: score };
+    }).filter(function(item) { return item.score > 0; }).sort(_npcTargetSort);
+    return politicalTargets[0] ? politicalTargets[0].ch.name : '';
+  }
+
   return '';
 }
 
@@ -1032,7 +1127,11 @@ function _npcActionCooldownTurns(type) {
     fortify: 2,
     develop_local: 2,
     relief: 2,
-    build_network: 4
+    build_network: 4,
+    office_duty: 1,
+    private_life: 1,
+    palace_intrigue: 2,
+    court_politics: 2
   };
   return map[type] || 1;
 }
@@ -1136,6 +1235,22 @@ function _buildNpcActionCandidates(npc, context) {
   var candidates = [];
   var capital = GM._capital || '京师';
   var memorialQueueBusy = _npcPendingMemorialCount() >= 10;
+  var officeInfo = findNpcOffice(npc.name);
+  var hasOfficialRole = !!officeInfo || !!npc.officialTitle || !!npc.title;
+  if (hasOfficialRole) {
+    var officeTarget = npc.jurisdiction || npc.location || (officeInfo && (officeInfo.deptName + officeInfo.posName)) || 'court';
+    candidates.push(_makeNpcActionCandidate(npc, 'office_duty', officeTarget, '履行本职，处置官署公务', 17, context));
+  } else if (!_npcIsPlayerConsort(npc)) {
+    candidates.push(_makeNpcActionCandidate(npc, 'private_life', npc.name, '经营家计或处理日常琐事', 12, context));
+  }
+  if (_npcIsPlayerConsort(npc)) {
+    var palaceTarget = _selectNpcActionTarget(npc, 'palace_intrigue', context) || 'inner palace';
+    candidates.push(_makeNpcActionCandidate(npc, 'palace_intrigue', palaceTarget, '经营宫中人情，争取眷顾与声势', 15, context));
+  }
+  if (hasOfficialRole || (npc.ambition || 50) >= 65) {
+    var politicsTarget = _selectNpcActionTarget(npc, 'court_politics', context) || _selectNpcActionTarget(npc, 'obstruct', context) || 'court';
+    candidates.push(_makeNpcActionCandidate(npc, 'court_politics', politicsTarget, '在朝堂中联络攻守，试探政敌', 14, context));
+  }
   if (!memorialQueueBusy && (hasOffice(npc.name) || npc.officialTitle || npc.title)) {
     candidates.push(_makeNpcActionCandidate(npc, 'petition', '朝廷', '上奏陈事，请求朝廷裁断', 18, context));
   }
@@ -1161,14 +1276,13 @@ function _buildNpcActionCandidates(npc, context) {
   }
   if (npc.location && npc.location !== capital) {
     candidates.push(_makeNpcActionCandidate(npc, 'send_letter', '朝廷', '遣书入京，通报地方情势', 14, context));
-    candidates.push(_makeNpcActionCandidate(npc, 'seek_audience', '天子', '请求入对，面陈地方急务', 12, context));
     candidates.push(_makeNpcActionCandidate(npc, 'develop_local', npc.jurisdiction || npc.location, 'Develop local administration and livelihood', 13, context));
     var stats = GM.provinceStats && GM.provinceStats[npc.jurisdiction || npc.location];
     if (!stats || Number(stats.unrest || 0) >= 20) {
       candidates.push(_makeNpcActionCandidate(npc, 'relief', npc.jurisdiction || npc.location, 'Organize relief to calm local unrest', 12, context));
     }
   }
-  if ((npc.stress || 0) >= 60) {
+  if ((npc.stress || 0) >= 60 && _npcIsAtPlayerLocation(npc)) {
     candidates.push(_makeNpcActionCandidate(npc, 'seek_audience', '天子', '压力积重，请求面圣陈情', 13, context));
   }
   if ((npc.ambition || 50) >= 75 && (npc.loyalty || 50) < 70) {
@@ -1347,6 +1461,16 @@ function executePrivateCorrespondenceBehavior(npc, target, decision, context) {
 }
 
 function executeSeekAudienceBehavior(npc, target, decision, context) {
+  if (!_npcIsAtPlayerLocation(npc)) {
+    var redirected = {};
+    Object.keys(decision || {}).forEach(function(k) { redirected[k] = decision[k]; });
+    redirected.intent = redirected.intent || redirected.reason || redirected.publicReason || '远在外地，遣书入奏';
+    redirected.title = redirected.title || '遣书请对';
+    redirected.content = redirected.content || redirected.intent || '远在外地，先遣书入奏。';
+    redirected.replyExpected = redirected.replyExpected !== false;
+    executeSendLetterBehavior(npc, target || '朝廷', redirected, context);
+    return;
+  }
   var list = _npcEnsureArray(GM, '_pendingAudiences');
   list.push({
     name: npc.name,
@@ -1394,6 +1518,146 @@ function _npcAdjustProvinceStat(key, field, delta, min, max) {
   var hi = max == null ? 100 : max;
   stats[field] = Math.max(lo, Math.min(hi, old + delta));
   return stats[field];
+}
+
+function _npcEnsureCharResources(npc) {
+  if (!npc.resources) npc.resources = {};
+  if (!npc.resources.privateWealth) npc.resources.privateWealth = { money: 0, grain: 0, cloth: 0 };
+  if (!npc.resources.publicPurse && !npc.resources.publicTreasury) npc.resources.publicPurse = { money: 0, grain: 0, cloth: 0 };
+  return npc.resources;
+}
+
+function _npcAdjustPrivateWealth(npc, delta, reason) {
+  if (!npc) return 0;
+  var r = _npcEnsureCharResources(npc);
+  var pw = r.privateWealth;
+  var old = Number(pw.money || 0);
+  pw.money = old + Math.round(delta || 0);
+  _npcRemember(npc.name, (reason || '私财变动') + '：' + (delta >= 0 ? '+' : '') + Math.round(delta || 0), '平', 4, '家计');
+  return pw.money;
+}
+
+function _npcAdjustGuoku(delta) {
+  if (!GM.guoku) GM.guoku = { balance: 0 };
+  GM.guoku.balance = Number(GM.guoku.balance || 0) + Math.round(delta || 0);
+  GM.guoku.money = GM.guoku.balance;
+  if (GM.guoku.ledgers && GM.guoku.ledgers.money) GM.guoku.ledgers.money.stock = GM.guoku.balance;
+  return GM.guoku.balance;
+}
+
+function _npcWuchangScore(npc, key, fallback) {
+  var w = (npc && (npc.wuchangOverride || npc.wuchang || npc.fiveConstants)) || {};
+  var value = w[key];
+  if (value == null && key === '仁') value = npc && npc.benevolence;
+  if (value == null && key === '智') value = npc && npc.intelligence;
+  if (value == null && key === '信') value = npc && npc.integrity;
+  if (value == null && key === '义') value = npc && npc.integrity;
+  if (value == null && key === '礼') value = npc && npc.charisma;
+  value = Number(value);
+  return isFinite(value) ? value : (fallback == null ? 50 : fallback);
+}
+
+function _npcRecordMoneyAction(kind, npc, target, intent, amount, visibility) {
+  _recordNpcInternalAction(kind, {
+    from: npc.name,
+    to: target || '',
+    intent: intent || '',
+    amount: Math.round(amount || 0),
+    turn: GM.turn,
+    visibility: visibility || 'public'
+  });
+}
+
+function executeOfficeDutyBehavior(npc, target, decision, context) {
+  var office = findNpcOffice(npc.name);
+  var key = _npcProvinceKeyFor(npc, target || npc.jurisdiction || npc.location);
+  var admin = Number(npc.administration || npc.management || npc.intelligence || 50);
+  var manage = Number(npc.management || npc.administration || 50);
+  var integrity = Number(npc.integrity || 50);
+  var zhi = _npcWuchangScore(npc, '智', npc.intelligence || 50);
+  var xin = _npcWuchangScore(npc, '信', integrity);
+  var yi = _npcWuchangScore(npc, '义', integrity);
+  var li = _npcWuchangScore(npc, '礼', npc.charisma || 50);
+  var ability = (admin + manage + zhi + xin + yi + li) / 6;
+  var corruptPressure = Math.max(0, (npc.ambition || 50) - 60) + Math.max(0, 58 - integrity) + Math.max(0, 55 - xin) + Math.max(0, 55 - yi);
+  var amount = Math.round(800 + ability * 28);
+  var intent = decision.intent || (office ? (office.deptName + office.posName + '履职') : '履行官署公务');
+  if (corruptPressure > 45) {
+    _npcAdjustGuoku(-amount);
+    _npcAdjustPrivateWealth(npc, Math.round(amount * 0.55), '侵吞公帑');
+    if (GM.corruption) {
+      GM.corruption.trueIndex = Math.min(100, Number(GM.corruption.trueIndex || 0) + 0.4);
+      if (GM.corruption.subDepts && GM.corruption.subDepts.provincial) {
+        GM.corruption.subDepts.provincial.true = Math.min(100, Number(GM.corruption.subDepts.provincial.true || 0) + 0.5);
+      }
+    }
+    addEB('NPC履职', npc.name + '借履职侵吞公帑。');
+    _npcRemember(npc.name, '借履职侵吞公帑，私囊稍丰', '贪', 7, target || '公库');
+    _npcRecordMoneyAction('office_duty', npc, target || key, intent + '·贪墨', -amount, 'hidden');
+  } else if (ability >= 66) {
+    _npcAdjustGuoku(amount);
+    _npcAdjustProvinceStat(key, 'prosperity', 2, 0, 100);
+    _npcAdjustProvinceStat(key, 'corruption', -1, 0, 100);
+    addEB('NPC履职', npc.name + '清理公务，为公库增收。');
+    _npcRemember(npc.name, '勤于履职，为公库增收', '敬', 5, target || '公库');
+    _npcRecordMoneyAction('office_duty', npc, target || key, intent + '·增收', amount, 'public');
+  } else {
+    _npcAdjustGuoku(-Math.round(amount * 0.45));
+    _npcAdjustProvinceStat(key, 'unrest', -1, 0, 100);
+    addEB('NPC履职', npc.name + '动用公帑办理公务。');
+    _npcRemember(npc.name, '动用公帑办理公务', '平', 4, target || '公库');
+    _npcRecordMoneyAction('office_duty', npc, target || key, intent + '·支出', -Math.round(amount * 0.45), 'public');
+  }
+}
+
+function executePrivateLifeBehavior(npc, target, decision, context) {
+  var manage = Number(npc.management || npc.intelligence || 50);
+  var ambition = Number(npc.ambition || 50);
+  var li = _npcWuchangScore(npc, '礼', npc.charisma || 50);
+  var delta = Math.round((manage - 48) * 18 + (ambition - 50) * 8 + (li - 50) * 4);
+  if (Math.abs(delta) < 80) delta = manage >= 55 ? 120 : -120;
+  _npcAdjustPrivateWealth(npc, delta, delta >= 0 ? '经营家计有得' : '日用开销');
+  _npcRecordMoneyAction('private_life', npc, target || npc.name, decision.intent || '处理日常家计', delta, 'private');
+  addEB('NPC日常', npc.name + (delta >= 0 ? '经营私产有得。' : '日常开销耗费私财。'));
+}
+
+function executePalaceIntrigueBehavior(npc, target, decision, context) {
+  var to = target || _selectNpcActionTarget(npc, 'palace_intrigue', context || buildNpcBehaviorContext()) || '';
+  var rec = {
+    id: _npcGeneratedId('palace', npc),
+    from: npc.name,
+    to: to,
+    intent: decision.intent || '经营宫中人情',
+    turn: GM.turn,
+    visibility: 'hidden',
+    _npcAutonomous: true
+  };
+  _recordNpcInternalAction('palace_intrigue', rec);
+  if (to && typeof AffinityMap !== 'undefined') {
+    try { AffinityMap.add(npc.name, to, -4, '宫中争宠'); } catch (_) {}
+  }
+  _npcRemember(npc.name, '宫中经营人情' + (to ? '，牵涉' + to : ''), '密', 6, to || '内廷');
+  if (to) _npcRemember(to, npc.name + '在宫中另有动作', '疑', 5, npc.name);
+  addEB('宫闱', npc.name + '在内廷经营声势。');
+}
+
+function executeCourtPoliticsBehavior(npc, target, decision, context) {
+  var to = target || _selectNpcActionTarget(npc, 'court_politics', context || buildNpcBehaviorContext()) || '';
+  var rec = {
+    id: _npcGeneratedId('court-pol', npc),
+    from: npc.name,
+    to: to,
+    intent: decision.intent || '朝堂攻守',
+    turn: GM.turn,
+    visibility: 'political',
+    _npcAutonomous: true
+  };
+  _recordNpcInternalAction('court_politics', rec);
+  if (to && typeof AffinityMap !== 'undefined') {
+    try { AffinityMap.add(npc.name, to, -3, '朝堂政斗'); } catch (_) {}
+  }
+  _npcRemember(npc.name, '朝堂政斗：' + _npcShortText(decision.intent, to, 60), '谋', 6, to || '朝堂');
+  addEB('朝争', npc.name + '在朝堂中试探攻守' + (to ? '·' + to : '') + '。');
 }
 
 function executeRecommendBehavior(npc, target, decision, context) {
@@ -1610,6 +1874,14 @@ function _normalizeNpcBehaviorType(type) {
     build_network: 'build_network',
     developLocal: 'develop_local',
     develop_local: 'develop_local',
+    officeDuty: 'office_duty',
+    office_duty: 'office_duty',
+    privateLife: 'private_life',
+    private_life: 'private_life',
+    palaceIntrigue: 'palace_intrigue',
+    palace_intrigue: 'palace_intrigue',
+    courtPolitics: 'court_politics',
+    court_politics: 'court_politics',
     giftPresent: 'gift_present',
     gift_present: 'gift_present',
     none: 'none'
@@ -1687,10 +1959,42 @@ function _recordNpcDecisionDiagnostic(raw, status, reason) {
   return GM._npcDecisionDiagnostics[GM._npcDecisionDiagnostics.length - 1];
 }
 
-function _executeNormalizedNpcDecision(rawDecision, fallbackNpc, context) {
+function _isNpcIdleBehaviorAllowed(type) {
+  var allowed = {
+    petition: true,
+    recommend: true,
+    impeach: true,
+    conspire: true,
+    build_network: true,
+    train_troops: true,
+    patrol: true,
+    fortify: true,
+    send_letter: true,
+    private_correspondence: true,
+    seek_audience: true,
+    request_funds: true,
+    develop_local: true,
+    relief: true,
+    office_duty: true,
+    private_life: true,
+    palace_intrigue: true,
+    court_politics: true,
+    obstruct: true,
+    slander: true,
+    none: true
+  };
+  return !!allowed[type];
+}
+
+function _executeNormalizedNpcDecision(rawDecision, fallbackNpc, context, options) {
+  options = options || {};
   var decision = _normalizeNpcDecision(rawDecision, fallbackNpc && fallbackNpc.name, context);
   if (!decision || !decision.name || !decision.shouldExecute || decision.behaviorType === 'none') {
     _recordNpcDecisionDiagnostic(decision || rawDecision || {}, 'skipped', 'no executable decision');
+    return false;
+  }
+  if (options.idle && !_isNpcIdleBehaviorAllowed(decision.behaviorType)) {
+    _recordNpcDecisionDiagnostic(decision, 'skipped', 'idle autonomy blocks major action');
     return false;
   }
   if (!NpcBehaviorRegistry._behaviors[decision.behaviorType]) {
@@ -1735,19 +2039,141 @@ function _executeNormalizedNpcDecision(rawDecision, fallbackNpc, context) {
   return true;
 }
 
-async function executeNpcBehaviors() {
-  if (!P.ai.key) return;
-  if (!GM.chars || GM.chars.length === 0) return;
-  if (typeof AICache === 'undefined') { _dbg('[NPC] AICache 未初始化，跳过'); return; }
+function _getNpcIdleAutonomyConfig(opts) {
+  opts = opts || {};
+  var conf = (typeof P !== 'undefined' && P && P.conf) ? P.conf : {};
+  var delayMs = Number(opts.delayMs != null ? opts.delayMs : conf.npcIdleAutonomyDelayMs);
+  if (!isFinite(delayMs) || delayMs <= 0) delayMs = 30000;
+  var maxRounds = Number(opts.maxRounds != null ? opts.maxRounds : conf.npcIdleAutonomyMaxRounds);
+  if (!isFinite(maxRounds) || maxRounds < 0) maxRounds = 3;
+  var maxTokens = Number(opts.maxTokens != null ? opts.maxTokens : conf.npcIdleAutonomyMaxTokens);
+  if (!isFinite(maxTokens) || maxTokens <= 0) maxTokens = 1400;
+  return {
+    enabled: opts.enabled !== false && conf.npcIdleAutonomy !== false,
+    delayMs: delayMs,
+    maxRounds: Math.floor(maxRounds),
+    maxTokens: Math.floor(maxTokens)
+  };
+}
+
+function _cancelNpcIdleAutonomyLoop(reason) {
+  try {
+    if (!GM || !GM._npcIdleAutonomy) return false;
+    var state = GM._npcIdleAutonomy;
+    state.stopped = true;
+    state.stopReason = reason || 'cancelled';
+    if (state.timerId) {
+      clearTimeout(state.timerId);
+      state.timerId = null;
+    }
+    return true;
+  } catch(_) {
+    return false;
+  }
+}
+
+function _canRunNpcIdleAutonomy(state) {
+  if (!state || state.stopped) return false;
+  if (typeof P === 'undefined' || !P || !P.ai || !P.ai.key) return false;
+  if (typeof GM === 'undefined' || !GM || !GM.running) return false;
+  if (GM.turn !== state.turn) return false;
+  if (GM.busy || GM._endTurnBusy) return false;
+  if (state.running) return false;
+  if (state.rounds >= state.maxRounds) return false;
+  return true;
+}
+
+function _queueNpcIdleAutonomyNext(state) {
+  if (!state || state.stopped) return false;
+  if (state.rounds >= state.maxRounds) {
+    state.stopped = true;
+    state.stopReason = 'max_rounds';
+    return false;
+  }
+  if (state.timerId) clearTimeout(state.timerId);
+  state.timerId = setTimeout(function() {
+    return _runNpcIdleAutonomyRound(state);
+  }, state.delayMs);
+  return true;
+}
+
+async function _runNpcIdleAutonomyRound(state) {
+  if (!GM || GM._npcIdleAutonomy !== state) return false;
+  state.timerId = null;
+  if (!_canRunNpcIdleAutonomy(state)) {
+    state.stopped = true;
+    state.stopReason = state.stopReason || 'inactive';
+    return false;
+  }
+  state.running = true;
+  try {
+    state.rounds += 1;
+    state.lastRunAt = Date.now();
+    var summary = await executeNpcBehaviors({
+      idle: true,
+      source: 'npc_idle_autonomy',
+      tier: 'secondary',
+      maxTokens: state.maxTokens
+    });
+    state.lastSummary = summary || null;
+    if (summary && summary.skipped === 'no_candidates') {
+      state.stopped = true;
+      state.stopReason = 'no_candidates';
+      return false;
+    }
+  } catch(e) {
+    state.lastError = String(e && (e.message || e) || '');
+    state.stopped = true;
+    state.stopReason = 'error';
+    try { console.warn('[NPC idle] round failed', e); } catch(_) {}
+    return false;
+  } finally {
+    state.running = false;
+  }
+  if (!_canRunNpcIdleAutonomy(state)) {
+    state.stopped = true;
+    state.stopReason = state.stopReason || 'inactive';
+    return false;
+  }
+  return _queueNpcIdleAutonomyNext(state);
+}
+
+function _scheduleNpcIdleAutonomyLoop(opts) {
+  opts = opts || {};
+  var cfg = _getNpcIdleAutonomyConfig(opts);
+  if (!cfg.enabled || cfg.maxRounds <= 0) return false;
+  if (typeof P === 'undefined' || !P || !P.ai || !P.ai.key) return false;
+  if (typeof GM === 'undefined' || !GM || !GM.running) return false;
+  _cancelNpcIdleAutonomyLoop('rescheduled');
+  GM._npcIdleAutonomy = {
+    turn: GM.turn || 0,
+    rounds: 0,
+    maxRounds: cfg.maxRounds,
+    delayMs: cfg.delayMs,
+    maxTokens: cfg.maxTokens,
+    source: opts.source || 'post_render',
+    startedAt: Date.now(),
+    running: false,
+    stopped: false,
+    timerId: null
+  };
+  return _queueNpcIdleAutonomyNext(GM._npcIdleAutonomy);
+}
+
+async function executeNpcBehaviors(options) {
+  options = options || {};
+  if (!P.ai.key) return { skipped: 'missing_ai_key' };
+  if (!GM.chars || GM.chars.length === 0) return { skipped: 'no_chars' };
+  if (typeof AICache === 'undefined') { _dbg('[NPC] AICache 未初始化，跳过'); return { skipped: 'missing_cache' }; }
 
   AICache.cleanup();
 
   var npcs = GM.chars.filter(function(c) { return c.alive !== false && !c.isPlayer; });
-  if (npcs.length === 0) return;
+  if (npcs.length === 0) return { skipped: 'no_npcs' };
 
   var context = buildNpcBehaviorContext();
   var importantNpcs = selectImportantNpcs(npcs);
-  if (importantNpcs.length === 0) return;
+  if (importantNpcs.length === 0) return { skipped: 'no_important_npcs' };
 
   // 去重：跳过本回合 AI 已决定行动的 NPC
   var aiHandled = _getNpcDecisionHandledNames();
@@ -1757,24 +2183,34 @@ async function executeNpcBehaviors() {
 
   if (toDecide.length === 0) {
     _dbg('[NPC] 所有重要NPC已由AI推演处理，跳过独立决策');
-    return;
+    return { skipped: 'no_candidates', considered: 0, decisions: 0, executed: 0, idle: !!options.idle };
   }
 
   // 批量决策：一次 API 调用为所有 NPC 生成行为
   try {
-    var batchDecisions = await batchNpcDecisions(toDecide, context);
-    batchDecisions.forEach(function(rawDecision) {
-      _executeNormalizedNpcDecision(rawDecision, null, context);
+    var batchDecisions = await batchNpcDecisions(toDecide, context, {
+      idle: !!options.idle,
+      tier: options.tier || (options.idle ? 'secondary' : null),
+      maxTokens: options.maxTokens || (options.idle ? 1400 : 2500),
+      timeoutMs: options.timeoutMs || 60000,
+      priority: options.priority || 'background'
     });
+    var executed = 0;
+    batchDecisions.forEach(function(rawDecision) {
+      if (_executeNormalizedNpcDecision(rawDecision, null, context, { idle: !!options.idle })) executed += 1;
+    });
+    return { considered: toDecide.length, decisions: batchDecisions.length, executed: executed, idle: !!options.idle };
   } catch(e) {
     console.error('[NPC] 批量决策失败，回退逐个处理:', e);
     // 回退：逐个处理前3个最重要的NPC
+    var fallbackExecuted = 0;
     for (var i = 0; i < Math.min(3, toDecide.length); i++) {
       try {
         var dec = await npcDecisionLayer(toDecide[i], context);
-        _executeNormalizedNpcDecision(dec, toDecide[i], context);
+        if (_executeNormalizedNpcDecision(dec, toDecide[i], context, { idle: !!options.idle })) fallbackExecuted += 1;
       } catch(e2) { _dbg('[NPC] 个别决策失败:', toDecide[i].name, e2); }
     }
+    return { considered: toDecide.length, decisions: 0, executed: fallbackExecuted, idle: !!options.idle, fallback: true };
   }
 }
 
@@ -1784,13 +2220,17 @@ async function executeNpcBehaviors() {
  * @param {Object} context - NPC 上下文
  * @returns {Promise<Array>} 决策结果数组
  */
-async function batchNpcDecisions(npcs, context) {
+async function batchNpcDecisions(npcs, context, options) {
+  options = options || {};
   if (!npcs || npcs.length === 0) return [];
   var batchPersonaMaxLen = _getNpcDecisionBatchPersonaMaxLen();
 
   // 构建批量 prompt
   var turnCtx = GM._turnContext || {};
   var prompt = '你是历史模拟AI。以下是' + npcs.length + '个NPC角色，请为每人决定本回合行为。\n\n';
+  if (options.idle) {
+    prompt += 'IDLE_SUPPLEMENT: This is an after-render idle autonomy round. Prefer office_duty, private_life, palace_intrigue, court_politics, letters, memorials, audiences, local work, patrols, relief, private correspondence, and hidden political moves. Avoid regime-breaking actions such as war, sweeping appointments, mass dismissals, or major reforms unless already forced by context.\n';
+  }
 
   // 注入当前回合上下文（玩家诏令 + AI叙事摘要）
   if (turnCtx.edicts) {
@@ -1907,7 +2347,7 @@ async function batchNpcDecisions(npcs, context) {
     }
     // 后宫/家庭身份标注
     var spouseText = '';
-    if (npc.spouse) {
+    if (_npcIsPlayerConsort(npc)) {
       spouseText = ' [\u540E\u5BAB:' + (typeof getHaremRankName === 'function' ? getHaremRankName(npc.spouseRank) : (npc.spouseRank || '\u59BB\u5BA4'));
       if (npc.motherClan) spouseText += ',\u6BCD\u65CF' + npc.motherClan;
       if (npc.children && npc.children.length > 0) spouseText += ',\u5B50' + npc.children.join('/');
@@ -1964,7 +2404,7 @@ async function batchNpcDecisions(npcs, context) {
     }
   });
 
-  prompt += '\n为每人返回JSON数组：[{"name":"角色名","actionId":"候选行动id，优先填写","behaviorType":"appoint|dismiss|reward|punish|declare_war|request_loyalty|reform|petition|recommend|impeach|conspire|build_network|train_troops|patrol|fortify|send_letter|private_correspondence|seek_audience|request_funds|develop_local|relief|obstruct|slander|none","target":"对象","intent":"意图描述20字","shouldExecute":true,"publicReason":"对外说辞/冠冕堂皇的理由15字","privateMotiv":"真实内心动机15字","innerThought":"内心独白15字"}]\n';
+  prompt += '\n为每人返回JSON数组：[{"name":"角色名","actionId":"候选行动id，优先填写","behaviorType":"appoint|dismiss|reward|punish|declare_war|request_loyalty|reform|petition|recommend|impeach|conspire|build_network|office_duty|private_life|palace_intrigue|court_politics|train_troops|patrol|fortify|send_letter|private_correspondence|seek_audience|request_funds|develop_local|relief|obstruct|slander|none","target":"对象","intent":"意图描述20字","shouldExecute":true,"publicReason":"对外说辞/冠冕堂皇的理由15字","privateMotiv":"真实内心动机15字","innerThought":"内心独白15字"}]\n';
   prompt += '\u6CE8\u610F\uFF1A\n';
   prompt += '\u2022 \u4F18\u5148\u4ECE ActionCards \u4E2D\u9009 actionId\uFF1B\u53EA\u6709 ActionCards \u4E0D\u8DB3\u4EE5\u8868\u8FBE\u65F6\uFF0C\u624D\u76F4\u63A5\u5199 behaviorType\u3002\n';
   prompt += '\u2022 \u6BCF\u4E2A\u89D2\u8272\u662F\u72EC\u7ACB\u7684\u4EBA\uFF0C\u6709\u81EA\u5DF1\u7684\u559C\u6012\u54C0\u4E50\u3001\u6069\u6028\u60C5\u4EC7\uFF0C\u4E0D\u56F4\u7ED5\u73A9\u5BB6\u3002\n';
@@ -1979,9 +2419,9 @@ async function batchNpcDecisions(npcs, context) {
   prompt += '  - innerThought\uFF1A\u5185\u5FC3\u72EC\u767D\uFF0C\u4F53\u73B0\u6027\u683C\uFF08\u91CE\u5FC3\u8005\u7B97\u8BA1\u3001\u5FE0\u81E3\u5FE7\u56FD\u3001\u6028\u6068\u8005\u6697\u6068\u3001\u5BD2\u95E8\u8005\u4E0D\u5FFF\uFF09\n';
   prompt += '  - \u4E8C\u8005\u53EF\u4EE5\u4E00\u81F4\uFF08\u516C\u5FE0\u4F53\u56FD\uFF09\u4E5F\u53EF\u4EE5\u77DB\u76FE\uFF08\u8868\u9762\u5FE0\u8BDA\u5B9E\u5219\u56FE\u8C0B\uFF09\n';
 
-  var result = await callAI(prompt, 2500, null, null, {
-    priority: 'background',
-    timeoutMs: 60000,
+  var result = await callAI(prompt, options.maxTokens || 2500, null, options.tier || null, {
+    priority: options.priority || 'background',
+    timeoutMs: options.timeoutMs || 60000,
     maxRetries: 0
   });
   var parsed = extractJSON(result);
@@ -2050,7 +2490,7 @@ function buildNpcBehaviorContext() {
 
   // 后宫/家庭状态
   if (GM.chars) {
-    var spouses = GM.chars.filter(function(c) { return c.alive !== false && c.spouse; });
+    var spouses = GM.chars.filter(function(c) { return c.alive !== false && _npcIsPlayerConsort(c); });
     if (spouses.length > 0) {
       context.harem = spouses.map(function(sp) {
         return { name: sp.name, rank: sp.spouseRank, motherClan: sp.motherClan, children: sp.children || [], loyalty: sp.loyalty || 50 };
@@ -2125,7 +2565,7 @@ function selectImportantNpcs(npcs) {
     }
 
     // 后宫妻室（政治影响力极大）
-    if (npc.spouse) {
+    if (_npcIsPlayerConsort(npc)) {
       score += 7; // 妻室总是重要角色
       if (npc.spouseRank === 'empress' || npc.spouseRank === 'queen') score += 5;
       if (npc.children && npc.children.length > 0) score += 3; // 有子嗣更重要
