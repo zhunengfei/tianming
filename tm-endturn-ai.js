@@ -165,6 +165,10 @@
         msg = "AI请求超时或被浏览器中断";
         status = status || "ABORT";
       }
+      if (/failed to fetch|networkerror|load failed|network request failed/i.test(msg)) {
+        msg = "AI请求网络失败（浏览器未能连接到API，或被代理/CORS/页面缓存中断）";
+        status = status || "NETWORK";
+      }
       try {
         var raw = err && err.lastRaw;
         if (raw) {
@@ -3250,9 +3254,9 @@
   };
 
   var SAFE_CALL_DEFAULT = { priority:'normal', timeoutMs:90000, maxRetries:0, repairTimeoutMs:45000, repairMaxRetries:0, subcallRetries:0 };
-  function _p(priority, timeoutMs, repairTimeoutMs) { return { priority:priority, timeoutMs:timeoutMs, maxRetries:0, repairTimeoutMs:repairTimeoutMs || 45000, repairMaxRetries:0, subcallRetries:0 }; }
+  function _p(priority, timeoutMs, repairTimeoutMs, maxRetries) { return { priority:priority, timeoutMs:timeoutMs, maxRetries:maxRetries || 0, repairTimeoutMs:repairTimeoutMs || 45000, repairMaxRetries:0, subcallRetries:0 }; }
   var CALL_POLICIES = {
-    sc0:_p('normal',90000), sc05:_p('normal',75000), sc1:_p('critical',150000,60000), sc1b:_p('high',90000), sc1c:_p('high',90000), sc1d:_p('high',90000,45000),
+    sc0:_p('normal',90000), sc05:_p('normal',75000), sc1:_p('critical',150000,60000,1), sc1b:_p('high',90000), sc1c:_p('high',90000), sc1d:_p('high',90000,45000),
     sc15:_p('normal',90000), sc_memwrite:_p('low',45000,30000), sc16:_p('normal',90000), sc17:_p('normal',90000), sc18:_p('normal',90000),
     sc_audit:_p('normal',60000), sc19:_p('background',45000,30000), sc2:_p('normal',120000,60000), sc25:_p('high',75000),
     sc27:_p('high',60000), sc07:_p('normal',90000), sc28:_p('low',45000,30000), sc_consolidate:_p('low',45000,30000),

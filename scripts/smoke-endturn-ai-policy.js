@@ -36,7 +36,7 @@ function assertPolicy(id, expected) {
   }
 }
 
-assertPolicy('sc1', { priority: 'critical', timeoutMs: 150000, maxRetries: 0 });
+assertPolicy('sc1', { priority: 'critical', timeoutMs: 150000, maxRetries: 1 });
 assertPolicy('sc1b', { priority: 'high', timeoutMs: 90000, maxRetries: 0 });
 assertPolicy('sc1c', { priority: 'high', timeoutMs: 90000, maxRetries: 0 });
 assertPolicy('sc1d', { priority: 'high', timeoutMs: 90000, maxRetries: 0 });

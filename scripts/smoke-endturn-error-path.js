@@ -47,6 +47,8 @@ assert(src.indexOf('critical call failed·will continue to fallback chain') >= 0
   'SC1 critical call failure remains inside fallback chain instead of aborting the subcall body');
 assert(src.indexOf('AI请求超时或被浏览器中断') >= 0 && src.indexOf('ABORT') >= 0,
   'AbortSignal errors are normalized before user-facing AI failure toasts');
+assert(src.indexOf('AI请求网络失败') >= 0 && src.indexOf('NETWORK') >= 0,
+  'network fetch errors are normalized before user-facing AI failure toasts');
 assert(src.indexOf('function _normalizeParsedJsonForExpected') >= 0 &&
        src.indexOf('_jsonNormalizations') >= 0,
   'malformed-but-useful AI JSON is normalized before expected-key validation');

@@ -5,7 +5,7 @@
 // 姊妹: tm-player-core.js (L501-3303·游戏控制+文苑+人物志)
 //       tm-hongyan-office.js (L3304-end·鸿雁传书+官制)
 // 包含: importSaveFile/doSaveGame/doSaveGameDesktop/openSettings/closeSettings/
-//       _renderModelProbePanel/_probeRunContext/_probeRunOutput/_saveSecondaryAPI/
+//       _renderModelProbePanel/_probeRunContext/_probeRunOutput/_probeRunEvidence/_saveSecondaryAPI/
 //       _toggleSecondaryEnabled/_testSecondaryAPI/_probeClearCache
 // ============================================================
 
@@ -206,6 +206,7 @@ function openSettings(){
     "<div style=\"display:flex;gap:0.3rem;flex-wrap:wrap;\">"+
     "<button class=\"bt bp bsm\" onclick=\"_probeRunContext('primary')\">\u4E0A\u4E0B\u6587</button>"+
     "<button class=\"bt bp bsm\" onclick=\"_probeRunOutput('primary')\">\u8F93\u51FA\u5B9E\u6D4B</button>"+
+    "<button class=\"bt bp bsm\" onclick=\"_probeRunEvidence('primary')\">证据校验</button>"+
     "<button class=\"bt bp bsm\" onclick=\"_probeRunSelfReport('primary')\">\u6A21\u578B\u81EA\u62A5</button>"+
     "<button class=\"bt bs bsm\" onclick=\"_showAvailableModels('primary')\">\u5217\u51FA\u53EF\u7528\u6A21\u578B</button>"+
     "</div></div>"+
@@ -215,6 +216,7 @@ function openSettings(){
     "<div style=\"display:flex;gap:0.3rem;flex-wrap:wrap;\">"+
     "<button class=\"bt bp bsm\" onclick=\"_probeRunContext('secondary')\">\u4E0A\u4E0B\u6587</button>"+
     "<button class=\"bt bp bsm\" onclick=\"_probeRunOutput('secondary')\">\u8F93\u51FA\u5B9E\u6D4B</button>"+
+    "<button class=\"bt bp bsm\" onclick=\"_probeRunEvidence('secondary')\">证据校验</button>"+
     "<button class=\"bt bp bsm\" onclick=\"_probeRunSelfReport('secondary')\">\u6A21\u578B\u81EA\u62A5</button>"+
     "<button class=\"bt bs bsm\" onclick=\"_showAvailableModels('secondary')\">\u5217\u51FA\u53EF\u7528\u6A21\u578B</button>"+
     "</div></div>"+
@@ -224,7 +226,7 @@ function openSettings(){
     "<input id=\"s-ctx-override\" type=\"number\" min=\"0\" value=\""+(P.conf.contextSizeK||0)+"\" placeholder=\"0\u8868\u81EA\u52A8\" style=\"width:90px;font-size:0.78rem;\">"+
     "<label style=\"font-size:0.72rem;color:var(--txt-d);\">\u8F93\u51FA\u4E0A\u9650 Tokens\uFF1A</label>"+
     "<input id=\"s-out-override\" type=\"number\" min=\"0\" value=\""+(P.conf.maxOutputTokens||0)+"\" placeholder=\"0\u8868\u81EA\u52A8\" style=\"width:110px;font-size:0.78rem;\">"+
-    "<button class=\"bt bs bsm\" onclick=\"P.conf.contextSizeK=parseInt(_$('s-ctx-override').value)||0;P.conf.maxOutputTokens=parseInt(_$('s-out-override').value)||0;saveP();toast('\u2705 \u5DF2\u4FDD\u5B58\u624B\u52A8\u8986\u5199');_$('s-model-probe-body').innerHTML=_renderModelProbePanel();\">\u4FDD\u5B58</button>"+
+    "<button class=\"bt bs bsm\" onclick=\"P.conf.contextSizeK=parseInt(_$('s-ctx-override').value)||0;P.conf.maxOutputTokens=parseInt(_$('s-out-override').value)||0;saveP();toast('\u2705 \u5DF2\u4FDD\u5B58\u624B\u52A8\u8986\u5199');_refreshBothProbePanels();\">\u4FDD\u5B58</button>"+
     "</div>"+
     // G4·每回合 Token 预算上限·超支预警
     "<div style=\"margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--bdr);display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;\">"+
@@ -285,6 +287,30 @@ function closeSettings(){_$("settings-bg").classList.remove("show");}
 // ============================================================
 // 模型能力校验面板·防欺骗·M3 支持双 tier
 // ============================================================
+function _renderEvidenceDetails(evidence) {
+  if (!evidence || !Array.isArray(evidence.checks) || !evidence.checks.length) return '';
+  var totalMs = Number(evidence.elapsedMs || 0);
+  var h = '<details style="margin-top:0.45rem;padding:0.4rem;background:rgba(0,0,0,0.14);border:1px solid var(--bdr);border-radius:3px;">';
+  h += '<summary style="cursor:pointer;color:var(--gold);font-size:0.72rem;">实测明细';
+  if (totalMs) h += ' · ' + Math.round(totalMs / 1000) + '秒';
+  if (evidence.profile) h += ' · ' + escHtml(String(evidence.profile));
+  h += '</summary>';
+  evidence.checks.forEach(function(c){
+    var color = c.ok ? 'var(--celadon-400)' : 'var(--vermillion-400)';
+    h += '<div style="margin-top:0.35rem;padding-top:0.35rem;border-top:1px dashed var(--bdr);font-size:0.68rem;line-height:1.55;">';
+    h += '<span style="color:' + color + ';">' + (c.ok ? '通过' : '失败') + '</span>';
+    h += ' · <b>' + escHtml(c.label || c.id || '-') + '</b>';
+    h += ' · 权重' + (c.weight || 0);
+    if (c.latencyMs) h += ' · ' + c.latencyMs + 'ms';
+    if (c.responseChars) h += ' · ' + c.responseChars + '字';
+    if (c.finishReason) h += ' · ' + escHtml(String(c.finishReason));
+    h += '<div style="color:var(--txt-d);">' + escHtml(c.detail || '') + '</div>';
+    h += '</div>';
+  });
+  h += '</details>';
+  return h;
+}
+
 function _renderModelProbePanel(tier) {
   tier = tier || 'primary';
   var _sfx = tier === 'secondary' ? '_secondary' : '';
@@ -308,6 +334,7 @@ function _renderModelProbePanel(tier) {
   var probe = cfg._probeHistory || {};
   var self = isSec ? probe.selfReport_secondary : probe.selfReport;
   var out = isSec ? probe.outputLimit_secondary : probe.outputLimit;
+  var evidence = isSec ? probe.evidence_secondary : probe.evidence;
 
   var _tierLbl = isSec ? '【次 API】' : '【主 API】';
   var h = '<div style="font-size:0.76rem;line-height:1.8;padding:0.4rem;background:' + (isSec?'rgba(138,92,245,0.04)':'rgba(184,154,83,0.04)') + ';border-left:3px solid ' + (isSec?'var(--purple,#8a5cf5)':'var(--gold-d)') + ';border-radius:2px;">';
@@ -319,7 +346,7 @@ function _renderModelProbePanel(tier) {
     h += '<div>AI\u81EA\u62A5</div>';
     h += '<div>' + (self.contextClaimedK ? self.contextClaimedK+'K' : '-') + '</div>';
     h += '<div>' + (self.outputClaimedK ? self.outputClaimedK+'K' : '-') + '</div>';
-    h += '<div style="color:var(--txt-d);font-size:0.7rem;">' + escHtml((self.modelClaimedName||'').slice(0,20)) + '</div>';
+    h += '<div style="color:var(--txt-d);font-size:0.7rem;">仅参考·' + escHtml((self.modelClaimedName||'').slice(0,20)) + '</div>';
   }
   if (detCtx || detOut) {
     h += '<div>API\u63A2\u6D4B</div>';
@@ -333,11 +360,20 @@ function _renderModelProbePanel(tier) {
     h += '<div style="color:var(--gold);">' + Math.round(out.realLimitTokens/1024*10)/10 + 'K</div>';
     h += '<div style="color:var(--txt-d);font-size:0.7rem;">\u771F\u5B9E\u4EA7\u51FA</div>';
   }
+  if (evidence) {
+    var evColor = evidence.reliability === 'high' ? 'var(--celadon-400)' : (evidence.reliability === 'medium' ? 'var(--gold)' : 'var(--vermillion-400)');
+    h += '<div style="color:' + evColor + ';">证据校验</div>';
+    h += '<div>-</div>';
+    h += '<div style="color:' + evColor + ';">' + (evidence.weightedScore || evidence.score || 0) + '/100</div>';
+    h += '<div style="color:var(--txt-d);font-size:0.7rem;">' + (evidence.passed || 0) + '/' + (evidence.total || 0) + '项通过' + (evidence.responseModel ? '·' + escHtml(String(evidence.responseModel).slice(0,18)) : '') + (evidence.elapsedMs ? '·' + Math.round(evidence.elapsedMs/1000) + '秒' : '') + '</div>';
+  }
   h += '</div>';
+  if (evidence) h += _renderEvidenceDetails(evidence);
 
   // 冲突警告
   var warns = [];
   if (self && self.warnings && self.warnings.length) warns = warns.concat(self.warnings);
+  if (evidence && evidence.warnings && evidence.warnings.length) warns = warns.concat(evidence.warnings);
   if (out && out.realLimitTokens > 0 && wlOutK > 0) {
     var measK = Math.round(out.realLimitTokens/1024);
     if (measK < wlOutK * 0.6) warns.push('\u5B9E\u6D4B\u8F93\u51FA ' + measK + 'K \u8FDC\u4F4E\u4E8E\u767D\u540D\u5355 ' + wlOutK + 'K\u00B7\u7591\u4EE3\u7406\u7F29\u6C34');
@@ -358,6 +394,7 @@ function _renderModelProbePanel(tier) {
   h += '\u2713 \u5F53\u524D\u751F\u6548\uFF1A\u4E0A\u4E0B\u6587 <b>' + effCtxK + 'K</b>\u00B7\u8F93\u51FA\u4E0A\u9650 <b>' + (effOutTok ? effOutTok+' tokens' : '\u6A21\u578B\u81EA\u7531') + '</b>';
   if (manualCtx || manualOut) h += ' <span style="color:var(--gold);">(\u624B\u52A8\u8986\u5199)</span>';
   h += '</div>';
+  h += '<div style="margin-top:0.35rem;color:var(--txt-d);font-size:0.68rem;">能力判断优先级：手动覆写 ＞ 实测输出/API探测 ＞ 白名单 ＞ 自报。自报不直接决定生效值。</div>';
   h += '</div>';
   return h;
 }
@@ -401,6 +438,25 @@ async function _probeRunOutput(tier) {
     toast('\u2705 \u8F93\u51FA\u4E0A\u9650\u5B9E\u6D4B\u5B8C\u6210');
     _refreshBothProbePanels();
   } catch(e) { if (typeof hideLoading === 'function') hideLoading(); toast('\u5B9E\u6D4B\u5931\u8D25\uFF1A' + (e.message||e)); }
+}
+
+async function _probeRunEvidence(tier) {
+  tier = tier || 'primary';
+  if (!_tierHasKey(tier)) { toast('请先配置 ' + (tier==='secondary'?'次要':'主') + ' API'); return; }
+  if (!confirm('证据校验会发起 6 次小型调用：基础JSON、天命结构小样、坏JSON修复、长上下文、时政记/实录、持续输出。继续？')) return;
+  toast('正在进行模型证据校验…');
+  try {
+    if (typeof probeModelEvidenceAudit !== 'function') { toast('证据校验函数未加载'); return; }
+    if (typeof showLoading === 'function') showLoading('模型证据校验中…', 25);
+    var r = await probeModelEvidenceAudit({ tier: tier, onProgress: function(msg){ if (typeof showLoading === 'function') showLoading(msg, 55); } });
+    if (typeof hideLoading === 'function') hideLoading();
+    if (typeof saveP === 'function') saveP();
+    toast((r && r.score >= 90) ? ('✅ 证据校验通过·' + r.score + '/100') : ('⚠ 证据校验完成·' + ((r && r.score) || 0) + '/100'));
+    _refreshBothProbePanels();
+  } catch(e) {
+    if (typeof hideLoading === 'function') hideLoading();
+    toast('证据校验失败：' + (e.message || e));
+  }
 }
 
 async function _probeRunSelfReport(tier) {
@@ -554,7 +610,7 @@ async function _saveAPIAndAutoProbe() {
     if (typeof detectModelContextSize === 'function') await detectModelContextSize({ force: true, onProgress: function(m){ if (typeof showLoading === 'function') showLoading(m, 50); } });
     if (typeof hideLoading === 'function') hideLoading();
     if (typeof saveP === 'function') saveP();
-    var el = _$('s-model-probe-body'); if (el) el.innerHTML = _renderModelProbePanel();
+    _refreshBothProbePanels();
     var wlCtx = (typeof _matchModelCtx === 'function') ? _matchModelCtx(newModel) : 0;
     var wlOut = (typeof _matchModelOutput === 'function') ? _matchModelOutput(newModel) : 0;
     if (wlCtx && wlOut) toast('\u2705 \u6A21\u578B\u5DF2\u8BC6\u522B\uFF1A\u4E0A\u4E0B\u6587 ' + wlCtx + 'K\u00B7\u8F93\u51FA ' + wlOut + 'K');
@@ -572,6 +628,6 @@ function _probeClearCache() {
   delete P.conf._probeHistory;
   if (typeof saveP === 'function') saveP();
   toast('\u5DF2\u6E05\u9664\u63A2\u6D4B\u7F13\u5B58');
-  var el = _$('s-model-probe-body'); if (el) el.innerHTML = _renderModelProbePanel();
+  _refreshBothProbePanels();
 }
 
