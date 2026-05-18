@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // smoke-endturn-subcall-registry.js — Phase 7 P7-β baseline·2/21
 // **关键 drift guard**·锁 sub-call registration table·拆分时 API call structure 必保
-// 16 个 sub-call·exact id / name / minDepth / order
+// 17 个 sub-call·exact id / name / minDepth / order
 //
 // Codex 5Q-A1·"subcall registration/call-order drift guard·refactor 不可改 API call structure"
 
@@ -19,14 +19,15 @@ const REGISTRY_RE = /\{id:'sc0',\s*name:'AI深度思考'[\s\S]+?\{id:'sc28',\s*n
 assert(REGISTRY_RE.test(src),
   'subcall registry table 完整·从 sc0 (AI深度思考) 到 sc28 (世界快照)');
 
-// ─── Test 2·16 sub-call 各 entry·exact match ───
-// 锁定·任何拆分都不能改这 16 个·任何重 order / 改 name / 改 minDepth = 报警
+// ─── Test 2·17 sub-call 各 entry·exact match ───
+// 锁定·任何拆分都不能静默改名 / 改 order / 改 minDepth
 const REGISTRY_LOCK = [
   { id: 'sc0',           name: 'AI深度思考',         minDepth: 'standard', order: 0 },
   { id: 'sc05',          name: '记忆回顾',           minDepth: 'standard', order: 5 },
   { id: 'sc1',           name: '结构化数据',         minDepth: 'lite',     order: 100 },
   { id: 'sc1b',          name: '文事鸿雁人际',       minDepth: 'lite',     order: 110 },
   { id: 'sc1c',          name: '势力外交·NPC阴谋',   minDepth: 'lite',     order: 120 },
+  { id: 'sc1d',          name: '实录时政',           minDepth: 'lite',     order: 130 },
   { id: 'sc15',          name: 'NPC深度',            minDepth: 'standard', order: 150 },
   { id: 'sc_memwrite',   name: 'NPC记忆回写',        minDepth: 'lite',     order: 155 },
   { id: 'sc16',          name: '势力推演',           minDepth: 'full',     order: 160 },
@@ -55,11 +56,11 @@ REGISTRY_LOCK.forEach(function(entry) {
     'sub-call entry locked·{id:' + entry.id + ', name:' + entry.name + ', minDepth:' + entry.minDepth + ', order:' + entry.order + '}');
 });
 
-// ─── Test 3·exact 16·count·防漏 / 增 (silent breaking change) ───
+// ─── Test 3·exact 17·count·防漏 / 增 (silent breaking change) ───
 const ENTRY_COUNT_RE = /\{\s*id:\s*'sc[0-9a-z_]+'\s*,\s*name:\s*'[^']+'\s*,\s*minDepth:/g;
 const matches = src.match(ENTRY_COUNT_RE);
-assert(matches !== null && matches.length === 16,
-  'sub-call registry exact 16 entries·count=' + (matches ? matches.length : 0));
+assert(matches !== null && matches.length === 17,
+  'sub-call registry exact 17 entries·count=' + (matches ? matches.length : 0));
 
 // ─── Test 4·order monotonic increasing (sub-call sequence integrity) ───
 const orders = REGISTRY_LOCK.map(function(e) { return e.order; });
@@ -74,16 +75,16 @@ REGISTRY_LOCK.forEach(function(entry) {
     entry.id + ' minDepth in {lite,standard,full}');
 });
 
-// ─── Test 6·5 main pipeline + 11 followup·boundary (Phase 7 拆分时 main = §3·followup = §5) ───
-// main = sc0/sc05/sc1/sc1b/sc1c (order 0-120·5 个)
+// ─── Test 6·6 main pipeline + 11 followup·boundary (Phase 7 拆分时 main = §3·followup = §5) ───
+// main = sc0/sc05/sc1/sc1b/sc1c/sc1d (order 0-130·6 个)
 // followup = sc15+ (order 150+·11 个·incl sc07 order 275 是 lite·混入但属 followup 后期)
-const mainSubcalls = REGISTRY_LOCK.filter(function(e) { return e.order <= 120; });
+const mainSubcalls = REGISTRY_LOCK.filter(function(e) { return e.order <= 130; });
 const followupSubcalls = REGISTRY_LOCK.filter(function(e) { return e.order >= 150; });
-assert(mainSubcalls.length === 5,
-  'main 5 subcalls·sc0/sc05/sc1/sc1b/sc1c·count=' + mainSubcalls.length);
+assert(mainSubcalls.length === 6,
+  'main 6 subcalls·sc0/sc05/sc1/sc1b/sc1c/sc1d·count=' + mainSubcalls.length);
 assert(followupSubcalls.length === 11,
   'followup 11 subcalls·sc15+·count=' + followupSubcalls.length);
-assert(mainSubcalls.length + followupSubcalls.length === 16,
-  'main 5 + followup 11 = 16·全覆盖');
+assert(mainSubcalls.length + followupSubcalls.length === 17,
+  'main 6 + followup 11 = 17·全覆盖');
 
 console.log('[smoke-endturn-subcall-registry] pass assertions=' + passed.value);

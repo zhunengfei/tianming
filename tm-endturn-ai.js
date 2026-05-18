@@ -130,6 +130,9 @@
         }
       }
       copy('shizhengji', ['shizheng','szj','shizhengji_text','political_record','chronicle','时政记','时政','史记','本回合时政']);
+      copy('shilu_text', ['shilu','record','annals','imperial_record','实录','起居注']);
+      copy('szj_title', ['shizhengji_title','political_record_title','title','时政记标题']);
+      copy('szj_summary', ['shizhengji_summary','political_record_summary','summary','时政记总结']);
       copy('zhengwen', ['text','content','narrative','story','houren','houren_xishuo','hourenXishuo','正文','叙事正文','后人戏说']);
       copy('events', ['event_list','eventLog','eventLogs','事件','事件列表']);
       copy('resource_changes', ['resourceChanges','resources','variable_changes','stat_changes','资源变化','数值变化']);
@@ -405,6 +408,7 @@
         {id:'sc1', name:'结构化数据', minDepth:'lite', order:100},
         {id:'sc1b', name:'文事鸿雁人际', minDepth:'lite', order:110},
         {id:'sc1c', name:'势力外交·NPC阴谋', minDepth:'lite', order:120},
+        {id:'sc1d', name:'实录时政', minDepth:'lite', order:130},
         {id:'sc15', name:'NPC深度', minDepth:'standard', order:150},
         {id:'sc_memwrite', name:'NPC记忆回写', minDepth:'lite', order:155},
         {id:'sc16', name:'势力推演', minDepth:'full', order:160},
@@ -473,10 +477,14 @@
             GM._subcallTimings[id] = _elapsed;
             _stats.totalTime += _elapsed;
             _stats.byId[id].totalTime += _elapsed;
-            if (window.TM && TM.Endturn && TM.Endturn.Timing && typeof TM.Endturn.Timing.mark === 'function') {
-              TM.Endturn.Timing.mark(ctx, 'subcall', { id: id, label: name, ok: true, attempts: _attempt + 1, ms: _elapsed });
-            }
-            if (typeof setAIBranchDiagnostic === 'function') setAIBranchDiagnostic(id, 'ok', name + ' ' + _elapsed + 'ms');
+            try {
+              if (window.TM && TM.Endturn && TM.Endturn.Timing && typeof TM.Endturn.Timing.mark === 'function') {
+                TM.Endturn.Timing.mark(ctx, 'subcall', { id: id, label: name, ok: true, attempts: _attempt + 1, ms: _elapsed });
+              }
+            } catch(_timingOkErr) { try { console.warn('[EndturnTiming] mark ok failed:', _timingOkErr); } catch(_) {} }
+            try {
+              if (typeof setAIBranchDiagnostic === 'function') setAIBranchDiagnostic(id, 'ok', name + ' ' + _elapsed + 'ms');
+            } catch(_diagOkErr) { try { console.warn('[AIDiagnostic] branch ok failed:', _diagOkErr); } catch(_) {} }
             return;
           } catch(_scErr) {
             var _errInfo = _formatAIError(_scErr);
@@ -488,29 +496,36 @@
               _stats.byId[id].totalTime += _elapsed;
               _stats.errors++;
               _stats.byId[id].errors++;
-              if (window.TM && TM.Endturn && TM.Endturn.Timing && typeof TM.Endturn.Timing.mark === 'function') {
-                TM.Endturn.Timing.mark(ctx, 'subcall', { id: id, label: name, ok: false, attempts: _attempt + 1, ms: _elapsed, error: _errInfo.message, status: _errInfo.status });
-              }
+              try {
+                if (window.TM && TM.Endturn && TM.Endturn.Timing && typeof TM.Endturn.Timing.mark === 'function') {
+                  TM.Endturn.Timing.mark(ctx, 'subcall', { id: id, label: name, ok: false, attempts: _attempt + 1, ms: _elapsed, error: _errInfo.message, status: _errInfo.status });
+                }
+              } catch(_timingFailErr) { try { console.warn('[EndturnTiming] mark fail failed:', _timingFailErr); } catch(_) {} }
+              _stats.errorLog = Array.isArray(_stats.errorLog) ? _stats.errorLog : [];
               _stats.errorLog.push({ id:id, name:name, turn:GM.turn, msg:_errInfo.message, status:_errInfo.status, snippet:_errInfo.snippet, time:new Date().toLocaleTimeString() });
               if (_stats.errorLog.length > 20) _stats.errorLog.shift();
-              if (typeof recordAIDiagnostic === 'function') {
-                recordAIDiagnostic('subcall_failed', {
-                  id: id,
-                  label: name,
-                  error: _errInfo.message,
-                  status: _errInfo.status,
-                  snippet: _errInfo.snippet,
-                  attempts: _retries + 1,
-                  ms: _elapsed
-                });
-              }
+              try {
+                if (typeof recordAIDiagnostic === 'function') {
+                  recordAIDiagnostic('subcall_failed', {
+                    id: id,
+                    label: name,
+                    error: _errInfo.message,
+                    status: _errInfo.status,
+                    snippet: _errInfo.snippet,
+                    attempts: _retries + 1,
+                    ms: _elapsed
+                  });
+                }
+              } catch(_diagFailErr) { try { console.warn('[AIDiagnostic] subcall_failed failed:', _diagFailErr); } catch(_) {} }
               console.warn('[EndturnSubcall] failed after retries:', id, name, _errInfo.message, _errInfo.status || '');
               if (typeof toast === 'function') {
                 var _brief = _errInfo.status ? ('HTTP ' + _errInfo.status + ' ' + _errInfo.message) : _errInfo.message;
                 toast('\u26A0 ' + name + '失败：' + String(_brief || '').slice(0, 80) + '；本回合会继续，详见AI诊断');
               }
               console.warn('[' + name + '] 重试' + _retries + '次后仍失败');
-              if (typeof setAIBranchDiagnostic === 'function') setAIBranchDiagnostic(id, 'failed', _errInfo.message);
+              try {
+                if (typeof setAIBranchDiagnostic === 'function') setAIBranchDiagnostic(id, 'failed', _errInfo.message);
+              } catch(_branchFailErr) { try { console.warn('[AIDiagnostic] branch failed failed:', _branchFailErr); } catch(_) {} }
             }
           }
         }
@@ -550,6 +565,55 @@
           if (GM._turnAiResults._fallbacks.length > 20) GM._turnAiResults._fallbacks.shift();
         } catch(_) {}
         return _p;
+      }
+
+      function _hasSc1StructuredResult(obj) {
+        if (!obj || typeof obj !== 'object') return false;
+        var keys = ['events','resource_changes','variable_changes','char_updates','edict_feedback','fiscal_adjustments','changes','personnel_changes','office_assignments','office_dismissals','army_changes','province_changes','table_updates','turn_summary','shizhengji_basis','player_status','playerStatus'];
+        for (var i = 0; i < keys.length; i++) {
+          var v = obj[keys[i]];
+          if (Array.isArray(v) && v.length) return true;
+          if (v && typeof v === 'object' && Object.keys(v).length) return true;
+          if (typeof v === 'string' && v.trim()) return true;
+        }
+        return false;
+      }
+
+      function _attachSc1RecordFallback(base, reason) {
+        if (!base || typeof base !== 'object') return base;
+        var _turn = (GM && GM.turn) || 1;
+        var _dateText = ''; try { _dateText = (typeof getTSText === 'function') ? getTSText(_turn) : ''; } catch(_) {}
+        function _txt(v) {
+          if (v == null) return '';
+          if (typeof v === 'string') return v;
+          try { return JSON.stringify(v); } catch(_) { return String(v); }
+        }
+        function _takeList(arr, n) {
+          return (Array.isArray(arr) ? arr : []).slice(0, n || 5).map(function(x) {
+            if (typeof x === 'string') return x;
+            return _txt(x && (x.title || x.summary || x.text || x.reason || x.action || x.type || x.name) || x);
+          }).filter(Boolean);
+        }
+        var facts = [];
+        if (base.turn_summary) facts.push(_txt(base.turn_summary));
+        if (base.shizhengji_basis) facts.push(_txt(base.shizhengji_basis));
+        facts = facts.concat(_takeList(base.edict_feedback, 5), _takeList(base.events, 5), _takeList(base.fiscal_adjustments, 4), _takeList(base.personnel_changes, 4), _takeList(base.army_changes, 4), _takeList(base.province_changes, 4));
+        var brief = facts.join('；').replace(/\s+/g, ' ').slice(0, 900);
+        if (!brief) brief = '本回合结构化账本已生成，但史官成文子调用未返回可用正文，系统暂以保守摘要占位。';
+        if (!base.shilu_text) base.shilu_text = (_dateText ? (_dateText + '，') : '') + '是回，' + brief;
+        if (!base.szj_title) base.szj_title = '事归案牍，政入时编';
+        if (!base.shizhengji) base.shizhengji = brief;
+        if (!base.szj_summary) base.szj_summary = brief.slice(0, 140);
+        if (!base.zhengwen) base.zhengwen = base.shizhengji;
+        base._sc1dFallback = true;
+        base._sc1dFallbackReason = String(reason && (reason.message || reason) || 'sc1d missing').slice(0, 200);
+        try {
+          if (!GM._turnAiResults) GM._turnAiResults = {};
+          if (!Array.isArray(GM._turnAiResults._fallbacks)) GM._turnAiResults._fallbacks = [];
+          GM._turnAiResults._fallbacks.push({ id:'sc1d', type:'record_fallback', reason:base._sc1dFallbackReason, turn:_turn, at:Date.now() });
+          if (GM._turnAiResults._fallbacks.length > 20) GM._turnAiResults._fallbacks.shift();
+        } catch(_) {}
+        return base;
       }
 
       var _queuedPostTurnSubcalls = [];
@@ -1476,6 +1540,11 @@
         // ★ P11.2B 诏令冲突链（KokoroMemo graph.py 范式·8 边类型缩为 4 种）
         "\"edict_relations\":[{\"from\":\"诏令编码或简称(如 T15-E03 / 盐法)\",\"to\":\"另一诏令编码或简称\",\"type\":\"supersedes/contradicts/continues/elaborates\",\"reason\":\"为何这样关联(40字)\"}]" +
         "}";
+      // SC1 只负责结构化账本；实录/时政记交给 sc1d 专项成文，避免主推演同时承载长文本。
+      try {
+        tp1 = tp1.replace(/"turn_summary":"[^"]*",\s*"shilu_text":"[\s\S]*?",\s*"szj_title":"[\s\S]*?",\s*"shizhengji":"[\s\S]*?",\s*"szj_summary":"[\s\S]*?",/,
+          '"turn_summary":"一句话概括本回合最重要的结构化变化(30-80字)","shizhengji_basis":"供史官成文的事实底稿(80-180字)：只列玩家诏令、奏疏批复、问对朝议、财政军政人事地块势力变化，不写长篇时政记",');
+      } catch(_sc1NarrativeSplitE) {}
       // 注入待追踪诏令（让AI知道本回合有哪些诏令需要反馈）
       if (GM._edictTracker) {
         var _pendingEdicts = GM._edictTracker.filter(function(e) { return e.turn === GM.turn && e.status === 'pending'; });
@@ -2201,15 +2270,15 @@
         if (_outCapK_G1 <= 4) {
           tp1 += '\n\n【★模型能力降级·SC1 schema 精简】\n';
           tp1 += '  · 检测到单次输出 ≤ 4K tokens·请尽量压缩 schema\n';
-          tp1 += '  · 必填核心字段：shizhengji/zhengwen/playerStatus/playerInner + edict_feedback 数组\n';
+          tp1 += '  · 必填核心字段：turn_summary/shizhengji_basis/playerStatus/playerInner + edict_feedback 数组\n';
           tp1 += '  · 可缩或留空：cultural_works/npc_letters/npc_correspondence/npc_interactions/faction_interactions_advanced/faction_events/npc_schemes/hidden_moves/fengwen_snippets（这些由 SC1b/SC1c 补充·此处可 []）\n';
           tp1 += '  · 人物/势力/阶层 updates 只给最要紧 3 条·不要凑数\n';
-          tp1 += '  · shizhengji/zhengwen 控制在 400 字内·不要长篇铺陈\n';
+          tp1 += '  · shizhengji_basis 控制在 200 字内·不要长篇铺陈\n';
         } else if (_outCapK_G1 <= 8) {
           tp1 += '\n\n【模型能力中等·SC1 schema 中度精简】\n';
           tp1 += '  · 检测到单次输出 ≤ 8K tokens\n';
           tp1 += '  · cultural_works/npc_correspondence/fengwen_snippets 可 []（由 SC1b/SC1c 补充）\n';
-          tp1 += '  · 核心字段 shizhengji/zhengwen/edict_feedback/char_updates 必填\n';
+          tp1 += '  · 核心字段 turn_summary/shizhengji_basis/edict_feedback/char_updates 必填\n';
         }
       } catch(_g1E) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_g1E, 'G1 schema prune') : console.warn('[G1 schema prune]', _g1E); }
       // G3·温度按子调用类型分：SC1 主推演叙事·保持 _modelTemp（常 0.8）
@@ -2343,7 +2412,7 @@
           _sc1Call = await _callEndturnAI(_sc1Body, {
             id: 'sc1',
             label: '结构化数据',
-            expectedKeys: ['shizhengji', 'events', 'resource_changes', 'char_updates'],
+            expectedKeys: ['turn_summary', 'shizhengji_basis', 'events', 'resource_changes', 'char_updates', 'edict_feedback', 'fiscal_adjustments', 'changes'],
             priority: 'critical'
           });
           data1 = _sc1Call.data;
@@ -2358,7 +2427,7 @@
       p1=null; // 赋值到外层声明的p1
       try {
         if (data1) _checkTruncated(data1, '结构化数据');
-        var _p1Parse = (_sc1Call && _sc1Call.parse) || await _parseOrRepairJsonResult(c1, data1, '结构化数据', { url: url, key: P.ai.key, body: _sc1Body, expectedKeys: ['shizhengji', 'events', 'resource_changes', 'char_updates'], priority: 'critical' });
+        var _p1Parse = (_sc1Call && _sc1Call.parse) || await _parseOrRepairJsonResult(c1, data1, '结构化数据', { url: url, key: P.ai.key, body: _sc1Body, expectedKeys: ['turn_summary', 'shizhengji_basis', 'events', 'resource_changes', 'char_updates', 'edict_feedback', 'fiscal_adjustments', 'changes'], priority: 'critical' });
         if (_p1Parse && _p1Parse.raw) c1 = _p1Parse.raw;
         p1 = _p1Parse ? _p1Parse.parsed : null;
       } catch(_sc1ParseErr) {
@@ -2438,8 +2507,75 @@
       // 校验 AI 输出结构（非阻断）
       try { if (window.TM && TM.validateAIOutput) TM.validateAIOutput(p1, 'subcall1'); } catch(_ve){}
 
-      // ═══ Sub-call 1b + 1c · 并行执行（S3 优化）══════════════════════════════
-      // 两者无交集字段，通过 async IIFE 并行启动，Promise.all 等待
+      // ═══ Sub-call 1b + 1c + 1d · 并行执行（S3 优化）════════════════════════
+      // 三者无交集字段，通过 async IIFE 并行启动，Promise.all 等待
+      var _sc1dP = (async function() {
+      // Sub-call 1d · 实录/时政记专项：SC1 只判账本，此处把账本改写为史官文本。
+      try {
+        if (!p1 || typeof p1 !== 'object') return;
+        var _sc1dStart = Date.now();
+        showLoading('史官成文', 57);
+        function _packSc1d(v, max) {
+          var s = '';
+          try { s = JSON.stringify(v || null); } catch(_) { s = String(v || ''); }
+          return s.slice(0, max || 6000);
+        }
+        var _facts1d = {
+          turn_summary: p1.turn_summary || '',
+          shizhengji_basis: p1.shizhengji_basis || '',
+          player_status: p1.player_status || p1.playerStatus || '',
+          edict_feedback: Array.isArray(p1.edict_feedback) ? p1.edict_feedback.slice(0, 16) : [],
+          events: Array.isArray(p1.events) ? p1.events.slice(0, 16) : [],
+          resource_changes: p1.resource_changes || {},
+          fiscal_adjustments: Array.isArray(p1.fiscal_adjustments) ? p1.fiscal_adjustments.slice(0, 16) : [],
+          char_updates: Array.isArray(p1.char_updates) ? p1.char_updates.slice(0, 16) : [],
+          personnel_changes: Array.isArray(p1.personnel_changes) ? p1.personnel_changes.slice(0, 12) : [],
+          office_changes: Array.isArray(p1.office_changes) ? p1.office_changes.slice(0, 12) : [],
+          office_assignments: Array.isArray(p1.office_assignments) ? p1.office_assignments.slice(0, 12) : [],
+          faction_events: Array.isArray(p1.faction_events) ? p1.faction_events.slice(0, 12) : [],
+          faction_changes: Array.isArray(p1.faction_changes) ? p1.faction_changes.slice(0, 12) : [],
+          army_changes: Array.isArray(p1.army_changes) ? p1.army_changes.slice(0, 12) : [],
+          province_changes: Array.isArray(p1.province_changes) ? p1.province_changes.slice(0, 12) : []
+        };
+        var _dateText1d = ''; try { _dateText1d = (typeof getTSText === 'function') ? getTSText(GM.turn || 1) : ''; } catch(_) {}
+        var tp1d = '【实录·时政记专项】\n';
+        tp1d += '你只负责把 SC1 已判定的结构化账本改写为史官文本，不得新增任何事实、数值、死亡、任免、战事或地块变化。\n';
+        tp1d += '本回合：T' + (GM.turn || 1) + (_dateText1d ? (' · ' + _dateText1d) : '') + '\n';
+        tp1d += '玩家诏令/行止原始摘要：' + _packSc1d({ edicts: edicts || {}, xinglu: xinglu || '' }, 2500) + '\n';
+        tp1d += 'SC1结构化账本：' + _packSc1d(_facts1d, 12000) + '\n\n';
+        tp1d += '请返回严格 JSON，只包含以下字段：\n';
+        tp1d += '{"shilu_text":"实录' + _shiluMin + '-' + _shiluMax + '字。纯文言史官体，仿《资治通鉴》《明实录》，以月日/是月/上命为句式，只记可验证事实，不评论。","szj_title":"时政记副标题，七字对仗两句，用顿号或逗号分隔。","shizhengji":"时政记正文' + _szjMin + '-' + _szjMax + '字。仿朝政纪要体，分3-5段，逐条复述玩家诏令/奏疏批复/问对朝议，并写执行者、执行过程、阻力、实际效果、遗留隐患。不得编造 SC1 账本没有的变化。","szj_summary":"时政记总结一句话，概括局势与隐患。"}';
+        var _sc1dBaseTok = Math.min(_effectiveOutCap || 7000, 7000);
+        var _sc1dBody = {model:P.ai.model||'gpt-4o', messages:[{role:'system', content:_maybeCacheSys(sysP)}, {role:'user', content:tp1d}], temperature:Math.max(0.35, Math.min(0.75, _modelTemp || 0.6)), max_tokens:_tok(_sc1dBaseTok)};
+        if (_modelFamily === 'openai') _sc1dBody.response_format = { type:'json_object' };
+        var _sc1dCall = await _callEndturnAI(_sc1dBody, {
+          id: 'sc1d',
+          label: '实录时政',
+          expectedKeys: ['shilu_text', 'shizhengji', 'szj_title', 'szj_summary'],
+          priority: 'high'
+        });
+        if (_sc1dCall && _sc1dCall.data) _checkTruncated(_sc1dCall.data, '实录时政');
+        var c1d = (_sc1dCall && _sc1dCall.raw) || '';
+        var p1d = (_sc1dCall && _sc1dCall.parse) ? _sc1dCall.parse.parsed : null;
+        if (p1d) {
+          GM._turnAiResults.subcall1d_raw = c1d;
+          GM._turnAiResults.subcall1d = p1d;
+          p1.shilu_text = p1d.shilu_text || p1d.shilu || p1.shilu_text || '';
+          p1.szj_title = p1d.szj_title || p1d.shizhengji_title || p1d.title || p1.szj_title || '';
+          p1.shizhengji = p1d.shizhengji || p1d.shizheng || p1d.szj || p1.shizhengji || '';
+          p1.szj_summary = p1d.szj_summary || p1d.shizhengji_summary || p1d.summary || p1.szj_summary || '';
+          if (!p1.zhengwen) p1.zhengwen = p1.shizhengji;
+          GM._turnAiResults.subcall1 = p1;
+          ctx.results.sc1d = p1d;
+        }
+        GM._subcallTimings.sc1d = Date.now() - _sc1dStart;
+      } catch(_sc1dErr) {
+        console.warn('[sc1d] 失败（不影响主流程）:', _sc1dErr.message || _sc1dErr);
+        p1 = _attachSc1RecordFallback(p1, _sc1dErr);
+        if (GM && GM._turnAiResults) GM._turnAiResults.subcall1 = p1;
+      }
+      })();
+
       var _sc1bP = (async function() {
       // ═══ Sub-call 1b · 文事鸿雁人际专项（独立预算 8k，避免文事/鸿雁/互动被 sc1 庞大 schema 挤出）═══
       try {
@@ -2464,7 +2600,7 @@
 
         var _capB = (GM._capital) || (P.playerInfo && P.playerInfo.capital) || '\u4EAC\u57CE';
         var _pNameB = (P.playerInfo && P.playerInfo.characterName) || '';
-        var _recentSZJ = (p1 && p1.shizhengji) ? String(p1.shizhengji).slice(0,1500) : '';
+        var _recentSZJ = (p1 && (p1.shizhengji || p1.shizhengji_basis || p1.turn_summary)) ? String(p1.shizhengji || p1.shizhengji_basis || p1.turn_summary).slice(0,1500) : '';
 
         var tp1b = '\u3010\u6587\u4E8B\u00B7\u9E3F\u96C1\u00B7\u4EBA\u9645\u4E92\u52A8\u00B7\u4E13\u9879\u63A8\u6F14\u3011\n';
         tp1b += '\u672C\u56DE\u5408\uFF1A' + (GM.turn||1) + ' \u00B7 ' + (typeof getTSText==='function'?getTSText(GM.turn):'') + ' \u00B7 \u9996\u90FD\uFF1A' + _capB + '\n';
@@ -2655,7 +2791,7 @@
           }).join('\n');
         }
 
-        var _recentSZJC = (p1 && p1.shizhengji) ? String(p1.shizhengji).slice(0,1200) : '';
+        var _recentSZJC = (p1 && (p1.shizhengji || p1.shizhengji_basis || p1.turn_summary)) ? String(p1.shizhengji || p1.shizhengji_basis || p1.turn_summary).slice(0,1200) : '';
         var _pNameC = (P.playerInfo && P.playerInfo.characterName) || '';
 
         var tp1c = '\u3010\u52BF\u529B\u5916\u4EA4\u00B7NPC\u9634\u8C0B\u00B7\u4E13\u9879\u63A8\u6F14\u3011\n';
@@ -3015,11 +3151,11 @@
       }
       })();  // end SC1c IIFE
 
-      // 并行等待 SC1b + SC1c 完成（S3 优化·两者无交集字段）
-      try { await Promise.all([_sc1bP, _sc1cP]); } catch(_sc1bcErr) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_sc1bcErr, 'sc1b+1c parallel') : console.warn('[sc1b+1c parallel]', _sc1bcErr); }
+      // 并行等待 SC1b + SC1c + SC1d 完成（互不争用写入字段）
+      try { await Promise.all([_sc1bP, _sc1cP, _sc1dP]); } catch(_sc1bcErr) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_sc1bcErr, 'sc1b+1c+1d parallel') : console.warn('[sc1b+1c+1d parallel]', _sc1bcErr); }
 
       // G2·失败降级链：若 SC1 主推演 JSON 失败或空·从 SC1b/SC1c 合成最小可用 p1·避免整回合卡死
-      if (!p1 || (!p1.shizhengji && !p1.zhengwen)) {
+      if (!p1 || !_hasSc1StructuredResult(p1)) {
         var _p1bG2 = GM._turnAiResults && GM._turnAiResults.subcall1b;
         var _p1cG2 = GM._turnAiResults && GM._turnAiResults.subcall1c;
         if (_p1bG2 || _p1cG2) {
@@ -3039,14 +3175,21 @@
           p1 = p1 || {};
           p1.shizhengji = p1.shizhengji || _fallbackShizhengji;
           p1.zhengwen = p1.zhengwen || _fallbackShizhengji;
+          p1.turn_summary = p1.turn_summary || _fallbackShizhengji.slice(0, 120);
+          p1.shizhengji_basis = p1.shizhengji_basis || _fallbackShizhengji.slice(0, 240);
+          if (!Array.isArray(p1.events) || !p1.events.length) p1.events = [{ type:'AI降级', title:'子调用合成账本', text:_fallbackShizhengji.slice(0, 180), turn:GM.turn || 1 }];
           p1._g2Fallback = true;
           if (typeof toast === 'function') toast('⚠ AI主推演未返回有效数据·已从子调用合成最小史记·建议检查模型输出能力');
         }
-        if (!p1 || (!p1.shizhengji && !p1.zhengwen)) {
+        if (!p1 || !_hasSc1StructuredResult(p1)) {
           console.warn('[G2·降级] SC1/SC1b/SC1c 均无有效数据·启用保守应急账本');
           p1 = _buildSc1EmergencyFallback(_sc1CriticalError);
           if (typeof toast === 'function') toast('⚠ AI主推演未返回有效结构·已启用保守应急账本，本回合会继续；详见AI诊断');
         }
+        GM._turnAiResults.subcall1 = p1;
+      }
+      if (p1 && (!p1.shizhengji || !p1.shilu_text)) {
+        p1 = _attachSc1RecordFallback(p1, 'sc1d missing record text');
         GM._turnAiResults.subcall1 = p1;
       }
 
@@ -3066,9 +3209,23 @@
       ctx.results.sc1 = p1 || (GM._turnAiResults && GM._turnAiResults.subcall1) || null;
       ctx.results.sc1b = (GM._turnAiResults && GM._turnAiResults.subcall1b) || ctx.results.sc1b || null;
       ctx.results.sc1c = (GM._turnAiResults && GM._turnAiResults.subcall1c) || ctx.results.sc1c || null;
+      ctx.results.sc1d = (GM._turnAiResults && GM._turnAiResults.subcall1d) || ctx.results.sc1d || null;
       ctx.followup.p1Summary = p1Summary || "";
       if (typeof afterSc1 === "function") await afterSc1(ctx);
       }); // end Sub-call 1 _runSubcall
+
+    // 外层保险：_runSubcall 会吞掉最终异常并继续流程；若 sc1 包装层失败，仍要给后续写回/弹窗一个可用账本。
+    if (!p1 || !_hasSc1StructuredResult(p1)) {
+      p1 = _buildSc1EmergencyFallback('sc1 wrapper failed before producing structured result');
+      if (!GM._turnAiResults) GM._turnAiResults = {};
+      GM._turnAiResults.subcall1 = p1;
+      GM._turnAiResults.subcall1_raw = GM._turnAiResults.subcall1_raw || JSON.stringify(p1);
+    }
+    if (p1 && (!p1.shizhengji || !p1.shilu_text)) {
+      p1 = _attachSc1RecordFallback(p1, 'post-sc1 outer guard missing record text');
+      if (!GM._turnAiResults) GM._turnAiResults = {};
+      GM._turnAiResults.subcall1 = p1;
+    }
 
     ctx.subcalls._aiDepth = _aiDepth;
     ctx.subcalls._subcallMeta = _subcallMeta;
@@ -3084,6 +3241,7 @@
     ctx.results.sc1 = p1 || (GM._turnAiResults && GM._turnAiResults.subcall1) || null;
     ctx.results.sc1b = (GM._turnAiResults && GM._turnAiResults.subcall1b) || ctx.results.sc1b || null;
     ctx.results.sc1c = (GM._turnAiResults && GM._turnAiResults.subcall1c) || ctx.results.sc1c || null;
+    ctx.results.sc1d = (GM._turnAiResults && GM._turnAiResults.subcall1d) || ctx.results.sc1d || null;
     ctx.followup.p1Summary = p1Summary || "";
     if (GM && GM._subcallTimings) {
       for (var _tmK in GM._subcallTimings) if (GM._subcallTimings.hasOwnProperty(_tmK)) ctx.meta.timing[_tmK] = GM._subcallTimings[_tmK];
@@ -3094,7 +3252,7 @@
   var SAFE_CALL_DEFAULT = { priority:'normal', timeoutMs:90000, maxRetries:0, repairTimeoutMs:45000, repairMaxRetries:0, subcallRetries:0 };
   function _p(priority, timeoutMs, repairTimeoutMs) { return { priority:priority, timeoutMs:timeoutMs, maxRetries:0, repairTimeoutMs:repairTimeoutMs || 45000, repairMaxRetries:0, subcallRetries:0 }; }
   var CALL_POLICIES = {
-    sc0:_p('normal',90000), sc05:_p('normal',75000), sc1:_p('critical',150000,60000), sc1b:_p('high',90000), sc1c:_p('high',90000),
+    sc0:_p('normal',90000), sc05:_p('normal',75000), sc1:_p('critical',150000,60000), sc1b:_p('high',90000), sc1c:_p('high',90000), sc1d:_p('high',90000,45000),
     sc15:_p('normal',90000), sc_memwrite:_p('low',45000,30000), sc16:_p('normal',90000), sc17:_p('normal',90000), sc18:_p('normal',90000),
     sc_audit:_p('normal',60000), sc19:_p('background',45000,30000), sc2:_p('normal',120000,60000), sc25:_p('high',75000),
     sc27:_p('high',60000), sc07:_p('normal',90000), sc28:_p('low',45000,30000), sc_consolidate:_p('low',45000,30000),

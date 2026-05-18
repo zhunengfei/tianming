@@ -37,6 +37,8 @@ assert(src.indexOf('p2.houren_xishuo') >= 0 &&
   'writeback·hourenXishuo alias fallback fields');
 assert(src.indexOf('_sc2Body.response_format') >= 0,
   'sc2·OpenAI json_object response_format');
+assert(src.indexOf("id: 'sc1d'") >= 0 && src.indexOf('GM._turnAiResults.subcall1d') >= 0,
+  'sc1d·实录/时政记专项调用并写回 subcall1d');
 assert(src.indexOf('p1.shizheng') >= 0 &&
        src.indexOf('p1.szj') >= 0 &&
        src.indexOf('p1.zhengwen') >= 0,

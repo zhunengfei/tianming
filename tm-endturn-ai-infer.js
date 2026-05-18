@@ -4,7 +4,7 @@
 // tm-endturn-ai-infer.js — 回合 AI 推演巨函数 (R110 从 tm-endturn.js L2186-12711 拆出)
 //
 // ⚠ 此文件仅有一个函数：async function _endTurn_aiInfer(edicts, xinglu, memRes, oldVars)
-//   长约 11,330 行（更新于 2026-04-28）·是项目最大的单函数·包含 sysP prompt 构建 + sc1/sc1b/sc1c 三次 AI 子调用
+//   长约 11,330 行（更新于 2026-04-28）·是项目最大的单函数·包含 sysP prompt 构建 + sc1/sc1b/sc1c/sc1d AI 子调用
 //   + 所有 AI 返回字段的写回逻辑 (char_updates/factions/offices/fiscal/admin/events/harem 等)
 //
 // 后续工作：按 AI schema 字段族进一步拆成 tm-ai-apply-chars/factions/offices/fiscal/admin/events/harem.js
@@ -15,7 +15,7 @@
 // R147 章节导航（更新于 2026-04-28·替代死代码为数据驱动 lifecycle 块约 80 行）：
 //   §1 [L17-3120]   入参初始化 + sysP prompt 构建（包含 lifecycle 块 L54-130）
 //   §2 [L3121-3200] Sub-call 注册化基础设施（_runSubcall + 共享变量声明）
-//   §3 [L3201-5055] sc0/sc05/sc1/sc1b/sc1c 子调用（深度思考/记忆/主推演/文事/势力）
+//   §3 [L3201-5055] sc0/sc05/sc1/sc1b/sc1c/sc1d 子调用（深度思考/记忆/主推演/文事/势力/实录时政）
 //   §4 [L5056-9580] sc1 写回（applyAITurnChanges + 各字段族 GM 落地）
 //   §5 [L9581-end]  sc15-sc27 后续子调用 + 收尾（NPC/势力/财政/军事/审计/丰化/叙事）
 // ============================================================
@@ -57,7 +57,7 @@ async function _endTurn_aiInfer(edicts, xinglu, memRes, oldVars, externalCtx) {
       // ─── 待 P7-δ/ε/ζ/η 填 ───
       subcalls: { _runSubcall: null, _tok: null, _buildFetchBody: null, _truncatedOnce: false, _effectiveOutCap: 0, _checkTruncated: null },
       results: {
-        sc0: null, sc05: null, sc1: null, sc1b: null, sc1c: null, sc07: null,
+        sc0: null, sc05: null, sc1: null, sc1b: null, sc1c: null, sc1d: null, sc07: null,
         sc15: null, sc_memwrite: null, sc16: null, sc17: null, sc18: null,
         sc_audit: null, sc2: null, sc25: null, sc27: null, sc28: null,
         sc_consolidate: null

@@ -258,7 +258,7 @@
   }
 
   function copyResultsFromTurnState(ctx, p2) {
-    var r = (global.GM && GM._turnAiResults) ? GM._turnAiResults : {};
+    var r = (global.GM && GM._turnAiResults) ? GM._turnAiResults : {}; ctx.results.sc1d = r.subcall1d || ctx.results.sc1d || null;
     ctx.results.sc15 = r.subcall15 || ctx.results.sc15 || null;
     ctx.results.sc_memwrite = r.subcallMemwrite || ctx.results.sc_memwrite || null;
     ctx.results.sc16 = r.subcall16 || ctx.results.sc16 || null;

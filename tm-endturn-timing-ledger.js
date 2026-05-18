@@ -87,6 +87,12 @@
   function mark(ctx, kind, data) {
     var ledger = _getLedger(ctx);
     if (!ledger) ledger = startLedger(ctx || null, { autoStarted: true });
+    ledger.entries = Array.isArray(ledger.entries) ? ledger.entries : [];
+    ledger.steps = Array.isArray(ledger.steps) ? ledger.steps : [];
+    ledger.subcalls = Array.isArray(ledger.subcalls) ? ledger.subcalls : [];
+    ledger.systems = Array.isArray(ledger.systems) ? ledger.systems : [];
+    ledger.background = Array.isArray(ledger.background) ? ledger.background : [];
+    ledger.queue = Array.isArray(ledger.queue) ? ledger.queue : [];
     var entry = Object.assign({
       kind: kind || 'mark',
       turn: _turn(),

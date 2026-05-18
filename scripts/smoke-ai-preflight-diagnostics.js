@@ -29,6 +29,7 @@ assert(/function\s+_formatAIError\s*\(/.test(ai), 'AI station error formatter ex
 assert(/_callEndturnAI\(_sc1Body/.test(ai), 'sc1 routes through AI station');
 assert(/_callEndturnAI\(_sc1bBody/.test(ai), 'sc1b routes through AI station');
 assert(/_callEndturnAI\(_sc1cBody/.test(ai), 'sc1c routes through AI station');
+assert(/_callEndturnAI\(_sc1dBody/.test(ai), 'sc1d routes through AI station');
 assert(/recordAIDiagnostic\('call'/.test(ai), 'AI station records call diagnostics');
 assert(/recordAIDiagnostic\('call_failed'/.test(ai), 'AI station records failed call diagnostics');
 assert(/recordAIDiagnostic\('subcall_failed'/.test(ai), 'subcall wrapper records failed subcall diagnostics');

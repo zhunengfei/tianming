@@ -38,6 +38,8 @@ function assertPolicy(id, expected) {
 
 assertPolicy('sc1', { priority: 'critical', timeoutMs: 150000, maxRetries: 0 });
 assertPolicy('sc1b', { priority: 'high', timeoutMs: 90000, maxRetries: 0 });
+assertPolicy('sc1c', { priority: 'high', timeoutMs: 90000, maxRetries: 0 });
+assertPolicy('sc1d', { priority: 'high', timeoutMs: 90000, maxRetries: 0 });
 assertPolicy('sc15', { priority: 'normal', timeoutMs: 90000, maxRetries: 0 });
 assertPolicy('sc27', { priority: 'high', timeoutMs: 60000, maxRetries: 0 });
 assertPolicy('sc28', { priority: 'low', timeoutMs: 45000, maxRetries: 0 });

@@ -197,7 +197,7 @@
 
     // 记录到全局以便玩家查询
     window.TM._lastValidation = result;
-    if (!window.TM._validationHistory) window.TM._validationHistory = [];
+    if (!Array.isArray(window.TM._validationHistory)) window.TM._validationHistory = [];
     window.TM._validationHistory.push(result);
     if (window.TM._validationHistory.length > 20) window.TM._validationHistory.shift();
 
