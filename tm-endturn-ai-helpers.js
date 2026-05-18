@@ -75,7 +75,12 @@ async function aiPlanFirstTurnEvents() {
 
   try {
     if (typeof showLoading === 'function') showLoading('规划首回合候选事件…', 70);
-    var raw = await callAISmart(prompt, 2500, { maxRetries: 2, minLength: 400 });
+    var raw = await callAISmart(prompt, 2500, {
+      maxRetries: 2,
+      minLength: 400,
+      timeoutMs: 60000,
+      fetchMaxRetries: 0
+    });
     var parsed = (typeof extractJSON === 'function') ? extractJSON(raw) : null;
     if (!parsed || !Array.isArray(parsed.candidateEvents)) { console.warn('[aiFTE] 解析失败'); return; }
     GM._candidateEvents = parsed.candidateEvents.map(function(e) {
@@ -134,7 +139,12 @@ async function aiDigestLongTermActions() {
     '4. 总字数 400-700 字·半文言·简洁凝练\n\n' +
     '直接输出摘要·不要 JSON 不要前言。';
   try {
-    var raw = await callAISmart(prompt, 1500, { maxRetries: 2, minLength: 300 });
+    var raw = await callAISmart(prompt, 1500, {
+      maxRetries: 2,
+      minLength: 300,
+      timeoutMs: 60000,
+      fetchMaxRetries: 0
+    });
     if (raw && raw.length > 100) {
       GM._longTermDigest = { text: raw.trim(), generatedAt: GM.turn, turn: GM.turn, _fromAI: true };
       console.log('[longTerm] 摘要生成 · ' + raw.length + ' 字 @ T' + GM.turn);
@@ -271,7 +281,11 @@ async function aiEdictEfficacyAudit(aiResult, edicts) {
     '10. 只输出 JSON·无其他文字';
 
   try {
-    var raw = await callAISmart(prompt, 2000, { maxRetries: 2 });
+    var raw = await callAISmart(prompt, 2000, {
+      maxRetries: 2,
+      timeoutMs: 60000,
+      fetchMaxRetries: 0
+    });
     if (!raw) return;
     var parsed;
     try {

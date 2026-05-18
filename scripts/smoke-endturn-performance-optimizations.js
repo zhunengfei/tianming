@@ -29,6 +29,8 @@ const postTurnSrc = read('tm-post-turn-jobs.js');
 const chronicleSrc = read('tm-chronicle-system.js');
 const factionEnrichSrc = read('tm-faction-npc-llm-enrich.js');
 const kejuRuntimeSrc = read('tm-keju-runtime.js');
+const aiHelpersSrc = read('tm-endturn-ai-helpers.js');
+const endturnHelpersSrc = read('tm-endturn-helpers.js');
 
 assert(fs.existsSync(timingPath), 'endturn timing ledger module exists');
 assert(indexSrc.indexOf('tm-endturn-timing-ledger.js') >= 0, 'timing ledger is loaded by index.html');
@@ -119,8 +121,12 @@ assert(/callAIMessages\(\[[\s\S]*priority:\s*'background'/.test(coreSrc), 'month
 assert(/callAIMessages\(\[[\s\S]*timeoutMs:\s*45000[\s\S]*maxRetries:\s*0/.test(coreSrc), 'monthly chronicle is bounded to avoid queue stalls');
 assert((postTurnSrc.match(/priority:\s*'background'/g) || []).length >= 4, 'post-turn optional memory jobs use background queue priority');
 assert(/callAI\(prompt,\s*1500,\s*null,\s*'primary',\s*\{\s*priority:\s*'background'/.test(chronicleSrc), 'chronicle year generation uses background queue priority');
+assert(/callAI\(prompt,\s*1500,\s*null,\s*'primary',[\s\S]*timeoutMs:\s*60000[\s\S]*maxRetries:\s*0/.test(chronicleSrc), 'chronicle year generation is bounded to avoid queue stalls');
 assert(/global\.callAI\(combined,\s*200,\s*null,\s*'secondary',\s*\{\s*priority:\s*'background'/.test(factionEnrichSrc), 'NPC faction enrichment uses background queue priority');
 assert(/callAISmart\(prompt,\s*300,[\s\S]*priority:\s*'high'/.test(kejuRuntimeSrc), 'foreground keju trigger check uses high priority');
 assert(/callAISmart\(prompt,\s*300,[\s\S]*timeoutMs:\s*30000[\s\S]*fetchMaxRetries:\s*0/.test(kejuRuntimeSrc), 'foreground keju trigger check has bounded fetch attempts');
+assert((aiHelpersSrc.match(/timeoutMs:\s*60000/g) || []).length >= 3, 'end-turn AI helper tail calls have explicit 60s timeout budgets');
+assert((aiHelpersSrc.match(/fetchMaxRetries:\s*0/g) || []).length >= 3, 'end-turn AI helper tail calls avoid nested retry amplification');
+assert(/callAI\(prompt,\s*600,\s*null,\s*'primary',[\s\S]*timeoutMs:\s*45000[\s\S]*maxRetries:\s*0/.test(endturnHelpersSrc), 'post-result taishigong generation is bounded to avoid queue stalls');
 
 console.log('[smoke-endturn-performance-optimizations] pass assertions=' + passed.value);
