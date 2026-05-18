@@ -132,10 +132,10 @@
             var _reconcileTools = (window.TM_AI_SCHEMA && TM_AI_SCHEMA.reconcileTools) || [];
             var _toolResp = null;
             if (typeof callAIWithTools === 'function' && _reconcileTools.length > 0) {
-              _toolResp = await callAIWithTools(_reconcilePrompt, _reconcileTools, { maxTok: 1500, tier: 'secondary', priority: 'high' });
+              _toolResp = await callAIWithTools(_reconcilePrompt, _reconcileTools, { maxTok: 1500, tier: 'secondary', priority: 'high', timeoutMs: 60000, maxRetries: 0 });
             } else {
               // 极端兜底（不该发生·callAIWithTools 应已加载）
-              var _raw = await callAI(_reconcilePrompt, 1500, undefined, 'secondary', { priority: 'high' });
+              var _raw = await callAI(_reconcilePrompt, 1500, undefined, 'secondary', { priority: 'high', timeoutMs: 60000, maxRetries: 0 });
               _toolResp = { text: _raw||'', toolCalls: [] };
             }
 

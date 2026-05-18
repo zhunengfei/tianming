@@ -13,6 +13,62 @@
   window.TM = window.TM || {};
   TM.Endturn = TM.Endturn || {};
 
+  function _normalizeTurnChangesForRender() {
+    try {
+      if (typeof GM === 'undefined' || !GM) return;
+      try { if (typeof ensureTurnChangesState === 'function') ensureTurnChangesState(); } catch(_) {}
+      var tc = GM.turnChanges;
+      if (!tc || typeof tc !== 'object' || Array.isArray(tc)) tc = GM.turnChanges = {};
+      var buckets = ['variables', 'characters', 'factions', 'parties', 'classes', 'military', 'map'];
+      buckets.forEach(function(key) {
+        if (!Array.isArray(tc[key])) tc[key] = [];
+      });
+      function isNum(v) { return typeof v === 'number' && isFinite(v); }
+      function num(v, fallback) {
+        var n = Number(v);
+        return isFinite(n) ? n : fallback;
+      }
+      tc.variables = tc.variables.map(function(v) {
+        if (!v || typeof v !== 'object') v = { name: String(v || '变量') };
+        if (!v.name) v.name = v.label || v.path || '变量';
+        var delta = num(v.delta, 0);
+        if (!Array.isArray(v.reasons)) {
+          var reasonText = v.reason || v.desc || v.description || '';
+          v.reasons = reasonText ? [{ type: v.type || '变动', amount: delta, desc: reasonText }] : [];
+        }
+        if (!isNum(v.oldValue) || !isNum(v.newValue)) {
+          var current = null;
+          if (GM.vars && GM.vars[v.name] && isNum(GM.vars[v.name].value)) current = GM.vars[v.name].value;
+          else if (isNum(GM[v.name])) current = GM[v.name];
+          else if (isNum(v.newValue)) current = v.newValue;
+          else current = delta;
+          if (!isNum(v.newValue)) v.newValue = current;
+          if (!isNum(v.oldValue)) v.oldValue = current - delta;
+        }
+        if (!isNum(v.delta)) v.delta = num(v.newValue, 0) - num(v.oldValue, 0);
+        return v;
+      });
+      ['characters', 'factions', 'parties', 'classes', 'military', 'map'].forEach(function(key) {
+        tc[key] = tc[key].map(function(item) {
+          if (!item || typeof item !== 'object') item = { name: String(item || key), changes: [] };
+          if (!item.name) item.name = item.label || item.id || key;
+          if (!Array.isArray(item.changes)) item.changes = [];
+          item.changes = item.changes.map(function(ch) {
+            if (!ch || typeof ch !== 'object') ch = { field: String(ch || 'value') };
+            if (!ch.field) ch.field = ch.label || ch.path || 'value';
+            if (!('oldValue' in ch)) ch.oldValue = 0;
+            if (!('newValue' in ch)) ch.newValue = ch.delta || 0;
+            if (!ch.reason) ch.reason = ch.desc || ch.description || '';
+            return ch;
+          });
+          return item;
+        });
+      });
+    } catch(e) {
+      try { console.warn('[pipeline.render-finalize] turnChanges normalize failed', e); } catch(_) {}
+    }
+  }
+
   function _scheduleNpcBehaviorPostRender(ctx) {
     try {
       if (typeof P === 'undefined' || !P || !P.ai || !P.ai.key) return;
@@ -340,7 +396,22 @@
         // 早设 flag·若 render 抛错也防止 legacy 重跑同一段·两次 push 灾难
         ctx.input._renderFinalizeRan = true;
         var ar = ctx.results.aiResult || {};
-        var changeReportHtml = (typeof generateChangeReport === 'function') ? generateChangeReport() : '';
+        _normalizeTurnChangesForRender();
+        var changeReportHtml = '';
+        try {
+          if (typeof generateChangeReport === 'function' && typeof _renderUnifiedChanges !== 'function') {
+            changeReportHtml = generateChangeReport() || '';
+          }
+        } catch(_changeReportE) {
+          ctx.results.changeReportError = _changeReportE;
+          try {
+            if (typeof window !== 'undefined' && window.TM && TM.errors && TM.errors.capture) {
+              TM.errors.capture(_changeReportE, 'pipeline.render-finalize] legacy change report failed');
+            } else {
+              console.warn('[pipeline.render-finalize] legacy change report failed', _changeReportE);
+            }
+          } catch(_) {}
+        }
         // 注：oldVars 在 ctx.input·edicts/xinglu 同
         // _renderArgs 17 字段顺序按 _endTurn_render 期望
         var _renderArgs = [

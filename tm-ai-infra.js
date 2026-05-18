@@ -639,7 +639,10 @@ async function callAI(prompt,maxTok,signal,tier,opts){
   if(!url)throw new Error("API\u5730\u5740\u672A\u914D\u7F6E");
   var _scaledTok = Math.round((maxTok||2000) * ((typeof getCompressionParams==='function') ? Math.max(1.0, getCompressionParams().scale) : 1.0));
   var body = { model: _aiCfg.model || (P.ai&&P.ai.model) || "gpt-4o", messages:[{role:"user",content:prompt}], temperature: P.ai.temp||0.8, max_tokens: _scaledTok };
-  var data = await _aiFetchWithRetry(url, body, signal, { apiKey: key, priority: opts.priority || 'normal' });
+  var fetchOpts = { apiKey: key, priority: opts.priority || 'normal' };
+  if (opts.timeoutMs != null) fetchOpts.timeoutMs = opts.timeoutMs;
+  if (opts.maxRetries != null) fetchOpts.maxRetries = opts.maxRetries;
+  var data = await _aiFetchWithRetry(url, body, signal, fetchOpts);
   if(data.usage && typeof TokenUsageTracker !== 'undefined') TokenUsageTracker.record(data.usage);
   if(data.choices&&data.choices[0]&&data.choices[0].message)return data.choices[0].message.content;
   if(data.content&&Array.isArray(data.content))return data.content.map(function(b){return b.text||"";}).join("");
@@ -668,7 +671,7 @@ async function callAI(prompt,maxTok,signal,tier,opts){
 async function callAIWithTools(prompt, tools, opts) {
   opts = opts || {};
   if (!Array.isArray(tools) || tools.length === 0) {
-    var _t0 = await callAI(prompt, opts.maxTok || 2000, opts.signal, opts.tier, { priority: opts.priority || 'normal' });
+    var _t0 = await callAI(prompt, opts.maxTok || 2000, opts.signal, opts.tier, { priority: opts.priority || 'normal', timeoutMs: opts.timeoutMs, maxRetries: opts.maxRetries });
     return { text: _t0 || '', toolCalls: [] };
   }
   // 取 tier 配置
@@ -702,7 +705,7 @@ async function callAIWithTools(prompt, tools, opts) {
   }
   async function _runFallback() {
     try {
-      var raw = await callAI(_fallbackPromptWithSchema(), maxTok, opts.signal, opts.tier, { priority: opts.priority || 'normal' });
+      var raw = await callAI(_fallbackPromptWithSchema(), maxTok, opts.signal, opts.tier, { priority: opts.priority || 'normal', timeoutMs: opts.timeoutMs, maxRetries: opts.maxRetries });
       var parsed = null;
       try {
         if (typeof robustParseJSON === 'function') parsed = robustParseJSON(raw);
@@ -784,7 +787,7 @@ async function callAIWithTools(prompt, tools, opts) {
   var data;
   async function _toolFetchQueued() {
     var ctrl = new AbortController();
-    var timer = setTimeout(function() { ctrl.abort(); }, 180000);
+    var timer = setTimeout(function() { ctrl.abort(); }, (opts.timeoutMs != null ? opts.timeoutMs : 180000));
     if (opts.signal) opts.signal.addEventListener('abort', function() { ctrl.abort(); });
     try {
       var resp = await fetch(url, { method: 'POST', headers: headers, body: JSON.stringify(body), signal: ctrl.signal });
@@ -890,7 +893,7 @@ async function callAIWithTools(prompt, tools, opts) {
 async function callAISmart(prompt, maxTok, options) {
   options = options || {};
   var minLength = options.minLength || 0; // 期望的最小字符长度
-  var maxRetries = options.maxRetries || 3;
+  var maxRetries = (options.maxRetries != null) ? options.maxRetries : 3;
   var validator = options.validator;
   var signal = options.signal;
   var allContent = '';
@@ -907,7 +910,11 @@ async function callAISmart(prompt, maxTok, options) {
     }
 
     try {
-      var result = await callAI(currentPrompt, maxTok, signal, options.tier, { priority: options.priority || 'normal' });
+      var result = await callAI(currentPrompt, maxTok, signal, options.tier, {
+        priority: options.priority || 'normal',
+        timeoutMs: options.timeoutMs,
+        maxRetries: (options.fetchMaxRetries != null) ? options.fetchMaxRetries : 0
+      });
 
       // Append to existing content
       if (allContent.length > 0) {
@@ -985,7 +992,10 @@ async function callAIMessages(messages,maxTok,signal,tier,opts){
     }
   }
   var body = { model: _aiCfgM.model || (P.ai&&P.ai.model) || "gpt-4o", messages: _msgs, temperature: 0.8, max_tokens: _scaledTok2 };
-  var data = await _aiFetchWithRetry(url, body, signal, { apiKey: key, priority: opts.priority || 'normal' });
+  var fetchOpts2 = { apiKey: key, priority: opts.priority || 'normal' };
+  if (opts.timeoutMs != null) fetchOpts2.timeoutMs = opts.timeoutMs;
+  if (opts.maxRetries != null) fetchOpts2.maxRetries = opts.maxRetries;
+  var data = await _aiFetchWithRetry(url, body, signal, fetchOpts2);
   if(data.usage && typeof TokenUsageTracker !== 'undefined') TokenUsageTracker.record(data.usage);
   if(data.choices&&data.choices[0]&&data.choices[0].message)return data.choices[0].message.content;
   if(data.content&&Array.isArray(data.content))return data.content.map(function(b){return b.text||"";}).join("");
@@ -1009,7 +1019,7 @@ async function _callAIMessagesStreamDirect(messages, maxTok, opts) {
   var url = (typeof _buildAIUrlForTier === 'function') ? _buildAIUrlForTier(opts.tier) : _buildAIUrl();
   if (!url) throw new Error('API地址未配置');
   var ctrl = new AbortController();
-  var timer = setTimeout(function() { ctrl.abort(); }, 180000);
+  var timer = setTimeout(function() { ctrl.abort(); }, (opts.timeoutMs != null ? opts.timeoutMs : 180000));
   if (opts.signal) opts.signal.addEventListener('abort', function() { ctrl.abort(); });
   var _scaledTok = Math.round((maxTok || 500) * ((typeof getCompressionParams === 'function') ? Math.max(1.0, getCompressionParams().scale) : 1.0));
   try {

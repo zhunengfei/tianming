@@ -1099,11 +1099,11 @@
           max_tokens: _tok(3000)
         };
         if (_tmDetectModelFamily(_auCfg.model, _modelFamily) === 'openai') _auditBody.response_format = { type: 'json_object' };
-        var _auditCall = await _callFollowupAI(_auditBody, { id: 'sc_audit', label: '数据一致性审核', url: _auUrl, key: _auCfg.key, priority: 'normal' });
+        var _auditCall = await _callFollowupAI(_auditBody, { id: 'sc_audit', label: '数据一致性审核', url: _auUrl, key: _auCfg.key, priority: 'normal', timeoutMs: 60000, maxRetries: 0 });
         {
           var dataAu = _auditCall.data;
           var cAu = _auditCall.raw || '';
-          var _pAuParse = await _parseOrRepairJsonResult(cAu, dataAu, '数据一致性审核', { url: _auUrl, key: _auCfg.key, body: _auditBody, expectedKeys: ['conflicts', 'auto_patches', 'needs_rerun'], priority: 'normal' });
+          var _pAuParse = await _parseOrRepairJsonResult(cAu, dataAu, '数据一致性审核', { url: _auUrl, key: _auCfg.key, body: _auditBody, expectedKeys: ['conflicts', 'auto_patches', 'needs_rerun'], priority: 'normal', repairTimeoutMs: 45000, repairMaxRetries: 0 });
           if (_pAuParse && _pAuParse.raw) cAu = _pAuParse.raw;
           var pAu = _pAuParse ? _pAuParse.parsed : null;
           if (pAu) {

@@ -21,6 +21,15 @@ assert(renderIdx >= 0, 'render call exists');
 const renderBlockStart = src.lastIndexOf("if (typeof _endTurn_render === 'function')", renderIdx);
 const renderBlock = src.slice(renderBlockStart, renderIdx + 1800);
 assert(renderBlockStart >= 0, 'render block found');
+
+const stepStart = src.lastIndexOf("name: 'render-and-finalize'", renderIdx);
+const preRenderBlock = src.slice(stepStart, renderIdx);
+assert(stepStart >= 0, 'render-finalize step found');
+assert(preRenderBlock.indexOf('_normalizeTurnChangesForRender') >= 0,
+  'turnChanges are normalized before the result render');
+assert(preRenderBlock.indexOf('ctx.results.changeReportError') >= 0,
+  'legacy change report generation is guarded before the result render');
+
 assert(renderBlock.indexOf('try {') >= 0, 'render call is wrapped in try/catch');
 assert(renderBlock.indexOf("typeof hideLoading === 'function'") >= 0, 'render failure hides loading overlay');
 assert(renderBlock.indexOf('pipeline.render-finalize] render failed') >= 0, 'render failure has diagnostic label');
