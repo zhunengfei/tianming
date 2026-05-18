@@ -44,6 +44,18 @@
     return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   }
 
+  function _stepLabel(name) {
+    var map = {
+      'prep': '整理本回合操作',
+      'plan-prefetch': '预取辅助资料',
+      'ai': 'AI 主推演',
+      'post-ai-edict': '应用诏令附效',
+      'systems': '系统结算',
+      'render-and-finalize': '生成史记弹窗'
+    };
+    return map[name] || name || '回合阶段';
+  }
+
   /**
    * 单 step 执行·处理 onError 策略
    * @param {PipelineStep} step
@@ -99,6 +111,19 @@
 
     for (var i = 0; i < steps.length; i++) {
       var step = steps[i];
+      if (TM.Endturn.Timing && typeof TM.Endturn.Timing.mark === 'function') {
+        TM.Endturn.Timing.mark(ctx, 'step_start', {
+          step: step.name,
+          label: _stepLabel(step.name),
+          index: i + 1,
+          total: steps.length
+        });
+      }
+      try {
+        if (typeof showLoading === 'function') {
+          showLoading('回合阶段 ' + (i + 1) + '/' + steps.length + ' · ' + _stepLabel(step.name), Math.min(96, 18 + i * 12));
+        }
+      } catch(_) {}
       var entry = await _runStep(step, ctx);
       log.push(entry);
       if (TM.Endturn.Timing && typeof TM.Endturn.Timing.mark === 'function') {

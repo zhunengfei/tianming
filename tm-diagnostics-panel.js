@@ -190,11 +190,39 @@
     } catch(e){ guardHtml = '<div style="color:#c66">guard 渲染异常</div>'; }
 
     // ─── 整体布局 ───
+    var timingHtml = '<div style="color:#888;font-size:11px">暂无回合耗时记录</div>';
+    try {
+      var timingSummary = null;
+      if (TM.Endturn && TM.Endturn.Timing && typeof TM.Endturn.Timing.buildSummary === 'function') {
+        timingSummary = TM.Endturn.Timing.buildSummary();
+      } else if (typeof GM !== 'undefined' && GM && GM._lastEndturnTimingSummary) {
+        timingSummary = GM._lastEndturnTimingSummary;
+      }
+      if (timingSummary) {
+        var slowest = timingSummary.slowest || {};
+        var topRows = (timingSummary.top || []).slice(0, 5).map(function(x){
+          var color = x.level === 'critical' ? '#ff7777' : (x.level === 'high' ? '#f0a060' : (x.level === 'medium' ? '#e8c66e' : '#bbb'));
+          return '<div style="display:grid;grid-template-columns:1fr auto;gap:8px;font-size:11px;border-bottom:1px solid #2a2a2a;padding:2px 0;">'
+            + '<span style="color:#ddd">' + _esc(x.label || x.id || x.kind || '') + '</span>'
+            + '<span style="color:' + color + '">' + _esc(x.text || '') + '</span>'
+            + '</div>';
+        }).join('');
+        timingHtml = '<div style="font-size:11px;line-height:1.7;">'
+          + '<div>总耗时：<b style="color:#e8c66e">' + _esc(timingSummary.totalText || '') + '</b>'
+          + ' <span style="color:#888">T' + _esc(timingSummary.turn || 0) + ' · ' + _esc(timingSummary.status || '') + '</span></div>'
+          + (slowest.label ? '<div>最慢：<span style="color:#d99">' + _esc(slowest.label) + '</span> <b style="color:#e8c66e">' + _esc(slowest.text || '') + '</b></div>' : '')
+          + '<div style="margin-top:4px;">' + topRows + '</div>'
+          + '<button onclick="TM.Endturn&&TM.Endturn.Timing&&TM.Endturn.Timing.openDiagnostics&&TM.Endturn.Timing.openDiagnostics()" style="font-size:10px;padding:4px 8px;margin-top:6px;background:#2a1a1a;color:#e8c66e;border:1px solid #5a3a1a;cursor:pointer">打开耗时明细</button>'
+          + '</div>';
+      }
+    } catch(e){ timingHtml = '<div style="color:#c66">endturn timing 渲染异常</div>'; }
+
     var autoOn = !!autoRefreshTimer;
     el.innerHTML = top
       + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:8px;overflow:auto;height:calc(100% - 80px)">'
       + '<div>'
       +   _section('⏱ Perf (Ctrl+Shift+P 详情)', '#d99', perfHtml)
+      +   _section('回合耗时', '#e8c66e', timingHtml)
       +   _section('🛡 Guard', '#9cd', guardHtml)
       + '</div>'
       + '<div>'

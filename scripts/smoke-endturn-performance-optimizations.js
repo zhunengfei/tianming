@@ -31,14 +31,18 @@ const factionEnrichSrc = read('tm-faction-npc-llm-enrich.js');
 const kejuRuntimeSrc = read('tm-keju-runtime.js');
 const aiHelpersSrc = read('tm-endturn-ai-helpers.js');
 const endturnHelpersSrc = read('tm-endturn-helpers.js');
+const diagnosticsPanelSrc = read('tm-diagnostics-panel.js');
 
 assert(fs.existsSync(timingPath), 'endturn timing ledger module exists');
 assert(indexSrc.indexOf('tm-endturn-timing-ledger.js') >= 0, 'timing ledger is loaded by index.html');
 assert(/TM\.Endturn\.Timing/.test(timingSrc), 'TM.Endturn.Timing namespace exists');
 assert(/startLedger/.test(timingSrc) && /mark/.test(timingSrc) && /finishLedger/.test(timingSrc), 'timing ledger exposes start/mark/finish');
 assert(/GM\._endturnTimingLedger/.test(timingSrc), 'timing ledger writes GM._endturnTimingLedger');
+assert(/buildSummary/.test(timingSrc) && /openDiagnostics/.test(timingSrc) && /GM\._lastEndturnTimingSummary/.test(timingSrc), 'timing ledger exposes readable summary and diagnostics UI');
 assert(/TM\.Endturn\.Timing\.startLedger/.test(executorSrc), 'pipeline executor starts timing ledger');
 assert(/TM\.Endturn\.Timing\.mark/.test(executorSrc), 'pipeline executor records step timings');
+assert(/'step_start'/.test(executorSrc) && /回合阶段/.test(executorSrc), 'pipeline executor records active step and updates visible loading stage');
+assert(/回合耗时/.test(diagnosticsPanelSrc) && /openDiagnostics/.test(diagnosticsPanelSrc), 'diagnostics panel shows end-turn timing summary');
 
 assert(!/setTimeout\s*\(\s*resolve\s*,\s*300\s*\)/.test(inferSrc), 'strict-history artificial 300ms delay removed');
 

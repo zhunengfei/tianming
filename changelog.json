@@ -3,6 +3,16 @@
   "entries": [
     {
       "date": "2026-05-18",
+      "module": "回合推演 / 性能诊断",
+      "title": "新增过回合耗时账本与可视化诊断入口",
+      "items": [
+        "记录回合流水线 step/subcall/systems/background 耗时，并生成 GM._lastEndturnTimingSummary。",
+        "Ctrl+Shift+D 诊断面板新增回合耗时区块，可打开耗时明细查看最慢阶段和失败项。",
+        "loading 文案显示当前流水线阶段，卡住时截图可直接判断阶段。"
+      ]
+    },
+    {
+      "date": "2026-05-18",
       "module": "人物行程 / 问对",
       "title": "同步人物到达后的地点镜像，修正远方臣子判定",
       "items": [
