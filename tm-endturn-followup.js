@@ -1386,6 +1386,7 @@
       }
       // 附加：玩家本回合推演依据（让AI明白哪些要体现在场景中）
       var _branchSpecialtySummary = _buildLateSpecialtySummary();
+      _branchSpecialtySummary = _tmLimitPromptSection('分支专项摘要', _branchSpecialtySummary, 5000);
       if (_branchSpecialtySummary) p1Summary += _branchSpecialtySummary;
       var _basisBrief = '';
       // 名望/贤能显著变动的 NPC（供后人戏说穿插议论）
@@ -1470,6 +1471,7 @@
         if (typeof _buildDeadPin === 'function') _ws2 += _buildDeadPin();
         if (typeof _buildPriorTurnBrief === 'function') _ws2 += _buildPriorTurnBrief();
       } catch(_wse2){ _dbg('[WorldSnap sc2] fail:', _wse2); }
+      _ws2 = _tmLimitPromptSection('世界状态快照', _ws2, 8000);
       // 12 表注入·sc2 仅看公开皇命·不看天机
       var _mt2 = '';
       try {
@@ -1477,6 +1479,7 @@
           _mt2 = MemTables.buildTablesInjection({ include: ['imperialEdict', 'curStatus'], hideSecret: true }) || '';
         }
       } catch(_e){}
+      _mt2 = _tmLimitPromptSection('记忆表', _mt2, 3500); p1Summary = _tmLimitPromptSection('结构化推演摘要', p1Summary, 6500); _basisBrief = _tmLimitPromptSection('本回合依据', _basisBrief, 4500); _chronCtx2 = _tmLimitPromptSection('长期事势', _chronCtx2, 4000);
       // 时间参考块（Phase 4.1）
       var _tr2 = '';
       try { if (typeof _buildTimeRef === 'function') _tr2 = _buildTimeRef() || ''; } catch(_e){}
@@ -1522,9 +1525,7 @@
         + "【情绪基调】若主角勤政——写出'做好事真难'(阻力、孤独、疲惫)；若主角享乐——写出'享乐真好'(感官、轻快、奉承)，但不说教。\n"
         + "\n返回纯JSON：\n"
         + "{\"houren_xishuo\":\"...(场景叙事正文)\",\"new_activities\":[{\"name\":\"...\",\"duration\":3,\"desc\":\"...\",\"effect\":{}}]}";
-      // R104·给 AI 完整对话（GM.conv 已由 P.conf.convKeep 设置截断过，用户在设置里改 convKeep 即控制总量）
-      var msgs2=[{role:"system",content:_maybeCacheSys(sysP)}].concat(GM.conv);
-      msgs2.push({role:"user",content:tp2});
+      var msgs2 = (typeof _tmPrepareSc2Messages === 'function') ? _tmPrepareSc2Messages(sysP, GM.conv, tp2, _maybeCacheSys) : [{role:"system",content:_maybeCacheSys(sysP)},{role:"user",content:tp2}];
       var _sc2Body = {model:P.ai.model||"gpt-4o",messages:msgs2,temperature:P.ai.temp||0.8,max_tokens:_tok(16000)};
       if (_modelFamily === 'openai') _sc2Body.response_format = { type: 'json_object' };
       var _sc2Call = await _callFollowupAI(_sc2Body, { id: 'sc2', label: '后人戏说', priority: 'normal' });

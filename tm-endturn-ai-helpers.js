@@ -17,6 +17,68 @@
 // ============================================================
 
 // ============================================================
+
+function _tmMessageContentText(content) {
+  if (Array.isArray(content)) return content.map(function(part){ return typeof part === 'string' ? part : (part && typeof part === 'object' ? String(part.text || part.content || '') : ''); }).join('\n');
+  return String(content == null ? '' : content);
+}
+
+function _tmTrimMiddleText(text, maxChars) {
+  text = String(text == null ? '' : text);
+  maxChars = Math.max(200, Number(maxChars) || 2000);
+  if (text.length <= maxChars) return text;
+  var marker = '\n……（此段过长，已保留首尾并裁去中段 ' + (text.length - maxChars) + ' 字）……\n';
+  var head = Math.max(80, Math.floor((maxChars - marker.length) * 0.62));
+  var tail = Math.max(80, maxChars - marker.length - head);
+  return text.slice(0, head) + marker + text.slice(-tail);
+}
+
+function _tmLimitPromptSection(label, text, maxChars) {
+  text = String(text == null ? '' : text);
+  return (!text || text.length <= maxChars) ? text : ('\n【' + label + '·过长裁剪】\n' + _tmTrimMiddleText(text, maxChars) + '\n');
+}
+
+function _tmBuildCompactConversationForSubcall(conv, opts) {
+  opts = opts || {};
+  var maxChars = Math.max(2000, Number(opts.maxChars) || 10000), perUser = Math.max(600, Number(opts.perUser) || 1800), perAssistant = Math.max(800, Number(opts.perAssistant) || 2600);
+  var out = [], used = 0, skippedHugeUser = 0;
+  if (!Array.isArray(conv) || !conv.length) return out;
+  for (var i = conv.length - 1; i >= 0; i--) {
+    var msg = conv[i]; if (!msg) continue;
+    var role = msg.role === 'assistant' ? 'assistant' : 'user';
+    var content = _tmMessageContentText(msg.content); if (!content.trim()) continue;
+    if (role === 'user' && content.length > 12000) { skippedHugeUser++; continue; }
+    var compact = _tmTrimMiddleText(content, role === 'assistant' ? perAssistant : perUser);
+    if (used + compact.length > maxChars) { if (out.length === 0) compact = _tmTrimMiddleText(compact, Math.max(500, maxChars - used)); else break; }
+    out.unshift({ role: role, content: compact }); used += compact.length;
+  }
+  if (skippedHugeUser > 0) out.unshift({ role: 'user', content: '【对话历史压缩】已跳过 ' + skippedHugeUser + ' 条巨型回合推演输入；本回合事实以结构化摘要、世界快照、记忆表为准。' });
+  return out;
+}
+
+function _tmPrepareSc2Messages(sysP, conv, userPrompt, maybeCacheSys) {
+  function build(maxChars, perUser, perAssistant, uText) {
+    var c = _tmBuildCompactConversationForSubcall(conv, { maxChars: maxChars, perUser: perUser, perAssistant: perAssistant });
+    return { conv: c, messages: [{ role: 'system', content: (typeof maybeCacheSys === 'function' ? maybeCacheSys(sysP) : sysP) }].concat(c).concat([{ role: 'user', content: uText }]) };
+  }
+  var prep = build(10000, 1600, 2400, userPrompt);
+  try {
+    if (typeof checkPromptTokenBudget === 'function') {
+      var r = checkPromptTokenBudget(prep.messages.map(function(m){ return _tmMessageContentText(m && m.content); }).join('\n'), function(status, tokens){ if (typeof toast === 'function') toast('[SC2] prompt ' + status + '·' + tokens + ' tokens'); });
+      window.TM = window.TM || {}; window.TM.lastPromptTokens = window.TM.lastPromptTokens || {};
+      window.TM.lastPromptTokens.sc2 = { tokens: r.tokens, status: r.status, budget: r.budget && r.budget.budget, convMessages: prep.conv.length, ts: Date.now() };
+      if (r.status === 'critical' && String(userPrompt || '').length > 14000) {
+        prep = build(4000, 900, 1200, _tmTrimMiddleText(userPrompt, 14000));
+        var rr = checkPromptTokenBudget(prep.messages.map(function(m){ return _tmMessageContentText(m && m.content); }).join('\n'));
+        window.TM.lastPromptTokens.sc2.tokensAfter = rr.tokens; window.TM.lastPromptTokens.sc2.statusAfter = rr.status;
+        if (typeof recordAIDiagnostic === 'function') recordAIDiagnostic('prompt_trimmed', { id: 'sc2', before: r.tokens, after: rr.tokens });
+      }
+    }
+  } catch(_) {}
+  return prep.messages;
+}
+
+// ============================================================
 // 启动首回合候选事件 aiPlanFirstTurnEvents
 // 1 次 AI 调用·生成 5-8 条首 3 回合可能触发的事件候选
 // generateMemorials 优先从此池抽取·保证首回合剧情契合剧本开局

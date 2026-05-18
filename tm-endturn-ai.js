@@ -403,6 +403,11 @@
 
       // 3.3: Sub-call执行包装器——统一计时/错误处理/重试 + AI调度统计
       if (!GM._aiDispatchStats) GM._aiDispatchStats = { totalCalls:0, totalTime:0, errors:0, byId:{}, errorLog:[] };
+      if (!GM._aiDispatchStats.byId || typeof GM._aiDispatchStats.byId !== 'object') GM._aiDispatchStats.byId = {};
+      if (!Array.isArray(GM._aiDispatchStats.errorLog)) GM._aiDispatchStats.errorLog = [];
+      GM._aiDispatchStats.totalCalls = Number(GM._aiDispatchStats.totalCalls) || 0;
+      GM._aiDispatchStats.totalTime = Number(GM._aiDispatchStats.totalTime) || 0;
+      GM._aiDispatchStats.errors = Number(GM._aiDispatchStats.errors) || 0;
       async function _runSubcall(id, name, minDepth, fn) {
         var _depthOrder = {lite:0, standard:1, full:2};
         if (_depthOrder[_aiDepth] < _depthOrder[minDepth]) {

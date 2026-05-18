@@ -1677,7 +1677,15 @@
 // Sub-call 1 的JSON模板在tp1中定义（下方），此处不再重复
 
     showLoading("AI\u63A8\u6F14 (1/2)",50);
-    GM.conv.push({role:"user",content:tp});
+    var _convUserPrompt = tp;
+    if (typeof _convUserPrompt === 'string' && _convUserPrompt.length > 12000) {
+      _convUserPrompt =
+        '【本回合推演输入摘要】原始输入 ' + _convUserPrompt.length + ' 字，已压缩入对话历史；完整依据由当前世界快照、史记、记忆表与本回合结构化结果承载。\n' +
+        _convUserPrompt.slice(0, 5000) +
+        '\n……（中段为大量世界状态/角色/势力/制度上下文，避免后续子调用重复携带）……\n' +
+        _convUserPrompt.slice(-3000);
+    }
+    GM.conv.push({role:"user",content:_convUserPrompt});
 
     // 构建系统提示词，包含游戏模式和历史名臣年份限制
     var gameModeDesc = '';
