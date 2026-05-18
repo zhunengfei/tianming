@@ -2324,11 +2324,23 @@
       // travelTo：启动走位
       if (cu.travelTo && cu.travelTo.toLocation) {
         // —— 幂等保护·若已在赴同一终点·不重写剩余天数（避免 AI 重复 issue 重置走位） ——
-        if (ch._travelTo && ch._travelTo === cu.travelTo.toLocation) {
+        if (ch._travelTo && _sameTravelLocation(ch._travelTo, cu.travelTo.toLocation)) {
           if (typeof global.addEB === 'function') {
             global.addEB('人事', ch.name + ' 复诏催程赴 ' + ch._travelTo + '（已在路·留剩 ' + (typeof ch._travelRemainingDays === 'number' ? ch._travelRemainingDays + ' 日' : '未抵') + '）');
           }
           return; // 跳过重启走位
+        }
+        if (ch.location && _sameTravelLocation(ch.location, cu.travelTo.toLocation)) {
+          _syncCharacterLocationMirrors(G, ch, { location: ch.location }, [
+            '_travelTo',
+            '_travelFrom',
+            '_travelStartTurn',
+            '_travelRemainingDays',
+            '_travelArrival',
+            '_travelReason',
+            '_travelAssignPost'
+          ]);
+          return; // 已在同地（如顺天府=京师）·不启动无意义走位
         }
         var days = cu.travelTo.estimatedDays || _estimateTravelDays(ch.location, cu.travelTo.toLocation);
         ch._travelTo = cu.travelTo.toLocation;
@@ -2337,6 +2349,7 @@
         ch._travelRemainingDays = days;
         ch._travelReason = cu.travelTo.reason || '';
         ch._travelAssignPost = cu.travelTo.assignPost || '';
+        _syncCharacterLocationMirrors(G, ch, _travelMirrorFields(ch), []);
         charUpdCount++;
         G._turnReport.push({ type:'travel', char: ch.name, from:ch._travelFrom, to:ch._travelTo, days:days, reason:ch._travelReason, turn:G.turn||0 });
         if (typeof global.addEB === 'function') global.addEB('\u4EBA\u4E8B', ch.name + ' \u8D74 ' + ch._travelTo + '\uFF08\u9884\u8BA1 ' + days + ' \u65E5\uFF09');
@@ -2371,16 +2384,17 @@
       if (!ch) { applied.failed.push({office_assignment: oa, reason: 'char not found'}); return; }
       var action = oa.action || 'appoint';
       // 是否需要先走位（任命/调任至他处皆走位）
-      var needTravel = oa.toLocation && ch.location && oa.toLocation !== ch.location;
+      var needTravel = oa.toLocation && ch.location && !_sameTravelLocation(oa.toLocation, ch.location);
       if (needTravel && (action === 'appoint' || action === 'transfer')) {
         // —— 幂等保护·若已在赴同一终点·不重写剩余天数（避免 AI 重复 issue 重置走位） ——
-        if (ch._travelTo && ch._travelTo === oa.toLocation) {
+        if (ch._travelTo && _sameTravelLocation(ch._travelTo, oa.toLocation)) {
           if (typeof global.addEB === 'function') {
             global.addEB('任命', ch.name + ' 复诏催赴 ' + ch._travelTo + ' 任 ' + (oa.post||'') + '（已在路·留剩 ' + (typeof ch._travelRemainingDays === 'number' ? ch._travelRemainingDays + ' 日' : '未抵') + '）');
           }
           // 若新诏含官职·补到 _travelAssignPost（原 travelTo 可能是 char_updates 设的·没 assignPost）
           if (oa.post && !ch._travelAssignPost) {
             ch._travelAssignPost = (oa.dept ? oa.dept + '/' : '') + oa.post;
+            _syncCharacterLocationMirrors(G, ch, _travelMirrorFields(ch), []);
           }
           return;
         }
@@ -2392,6 +2406,7 @@
         ch._travelRemainingDays = days;
         ch._travelReason = (oa.reason || '') + '·赴任';
         ch._travelAssignPost = (oa.dept ? oa.dept + '/' : '') + (oa.post || '');
+        _syncCharacterLocationMirrors(G, ch, _travelMirrorFields(ch), []);
         G._turnReport.push({ type:'travel', char: ch.name, from:ch._travelFrom, to:ch._travelTo, days:days, reason:ch._travelReason, turn:G.turn||0 });
         if (typeof global.addEB === 'function') global.addEB('\u4EFB\u547D', ch.name + ' \u8D74 ' + oa.toLocation + ' \u4EFB ' + (oa.post||'') + '\uFF08\u9884\u8BA1 ' + days + ' \u65E5\u5230\u4EFB\uFF09');
         if (G.qijuHistory) {
@@ -4923,6 +4938,64 @@
   //  角色路程推进·到达自动就任（AI 至高权力·Step 4）
   //  每回合调用 · daysPassed = P.time.daysPerTurn
   // ═══════════════════════════════════════════════════════════════════
+  function _sameTravelLocation(a, b) {
+    if (!a || !b) return false;
+    try {
+      if (typeof global._isSameLocation === 'function') return !!global._isSameLocation(a, b);
+    } catch(_) {}
+    try {
+      if (typeof _isSameLocation === 'function') return !!_isSameLocation(a, b);
+    } catch(_) {}
+    return String(a || '').replace(/\s/g, '') === String(b || '').replace(/\s/g, '');
+  }
+
+  function _travelMirrorFields(ch) {
+    return {
+      _travelTo: ch && ch._travelTo,
+      _travelFrom: ch && ch._travelFrom,
+      _travelStartTurn: ch && ch._travelStartTurn,
+      _travelRemainingDays: ch && ch._travelRemainingDays,
+      _travelArrival: ch && ch._travelArrival,
+      _travelReason: ch && ch._travelReason,
+      _travelAssignPost: ch && ch._travelAssignPost
+    };
+  }
+
+  function _syncCharacterLocationMirrors(G, ch, fields, deleteKeys) {
+    if (!G || !ch || !ch.name) return;
+    fields = fields || {};
+    deleteKeys = deleteKeys || [];
+    [G.chars, G.allCharacters].forEach(function(list) {
+      if (!Array.isArray(list)) return;
+      list.forEach(function(item) {
+        if (!item || item.name !== ch.name) return;
+        Object.keys(fields).forEach(function(k) { item[k] = fields[k]; });
+        deleteKeys.forEach(function(k) { try { delete item[k]; } catch(_) {} });
+      });
+    });
+  }
+
+  function _refreshCharacterLocationUiAfterTravel() {
+    try {
+      if (typeof global.buildIndices === 'function') global.buildIndices();
+    } catch(_) {}
+    try {
+      if (typeof global.renderGameState === 'function') global.renderGameState();
+    } catch(_) {}
+    try {
+      if (typeof global.renderRenwu === 'function') global.renderRenwu(true);
+    } catch(_) {}
+    try {
+      if (typeof global.renderSidePanels === 'function') global.renderSidePanels();
+    } catch(_) {}
+    try {
+      if (typeof global.renderWenduiPanel === 'function') global.renderWenduiPanel();
+    } catch(_) {}
+    try {
+      if (typeof global.renderShizhengPanel === 'function') global.renderShizhengPanel();
+    } catch(_) {}
+  }
+
   function advanceCharTravelByDays(daysPassed) {
     var G = global.GM;
     if (!G || !Array.isArray(G.chars) || !(daysPassed > 0)) return { arrived: 0, inflight: 0 };
@@ -4947,6 +5020,7 @@
       var reason = ch._travelReason || '';
 
       ch.location = toLoc;
+      _syncCharacterLocationMirrors(G, ch, { location: toLoc }, []);
 
       // 自动就任·仅当 _travelAssignPost 存在
       if (assignPost) {
@@ -5011,6 +5085,15 @@
       delete ch._travelArrival;
       delete ch._travelReason;
       delete ch._travelAssignPost;
+      _syncCharacterLocationMirrors(G, ch, { location: toLoc }, [
+        '_travelTo',
+        '_travelFrom',
+        '_travelStartTurn',
+        '_travelRemainingDays',
+        '_travelArrival',
+        '_travelReason',
+        '_travelAssignPost'
+      ]);
 
       // 写入本回合报告（供史记读取）
       if (!Array.isArray(G._turnReport)) G._turnReport = [];
@@ -5018,6 +5101,7 @@
       arrived++;
     });
 
+    if (arrived > 0) _refreshCharacterLocationUiAfterTravel();
     return { arrived: arrived, inflight: inflight };
   }
 

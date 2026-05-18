@@ -381,9 +381,9 @@ function _rwRenderCard(c,ctx) {
   var _nameArg = "'" + (c.name||'').replace(/'/g,"\\'") + "'";
   var _actionsHtml = '';
   if (!_isDead && !_isPlayer) {
-    var _capRW = GM._capital || '\u4EAC\u5E08';
+    var _playerLocRW = (typeof _getPlayerLocation === 'function') ? _getPlayerLocation() : (GM._capital || '\u4EAC\u5E08');
     var _locRW = (c.location || '').replace(/\s/g,'');
-    var _atCapRW = !_locRW || _locRW === _capRW || _locRW.indexOf(_capRW) >= 0 || /\u4EAC|\u4EAC\u57CE|\u4EAC\u5E08|\u5317\u4EAC/.test(_locRW);
+    var _atCapRW = !c.location || ((typeof _isSameLocation === 'function') ? _isSameLocation(c.location, _playerLocRW) : (_locRW === String(_playerLocRW || '').replace(/\s/g,'')));
     var _enRouteRW = !!(c._travelTo || c._enRouteToOffice);
     if (_atCapRW && !_enRouteRW && typeof openWenduiPick === 'function') {
       _actionsHtml += '<button class="rw-btn" onclick="event.stopPropagation();openWenduiPick('+_nameArg+');">\u95EE\u5BF9</button>';
@@ -448,9 +448,8 @@ function viewRenwu(i){
   if (!_isPlayerChar && ch.alive !== false) {
     html += '<div style="display:flex;gap:var(--space-1);margin-bottom:0.6rem;flex-wrap:wrap;">';
     var _safeName = escHtml(ch.name).replace(/'/g, "\\'");
-    var _capDV = GM._capital || '\u4EAC\u5E08';
-    var _locDV = (ch.location || '').replace(/\s/g,'');
-    var _atCapDV = !_locDV || _locDV === _capDV || _locDV.indexOf(_capDV) >= 0 || /\u4EAC|\u4EAC\u57CE|\u4EAC\u5E08|\u5317\u4EAC/.test(_locDV);
+    var _playerLocDV = (typeof _getPlayerLocation === 'function') ? _getPlayerLocation() : (GM._capital || '\u4EAC\u5E08');
+    var _atCapDV = !ch.location || ((typeof _isSameLocation === 'function') ? _isSameLocation(ch.location, _playerLocDV) : (String(ch.location || '').replace(/\s/g,'') === String(_playerLocDV || '').replace(/\s/g,'')));
     var _enRouteDV = !!(ch._travelTo || ch._enRouteToOffice);
     if (_atCapDV && !_enRouteDV) {
       html += '<button class="bt bsm" style="font-size:0.7rem;" onclick="GM.wenduiTarget=\'' + _safeName + '\';switchGTab(null,\'gt-wendui\');">\u95EE\u5BF9</button>';

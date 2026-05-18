@@ -8022,7 +8022,10 @@
     var loc = String(p.location || p.place || p.currentLocation || '').replace(/\s+/g, '');
     var status = String(p.status || p.state || '');
     var office = String(p.officialTitle || p.office || p.title || p.role || '');
-    if (loc && (loc.indexOf(capital) >= 0 || /京|京师|京城|北京|宫|内廷|乾清|紫禁/.test(loc))) return true;
+    try {
+      if (loc && typeof window._isSameLocation === 'function' && window._isSameLocation(loc, capital)) return true;
+    } catch(_) {}
+    if (loc && (loc.indexOf(capital) >= 0 || /京|京师|京城|北京|顺天|宫|内廷|乾清|紫禁/.test(loc))) return true;
     if (!loc && /内阁|六部|都察院|司礼监|御史|给事中|尚书|侍郎|朝|宫|内廷/.test(office + status)) return true;
     return /在京|在朝|候旨|入值|当值/.test(status + office);
   }

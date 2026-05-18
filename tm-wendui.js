@@ -250,9 +250,10 @@ function openWenduiModal(name, mode, prefillMsg) {
     if (typeof _gCh.health === 'number' && _gCh.health <= 10) _reasons.push('病重');
     // 位置判定·不在京师且无其他 reasons 则 reasons 加"在远方"
     if (_reasons.length === 0) {
-      var _capC = GM._capital || '京师';
-      var _loc = (_gCh.location || '').replace(/\s/g,'');
-      var _isAtCap = !_loc || _loc === _capC || _loc.indexOf(_capC) >= 0 || /京|京城|京师|北京/.test(_loc);
+      var _playerLocC = (typeof _getPlayerLocation === 'function') ? _getPlayerLocation() : (GM._capital || '京师');
+      var _locRaw = _gCh.location || '';
+      var _loc = String(_locRaw || '').replace(/\s/g,'');
+      var _isAtCap = !_locRaw || ((typeof _isSameLocation === 'function') ? _isSameLocation(_locRaw, _playerLocC) : (_loc === String(_playerLocC || '').replace(/\s/g,'')));
       // 也考虑在途·若正赴京则仍不在京
       if (!_isAtCap || _gCh._travelTo || _gCh._enRouteToOffice) {
         _reasons.push('远在' + (_loc || '外地') + (_gCh._travelTo ? ('·正赴 '+_gCh._travelTo) : ''));
