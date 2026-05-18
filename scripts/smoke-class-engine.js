@@ -59,6 +59,10 @@ assert(EC && CE, 'class bridge APIs must be mounted on TM');
 assert(context.EngineConstants === EC, 'EngineConstants global alias missing');
 assert(context.ClassEngine === CE, 'ClassEngine global alias missing');
 assert(CE.currentVersion === 1, 'class engine version mismatch');
+assert(CE.parseSizeShare('50%') === 0.5, 'parseSizeShare should parse explicit percent');
+assert(Math.abs(CE.parseSizeShare('约 50 万(占 0.33%)') - 0.0033) < 1e-9, 'parseSizeShare should prefer explicit percent in population text');
+assert(CE.parseSizeShare('约 50 万') === null, 'parseSizeShare must not treat population counts as 50 percent');
+assert(CE.parseSizeShare('20') === 0.2, 'parseSizeShare should keep legacy plain numeric percent support');
 assert(EC.read('classToPartyWeight', { engineConstants: {} }) === undefined, 'empty engine constants should not invent classToPartyWeight');
 assert(EC.read('classPartyDefaultAffinity', { engineConstants: {} }) === undefined, 'empty engine constants should not invent classPartyDefaultAffinity');
 assert(context.TM_AI_SCHEMA.toKnownFields().class_alert_responses === 'array', 'schema missing class_alert_responses');
@@ -236,4 +240,4 @@ assert(endturnText.indexOf('supportingParties:[{class:"倾向支持的党派",af
 const loopText = fs.readFileSync(path.join(ROOT, 'tm-game-loop.js'), 'utf8');
 assert(loopText.indexOf('TM.ClassEngine.bootstrap') >= 0, 'game loop missing class bridge bootstrap');
 
-console.log('[smoke-class-engine] pass assertions=78');
+console.log('[smoke-class-engine] pass assertions=82');

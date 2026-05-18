@@ -561,16 +561,99 @@ function _wdAudienceOpeningFallback(name, ch) {
   return '臣' + name + '叩见陛下。臣有事启奏。';
 }
 
-function _wdResolveAudienceReplyText(name, ch, parsed, rawReply) {
+function _wdDecodeJsonTextFragment(fragment) {
+  var txt = String(fragment == null ? '' : fragment);
+  txt = txt.replace(/\\n/g, '\n').replace(/\\r/g, '\r').replace(/\\t/g, '\t');
+  txt = txt.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+  return txt.trim();
+}
+
+function _wdTrimStructuredTail(text) {
+  var txt = String(text == null ? '' : text);
+  var markers = [
+    '","loyaltyDelta"', '", "loyaltyDelta"', '","suggestions"', '", "suggestions"',
+    '"loyaltyDelta"', '"suggestions"', '"toneEffect"', '"memoryImpact"', '"emotionState"',
+    '],"toneEffect"', '}],"toneEffect"', '],"memoryImpact"', '}],"memoryImpact"'
+  ];
+  var cut = -1;
+  markers.forEach(function(m) {
+    var idx = txt.indexOf(m);
+    if (idx >= 0 && (cut < 0 || idx < cut)) cut = idx;
+  });
+  if (cut >= 0) txt = txt.slice(0, cut);
+  return txt.replace(/[,{[\]\s"]+$/g, '').trim();
+}
+
+function _wdExtractJsonStringField(raw, key, allowPartial) {
+  var text = String(raw == null ? '' : raw);
+  var re = new RegExp('["\\\']?' + key + '["\\\']?\\s*[:：]\\s*["\\\']', 'i');
+  var m = re.exec(text);
+  if (!m) return '';
+  var quote = text.charAt(m.index + m[0].length - 1);
+  var start = m.index + m[0].length;
+  var esc = false;
+  for (var i = start; i < text.length; i++) {
+    var c = text.charAt(i);
+    if (esc) { esc = false; continue; }
+    if (c === '\\') { esc = true; continue; }
+    if (c === quote) {
+      var tail = text.slice(i + 1, i + 80);
+      if (/^\s*[,}\]]/.test(tail)) return _wdDecodeJsonTextFragment(text.slice(start, i));
+    }
+  }
+  if (!allowPartial) return '';
+  return _wdDecodeJsonTextFragment(_wdTrimStructuredTail(text.slice(start)));
+}
+
+function _wdLooksLikeStructuredReply(raw) {
+  var text = String(raw == null ? '' : raw).trim();
+  if (!text) return false;
+  if (/^```?json/i.test(text) || /^[{\[]/.test(text)) return true;
+  return /["']?(reply|loyaltyDelta|suggestions|toneEffect|memoryImpact|emotionState)["']?\s*[:：]/.test(text);
+}
+
+function _wdVisibleReplyPreview(raw) {
+  var text = String(raw == null ? '' : raw).trim();
+  if (!text) return '';
+  var reply = _wdExtractJsonStringField(text, 'reply', true);
+  if (reply) return reply;
+  if (_wdLooksLikeStructuredReply(text)) return '';
+  return text;
+}
+
+function _wdReadableTextFallback(raw) {
+  var text = String(raw == null ? '' : raw).trim();
+  if (!text) return '';
+  text = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+  text = text.replace(/^[{\[]+/, '').replace(/[}\]]+$/, '').trim();
+  text = text.replace(/["']?(loyaltyDelta|suggestions|toneEffect|memoryImpact|emotionState|requestOvernight)["']?\s*[:：]\s*[\s\S]*$/i, '').trim();
+  text = text.replace(/["']?reply["']?\s*[:：]\s*["']?/i, '').trim();
+  text = _wdTrimStructuredTail(text);
+  text = _wdDecodeJsonTextFragment(text);
+  text = text.replace(/^[,\s"']+|[,\s"']+$/g, '').trim();
+  return text;
+}
+
+function _wdSanitizeDialogueReplyText(name, ch, parsed, rawReply) {
   var replyText = '';
   if (parsed && Object.prototype.hasOwnProperty.call(parsed, 'reply')) {
     replyText = parsed.reply;
-  } else {
-    replyText = rawReply;
   }
+  if (!replyText && parsed && parsed.zhengwen) {
+    replyText = _wdExtractJsonStringField(parsed.zhengwen, 'reply', true);
+  }
+  if (!replyText) replyText = _wdExtractJsonStringField(rawReply, 'reply', true);
+  if (!replyText && !_wdLooksLikeStructuredReply(rawReply)) replyText = rawReply;
+  if (!replyText) replyText = _wdReadableTextFallback(rawReply);
   replyText = String(replyText == null ? '' : replyText).trim();
+  if (_wdLooksLikeStructuredReply(replyText)) replyText = _wdVisibleReplyPreview(replyText);
+  if (!replyText) replyText = _wdReadableTextFallback(replyText);
   if (!replyText) replyText = _wdAudienceOpeningFallback(name, ch);
   return replyText;
+}
+
+function _wdResolveAudienceReplyText(name, ch, parsed, rawReply) {
+  return _wdSanitizeDialogueReplyText(name, ch, parsed, rawReply);
 }
 
 function _wdCommitAudienceOpening(name, ch, replyText) {
@@ -655,7 +738,10 @@ async function _wdNpcInitiateSpeak(name) {
       tier: (typeof _useSecondaryTier === 'function' && _useSecondaryTier()) ? 'secondary' : undefined,  // M3·问对走次 API
       onChunk: function(txt) {
         var bubble = _$('wd-init-bubble');
-        if (bubble) { bubble.textContent = String(txt || '').trim() ? txt : '\u2026'; }
+        if (bubble) {
+          var visible = _wdVisibleReplyPreview(txt);
+          bubble.textContent = visible || '\u2026';
+        }
         chatEl.scrollTop = chatEl.scrollHeight;
       }
     });
@@ -1341,7 +1427,11 @@ async function sendWendui(){
       var rawReply = await callAIMessagesStream(messages, (typeof _aiDialogueTok==='function'?_aiDialogueTok("wd", 1):800), {
         tier: (typeof _useSecondaryTier === 'function' && _useSecondaryTier()) ? 'secondary' : undefined,  // M3·问对走次 API
         onChunk: function(txt) {
-          if (streamBubble) { streamBubble.textContent = txt; streamBubble.style.color = ''; }
+          if (streamBubble) {
+            var visible = _wdVisibleReplyPreview(txt);
+            streamBubble.textContent = visible || '\u2026';
+            streamBubble.style.color = '';
+          }
           chat.scrollTop = chat.scrollHeight;
         }
       });
@@ -1353,6 +1443,8 @@ async function sendWendui(){
           replyText = parsed.reply;
           var _ldMax = (_wenduiMode === 'private') ? 3 : 2;
           loyaltyDelta = clamp(parseInt(parsed.loyaltyDelta) || 0, -_ldMax, _ldMax);
+        } else {
+          replyText = _wdSanitizeDialogueReplyText(name, ch, parsed, rawReply);
         }
         if (loyaltyDelta !== 0) {
           if (typeof adjustCharacterLoyalty === 'function') {

@@ -14,7 +14,7 @@
  * 开局戏眼：处置魏忠贤之时机与手段；辽东经略之人选；陕北赈饥之财源
  *
  * 扩充数据（实测自报，2026-04-29 以 register() 末尾日志为准）：
- *   · 朝臣/后妃/宦官/外镇/敌方/逆雄  98 人（含历史低阶但将崛起者）
+ *   · 朝臣/后妃/宦官/外镇/敌方/逆雄  106 人（含历史低阶但将崛起者）
  *   · 势力 12（明朝廷 / 后金 / 察哈尔 / 科尔沁蒙古 / 朝鲜 / 播州土司·杨氏 / 郑氏海商 / 陕北饥民
  *              / 葡萄牙·澳门 / 荷兰·台海(东印度公司) / 西班牙·马尼拉 / 奢安之乱联军）
  *   · 党派 7（阉党 / 东林 / 浙党 / 楚党 / 齐党 / 宣党 / 昆党）
@@ -37,7 +37,7 @@
   var _TIANQI7_PORTRAIT_BASE = 'assets/portraits/tianqi7/';
   var _TIANQI7_GENERIC_PORTRAIT_BASE = _TIANQI7_PORTRAIT_BASE + 'generic/';
   var _TIANQI7_SPECIFIC_PORTRAITS = [
-    '仁祖李倧','代善','佟养性','侯世禄','冯铨','刘诏','刘鸿训','卢象升','吴三桂','周延儒','周应秋','周皇后','哲哲','囊囊太后','多尔衮','多铎','奢崇明','孙承宗','宁完我','客氏','布木布泰','崇祯','崔呈秀','张懿安','张献忠','张瑞图','徐光启','成基命','施凤来','春日局','朱梅','朱由检','李养正','李国普','李标','李永芳','李永贞','李自成','李选侍','杜文焕','来宗道','杨所修','杨鹤','林丹汗','林尧俞','武之望','毛一鹭','毛文龙','济尔哈朗','洪承畴','海兰珠','涂文辅','渠家祯','温体仁','满桂','潘汝桢','王体乾','王嘉胤','王在晋','田尔耕','田川松','田贵妃','皇太极','祖大寿','秦良玉','胡廷宴','苏泰太后','范文程','莽古尔泰','薛凤翔','薛贞','袁崇焕','袁贵妃','许显纯','豪格','赵率教','郭允厚','郑芝龙','钱龙锡','阎鸣泰','阿敏','阿济格','陈新甲','韩爌','高迎祥','魏忠贤','黄立极'
+    '仁祖李倧','代善','佟养性','侯世禄','冯铨','刘诏','刘鸿训','卢象升','吴三桂','周延儒','周应秋','周皇后','哲哲','囊囊太后','多尔衮','多铎','奢崇明','孙承宗','宁完我','客氏','布木布泰','崇祯','崔呈秀','张懿安','张献忠','张瑞图','徐光启','成基命','施凤来','春日局','朱梅','朱由检','李养正','李国普','李标','李永芳','李永贞','李自成','李选侍','杜文焕','来宗道','杨所修','杨鹤','林丹汗','林尧俞','武之望','毛一鹭','毛文龙','曹文诏','曹变蛟','济尔哈朗','洪承畴','海兰珠','涂文辅','渠家祯','温体仁','满桂','潘汝桢','王体乾','王嘉胤','王在晋','田尔耕','田川松','田贵妃','皇太极','祖大寿','秦良玉','胡廷宴','苏泰太后','范文程','莽古尔泰','薛凤翔','薛贞','袁崇焕','袁贵妃','许显纯','豪格','赵率教','郭允厚','郑芝龙','钱龙锡','阎鸣泰','阿敏','阿济格','陈新甲','韩爌','高迎祥','魏忠贤','黄立极'
   ].reduce(function(acc, name) {
     acc[name] = _TIANQI7_PORTRAIT_BASE + name + '.png';
     return acc;
@@ -74,7 +74,7 @@
     if (/流寇|饥民|起义|叛|土司|播州|奢安|王嘉胤|高迎祥|李自成|张献忠|罗汝才|马守应|贺一龙|贺锦|刘宗敏|奢崇明|安邦彦/.test(text)) return _portraitPick(c, 'generic-rebel-tusi-bandit-01.png', 'generic-rebel-tusi-bandit-02.png');
     if (/太监|宦|司礼监|内臣|魏忠贤|王体乾|涂文辅|李永贞|王承恩|曹化淳|方正化/.test(text)) return _portraitPick(c, 'generic-ming-eunuch-01.png', 'generic-ming-eunuch-02.png');
     if (/阉党|魏党|崔呈秀|田尔耕|许显纯|黄立极|施凤来|冯铨|周应秋|潘汝桢|张瑞图|薛贞|薛凤翔|李养正|杨所修|毛一鹭/.test(text)) return _portraitPick(c, 'generic-ming-yandang-official-01.png', 'generic-ming-yandang-official-02.png');
-    if (/总兵|参将|游击|都督|将军|经略|督师|巡抚|辽东|蓟辽|关宁|山海|边军|水师|袁崇焕|孙承宗|毛文龙|满桂|赵率教|祖大寿|洪承畴|卢象升|孙传庭|秦良玉|吴三桂|侯世禄|杜文焕|渠家祯|朱燮元|杨嗣昌|熊文灿/.test(text)) return _portraitPick(c, 'generic-ming-general-01.png', 'generic-ming-general-02.png');
+    if (/总兵|参将|游击|都督|将军|经略|督师|巡抚|辽东|蓟辽|关宁|山海|边军|水师|袁崇焕|孙承宗|毛文龙|曹文诏|曹变蛟|满桂|赵率教|祖大寿|洪承畴|卢象升|孙传庭|秦良玉|吴三桂|侯世禄|杜文焕|渠家祯|朱燮元|杨嗣昌|熊文灿/.test(text)) return _portraitPick(c, 'generic-ming-general-01.png', 'generic-ming-general-02.png');
     if (/翰林|讲官|学士|进士|书院|东林|复社|儒|徐光启|韩爌|钱龙锡|成基命|刘鸿训|李标|毕自严|温体仁|周延儒|孙元化|顾炎武|黄宗羲|王夫之|张溥|陈子龙|侯恂|黄道周|刘宗周|倪元璐|钱谦益|查继佐|方以智/.test(text)) return _portraitPick(c, 'generic-ming-scholar-official-01.png', 'generic-ming-scholar-official-02.png');
     return _portraitPick(c, 'generic-ming-civil-official-01.png', 'generic-ming-civil-official-02.png');
   }
@@ -209,6 +209,24 @@
       innerThought: '皮岛孤悬海外，朝廷视我如弃子。然我手握东江十余万人，朝廷不敢不给饷。袁崇焕来督师，必欲夺我兵。',
       stressSources: ['袁崇焕欲节制', '朝廷疑其冒饷', '后金离间'],
       career: [ { year: 1605, title: '武举', note: '后从军辽东。' }, { year: 1621, title: '袭据镇江', note: '天启元年。' }, { year: 1622, title: '开东江镇' } ]
+    },
+    '曹文诏': {
+      zi: '', haoName: '', birthplace: '山西·大同', learning: '边镇行伍',
+      appearance: '短须锐目，身材精悍，常披旧甲，马鞭不离手。', diction: '军令短促，少作虚文，怒时直斥。',
+      innerThought: '辽东久苦，陕北又饥。文官只知催饷，兵卒却无衣无马。若朝廷真肯给粮给马，吾辈尚可替天子搏一条西北生路。',
+      personalGoal: '以骑兵剿流寇，立军功，保大同曹氏一门。',
+      stressSources: ['边饷拖欠', '马价高涨', '陕北饥民渐聚', '文官掣肘'],
+      career: [ { year: 1627, title: '山西边镇将领', note: '天启七年仍在边镇军中积累战名。' }, { year: 1630, title: '援剿西北', note: '崇祯初后转战山陕。' } ],
+      familyMembers: [ { name: '曹变蛟', relation: '侄·从军随征' } ]
+    },
+    '曹变蛟': {
+      zi: '', haoName: '', birthplace: '山西·大同', learning: '将门骑射',
+      appearance: '少年锐气外露，眉目英悍，骑射服色从军中而不尚华饰。', diction: '言语急切，好请前锋。',
+      innerThought: '叔父每战先登，变蛟岂能落后？朝廷若轻弃边将，我曹家便以战功自明。',
+      personalGoal: '随叔父曹文诏立功，早日自领一军。',
+      stressSources: ['年少未被诸将重视', '军中欠饷', '叔父军法严厉'],
+      career: [ { year: 1627, title: '曹文诏部少年将校', note: '随叔父在边镇军中历练。' } ],
+      familyMembers: [ { name: '曹文诏', relation: '叔父·师帅' } ]
     },
     '洪承畴': {
       zi: '彦演', haoName: '亨九', birthplace: '福建·泉州南安', learning: '进士',
@@ -444,6 +462,24 @@
       secret: '与后金暗通款曲，所谓"海外之谊"——有通敌嫌疑，然以此自保皮岛粮饷。',
       skills: ['海战', '山地游击', '统兵', '冒饷'],
       hobbies: '饮酒,歌舞'
+    },
+    '曹文诏': {
+      aiPersonaText: '山西边镇猛将。重军纪、重骑兵突击，厌恶空谈。对朝廷仍忠，但对欠饷和临阵掣肘极不耐烦。',
+      behaviorMode: '勇决·严厉·急战·护部曲',
+      valueSystem: '军功第一；部曲生死第二；文牍名分第三。',
+      speechStyle: '军中短句，常言"给马、给粮、给时日"。',
+      secret: '深知边军私下买卖军马甲械，若无灰色手段难以养精骑。',
+      skills: ['骑兵突击', '边镇练兵', '剿寇追击', '严刑军法'],
+      hobbies: '阅马,校射,夜巡营伍'
+    },
+    '曹变蛟': {
+      aiPersonaText: '少年锐将，凡事愿抢先锋。受叔父曹文诏管束，重义气而少耐心。',
+      behaviorMode: '锐悍·好胜·求战·急躁',
+      valueSystem: '叔父威名；曹氏军功；少年名望。',
+      speechStyle: '语速快，常请"愿为前驱"。',
+      secret: '畏惧自己永远只被看作曹文诏之侄，故每战求险功。',
+      skills: ['骑射', '冲阵', '侦骑', '夜袭'],
+      hobbies: '试弓,赛马'
     },
     '满桂': {
       aiPersonaText: '蒙古裔行伍骁将。不识字，然战场勇猛冠三军。与袁崇焕不睦。',
@@ -712,6 +748,24 @@
         '《国榷》：文龙本小吏，得据海岛数年，俨然藩镇。'
       ],
       wuchangOverride: { '仁': 35, '义': 30, '礼': 38, '智': 70, '信': 40 }
+    },
+    '曹文诏': {
+      sources: [
+        '《明史·曹文诏传》：曹文诏，大同人，以骁勇知名。',
+        '《明季北略》载其崇祯年间转战山陕，屡以骑兵破流寇。',
+        '明末边镇记载多称其严军法、善追击，后力战被围而死。'
+      ],
+      wuchangOverride: { '仁': 55, '义': 82, '礼': 58, '智': 68, '信': 78 },
+      statAdjust: { intelligence: 68, valor: 92, military: 84, administration: 45, management: 70, integrity: 76, benevolence: 55 }
+    },
+    '曹变蛟': {
+      sources: [
+        '《明史·曹变蛟传》：曹变蛟为曹文诏从子，骁勇亚其叔。',
+        '松锦之败后，曹变蛟被执不屈，列明末殉节武臣。',
+        '天启七年时尚为年轻边将，合理置于曹文诏军中历练。'
+      ],
+      wuchangOverride: { '仁': 52, '义': 86, '礼': 56, '智': 60, '信': 82 },
+      statAdjust: { intelligence: 60, valor: 88, military: 78, administration: 30, management: 48, integrity: 80, benevolence: 52 }
     },
     '满桂': {
       sources: [
@@ -1280,6 +1334,27 @@
         '耿仲明': { affinity: 75, trust: 65, respect: 50, fear: 0, hostility: 0, labels: ['部将'] },
         '尚可喜': { affinity: 70, trust: 60, respect: 50, fear: 0, hostility: 5, labels: ['部将'] },
         '皇太极': { affinity: 10, trust: 5, respect: 60, fear: 15, hostility: 75, labels: ['牵制之敌'] }
+      }
+    },
+    '曹文诏': {
+      familyMembers: [
+        { name: '曹变蛟', relation: '侄·从军随征', note: '少年锐将，受其军法与骑战熏陶' }
+      ],
+      relations: {
+        '曹变蛟': { affinity: 88, trust: 84, respect: 76, fear: 12, hostility: 0, labels: ['叔侄','师帅'] },
+        '洪承畴': { affinity: 58, trust: 55, respect: 68, fear: 0, hostility: 8, labels: ['日后剿寇同道'] },
+        '孙传庭': { affinity: 62, trust: 58, respect: 72, fear: 0, hostility: 5, labels: ['西北战场同道'] },
+        '高迎祥': { affinity: 0, trust: 0, respect: 38, fear: 8, hostility: 90, labels: ['流寇死敌'] }
+      }
+    },
+    '曹变蛟': {
+      familyMembers: [
+        { name: '曹文诏', relation: '叔父·师帅', note: '曹氏军中倚为根本' }
+      ],
+      relations: {
+        '曹文诏': { affinity: 92, trust: 88, respect: 92, fear: 18, hostility: 0, labels: ['叔父','师帅'] },
+        '洪承畴': { affinity: 52, trust: 48, respect: 65, fear: 5, hostility: 5, labels: ['日后统帅'] },
+        '吴三桂': { affinity: 48, trust: 42, respect: 50, fear: 0, hostility: 10, labels: ['同为少年边将'] }
       }
     },
     '洪承畴': {
@@ -2175,7 +2250,7 @@
   }
 
   // ※ 版本号——每次扩充须 bump，强制覆盖 localStorage 中的旧数据
-  var SCENARIO_VERSION = 'v47-2026.05.17-tianqi-portrait-refresh';
+  var SCENARIO_VERSION = 'v48-2026.05.18-tianqi-cao-class-population';
 
   function _countRegisteredRows(key) {
     var arr = global.P && global.P[key];
@@ -6918,6 +6993,8 @@
       { from: '温体仁', to: '钱谦益', type: '将仇', value: -60, desc: '浙党与东林世仇，温伺机排挤钱。' },
       { from: '卢象升', to: '周延儒', type: '同籍宜兴·微交', value: 55, desc: '同为常州宜兴人。' },
       { from: '孙传庭', to: '洪承畴', type: '同仇·将共剿贼', value: 65, desc: '日后同任陕西剿闯。' },
+      { from: '曹文诏', to: '曹变蛟', type: '叔侄·军中师承', value: 90, desc: '曹变蛟随叔父曹文诏从军，骑战军法皆受其教。' },
+      { from: '曹文诏', to: '洪承畴', type: '西北剿寇同道', value: 58, desc: '崇祯初以后同在山陕剿寇体系中相互倚重。' },
       // ──── 后金内部 ────
       { from: '多尔衮', to: '多铎', type: '同母兄弟', value: 95, desc: '同为阿巴亥所生；幼时丧母，相依为命。' },
       { from: '多尔衮', to: '皇太极', type: '弟·暗仇', value: 45, desc: '母被逼殉葬之仇——日后摄政即复。' },
@@ -8288,6 +8365,40 @@
         traits: ['arrogant', 'ambitious', 'deceitful', 'greedy'],
         resources: { privateWealth: { cash: 300000, grain: 50000, cloth: 8000 } },
         bio: '浙江仁和人。天启元年袭据镇江，开东江镇于皮岛，屡扰后金后方。跋扈自雄，开销无度。日后或可二年被袁崇焕矫诏斩于双岛，旋东江镇次第哗变。'
+      },
+      {
+        name: '曹文诏', title: '山西边镇参将·骑兵猛将', officialTitle: '山西边镇参将', alive: true,
+        age: 41, gender: '男', personality: '骁勇·严厉·果决·急战', location: '山西大同军中',
+        loyalty: 86, ambition: 52, intelligence: 68, valor: 92, benevolence: 55,
+        military: 84, administration: 45, management: 70, integrity: 76,
+        stance: '边镇骑将·待剿西北', faction: '明朝廷', party: '', family: '曹氏·大同',
+        portrait: 'assets/portraits/tianqi7/曹文诏.png',
+        traits: ['brave', 'diligent', 'stubborn', 'wrathful'],
+        resources: { privateWealth: { cash: 28000, grain: 1400, cloth: 280, horses: 18 } },
+        familyMembers: [ { name: '曹变蛟', relation: '侄·从军随征', note: '少年锐将，受其军法与骑战熏陶。' } ],
+        _memory: [
+          { event: '久在大同边镇行伍，见欠饷与马价反复拖垮军心。', emotion: '忧', weight: 7, turn: -80 },
+          { event: '闻陕北旱饥渐重、逃卒流民渐聚，知西北迟早需精骑追剿。', emotion: '急', weight: 8, turn: -10 },
+          { event: '曹变蛟年少好胜，屡请前锋，既喜其勇又忧其躁。', emotion: '戒', weight: 6, turn: -3 }
+        ],
+        bio: '山西大同人。明末著名边将，行伍出身，善骑兵追击，军法严而战阵勇。天启七年尚在山西边镇军中蓄名，崇祯初后转战山陕，屡破流寇；日后力战被围，自刎殉国。'
+      },
+      {
+        name: '曹变蛟', title: '曹文诏侄·少年边将', officialTitle: '曹文诏部将', alive: true,
+        age: 18, gender: '男', birthYear: 1609, personality: '锐悍·慷慨·好胜·急躁', location: '山西大同军中',
+        loyalty: 82, ambition: 62, intelligence: 60, valor: 88, benevolence: 52,
+        military: 78, administration: 30, management: 48, integrity: 80,
+        stance: '曹氏将门新锐', faction: '明朝廷', party: '', family: '曹氏·大同',
+        portrait: 'assets/portraits/tianqi7/曹变蛟.png',
+        traits: ['brave', 'young', 'impatient', 'zealous'],
+        resources: { privateWealth: { cash: 8000, grain: 300, cloth: 80, horses: 6 } },
+        familyMembers: [ { name: '曹文诏', relation: '叔父·师帅', note: '随叔父从军，战法与军纪多受其教。' } ],
+        _memory: [
+          { event: '自幼随曹文诏在边镇军中学骑射，惯听夜营鼓角。', emotion: '奋', weight: 7, turn: -70 },
+          { event: '叔父常责其轻躁，命其先学侦骑、断粮道，再求冲阵。', emotion: '不甘', weight: 6, turn: -8 },
+          { event: '见边军欠饷而仍须出塞，立誓以军功为曹氏争名。', emotion: '烈', weight: 7, turn: -2 }
+        ],
+        bio: '曹文诏从子。天启七年仍是年轻边将，随叔父在山西边镇历练，尚未至后来盛名。日后随明军转战山陕、辽东，骁勇亚于其叔；松锦之败后被执，不屈而死。'
       },
       {
         name: '满桂', title: '宁远总兵·右都督', officialTitle: '宁远总兵·右都督', alive: true,

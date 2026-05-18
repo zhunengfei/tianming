@@ -148,7 +148,13 @@
     var text = String(size);
     var m = text.match(/(\d+(?:\.\d+)?)\s*%/);
     if (m) return clamp(parseFloat(m[1]) / 100, 0, 1);
-    m = text.match(/(\d+(?:\.\d+)?)/);
+    if (/[万亿千百]\s*(?:人|口|户|丁)?|(?:人|口|户|丁)/.test(text)) return null;
+    m = text.match(/(?:占|比例|份额|share)[:：\s]*(\d+(?:\.\d+)?)/i);
+    if (m) {
+      var explicit = parseFloat(m[1]);
+      if (isFinite(explicit)) return explicit > 1 ? clamp(explicit / 100, 0, 1) : clamp(explicit, 0, 1);
+    }
+    m = text.match(/^\s*(\d+(?:\.\d+)?)\s*$/);
     if (m) {
       var n = parseFloat(m[1]);
       if (isFinite(n)) return n > 1 ? clamp(n / 100, 0, 1) : clamp(n, 0, 1);
