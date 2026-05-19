@@ -142,6 +142,7 @@
           <div class="home-panel-title"><strong>案　具</strong><span>底栏职能上移</span></div>
           <div class="home-tools">
             <button type="button" onclick="if(window.TM_Changelog)TM_Changelog.show();" title="查看更新公告">邸报</button>
+            <button type="button" onclick="window.openContentManager&&window.openContentManager();" title="管理在线更新与创意工坊内容">工坊</button>
             <button type="button" onclick="window._loadMapEditorJSON&&window._loadMapEditorJSON();" title="载入 map-editor 导出的 JSON·装入 P.map·开卷时复用">载图</button>
             <button type="button" onclick="alert('帮助系统待接入');">帮助</button>
             <button type="button" onclick="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));">退出</button>
@@ -213,6 +214,7 @@
     <div class="f-mid" id="home-foot-mid">春 分<span class="dot">◆</span>太 平<span class="dot">◆</span>河 清 海 晏</div>
     <div class="f-right">
       <span class="lt-dibao-btn" style="cursor:pointer;" onclick="if(window.TM_Changelog)TM_Changelog.show();" title="查看更新公告"><kbd>报</kbd> 邸 报<span class="tm-cl-dot" id="tm-cl-dot" style="display:none;"></span></span>
+      <span class="lt-dibao-btn" style="cursor:pointer;" onclick="window.openContentManager&&window.openContentManager();" title="管理在线更新与创意工坊内容"><kbd>坊</kbd> 工 坊</span>
       <span class="lt-dibao-btn" style="cursor:pointer;" onclick="window._loadMapEditorJSON&&window._loadMapEditorJSON();" title="载入 map-editor 导出的 JSON·装入 P.map·开卷时复用"><kbd>图</kbd> 载图</span>
       <span><kbd>↵</kbd> 开 卷</span>
       <span><kbd>?</kbd> 帮 助</span>
@@ -713,6 +715,7 @@ console.log('天命游戏脚本开始加载...');
 
 <!-- 邸报·更新公告 -->
 <script src="tm-changelog.js?v=20260515-laterjin-liaodong"></script>
+<script src="tm-content-manager.js?v=2026051901"></script>
 <script src="preview/img/east-asia-basemap-data.js?v=20260514-formal-map"></script>
 <script src="phase8-formal-bridge.js?v=20260515-phase8-formal-57-right-rail-panels"></script>
 

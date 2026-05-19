@@ -123,7 +123,9 @@ function showScnSelect(){
     "<div style=\"font-family:'STKaiti','KaiTi','楷体',serif;font-size:12px;color:var(--ink-400);letter-spacing:0.3em;text-align:center;margin-top:8px;margin-bottom:16px;font-style:italic;\">\u2014\u2014 \u62E9\u4E00\u6BB5\u65F6\u65E5\uFF0C\u5165\u5176\u4E16\u754C \u2014\u2014</div>"+
     "<div class=\"scn-grid\">"+
     P.scenarios.map(function(s){
-      return "<div class=\"scn-card\" onclick=\"previewScenario('"+escHtml(s.id)+"')\">"+
+      var srcBadge = s._workshopPackId ? "<div style=\"position:absolute;right:0.55rem;top:0.55rem;border:1px solid var(--gold-d);color:var(--gold);background:rgba(0,0,0,0.35);font-size:0.65rem;padding:0.08rem 0.35rem;letter-spacing:0.08em;\">工坊</div>" : "";
+      return "<div class=\"scn-card\" style=\"position:relative;\" onclick=\"previewScenario('"+escHtml(s.id)+"')\">"+
+        srcBadge+
         "<div class=\"scn-era\">"+escHtml(s.era)+"</div>"+
         "<div class=\"scn-name\">"+escHtml(s.name)+"</div>"+
         "<div class=\"scn-role\">"+escHtml(s.role)+"</div>"+
@@ -158,6 +160,7 @@ function previewScenario(sid) {
   h += '<div style="font-size:var(--text-xs);color:var(--gold-400);letter-spacing:0.15em;">' + (sc.era||'') + '</div>';
   h += '<div style="font-size:var(--text-2xl);font-weight:var(--weight-bold);color:var(--color-primary);letter-spacing:0.2em;margin:var(--space-1) 0;">〔' + (sc.name||'') + '〕</div>';
   if (sc.role) h += '<div style="font-size:var(--text-sm);color:var(--color-foreground-secondary);margin-top:var(--space-1);">' + sc.role + '</div>';
+  if (sc._workshopPackId) h += '<div style="font-size:var(--text-xs);color:var(--gold-400);margin-top:var(--space-1);">工坊包：' + escHtml(sc._workshopTitle || sc._workshopPackId) + '</div>';
   h += '</div>';
 
   // 剧本概述

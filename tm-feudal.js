@@ -2103,14 +2103,52 @@ var TreatySystem = (function() {
     return treaty;
   }
 
+  function _treaties() {
+    return Array.isArray(GM.treaties) ? GM.treaties : [];
+  }
+
+  function _partyName(value) {
+    if (!value) return '';
+    if (typeof value === 'string') return value.trim();
+    if (typeof value === 'object') return String(value.name || value.faction || value.id || '').trim();
+    return String(value).trim();
+  }
+
+  function _treatyParties(t) {
+    if (!t) return [];
+    var raw = [];
+    if (Array.isArray(t.parties)) raw = raw.concat(t.parties);
+    if (Array.isArray(t.factions)) raw = raw.concat(t.factions);
+    if (Array.isArray(t.participants)) raw = raw.concat(t.participants);
+    ['partyA', 'partyB', 'factionA', 'factionB', 'actor', 'target', 'from', 'to', 'liege', 'vassal'].forEach(function(key) {
+      if (t[key]) raw.push(t[key]);
+    });
+    var seen = {};
+    return raw.map(_partyName).filter(function(name) {
+      if (!name || seen[name]) return false;
+      seen[name] = true;
+      return true;
+    });
+  }
+
+  function _treatyTypeName(t) {
+    return (t && (t.typeName || t.name || t.type)) || '条约';
+  }
+
+  function _isTreatyActive(t) {
+    return !!t && t.active !== false;
+  }
+
   /**
    * 违约/废除条约
    */
   function breakTreaty(treatyId, breakerName) {
-    var idx = (GM.treaties||[]).findIndex(function(t){return t.id===treatyId;});
+    var idx = _treaties().findIndex(function(t){return t.id===treatyId;});
     if (idx < 0) return;
     var treaty = GM.treaties[idx];
-    addEB('外交', breakerName + '废除了与' + treaty.parties.filter(function(p){return p!==breakerName;}).join('、') + '的' + treaty.typeName + '，信誉受损');
+    var parties = _treatyParties(treaty);
+    var others = parties.filter(function(p){return p!==breakerName;});
+    addEB('外交', breakerName + '废除了与' + (others.length ? others.join('、') : '对方') + '的' + _treatyTypeName(treaty) + '，信誉受损');
     GM.treaties.splice(idx, 1);
   }
 
@@ -2118,10 +2156,11 @@ var TreatySystem = (function() {
    * 每回合清理到期条约
    */
   function cleanExpired() {
-    if (!GM.treaties) return;
+    if (!Array.isArray(GM.treaties)) return;
     GM.treaties = GM.treaties.filter(function(t) {
       if (t.expiryTurn > 0 && GM.turn >= t.expiryTurn) {
-        addEB('外交', t.parties.join('与') + '的' + t.typeName + '到期解除');
+        var parties = _treatyParties(t);
+        addEB('外交', (parties.length ? parties.join('与') : '一项条约') + '的' + _treatyTypeName(t) + '到期解除');
         return false;
       }
       return true;
@@ -2132,37 +2171,42 @@ var TreatySystem = (function() {
    * 检查两方是否有特定类型的条约
    */
   function hasTreaty(partyA, partyB, typeId) {
-    return (GM.treaties||[]).some(function(t) {
-      var match = t.parties.indexOf(partyA) >= 0 && t.parties.indexOf(partyB) >= 0;
-      return match && (!typeId || t.type === typeId) && t.active;
+    return _treaties().some(function(t) {
+      var parties = _treatyParties(t);
+      var match = parties.indexOf(partyA) >= 0 && parties.indexOf(partyB) >= 0;
+      return match && (!typeId || t.type === typeId) && _isTreatyActive(t);
     });
   }
 
   function getPromptInjection() {
-    if (!GM.treaties || GM.treaties.length === 0) return '';
+    var treaties = _treaties();
+    if (!treaties.length) return '';
     var lines = ['【现有条约】'];
-    GM.treaties.forEach(function(t) {
+    treaties.forEach(function(t) {
+      var parties = _treatyParties(t);
+      if (parties.length < 2) return;
       var remaining = t.expiryTurn > 0 ? '剩' + (t.expiryTurn - GM.turn) + '回合' : '永久';
-      lines.push('  ' + t.parties.join('↔') + ' ' + t.typeName + ' (' + remaining + ')');
+      lines.push('  ' + parties.join('↔') + ' ' + _treatyTypeName(t) + ' (' + remaining + ')');
     });
-    return lines.join('\n');
+    return lines.length > 1 ? lines.join('\n') : '';
   }
 
   /** 检查faction_events中的宣战是否违反现有条约 */
   function checkViolations(factionEvents) {
-    if (!GM.treaties || !GM.treaties.length || !factionEvents) return;
+    if (!_treaties().length || !factionEvents) return;
     factionEvents.forEach(function(fe) {
       if (!fe.action || fe.action.indexOf('宣战') < 0) return;
       var attacker = fe.actor || '';
       var defender = fe.target || '';
       if (!attacker || !defender) return;
       // 检查是否有和平/联盟条约
-      var violated = GM.treaties.filter(function(t) {
-        return t.active && t.parties.indexOf(attacker) >= 0 && t.parties.indexOf(defender) >= 0;
+      var violated = _treaties().filter(function(t) {
+        var parties = _treatyParties(t);
+        return _isTreatyActive(t) && parties.indexOf(attacker) >= 0 && parties.indexOf(defender) >= 0;
       });
       violated.forEach(function(t) {
         t.active = false; // 条约失效
-        addEB('违约', attacker + '背弃与' + defender + '的' + t.typeName + '！');
+        addEB('违约', attacker + '背弃与' + defender + '的' + _treatyTypeName(t) + '！');
       });
     });
   }

@@ -342,6 +342,11 @@ openSettings=function(){
       '</div>';
     })()+
 
+    "<div class=\"settings-section\"><h4>更新与工坊</h4>"+
+    "<div style=\"font-size:0.75rem;color:var(--txt-d);margin-bottom:0.5rem;line-height:1.55;\">桌面版可检查本体更新、导入创意工坊包、启停工坊剧本。在线更新只接受高于当前版本的安装包。</div>"+
+    "<button class=\"bt bp bsm\" onclick=\"window.openContentManager&&window.openContentManager()\">打开内容管理</button>"+
+    "</div>"+
+
     _renderSettingsAudioSection()+
     _renderSettingsThemeFontSection()+
 
