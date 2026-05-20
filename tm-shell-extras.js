@@ -431,41 +431,9 @@
     var tm = document.createElement('div');
     tm.className = 'gs-panel p-theme';
     tm.setAttribute('data-panel-key','theme');
-    // 读取已保存的设置
-    var _savedTheme = localStorage.getItem('tm.theme') || 'plain';
-    var _savedSize = localStorage.getItem('tm.fontSize') || 'md';
-    var _savedBody = localStorage.getItem('tm.fontBody') || 'STKaiti';
-    var _savedTitle = localStorage.getItem('tm.fontTitle') || 'STKaiti';
-    var _actCls = function(k, cur){ return k===cur?' active':''; };
-    tm.innerHTML = '<div class="gs-panel-hdr"><div class="gs-panel-title">界 面 主 题</div><span class="gs-panel-cnt">4 色</span></div>'
-      + '<div class="gs-theme-grid">'
-      + '<div class="gs-theme-card' + _actCls('plain', _savedTheme) + '" data-theme="plain" onclick="_tmApplyTheme(\'plain\', this)"><div class="gs-theme-swatch"><span class="c" style="background:#b89a53;"></span><span class="c" style="background:#c9a85f;"></span><span class="c" style="background:#6a9a7f;"></span><span class="c" style="background:#b84738;"></span></div><div class="gs-theme-name">素 纸</div><div class="desc">宣纸金线·朱砂</div></div>'
-      + '<div class="gs-theme-card' + _actCls('ink', _savedTheme) + '" data-theme="ink" onclick="_tmApplyTheme(\'ink\', this)"><div class="gs-theme-swatch"><span class="c" style="background:#3d342a;"></span><span class="c" style="background:#6b5d47;"></span><span class="c" style="background:#a69470;"></span><span class="c" style="background:#d9c9a9;"></span></div><div class="gs-theme-name">水 墨</div><div class="desc">墨分五色·冷调</div></div>'
-      + '<div class="gs-theme-card' + _actCls('vermillion', _savedTheme) + '" data-theme="vermillion" onclick="_tmApplyTheme(\'vermillion\', this)"><div class="gs-theme-swatch"><span class="c" style="background:#8f3428;"></span><span class="c" style="background:#b84738;"></span><span class="c" style="background:#d15c47;"></span><span class="c" style="background:#c9a85f;"></span></div><div class="gs-theme-name">朱 砂</div><div class="desc">浓朱重赤·烈</div></div>'
-      + '<div class="gs-theme-card' + _actCls('celadon', _savedTheme) + '" data-theme="celadon" onclick="_tmApplyTheme(\'celadon\', this)"><div class="gs-theme-swatch"><span class="c" style="background:#4a7a5f;"></span><span class="c" style="background:#6a9a7f;"></span><span class="c" style="background:#b89a53;"></span><span class="c" style="background:#d9c9a9;"></span></div><div class="gs-theme-name">青 绿</div><div class="desc">青绿山水·雅</div></div>'
-      + '</div>'
-      + '<div class="gs-font-row"><span class="lbl">字 号</span>'
-      + '<div class="gs-font-sizes">'
-      +   '<button class="gs-sz-btn sm' + _actCls('sm', _savedSize) + '" onclick="_tmApplySize(\'sm\', this)">小</button>'
-      +   '<button class="gs-sz-btn md' + _actCls('md', _savedSize) + '" onclick="_tmApplySize(\'md\', this)">中</button>'
-      +   '<button class="gs-sz-btn lg' + _actCls('lg', _savedSize) + '" onclick="_tmApplySize(\'lg\', this)">大</button>'
-      +   '<button class="gs-sz-btn xl' + _actCls('xl', _savedSize) + '" onclick="_tmApplySize(\'xl\', this)">特大</button>'
-      + '</div>'
-      + '</div>'
-      + '<div class="gs-font-row"><span class="lbl">正 文</span><select class="gs-font-select" onchange="_tmApplyBodyFont(this.value)">'
-      +   '<option value="STKaiti"' + (_savedBody==='STKaiti'?' selected':'') + '>楷体 STKaiti</option>'
-      +   '<option value="SimSun"' + (_savedBody==='SimSun'?' selected':'') + '>宋体 SimSun</option>'
-      +   '<option value="FangSong"' + (_savedBody==='FangSong'?' selected':'') + '>仿宋 FangSong</option>'
-      +   '<option value="FZQiTi"' + (_savedBody==='FZQiTi'?' selected':'') + '>方正启体</option>'
-      +   '<option value="Noto Serif SC"' + (_savedBody==='Noto Serif SC'?' selected':'') + '>思源宋体</option>'
-      +   '<option value="LXGW WenKai"' + (_savedBody==='LXGW WenKai'?' selected':'') + '>霞鹜文楷</option>'
-      + '</select></div>'
-      + '<div class="gs-font-row"><span class="lbl">标 题</span><select class="gs-font-select" onchange="_tmApplyTitleFont(this.value)">'
-      +   '<option value="STKaiti"' + (_savedTitle==='STKaiti'?' selected':'') + '>楷体 STKaiti</option>'
-      +   '<option value="STXingkai"' + (_savedTitle==='STXingkai'?' selected':'') + '>行楷</option>'
-      +   '<option value="STLiti"' + (_savedTitle==='STLiti'?' selected':'') + '>隶书</option>'
-      +   '<option value="STXinghkaiti"' + (_savedTitle==='STXinghkaiti'?' selected':'') + '>华文行楷</option>'
-      + '</select></div>';
+    tm.innerHTML = window.TMThemeFont && typeof TMThemeFont.renderControls === 'function'
+      ? TMThemeFont.renderControls({ context: 'drawer' })
+      : '<div class="gs-panel-hdr"><div class="gs-panel-title">界 面 主 题</div><span class="gs-panel-cnt">未载</span></div><div class="gs-font-row">主题字号模块尚未加载。</div>';
     gl.appendChild(tm);
     } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'shell-extras] theme panel:') : console.warn('[shell-extras] theme panel:', e); }
 
@@ -970,6 +938,11 @@
   // ═══════════════════════════════════════════════════════════════════
   //  界面主题 · 字号 · 字体 实装（暴露为 window 全局·给 onclick 调用）
   // ═══════════════════════════════════════════════════════════════════
+
+  if (window.TMThemeFont) {
+    try { window.TMThemeFont.restore(); } catch(_){}
+    return;
+  }
 
   // 主题 → 覆盖 :root CSS 变量（通过 <style id="_tmThemeOverride">）
   var THEME_PALETTES = {

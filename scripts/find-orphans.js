@@ -46,7 +46,12 @@ jsFiles.forEach(f => {
     /import\s+[^;]+\s+from\s*['"]([^'"]+)['"]/g,
     /import\s*\(['"]([^'"]+)['"]/g,
     /new\s+Worker\s*\(['"]([^'"]+)['"]/g,          // new Worker('tm-worker.js')
-    /new\s+SharedWorker\s*\(['"]([^'"]+)['"]/g
+    /new\s+SharedWorker\s*\(['"]([^'"]+)['"]/g,
+    // Dynamically injected scripts, e.g. var BUNDLE_URL='x.js?v=1';
+    // script.src = BUNDLE_URL is intentionally lazy and should not force
+    // a large payload into index.html just to appease this checker.
+    /\b[A-Za-z0-9_$]*(?:URL|Url|SRC|Src)\b\s*=\s*['"]([^'"]+?\.js)(?:\?[^'"]*)?['"]/g,
+    /\b(?:src|href)\s*=\s*['"]([^'"]+?\.js)(?:\?[^'"]*)?['"]/g
   ];
   patterns.forEach(re => {
     let m;

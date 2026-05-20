@@ -28,6 +28,16 @@ if(window.tianming&&window.tianming.isDesktop){
       count('parties') + count('classes') + vars + count('events') + count('relations') > 0;
   }
 
+  async function _ensureOfficialScenarioFiles(){
+    var seeder = window.TMOfficialScenarioSeeder;
+    if (!seeder || typeof seeder.ensure !== 'function') return;
+    try {
+      await seeder.ensure();
+    } catch (e) {
+      console.warn('[official-scenario-seeder] ensure failed:', e && e.message || e);
+    }
+  }
+
   // --- 主菜单显示/隐藏辅助 ---
   // launch 改版后 #lt-menu → .home-stage 整个 hero 区(menu + title + 楹联等)·main-view 是其后兄弟
   // 旧版直接 toggle lt-menu·新版必须 toggle 整个 home-stage·不然 main-view 被 home-stage(100vh) 推到屏外
@@ -50,6 +60,7 @@ if(window.tianming&&window.tianming.isDesktop){
 
   // --- 剧本管理页（桌面端）---
   showScnManage=async function(){
+    await _ensureOfficialScenarioFiles();
     var list=await window.tianming.listScenarios();
     var files=list.success?list.files:[];
     var html='<div class="pnl">';
@@ -128,6 +139,7 @@ if(window.tianming&&window.tianming.isDesktop){
 
   // --- 剧本选择页（桌面端）---
   showScnSelect=async function(){
+    await _ensureOfficialScenarioFiles();
     var list=await window.tianming.listScenarios();
     var files=list.success?list.files:[];
     var allCount=files.length;
