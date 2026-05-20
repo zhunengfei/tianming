@@ -583,6 +583,63 @@
         return false;
       }
 
+      async function _trySc1Rescue(reason) {
+        var started = Date.now(), ok = false;
+        function _clip(v, n) { var s = ''; try { s = typeof v === 'string' ? v : JSON.stringify(v || null); } catch(_) { s = String(v || ''); } return s.slice(0, n || 1200); }
+        try {
+          var turn = (GM && GM.turn) || 1;
+          var dateText = ''; try { dateText = (typeof getTSText === 'function') ? getTSText(turn) : ''; } catch(_) {}
+          var vars = ''; try { vars = Object.keys(GM.vars || {}).slice(0, 16).map(function(k){ var v = GM.vars[k]; return k + '=' + (v && typeof v === 'object' ? v.value : v); }).join('；'); } catch(_) {}
+          var prompt = '【SC1结构化救援】主结构化调用失败或格式不可用。你只做最低限度结构化账本，不写长文。Return ONLY strict JSON.\n'
+            + '本回合:T' + turn + (dateText ? '·' + dateText : '') + '\n'
+            + '当前七变/资源:' + vars + '\n'
+            + '玩家诏令/奏疏/操作:' + _clip(edicts, 2600) + '\n'
+            + '玩家行止:' + _clip(xinglu, 1200) + '\n'
+            + '局势分析:' + _clip(aiThinking, 1000) + '\n'
+            + '记忆回顾:' + _clip(memoryReview, 1000) + '\n'
+            + '失败原因:' + _clip(reason && (reason.message || reason), 500) + '\n'
+            + '规则: 不确定就留空；不得编造死亡、大战、巨额资源变化；每个实际数值变化必须写reason；所有数组可为空。\n'
+            + 'JSON字段: {"turn_summary":"","shizhengji_basis":"","events":[],"edict_feedback":[],"resource_changes":{},"char_updates":[],"fiscal_adjustments":[],"changes":[],"player_status":"","player_inner":""}';
+          var body = { model:P.ai.model || 'gpt-4o', messages:[{role:'system', content:'Return strict JSON only. You are a conservative structured ledger rescue pass.'},{role:'user', content:prompt}], temperature:0.25, max_tokens:_tok(Math.min(_effectiveOutCap || 3500, 3500)) };
+          if (_modelFamily === 'openai') body.response_format = { type:'json_object' };
+          var call = await _callEndturnAI(body, { id:'sc1_rescue', label:'结构化数据救援', expectedKeys:['turn_summary','shizhengji_basis','events','resource_changes','char_updates','edict_feedback','fiscal_adjustments','changes'], priority:'critical', timeoutMs:60000, maxRetries:0, repairTimeoutMs:30000, repairMaxRetries:0, repairTokens:3000 });
+          var parsed = (call && call.parse) ? call.parse.parsed : call && call.parsed;
+          if (!parsed || !_hasSc1StructuredResult(parsed)) throw new Error('SC1 rescue returned no usable structured data');
+          parsed._sc1Rescue = true;
+          parsed._fallbackReason = String(reason && (reason.message || reason) || 'sc1 failed').slice(0, 200);
+          if (!GM._turnAiResults) GM._turnAiResults = {};
+          GM._turnAiResults.subcall1_rescue_raw = call.raw || '';
+          GM._turnAiResults.subcall1_rescue = parsed;
+          ok = true;
+          return { parsed:parsed, raw:call.raw || JSON.stringify(parsed), data:call.data };
+        } catch(e) {
+          try {
+            if (!GM._turnAiResults) GM._turnAiResults = {};
+            if (!Array.isArray(GM._turnAiResults._fallbacks)) GM._turnAiResults._fallbacks = [];
+            GM._turnAiResults._fallbacks.push({ id:'sc1_rescue', type:'rescue_failed', reason:String(e && (e.message || e) || '').slice(0, 200), turn:(GM && GM.turn) || 1, at:Date.now() });
+          } catch(_) {}
+          console.warn('[SC1 rescue] failed:', e && (e.message || e));
+          return null;
+        } finally {
+          var ms = Date.now() - started;
+          GM._subcallTimings.sc1_rescue = ms;
+          try { if (window.TM && TM.Endturn && TM.Endturn.Timing && typeof TM.Endturn.Timing.mark === 'function') TM.Endturn.Timing.mark(ctx, 'subcall', { id:'sc1_rescue', label:'结构化数据救援', ok:ok, attempts:1, ms:ms }); } catch(_) {}
+        }
+      }
+
+      function _seedRecordFromP1ForApplyFailure(targetCtx, src) {
+        if (!targetCtx || !src || typeof src !== 'object') return;
+        targetCtx.record = targetCtx.record || {};
+        targetCtx.record.shizhengji = targetCtx.record.shizhengji || src.shizhengji || src.shizhengji_basis || src.turn_summary || '';
+        targetCtx.record.zhengwen = targetCtx.record.zhengwen || src.zhengwen || src.shizhengji || src.shizhengji_basis || '';
+        targetCtx.record.turnSummary = targetCtx.record.turnSummary || src.turn_summary || src.shizhengji_basis || '';
+        targetCtx.record.shiluText = targetCtx.record.shiluText || src.shilu_text || '';
+        targetCtx.record.szjTitle = targetCtx.record.szjTitle || src.szj_title || '';
+        targetCtx.record.szjSummary = targetCtx.record.szjSummary || src.szj_summary || '';
+        targetCtx.record.playerStatus = targetCtx.record.playerStatus || src.player_status || src.playerStatus || '';
+        targetCtx.record.playerInner = targetCtx.record.playerInner || src.player_inner || src.playerInner || '';
+      }
+
       function _attachSc1RecordFallback(base, reason) {
         if (!base || typeof base !== 'object') return base;
         var _turn = (GM && GM.turn) || 1;
@@ -2439,6 +2496,16 @@
         p1 = null;
         console.warn('[SC1] parse/repair failed·will continue to fallback chain:', _sc1ParseErr && (_sc1ParseErr.message || _sc1ParseErr));
       }
+      if (!p1 || !_hasSc1StructuredResult(p1)) {
+        var _rescuedSc1 = await _trySc1Rescue(_sc1CriticalError || 'primary SC1 empty');
+        if (_rescuedSc1 && _rescuedSc1.parsed) {
+          p1 = _rescuedSc1.parsed;
+          c1 = _rescuedSc1.raw || c1 || JSON.stringify(p1);
+          data1 = _rescuedSc1.data || data1;
+          _sc1CriticalError = null;
+          if (typeof toast === 'function') toast('⚠ SC1主结构化不稳定·已用轻量结构化救援账本继续');
+        }
+      }
       GM._turnAiResults.subcall1_raw = c1;
       GM._turnAiResults.subcall1 = p1;
 
@@ -3215,7 +3282,28 @@
       ctx.results.sc1c = (GM._turnAiResults && GM._turnAiResults.subcall1c) || ctx.results.sc1c || null;
       ctx.results.sc1d = (GM._turnAiResults && GM._turnAiResults.subcall1d) || ctx.results.sc1d || null;
       ctx.followup.p1Summary = p1Summary || "";
-      if (typeof afterSc1 === "function") await afterSc1(ctx);
+      if (typeof afterSc1 === "function") {
+        var _applyStarted = Date.now();
+        try {
+          await afterSc1(ctx);
+        } catch(_applyCbErr) {
+          var _applyMs = Date.now() - _applyStarted;
+          var _applyInfo = _formatAIError(_applyCbErr);
+          ctx.meta.errors = Array.isArray(ctx.meta.errors) ? ctx.meta.errors : [];
+          ctx.meta.errors.push({ id:'sc1_apply', message:_applyInfo.message, status:_applyInfo.status, ms:_applyMs });
+          try {
+            if (!GM._turnAiResults) GM._turnAiResults = {};
+            if (!Array.isArray(GM._turnAiResults._applyFailures)) GM._turnAiResults._applyFailures = [];
+            GM._turnAiResults._applyFailures.push({ id:'sc1_apply', error:_applyInfo.message, status:_applyInfo.status, ms:_applyMs, at:Date.now() });
+            if (GM._turnAiResults._applyFailures.length > 20) GM._turnAiResults._applyFailures.shift();
+          } catch(_) {}
+          try { if (window.TM && TM.Endturn && TM.Endturn.Timing && typeof TM.Endturn.Timing.mark === 'function') TM.Endturn.Timing.mark(ctx, 'subcall', { id:'sc1_apply', label:'结构化应用', ok:false, attempts:1, ms:_applyMs, error:_applyInfo.message, status:_applyInfo.status }); } catch(_) {}
+          try { if (typeof recordAIDiagnostic === 'function') recordAIDiagnostic('subcall_failed', { id:'sc1_apply', label:'结构化应用', error:_applyInfo.message, status:_applyInfo.status, ms:_applyMs }); } catch(_) {}
+          _seedRecordFromP1ForApplyFailure(ctx, p1);
+          if (typeof toast === 'function') toast('⚠ 结构化数据已生成，但应用变更失败；本回合继续，详见AI诊断');
+          console.warn('[SC1 apply] failed after structured result:', _applyCbErr);
+        }
+      }
       }); // end Sub-call 1 _runSubcall
 
     // 外层保险：_runSubcall 会吞掉最终异常并继续流程；若 sc1 包装层失败，仍要给后续写回/弹窗一个可用账本。
@@ -3254,9 +3342,9 @@
   };
 
   var SAFE_CALL_DEFAULT = { priority:'normal', timeoutMs:90000, maxRetries:1, repairTimeoutMs:45000, repairMaxRetries:1, subcallRetries:1 };
-  function _p(priority, timeoutMs, repairTimeoutMs, maxRetries) { return { priority:priority, timeoutMs:timeoutMs, maxRetries:maxRetries == null ? 1 : maxRetries, repairTimeoutMs:repairTimeoutMs || 45000, repairMaxRetries:1, subcallRetries:1 }; }
+  function _p(priority, timeoutMs, repairTimeoutMs, maxRetries, subcallRetries) { return { priority:priority, timeoutMs:timeoutMs, maxRetries:maxRetries == null ? 1 : maxRetries, repairTimeoutMs:repairTimeoutMs || 45000, repairMaxRetries:1, subcallRetries:subcallRetries == null ? 1 : subcallRetries }; }
   var CALL_POLICIES = {
-    sc0:_p('normal',90000), sc05:_p('normal',75000), sc1:_p('critical',150000,60000,1), sc1b:_p('high',90000), sc1c:_p('high',90000), sc1d:_p('high',90000,45000),
+    sc0:_p('normal',90000), sc05:_p('normal',75000), sc1:_p('critical',150000,60000,1,0), sc1_rescue:_p('critical',60000,30000,0,0), sc1b:_p('high',90000), sc1c:_p('high',90000), sc1d:_p('high',90000,45000),
     sc15:_p('normal',90000), sc_memwrite:_p('low',45000,30000), sc16:_p('normal',90000), sc17:_p('normal',90000), sc18:_p('normal',90000),
     sc_audit:_p('normal',60000), sc19:_p('background',45000,30000), sc2:_p('normal',120000,60000), sc25:_p('high',75000),
     sc27:_p('high',60000), sc07:_p('normal',90000), sc28:_p('low',45000,30000), sc_consolidate:_p('low',45000,30000),

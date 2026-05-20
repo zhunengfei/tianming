@@ -40,6 +40,14 @@ assert(src.indexOf('_jsonRepairs') >= 0 && src.indexOf('_jsonRepairFailures') >=
   'JSON repair success/failure diagnostics recorded');
 assert(src.indexOf('function _buildSc1EmergencyFallback') >= 0,
   'SC1 has emergency structured fallback builder');
+assert(src.indexOf('async function _trySc1Rescue') >= 0 &&
+       src.indexOf("id:'sc1_rescue'") >= 0 &&
+       src.indexOf('结构化数据救援') >= 0,
+  'SC1 has lightweight rescue call before emergency fallback');
+assert(src.indexOf("id:'sc1_apply'") >= 0 &&
+       src.indexOf('_applyFailures') >= 0 &&
+       src.indexOf('_seedRecordFromP1ForApplyFailure') >= 0,
+  'SC1 structured generation and apply failure are recorded separately');
 assert(src.indexOf('SC1/SC1b/SC1c 均无有效数据') >= 0 &&
        src.indexOf('_emergencyFallback') >= 0,
   'SC1 empty result can degrade to a commit-safe emergency ledger');

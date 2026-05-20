@@ -24,8 +24,8 @@ const changchao = read('tm-chaoyi-changchao.js');
 
 assert(/TM_CSS_RETRY/.test(index), 'index.html should define shared CSS retry helper');
 assert(/TM_CSS_LOADED/.test(index), 'index.html should define CSS load success helper');
-assert(/<link[^>]+styles\.css\?v=20260516-home-redesign[^>]+onerror="window\.TM_CSS_RETRY/.test(index), 'styles.css link should call retry helper on load error');
-assert(/<link[^>]+styles\.css\?v=20260516-home-redesign[^>]+data-css-fallback=/.test(index), 'styles.css link should declare fallback URL');
+assert(/<link[^>]+styles\.css\?v=[^"'\s>]+[^>]+onerror="window\.TM_CSS_RETRY/.test(index), 'styles.css link should call retry helper on load error');
+assert(/<link[^>]+styles\.css\?v=[^"'\s>]+[^>]+data-css-fallback=/.test(index), 'styles.css link should declare fallback URL');
 
 const helperMatch = index.match(/<script>\s*([\s\S]*?TM_CSS_RETRY[\s\S]*?)<\/script>/);
 assert(helperMatch, 'index.html should contain an inline CSS retry helper script');
