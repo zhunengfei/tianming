@@ -2,6 +2,57 @@
   "_comment": "天命·更新日志——新条目 unshift 到数组最前（由近及远）。格式：{date, module, title, items[]}；items 元素可为字符串或 {what, why}。",
   "entries": [
     {
+      "date": "2026-05-22",
+      "module": "常朝大改·NPC 应答化 v3 (Tier 1·9 slice)",
+      "title": "常朝从「群聊」升级为「廷议」——NPC 自发表态接入完整 persona、立场推导从 stat-first 改为 persona-first、6 应答 mode + 朝堂语词库、NPC-NPC 互动留痕 AffinityMap，朝议真正塑造派系网而非消费完即烧",
+      "items": [
+        {
+          "what": "NPC 在朝议中自发表态（selfReact / debate / debate2 / dissent）路径现在跟「玩家话回应」路径一样，注入 TM.PromptComposer.buildAiPersonaText + buildRecognitionState。之前只有玩家开口后 NPC 才用完整 persona，自发议论时 prompt 比 wendui 薄得多。",
+          "why": "评议时发现 _cc3_aiGenReact 这条路径漏调 PromptComposer，等于朝议大半时间 NPC 自发讨论用的是阉割版 persona。一行 fix 让全场质量持平 wendui。"
+        },
+        {
+          "what": "立场推导接入 8D personality 维度（boldness/compassion/rationality/greed/honor/sociability/vengefulness/energy），加 6 类 persona × 议题 tag 贡献规则。例：仁善高 + penal-harsh 议题 → 强反对；勇敢高 + 外交议题 → 立场两极化；理性高 + 高争议 → 拉回中立。",
+          "why": "原 _cc3_computeStanceFromChar 用 party_tone (±0.45) + loyalty (±0.5) 等 stat-only 权重，两个忠诚 50 / 清廉 50 / 同党的 NPC 立场必然一样。这违反 tianming 的 persona-first 设计原则——8D 人格存在 tm-npc-engine.js 里却没被朝议读，这次接上。"
+        },
+        {
+          "what": "为绍宋等 traitIds 字段未填充的剧本加 personality-text fallback：80 关键词正则推导 8D dims，命中率 71.3%。让没补 traits 的 NPC 也能享受 persona-driven 立场分化。",
+          "why": "绍宋 98 个 NPC 全部 traitIds=null（NPC parity slice B 没补这字段），意味着 TM.NpcEngine.aggregateDims 全返 0，新的 persona 接入对绍宋失效。fallback 从 personality 中文描述（如「刚直忠诚」「仁善爱民」）keyword 推 dims，绍宋玩家也能看到改进。补绍宋 traitIds 是后续独立 slice。"
+        },
+        {
+          "what": "议题自动 tagging：新增 _cc3_inferTagsFromText 推导 8 个核心 tag（foreign-policy / penal-harsh / reward-distribution / etiquette-violation / ritual / historicalPrecedent / execution-detail / personnel）。让 8D persona 修正规则有 hook。",
+          "why": "persona × tag 规则需要议题先打 tag。fallback 用关键词正则；scenario.events 也可预填 tags 字段。后续 NPC 推演 LLM 也将输出 tags。"
+        },
+        {
+          "what": "6 应答 mode 系统：lead（首发）/ second（附议）/ rebut（驳斥）/ soften（缓和）/ pivot（转移焦点）/ cite（引经据典，作为 modifier）。NPC 根据 debate state（前位是谁、同党/异党、立场对立否、阵营势头）自动选 mode，并被注入到 prompt 的「应答策略」段。",
+          "why": "原 prompt 只说「不重复 selfReact / debate 中的话·要有新内容」，是 differ-from instruction 不是 reply-to。真实廷议有 5-6 类应答动态（附议须复述 + 补理由；驳斥须先复对方论点再驳；缓和须先肯定动机再陈己见）。规则化推 mode + 强约束 prompt 让 LLM 听话。"
+        },
+        {
+          "what": "朝堂语词库 + tone 调制：6 mode 各配 2-3 个开头池（「臣窃以为 X 所言未当...」「臣附 X 之议·」等）+ 1-2 个结句池（「伏惟陛下察焉」「伏乞圣裁」等）。5 套 tone 按 rank/class 选——阁臣 gravitas（委婉稳重）/ 言官 righteous（直陈不讳）/ 武臣 martial（粗朴直白）/ 郎官 procedural（建议交某部再议）/ 后妃 decorum（婉转自抑）。",
+          "why": "mode 抽象，朝堂语具体。给 LLM 「必须用 \"臣窃以为\" 开头」比「必须以 rebut 模式发言」更可执行，输出风格也跟人物身份匹配（言官跟阁臣同 rebut 用词截然不同）。"
+        },
+        {
+          "what": "4 个 anti-monotony guards 防 mode 分布塌缩：(1) 同 mode ≥ 3 个时改 soften / augment；(2) 避免连续同 mode；(3) debate2 第二轮 rebut → soften / lead → augment；(4) cite cooldown，已 ≥ 2 次 cite 后 70% 概率不用。",
+          "why": "规则化 + LLM 容易让 6 个 NPC 全选 rebut。guards 主动 cap，让朝议出现 mode 多样性，不会变成「6 个人轮流驳」。"
+        },
+        {
+          "what": "NPC-NPC AffinityMap 互动留痕：rebut 双向 -3，second +3/+1，soften +1，同步 NpcMemorySystem.remember 记入相关 NPC 的长期记忆。朝议结束后，下一轮 wendui / NPC 推演读这些 affinity 与 memory，rebut 三次的两人后续会真的对立起来。",
+          "why": "之前 _cc3_writeActionToGM 只更新「玩家 ↔ NPC」关系，NPC 之间 rebut 完即烧，下一轮 wendui 完全察觉不到刚才的对抗。这违反「机制必挂政治后果」原则。新 linkage 让朝议真正塑造朝堂派系网。"
+        },
+        {
+          "what": "tm-npc-engine.js 末尾加 5 行 namespace export：window.TM.NpcEngine.aggregateDims = _aggregatePersonalityDims，跟 TM.PromptComposer 同 paradigm。常朝代码现走 TM.NpcEngine.aggregateDims(ch) 而非 reach 私有函数。",
+          "why": "_aggregatePersonalityDims 原本下划线私有 + 无 export，常朝调用违反约定且重构脆弱。namespace export 让接入更稳。"
+        },
+        {
+          "what": "新增 4 个 smoke / 单测进 verify-all：test-changchao-mode-inference（22/22 case 覆盖 6 mode）、smoke-changchao-agenda-tags（15/15 case 验 tag 推导）、smoke-changchao-persona-stance（验绍宋 fallback hit rate ≥ 50% + dims profile ≥ 3 种）、smoke-changchao-mode-pipeline（验 6-layer pipeline 完整跑通）。",
+          "why": "production-ready 必须有 test harness，否则 LLM 是否听 mode instruction 全靠肉眼。4 smoke 守门，后续改 mode 表 / persona 阈值时不会悄悄退化。"
+        },
+        {
+          "what": "本次改动范围声明：改了「NPC 发言逻辑」（怎么开口、说什么、跟谁互动），没改「议题来源」（_cc3_aiGenAgenda 议程生成器一行没动）；议题 tag 是分类元数据，不是改议题。御前 / 廷议 子系统未动，待 changchao 跑稳后再评估 port。",
+          "why": "本 sprint 严格按 [[feedback_conservative_slicing]] 一刀只做一件事——评议提的 4 个偏离全在「发言这一段」，议题源头不在问题清单。"
+        }
+      ]
+    },
+    {
       "date": "2026-05-21",
       "module": "主页面 / 联网中枢 / 应用更新 UI 修复",
       "title": "修复主页退出键无效、应用更新弹窗关闭/滚动卡死、检查更新时本体源地址被清空等 4 处玩家反馈 UI bug",

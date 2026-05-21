@@ -134,6 +134,8 @@ const checks = [
   { name: 'p5-theta-editor', file: 'smoke-p5-theta-editor.js', estSec: 1, expectExit: 0 },
   // 2026-05-21 scenario editor reset inventory: official scenario field coverage and editor risk gate
   { name: 'editor-reset-inventory', file: 'smoke-editor-reset-inventory.js', estSec: 1, expectExit: 0 },
+  // 2026-05-21 scenario editor reset preview: home shell and health dashboard skeleton
+  { name: 'scenario-editor-reset-preview', file: 'smoke-scenario-editor-reset-preview.js', estSec: 1, expectExit: 0 },
   // P6 (2026-05-04) HTML inline namespace migration lock; index/editor safe first pass (Codex own)
   { name: 'p6-inline-namespaces', file: 'smoke-p6-inline-namespaces.js', estSec: 1, expectExit: 0 },
   // P6 optional namespace lint (2026-05-04) retired aliases + migrated inline handlers stay retired
@@ -163,6 +165,12 @@ const checks = [
   { name: 'render-smoke', file: 'render-smoke.js', estSec: 5, expectExit: 0 },
   { name: 'smoke', file: 'headless-smoke.js', estSec: 30, expectExit: null },
   { name: 'cc3-smoke', file: 'smoke-chaoyi-v3.js', estSec: 1, expectExit: 0 },
+  // 常朝大改·Slice 2·议题 tag fallback 推导守门
+  { name: 'cc3-agenda-tags', file: 'smoke-changchao-agenda-tags.js', estSec: 1, expectExit: 0 },
+  // 常朝大改·Slice 3·B 方案 persona-text fallback hit rate ≥ 50%·dims 分布 ≥ 3 种
+  { name: 'cc3-persona-stance', file: 'smoke-changchao-persona-stance.js', estSec: 1, expectExit: 0 },
+  // 常朝大改·Slice 8·6-layer mode pipeline 守门 (base mode·persona modulation·guards·linkage)
+  { name: 'cc3-mode-pipeline', file: 'smoke-changchao-mode-pipeline.js', estSec: 1, expectExit: 0 },
   // 2026-05-07·endTurn 管道化双轨 diff (slice cluster 1-3b 验证)
   // 不许 pipeline mode 与 legacy mode 在 normalized GM 上有任何差异
   { name: 'pipeline-diff', file: 'smoke-pipeline-diff.js', estSec: 8, expectExit: 0 }

@@ -2081,3 +2081,15 @@ var TerritoryProductionSystem = (function() {
 })();
 
 // ============================================================
+// Namespace export·暴露 8D 人格聚合 + 性格摘要到 TM.NpcEngine
+// 让 tm-chaoyi-changchao.js 等模块走 TM.NpcEngine.aggregateDims(ch)
+// 跟 TM.PromptComposer.buildAiPersonaText(ch) 同 paradigm
+// ============================================================
+if (typeof window !== 'undefined') {
+  window.TM = window.TM || {};
+  window.TM.NpcEngine = window.TM.NpcEngine || {};
+  window.TM.NpcEngine.aggregateDims = _aggregatePersonalityDims;
+  window.TM.NpcEngine.getCharacterPersonalityBrief = getCharacterPersonalityBrief;
+}
+
+// ============================================================

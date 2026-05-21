@@ -400,6 +400,43 @@ async function _cc3_buildAgendaFromGM() {
   }
 }
 
+/**
+ * 常朝大改 Slice 2·议题 tag 推导
+ * 8 个核心 tag·让 Slice 3 (8D 接入 stance) 和 Slice 5 (persona modulation) 有据可循
+ *
+ * 来源 3 种·
+ *   1. scenario.events 预定义 tag (剧本剧情事件)
+ *   2. NPC 推演 LLM 输出含 tags 字段
+ *   3. fallback·关键词推导 (本函数)
+ *
+ * tag list·
+ *   foreign-policy        涉外·战和·封贡
+ *   penal-harsh           刑罚·诛戮·谳狱
+ *   reward-distribution   赏赐·分肥·封赏
+ *   etiquette-violation   违礼·僭越·失仪
+ *   ritual                祭祀·宗庙·礼制
+ *   historicalPrecedent   有先例可援·复古议
+ *   execution-detail      执行细节·具体方案
+ *   personnel             人事·任免·迁转
+ */
+function _cc3_inferTagsFromText(item) {
+  if (!item) return [];
+  const text = (item.title || '') + ' ' + (item.detail || item.content || '');
+  if (!text.trim()) return [];
+  const tags = [];
+
+  if (/和议|封贡|战守|出师|金人|党项|羁縻|攻守|抚剿|藩夷|互市|抗虏|降虏|和戎|犁庭/.test(text)) tags.push('foreign-policy');
+  if (/诛|斩|戮|大辟|谳狱|罪当死|抄家|凌迟|籍没|论死|弃市|赐死|连坐/.test(text)) tags.push('penal-harsh');
+  if (/封赏|分赐|食邑|赐田|加禄|加恩|赏赐|进爵|加封|荫袭/.test(text)) tags.push('reward-distribution');
+  if (/失仪|僭越|不臣|大不敬|违制|凌君|跋扈|无人臣礼/.test(text)) tags.push('etiquette-violation');
+  if (/祭|郊|庙|社稷|宗庙|礼制|大祀|配享|侑食|追尊/.test(text)) tags.push('ritual');
+  if (/(汉|唐|宋|明|周|秦|晋|魏|齐|隋)\S{0,8}故事|先朝|祖宗|前事|本朝旧例|国初\S{0,3}事|援.{0,4}故|引为.{0,2}鉴/.test(text)) tags.push('historicalPrecedent');
+  if (/方略|具体|施行|条陈|分项|分议|核议|详议|勘报|筹画|举措/.test(text)) tags.push('execution-detail');
+  if (/任|免|迁|擢|黜|罢|起复|拜.{0,2}相|入阁|出.{0,2}抚|开缺|休致/.test(text)) tags.push('personnel');
+
+  return tags;
+}
+
 /** 给 AI 生成的议程补 selfReact / debate / debate2 字段（让流程不冷场） */
 function _cc3_enhanceAgendaItem(item) {
   if (!item || typeof item !== "object") return item;
@@ -408,6 +445,10 @@ function _cc3_enhanceAgendaItem(item) {
   // 默认 controversial / importance
   if (typeof item.controversial !== "number") item.controversial = 3;
   if (typeof item.importance !== "number") item.importance = 5;
+  // Slice 2·议题 tag·若 scenario/LLM 未提供·走 fallback 关键词推导
+  if (!Array.isArray(item.tags) || !item.tags.length) {
+    item.tags = _cc3_inferTagsFromText(item);
+  }
 
   // 候选 NPC 池：在京、非主奏者、非缺席
   const presenter = item.presenter;
@@ -849,6 +890,18 @@ async function _cc3_aiGenReact(name, item, role, onChunk) {
   if (relationLine)  p += relationLine + '\n';
   if (memorySnippet) p += '── 你的记忆（影响判断）──\n' + memorySnippet + '\n';
 
+  // 常朝大改 Slice 1·PromptComposer 注入·跟玩家话回应路径 (L1761) 同 paradigm
+  // 让自发表态路径 (selfReact / debate / debate2 / dissent) 也吃到 aiPersonaText + recognitionState
+  // 而非只读 personality / loyalty / integrity / ambition 等表层字段
+  if (typeof TM !== 'undefined' && TM.PromptComposer && gmCh) {
+    try {
+      const _aiP = TM.PromptComposer.buildAiPersonaText(gmCh);
+      if (_aiP) p += _aiP;
+      const _rec = TM.PromptComposer.buildRecognitionState(gmCh);
+      if (_rec) p += _rec;
+    } catch (_) {}
+  }
+
   // 该 NPC 的最近行为（起居注+NPC 行动日志中相关条目）·让 AI 知道"前几日 X 干了什么"以保持连贯
   let actLines = [];
   try {
@@ -917,6 +970,37 @@ async function _cc3_aiGenReact(name, item, role, onChunk) {
   // 朝威
   const strict = (typeof isStrictCourt === 'function') ? isStrictCourt() : false;
   p += '朝威：' + (strict ? '肃朝（百官谨慎·言辞克制）' : '众言（百官较活跃）') + '\n';
+
+  // ─── 常朝大改 Slice 4-7·6 mode 应答策略注入 ───
+  // 层 1·debate state·层 2·base mode·层 3·persona modulation·层 4·rank/class tone·层 5·anti-monotony guards
+  let _modeTrace = null;
+  try {
+    const _state = _cc3_analyzeDebate(item, name, gmCh || ch);
+    const _baseMode = _cc3_baseMode(_state, gmCh || ch, item);
+    // Slice 6 guards·先 cap monotony·再 persona modulation
+    const _lastMode = (_state.lastSpeaker && item && (
+      ((item.selfReact || []).find(r => r.name === _state.lastSpeaker) || {})._mode ||
+      ((item.debate    || []).find(d => d.name === _state.lastSpeaker) || {})._mode
+    )) || null;
+    const _gaurded = _cc3_applyModeGuards(_baseMode, item, role, _lastMode);
+    const _modeResult = _cc3_modulateModeByPersona(_gaurded, gmCh || ch, item, _state);
+    _modeResult.modifiers.cite = _cc3_capCite(_modeResult.modifiers.cite, item);  // Guard 4
+    const _tone = _cc3_pickTone(gmCh || ch);
+
+    p += _cc3_buildModeInstruction(_modeResult, _tone, _state, gmCh || ch);
+
+    _modeTrace = {
+      mode: _modeResult.mode,
+      tone: _tone,
+      cite: !!_modeResult.modifiers.cite,
+      force: !!_modeResult.modifiers.force,
+      reason: _modeResult.modifiers.reason || '',
+      lastSpeaker: _state.lastSpeaker || '',
+      dimsSource: _modeResult.modifiers.source || '',
+    };
+  } catch (modeErr) {
+    console.warn('[cc3·mode] 应答 mode 推导失败·走 base prompt·', modeErr && modeErr.message);
+  }
 
   p += '\n── 任务 ──\n';
   if (role === 'self') {
@@ -1000,7 +1084,9 @@ async function _cc3_aiGenReact(name, item, role, onChunk) {
     if (!obj || typeof obj.line !== 'string' || obj.line.length < 6) return null;
     const validStances = ['support', 'oppose', 'mediate', 'neutral'];
     const stance = validStances.indexOf(obj.stance) >= 0 ? obj.stance : 'neutral';
-    return { stance: stance, line: obj.line.trim() };
+    const result = { stance: stance, line: obj.line.trim() };
+    if (_modeTrace) result._modeTrace = _modeTrace;  // Slice 7·peer 可读已推之 mode
+    return result;
   } catch (e) {
     console.warn('[cc3·react] JSON 解析失败·原文:', raw && raw.slice(0, 200));
     return null;
@@ -1035,6 +1121,17 @@ async function _cc3_streamReactBubble(npc, item, role) {
     npc.stance = aiResult.stance;
     npc.line = aiResult.line;
     npc._aiGen = true;
+    // Slice 7·把 mode trace 写回 npc·让后续 NPC guard/cite cooldown 看得见
+    if (aiResult._modeTrace) {
+      npc._mode = aiResult._modeTrace.mode;
+      npc._tone = aiResult._modeTrace.tone;
+      npc._cite = !!aiResult._modeTrace.cite;
+      // Slice 6·NPC-NPC AffinityMap + memory linkage
+      try {
+        const _ctrl = (item && typeof item.controversial === 'number') ? item.controversial : 3;
+        _cc3_writeNpcInteraction(npc.name, aiResult._modeTrace.mode, aiResult._modeTrace.lastSpeaker, item, _ctrl);
+      } catch (_) {}
+    }
   } else {
     // mock 回退
     if (textEl) textEl.textContent = npc.line || '臣随议·伏听圣裁。';
@@ -1524,6 +1621,65 @@ function inferStanceForResponder(name, item, playerText, intent, isMentioned) {
   return _cc3_computeStanceFromChar(name, item, intent);
 }
 
+/**
+ * 常朝大改 Slice 3·B 方案 fallback·若 traitIds 缺失·从 personality 字符串推 8D dims
+ * 中等精度·~70%·覆盖绍宋等 traitIds 为空剧本
+ */
+function _cc3_inferDimsFromPersonalityText(text) {
+  if (!text || typeof text !== 'string') return null;
+  const dims = { boldness:0, compassion:0, rationality:0, greed:0, honor:0, sociability:0, vengefulness:0, energy:0 };
+  let hits = 0;
+  // boldness·勇敢度
+  if (/勇敢|勇猛|刚直|刚毅|敢言|不畏|无畏|刚强|果敢|敢于|豪侠|忠勇|沉勇|武人/.test(text))     { dims.boldness += 0.4; hits++; }
+  if (/怯懦|畏缩|胆小|怕事|避祸|懦弱|畏怯|软弱|优柔|柔弱/.test(text))                          { dims.boldness -= 0.4; hits++; }
+  // compassion·仁善度
+  if (/仁善|仁厚|宽仁|爱民|怜悯|不忍|心慈|恻隐|温顺|温和|和善/.test(text))                     { dims.compassion += 0.4; hits++; }
+  if (/冷酷|冷漠|残忍|严苛|凉薄|薄情|狠辣|刻薄|无情/.test(text))                              { dims.compassion -= 0.4; hits++; }
+  // rationality·理性度
+  if (/理性|务实|深思|审慎|稳重|冷静|权衡|计虑|计谋|沉稳|老成持重|机变|机敏|有谋|善守|城府|谨慎|识大体|识进退|不喜形色|节俭|聪慧/.test(text)) { dims.rationality += 0.4; hits++; }
+  if (/冲动|偏激|急躁|莽撞|意气|轻率|昏聩|任性/.test(text))                                   { dims.rationality -= 0.4; hits++; }
+  // greed·贪心
+  if (/贪|聚敛|好利|敛财|爱财|图利|逐利|风流/.test(text))                                     { dims.greed += 0.4; hits++; }
+  if (/清廉|淡泊|寡欲|不贪|不慕|安贫|节俭/.test(text))                                        { dims.greed -= 0.4; hits++; }
+  // honor·名节
+  if (/名节|气节|清议|清流|耿介|忠直|刚正|节操|大义|守节|贞节|贞烈|贞静|重然诺|忠诚|忠悃/.test(text)) { dims.honor += 0.5; hits++; }
+  if (/失节|无耻|附阉|逢迎|苟合|圆滑/.test(text))                                             { dims.honor -= 0.4; hits++; }
+  // sociability·社交
+  if (/善交|结好|合群|和气|圆通|长袖善舞|好好先生/.test(text))                                { dims.sociability += 0.4; hits++; }
+  if (/孤僻|寡言|不群|独行|孤介|闷葫芦/.test(text))                                           { dims.sociability -= 0.4; hits++; }
+  // vengefulness·复仇
+  if (/睚眦必报|记仇|复仇|怀怨|心狭|心狠/.test(text))                                          { dims.vengefulness += 0.5; hits++; }
+  if (/宽厚|能容|不计前嫌|大度|隐忍|坚韧/.test(text))                                          { dims.vengefulness -= 0.4; hits++; }
+  // energy·精干
+  if (/勤勉|精干|干练|励精|尽心|勤政|敏锐|急切/.test(text))                                    { dims.energy += 0.4; hits++; }
+  if (/懒散|怠政|拖沓|疏懒|脾性软弱/.test(text))                                              { dims.energy -= 0.4; hits++; }
+  return hits > 0 ? dims : null;
+}
+
+/**
+ * 常朝大改 Slice 3·orchestrator·先 TM.NpcEngine.aggregateDims·再 fallback B
+ */
+function _cc3_getDims(ch) {
+  let dims = null;
+  try {
+    if (typeof window !== 'undefined' && window.TM && TM.NpcEngine && TM.NpcEngine.aggregateDims) {
+      dims = TM.NpcEngine.aggregateDims(ch);
+    }
+  } catch (_) {}
+  // 全 0 也算"无效"·走 fallback
+  const allZero = dims && Object.values(dims).every(v => v === 0);
+  if (!dims || allZero) {
+    const inferred = _cc3_inferDimsFromPersonalityText(ch && ch.personality);
+    if (inferred) {
+      dims = inferred;
+      dims._source = 'personality-text-fallback';  // debug 标识
+    }
+  } else if (dims) {
+    dims._source = 'trait-aggregate';
+  }
+  return dims;
+}
+
 /** 从角色实际属性 + 党派 + 议题语境 推导立场·替代纯随机 */
 function _cc3_computeStanceFromChar(name, item, intent) {
   const ch = CHARS[name] || {};
@@ -1587,10 +1743,506 @@ function _cc3_computeStanceFromChar(name, item, intent) {
   // ⑤ 极小随机扰动（避免完全可预测·但权重远低于属性）
   score += (Math.random() - 0.5) * 0.12;
 
+  // ⑥ 常朝大改 Slice 3·8D personality × 议题 tag 贡献·persona-first 而非 stat-first
+  //    实际接入 tm-npc-engine.js 的 8D 聚合·tag 来自 Slice 2 推导
+  //    fallback·若 traitIds 缺失 (绍宋等)·从 personality 字符串推 dims (B 方案)
+  const dims = _cc3_getDims(ch);
+  const tags = Array.isArray(item && item.tags) ? item.tags : [];
+  if (dims) {
+    // compassion·penal-harsh
+    if (tags.indexOf('penal-harsh') >= 0) {
+      if (dims.compassion >= 0.5)  score -= 0.30;   // 仁善强反对刑罚
+      if (dims.compassion <= -0.5) score += 0.20;   // 冷酷支持严办
+    }
+    // honor·etiquette / ritual
+    if (tags.indexOf('etiquette-violation') >= 0 && dims.honor >= 0.5) score += 0.30;  // 清流支持清算违礼
+    if (tags.indexOf('ritual') >= 0 && dims.honor >= 0.5) score -= 0.25;   // 重名节·议题动礼制宁守旧
+    // greed·reward-distribution
+    if (tags.indexOf('reward-distribution') >= 0) {
+      if (dims.greed >= 0.3)  score += 0.25;
+      if (dims.greed <= -0.3) score -= 0.10;
+    }
+    // boldness·foreign-policy·强硬派立场两极化
+    if (tags.indexOf('foreign-policy') >= 0) {
+      // 党派已确定主战/主和方向·boldness 强化该方向
+      if (dims.boldness >= 0.3 && score > 0)  score += 0.15;
+      if (dims.boldness >= 0.3 && score < 0)  score -= 0.15;
+      if (dims.boldness <= -0.3 && score > 0) score -= 0.10;  // 怯懦削弱主战
+      if (dims.boldness <= -0.3 && score < 0) score += 0.10;  // 怯懦缓和主和
+    }
+    // vengefulness·target 涉旧仇 (查 AffinityMap·若 ≤ -20 算旧仇)
+    if (item && item.target && typeof AffinityMap !== 'undefined' && AffinityMap.get) {
+      try {
+        const aff = AffinityMap.get(name, item.target);
+        if (typeof aff === 'number' && aff <= -20 && dims.vengefulness >= 0.5) {
+          // 议题针对的人 = 本人旧仇·支持治罪 / 反对宽宥
+          if (tags.indexOf('penal-harsh') >= 0) score += 0.25;
+          else                                  score -= 0.15;   // 议题为旧仇背书时反对
+        }
+      } catch (_) {}
+    }
+    // rationality·controversial ≥ 6·情绪化议题·理性者拉回中立
+    if (item && item.controversial >= 6 && dims.rationality >= 0.5) {
+      score *= 0.75;
+    }
+  }
+
   if (score >= 0.40) return 'support';
   if (score <= -0.30) return 'oppose';
   if (Math.abs(score) < 0.12) return 'neutral';
   return 'mediate';
+}
+
+// ============================================================
+// 常朝大改 Slice 4·debate state + base mode 推导
+// 让朝议从"群聊"升级为"对话"·6 mode·lead / second / rebut / soften / pivot / cite (modifier) / augment
+// ============================================================
+
+/** 同党判定·party 字段含义模糊 (可能是"主战派"·"东林"·"清流" 等)·走 substring 匹配 */
+function _cc3_sameParty(chA, chB) {
+  if (!chA || !chB) return false;
+  const pa = (chA.party || '').trim();
+  const pb = (chB.party || '').trim();
+  if (!pa || !pb) return false;
+  if (pa === pb) return true;
+  // 子串匹配·例如 "主战派" ⊂ "主战·清流"
+  if (pa.indexOf(pb) >= 0 || pb.indexOf(pa) >= 0) return true;
+  // 进一步·若 ch.faction 同·也算同党
+  if (chA.faction && chB.faction && chA.faction === chB.faction) {
+    // 同 faction 但不同 party·算半同党·返 false 让 mode 走 soften
+    return false;
+  }
+  return false;
+}
+
+/** 立场对立判定·只 support vs oppose 算对立·mediate/neutral 跟 support/oppose 均不算对立 */
+function _cc3_oppositeStance(a, b) {
+  if (!a || !b) return false;
+  if (a === 'support' && b === 'oppose') return true;
+  if (a === 'oppose' && b === 'support') return true;
+  return false;
+}
+
+/** 判断·target 是否曾损害 ch 本人/同党·查 AffinityMap·若 ≤ -20 算旧仇 */
+function _cc3_wasHarmedBy(ch, targetName) {
+  if (!ch || !targetName) return false;
+  if (typeof AffinityMap === 'undefined' || !AffinityMap.get) return false;
+  try {
+    const a = AffinityMap.get(ch.name, targetName);
+    return typeof a === 'number' && a <= -20;
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * 分析当前 debate state·返 8 字段
+ * 在 _cc3_aiGenReact 调用·此时 item.selfReact / item.debate 是已部分填充
+ *
+ * @param {Object} item       — 议程项
+ * @param {string} speakerName — 当前 NPC 名
+ * @param {Object} gmCh       — 当前 NPC 全数据 (findCharByName 结果)
+ * @returns {Object} state·或 { priorCount:0, mode:'lead' }
+ */
+function _cc3_analyzeDebate(item, speakerName, gmCh) {
+  if (!item || !speakerName || !gmCh) {
+    return { priorCount: 0, lastSpeaker: null, myStance: 'neutral' };
+  }
+  // 收集 prior·只算 AI 生成过的·避免读 mock 模板
+  const prior = ((item.selfReact || []).filter(r => r && r.name !== speakerName && r.line))
+    .concat((item.debate || []).filter(d => d && d.name !== speakerName && d.line));
+
+  // 推本人立场 (用 emperor intent 跨发言·若有)
+  const myStance = _cc3_computeStanceFromChar(speakerName, item, item._lastEmperorIntent || 'neutral');
+
+  if (!prior.length) {
+    return {
+      priorCount: 0,
+      lastSpeaker: null,
+      lastStance: null,
+      lastSamePartyAsMe: false,
+      myStance,
+      sameStanceCount: 0,
+      oppStanceCount: 0,
+      alliesPiledOn: 0,
+      alliesLost: 0,
+      momentum: 'opening',
+      emperorIntent: (item && item._lastEmperorIntent) || 'neutral',
+    };
+  }
+
+  const last = prior[prior.length - 1];
+
+  let sameStanceCount = 0, oppStanceCount = 0;
+  let alliesPiledOn = 0, alliesLost = 0;
+  prior.forEach(r => {
+    if (r.stance === myStance) sameStanceCount++;
+    if (_cc3_oppositeStance(r.stance, myStance)) oppStanceCount++;
+    const rch = (typeof CHARS !== 'undefined') ? CHARS[r.name] : null;
+    if (_cc3_sameParty(rch, gmCh)) {
+      if (r.stance === myStance) alliesPiledOn++;
+      if (_cc3_oppositeStance(r.stance, myStance)) alliesLost++;
+    }
+  });
+
+  // 阵营态势 (近 3 位)
+  const last3 = prior.slice(-3);
+  const last3Same = last3.filter(r => r.stance === myStance).length;
+  const last3Opp = last3.filter(r => _cc3_oppositeStance(r.stance, myStance)).length;
+  let momentum;
+  if (last3Same >= 2) momentum = 'consensus-with-me';
+  else if (last3Opp >= 2) momentum = 'consensus-against-me';
+  else momentum = 'split';
+
+  return {
+    priorCount: prior.length,
+    lastSpeaker: last.name,
+    lastStance: last.stance,
+    lastSamePartyAsMe: _cc3_sameParty((typeof CHARS !== 'undefined') ? CHARS[last.name] : null, gmCh),
+    myStance,
+    sameStanceCount, oppStanceCount,
+    alliesPiledOn, alliesLost,
+    momentum,
+    emperorIntent: (item && item._lastEmperorIntent) || 'neutral',
+  };
+}
+
+/**
+ * 6 base mode 推导·基于 debate state + 议题 context
+ * mode·lead / second / rebut / soften / pivot / augment·cite 作为 modifier
+ *
+ * 注意·persona modulation 在 Slice 5 的 _cc3_modulateModeByPersona 内做·此处只产 base
+ */
+function _cc3_baseMode(state, gmCh, item) {
+  if (!state || !gmCh) return 'augment';
+
+  // 自辩短路·议题点名你·必 rebut (借模式自辩)
+  if (item && item.target === gmCh.name) return 'rebut';
+
+  // 首发
+  if (state.priorCount === 0) return 'lead';
+
+  // 同党同立场 → second
+  if (state.lastSamePartyAsMe && state.lastStance === state.myStance) return 'second';
+
+  // 异党异立场 (support vs oppose) → rebut
+  if (!state.lastSamePartyAsMe && _cc3_oppositeStance(state.lastStance, state.myStance)) return 'rebut';
+
+  // 同党异立场 → soften (婉言劝)
+  if (state.lastSamePartyAsMe && state.lastStance !== state.myStance) return 'soften';
+
+  // 中立态度·非首发 → pivot 或 augment (随机·确定性 seed 可日后加)
+  if (state.myStance === 'neutral') {
+    return Math.random() < 0.5 ? 'pivot' : 'augment';
+  }
+
+  // 默认 (非对立·非同党·非中立)·补充新角度
+  return 'augment';
+}
+
+// ============================================================
+// 常朝大改 Slice 5·persona modulation + tone modulation + 朝堂语词库
+// ============================================================
+
+/**
+ * 15 条 8D persona × 议题 tag 修正表·调整 base mode
+ * 见 chaoyi-npc-dialogue-design-v3.md §4
+ *
+ * @param {string} mode  — base mode
+ * @param {Object} gmCh  — NPC 全数据
+ * @param {Object} item  — 议程·含 tags / target / controversial
+ * @param {Object} state — debate state·含 oppStanceCount / alliesLost / lastSpeaker
+ * @returns {Object} { mode: 修正后 mode, modifiers: { cite: bool, force: bool, source: string } }
+ */
+function _cc3_modulateModeByPersona(mode, gmCh, item, state) {
+  const result = { mode, modifiers: { cite: false, force: false, source: '' } };
+  const dims = _cc3_getDims(gmCh);
+  if (!dims) return result;
+  result.modifiers.source = dims._source || 'unknown';
+
+  const tags = Array.isArray(item && item.tags) ? item.tags : [];
+
+  // ─── 强制规则 (force·覆盖 base mode·按维度数值高者优先) ───
+  const forceCandidates = [];
+
+  // honor·议题涉宗庙/礼制 (ritual)
+  if (dims.honor >= 0.7 && tags.indexOf('ritual') >= 0) {
+    forceCandidates.push({ rank: dims.honor, mode: 'rebut', reason: 'honor ≥0.7 + ritual·宗庙不可' });
+  }
+  // honor·议题 etiquette-violation·即便同党也清算
+  if (dims.honor >= 0.5 && tags.indexOf('etiquette-violation') >= 0) {
+    forceCandidates.push({ rank: dims.honor, mode: 'rebut', reason: 'honor ≥0.5 + etiquette-violation·清议派清算' });
+  }
+  // compassion·议题 penal-harsh·即便异党异立场·强 soften
+  if (dims.compassion >= 0.5 && tags.indexOf('penal-harsh') >= 0) {
+    forceCandidates.push({ rank: dims.compassion, mode: 'soften', reason: 'compassion ≥0.5 + penal-harsh·仁善慎刑' });
+  }
+  // vengefulness·target = 旧仇
+  if (dims.vengefulness >= 0.7 && item && item.target && _cc3_wasHarmedBy(gmCh, item.target)) {
+    forceCandidates.push({ rank: dims.vengefulness, mode: 'rebut', reason: 'vengefulness ≥0.7 + target=旧仇·必驳' });
+  }
+  // boldness·target = self·自辩硬刚
+  if (dims.boldness >= 0.7 && item && item.target === gmCh.name) {
+    forceCandidates.push({ rank: dims.boldness, mode: 'lead', reason: 'boldness ≥0.7 + target=self·硬刚自辩' });
+  }
+  // greed·议题涉自身/亲族利益 — runtime 难判·仅 reward-distribution tag 替代
+  if (dims.greed >= 0.5 && tags.indexOf('reward-distribution') >= 0) {
+    forceCandidates.push({ rank: dims.greed, mode: 'second', reason: 'greed ≥0.5 + reward·主动争取' });
+  }
+
+  if (forceCandidates.length) {
+    forceCandidates.sort((a, b) => b.rank - a.rank);
+    result.mode = forceCandidates[0].mode;
+    result.modifiers.force = true;
+    result.modifiers.reason = forceCandidates[0].reason;
+    // 仍可能加 cite·下一步判
+  }
+
+  // ─── cite modifier (不替换 mode·补 modifier) ───
+  if (dims.rationality >= 0.5 && tags.indexOf('historicalPrecedent') >= 0) {
+    result.modifiers.cite = true;
+  }
+
+  // ─── 弱修正·只在 force=false 时生效·按 仁善 > 复仇 > 理性 > 名节 > 社交 顺序 ───
+  if (!result.modifiers.force) {
+    // compassion ≥ 0.3·base rebut + oppStanceCount < 3 → soften
+    if (mode === 'rebut' && dims.compassion >= 0.3 && (!state || state.oppStanceCount < 3)) {
+      result.mode = 'soften';
+      result.modifiers.reason = 'compassion ≥0.3·base rebut → soften·阵营未失势';
+    }
+    // vengefulness ≥ 0.5·上一位曾损害本人·second/augment → rebut
+    else if ((mode === 'second' || mode === 'augment') && dims.vengefulness >= 0.5 && state && state.lastSpeaker) {
+      if (_cc3_wasHarmedBy(gmCh, state.lastSpeaker)) {
+        result.mode = 'rebut';
+        result.modifiers.reason = 'vengefulness ≥0.5 + last=旧仇·second/aug → rebut';
+      }
+    }
+    // sociability ≥ 0.5·alliesLost ≥ 2 + base rebut → soften (找台阶)
+    else if (mode === 'rebut' && dims.sociability >= 0.5 && state && state.alliesLost >= 2) {
+      result.mode = 'soften';
+      result.modifiers.reason = 'sociability ≥0.5 + alliesLost ≥2·找台阶 → soften';
+    }
+    // energy ≥ 0.5·execution-detail tag·augment / pivot → pivot to specific
+    else if ((mode === 'augment' || mode === 'pivot') && dims.energy >= 0.5 && tags.indexOf('execution-detail') >= 0) {
+      result.mode = 'pivot';
+      result.modifiers.reason = 'energy ≥0.5 + execution-detail·提具体方案';
+    }
+  }
+
+  return result;
+}
+
+/**
+ * 5 tone·按 rank / class 选语气层
+ * 不改 mode·只调语言风格
+ */
+function _cc3_pickTone(gmCh) {
+  if (!gmCh) return 'default';
+  if (gmCh.class === 'kdao')  return 'righteous';  // 言官·激烈
+  if (gmCh.class === 'wuchen') return 'martial';   // 武臣·粗朴
+  if (gmCh.class === 'houfei') return 'decorum';   // 后妃·婉转
+  if (typeof gmCh.rank === 'number' && gmCh.rank <= 2) return 'gravitas';  // 阁臣·稳重
+  if (typeof gmCh.rank === 'number' && gmCh.rank >= 5) return 'procedural';// 郎官以下·程序化
+  return 'default';
+}
+
+/**
+ * 朝堂语 instruction 库·6 mode × 池
+ * 每 mode 给 2-3 个开头池 + 1-2 个结句池·LLM 任选风格
+ */
+const _CC3_PHRASE_POOLS = {
+  lead: {
+    opens: ['"陛下·臣窃以为..."', '"陛下·臣有一议·愿陈之..."', '"启奏陛下·臣谨议..."'],
+    closes: ['"伏乞圣裁"', '"伏惟陛下察焉"', '"臣谨奏闻"'],
+    structure: '开门见山·提出你的主张并给出 1 条理由',
+  },
+  second: {
+    opens: ['"臣附 X 之议·"', '"X 公所言甚是·臣亦以为..."', '"X 公已具陈·臣略补一条..."'],
+    closes: ['"不啻 X 之言·愿陛下俯纳"'],
+    structure: '复述 X 论点 1 句 + 1 条新理由 / 案例·不可全文重复其说',
+  },
+  rebut: {
+    opens: ['"臣窃以为 X 所言未当·"', '"X 公方言...·然臣 不敢同其议..."', '"X 公此论·臣有惑焉..."'],
+    closes: ['"伏惟陛下明察·勿堕其策"', '"愚见如此·伏乞圣裁"'],
+    structure: '先复述 X 论点 1 句·再反驳 1-2 句',
+  },
+  soften: {
+    opens: ['"X 公忠悃可嘉·惟..."', '"X 公此心拳拳·然臣愚以为..."'],
+    closes: ['"望陛下兼听·权宜处之"'],
+    structure: '先肯定对方动机 + 婉言陈己见',
+  },
+  pivot: {
+    opens: ['"诸臣所议皆当·然臣窃见..."', '"此议尚有一端未及..."', '"事关 X·或可交 Y 部详议..."'],
+    closes: ['"俟有定论·再呈陛下"'],
+    structure: '提议题未被讨论的侧面·或建议交某部 / 三法司 / 都察院 再议',
+  },
+  augment: {
+    opens: ['"前文已多有陈说·臣补一议..."', '"诸臣所议皆有理·臣窃见..."'],
+    closes: ['"伏惟陛下察焉"'],
+    structure: '补充一个未提及的视角或案例·不重复·不附和',
+  },
+};
+
+const _CC3_TONE_HINTS = {
+  gravitas:   '语气稳重委婉·先复对方论点 2 句以示尊重·再陈己见·末加"伏乞圣裁"',
+  procedural: '不直接驳·宜建议"交 [部/院] 详议"·或"请陛下命有司勘查"',
+  righteous:  '言官风骨·直陈不讳·可点名对方·语气激烈但不失体·朝堂语带"风闻奏事"',
+  martial:    '武臣口吻·粗朴直白·少修辞·多军事术语·短句·避免文饰·自称"末将"',
+  decorum:    '自抑·先言"妾不当与议"·后言"惟臣妾愿陈一二"·语气婉转重礼',
+  default:    '标准朝堂奏对体·"臣……"开头',
+};
+
+/**
+ * 拼装 prompt 段·6 mode × 5 tone × cite modifier
+ * 返字符串·拼到 _cc3_aiGenReact 原 prompt 后
+ */
+function _cc3_buildModeInstruction(modeResult, tone, state, gmCh) {
+  const mode = modeResult.mode;
+  const pool = _CC3_PHRASE_POOLS[mode] || _CC3_PHRASE_POOLS.augment;
+  const toneHint = _CC3_TONE_HINTS[tone] || _CC3_TONE_HINTS.default;
+
+  let p = '\n── 你的应答策略 ──\n';
+  p += '【应答模式·' + mode + '】\n';
+
+  // mode-specific opener·若 state 含 lastSpeaker·替换 X
+  const lastName = state && state.lastSpeaker ? state.lastSpeaker : '前位';
+  const opens = pool.opens.map(s => s.replace(/X/g, lastName)).join(' / ');
+  const closes = pool.closes.map(s => s.replace(/X/g, lastName)).join(' / ');
+
+  p += '内容范式·' + pool.structure.replace(/X/g, lastName) + '\n';
+  p += '朝堂语开头·' + opens + '\n';
+  p += '朝堂语结句·' + closes + '\n';
+  p += '【语气】' + toneHint + '\n';
+
+  // cite modifier
+  if (modeResult.modifiers.cite) {
+    p += '【援引】此议有先例可援·你理性高·可在论述中带入一段史事 (如汉光武渡江 / 唐玄宗幸蜀)·作类比·末加"古今同道·惟陛下察焉"\n';
+  }
+  // force reason debug
+  if (modeResult.modifiers.force) {
+    p += '【强约束·' + (modeResult.modifiers.reason || '强制') + '】\n';
+  }
+
+  // dims source debug (只在 fallback 时标·便于 sprint summary 对比)
+  if (modeResult.modifiers.source === 'personality-text-fallback') {
+    p += '【debug·persona dims 来自 personality 字符串 fallback·非 traitIds 聚合】\n';
+  }
+
+  p += '\n你必须遵循上述「应答模式」·脱离视为生成失败·重新生成。\n';
+
+  return p;
+}
+
+// ============================================================
+// 常朝大改 Slice 6·anti-monotony guards + NPC-NPC AffinityMap linkage
+// ============================================================
+
+/**
+ * 4 anti-monotony guards·防 mode 分布塌缩
+ *
+ * @param {string} mode  — modulated mode
+ * @param {Object} item  — 议程·读 selfReact / debate 已有 mode 分布
+ * @param {string} role  — 'self' | 'debate' | 'debate2'
+ * @param {string} lastMode — 上一位 NPC 的 mode (若 prior 有 _mode 字段)
+ * @returns {string} final mode·可能被 guards 改写
+ */
+function _cc3_applyModeGuards(mode, item, role, lastMode) {
+  // 收集本议程 prior 已有 mode
+  const modesSoFar = []
+    .concat((item.selfReact || []).map(r => r && r._mode).filter(Boolean))
+    .concat((item.debate || []).map(d => d && d._mode).filter(Boolean));
+  const counts = {};
+  modesSoFar.forEach(m => { counts[m] = (counts[m] || 0) + 1; });
+
+  // Guard 1·同 mode ≥ 3·改其他相容 mode
+  if (counts[mode] >= 3) {
+    if (mode === 'rebut')  return 'soften';
+    if (mode === 'second') return 'augment';
+    if (mode === 'pivot')  return 'augment';
+    // lead 只可能首位·不会触发·rebut/second/pivot 在此降级
+  }
+
+  // Guard 2·避免连续同 mode·40% 概率换 augment (augment 自身不 cap)
+  if (mode === lastMode && mode !== 'augment') {
+    if (Math.random() < 0.4) return 'augment';
+  }
+
+  // Guard 3·debate2 第二轮·rebut → soften (50%)·lead → augment (强制)
+  if (role === 'debate2') {
+    if (mode === 'rebut' && Math.random() < 0.5) return 'soften';
+    if (mode === 'lead') return 'augment';
+  }
+
+  return mode;
+}
+
+/**
+ * Guard 4·cite cooldown·已 ≥ 2 个 cite·70% drop
+ */
+function _cc3_capCite(citeFlag, item) {
+  if (!citeFlag) return false;
+  const citesSoFar = []
+    .concat((item.selfReact || []).filter(r => r && r._cite))
+    .concat((item.debate || []).filter(d => d && d._cite))
+    .length;
+  if (citesSoFar >= 2) {
+    return Math.random() < 0.3;  // 70% 丢
+  }
+  return true;
+}
+
+/**
+ * NPC-NPC consequence linkage·朝议塑造派系网而非消费完即烧
+ * 在 _cc3_aiGenReact 末尾·LLM 返结果后追加
+ *
+ * AffinityMap 真 API·.add(a, b, delta, reason)·单向·两 NPC 需调 2 次
+ * NpcMemorySystem.remember signature·positional·(name, text, '中文 emotion', weight, source)
+ */
+function _cc3_writeNpcInteraction(name, mode, lastSpeaker, item, controversial) {
+  if (!lastSpeaker || lastSpeaker === name) return;
+  if (typeof AffinityMap === 'undefined' || !AffinityMap.add) return;
+
+  const intensity = (controversial >= 6) ? 3 : 2;
+  const itemTitle = (item && item.title) || '议事';
+
+  switch (mode) {
+    case 'rebut':
+      try {
+        AffinityMap.add(name, lastSpeaker, -intensity, '常朝议事·' + name + '驳' + lastSpeaker);
+        AffinityMap.add(lastSpeaker, name, -intensity, '常朝议事·被' + name + '驳');
+      } catch (_) {}
+      break;
+    case 'second':
+      try {
+        AffinityMap.add(name, lastSpeaker, +intensity, '常朝议事·' + name + '附议' + lastSpeaker);
+        AffinityMap.add(lastSpeaker, name, +1, '常朝议事·' + name + '附议');
+      } catch (_) {}
+      break;
+    case 'soften':
+      try {
+        AffinityMap.add(name, lastSpeaker, +1, '常朝议事·' + name + '婉言劝' + lastSpeaker);
+      } catch (_) {}
+      break;
+    // pivot / augment / lead / cite·不直接互动·不动 affinity
+  }
+
+  // memory·NPC 自己记得此事
+  if (typeof NpcMemorySystem !== 'undefined' && NpcMemorySystem.remember) {
+    let verb, emotion, weight;
+    if (mode === 'rebut') { verb = '驳'; emotion = '怒'; weight = 6; }
+    else if (mode === 'second') { verb = '附议'; emotion = '喜'; weight = 4; }
+    else if (mode === 'soften') { verb = '婉劝'; emotion = '平'; weight = 3; }
+    else return;  // 其他 mode 不入 memory (避免噪音)
+    try {
+      NpcMemorySystem.remember(
+        name,
+        '常朝议事·' + verb + lastSpeaker + '于「' + itemTitle + '」',
+        emotion,
+        weight,
+        lastSpeaker
+      );
+    } catch (_) {}
+  }
 }
 
 // 入口·先试 AI 再回退 mock·支持流式 onChunk 回调
