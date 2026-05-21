@@ -2,6 +2,33 @@
   "_comment": "天命·更新日志——新条目 unshift 到数组最前（由近及远）。格式：{date, module, title, items[]}；items 元素可为字符串或 {what, why}。",
   "entries": [
     {
+      "date": "2026-05-21",
+      "module": "近事快报 / NPC 势力推演 / 工程清理",
+      "title": "扩展近事快报类别识别，避免势力 LLM 推演事件落入“其他”类目",
+      "items": [
+        {
+          "what": "近事快报识别类别由 7 类扩展到 18 类，新增 9 个势力类目：财政、军务、外交、地政、财计、间谍、叛乱，以及世界事件类目：起义、党派、势力、阶层。每个类目配独立色条。",
+          "why": "此前势力精细化推演开启后，NPC 主君调军、外交、间谍等事件全部落入“其他”灰色样式，无法和玩家自己的诏令奏疏区分。补全类别映射后近事快报能看出哪些是“别国在动”。"
+        },
+        {
+          "what": "新增 NPC 推演调速预设：TM.FactionNpcInTurnDriver.setSpeed('dev'|'fast'|'normal'|'slow')，可把回合内 LLM 推演首次触发延迟从默认 30s 临时调到 1s/5s/60s。",
+          "why": "玩家想现场感受 NPC 主君在回合内的反应时不必等三十秒；开发与调试可即刻验证推演触发链路。"
+        },
+        {
+          "what": "新增两个 verify-all 守门：faction-npc-multiturn-e2e（多回合端到端验证近事快报里 NPC 事件占比≥50% 且至少命中两个不同 NPC 势力）；qiju-category-coverage（锁定 bridge push 类别必须被近事快报 UI 识别）。",
+          "why": "防止以后“代码加了新势力事件 push、但 UI 仍把它当成‘其他’”这种悄悄丢色彩的回归。"
+        },
+        {
+          "what": "scenarios 目录下 30+ 个 .bak / .bak-codex-* 历史快照（约 102MB）归档到 scenarios/_archived-backups/；五个 backfill / merge / attach 脚本改为把未来 .bak 直接写入归档目录。",
+          "why": "主目录清掉冗余，未来运行脚本也不会再把同名 .bak 落到主目录干扰文件搜索与 git diff。"
+        },
+        {
+          "what": "热更新打包脚本排除本地开发产物目录（_archive、backups、_screenshots、test-results、_codex_tmp、.bak-r*）。",
+          "why": "避免本地调试目录意外进入热更包，减小推送体积。"
+        }
+      ]
+    },
+    {
       "date": "2026-05-20",
       "module": "设置 / 主题字号 / 官方剧本",
       "title": "扩展主题字号设置，并修复官方剧本补种包的校验误报",

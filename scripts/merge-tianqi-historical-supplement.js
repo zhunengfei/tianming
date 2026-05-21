@@ -561,7 +561,9 @@ function main() {
   const supplement = readJson(supplementPath);
   const generatedAdmin = fs.existsSync(generatedAdminPath) ? readJson(generatedAdminPath) : {};
   const sid = scenario.id || 'sc-tianqi7-1627';
-  const backupPath = `${scenarioPath}.pre-historical-supplement-${stamp()}.bak`;
+  const backupDir = path.join(path.dirname(scenarioPath), '_archived-backups');
+  fs.mkdirSync(backupDir, { recursive: true });
+  const backupPath = path.join(backupDir, `${path.basename(scenarioPath)}.pre-historical-supplement-${stamp()}.bak`);
   fs.copyFileSync(scenarioPath, backupPath);
 
   const originalFactionKeys = new Set();

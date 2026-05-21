@@ -315,12 +315,30 @@ function _qijuNormalize(r) {
 
 /** 类别→CSS 类 */
 function _qijuCatClass(cat) {
-  var map = {'\u8BCF\u4EE4':'c-edict','\u594F\u758F':'c-memo','\u671D\u8BAE':'c-chaoyi','\u9E3F\u96C1':'c-letter','\u4EBA\u4E8B':'c-person','\u884C\u6B62':'c-xingzhi','\u53D9\u4E8B':'c-narrative'};
+  // 7 \u539F\u6709 + NPC bridge / endturn-apply \u65B0\u7C7B\u76EE
+  var map = {
+    '\u8BCF\u4EE4':'c-edict','\u594F\u758F':'c-memo','\u671D\u8BAE':'c-chaoyi',
+    '\u9E3F\u96C1':'c-letter','\u4EBA\u4E8B':'c-person','\u884C\u6B62':'c-xingzhi',
+    '\u53D9\u4E8B':'c-narrative',
+    '\u8D22\u653F':'c-fiscal','\u519B\u52A1':'c-military','\u5916\u4EA4':'c-diplomacy',
+    '\u5730\u653F':'c-province','\u8D22\u8BA1':'c-fiscal','\u95F4\u8C0D':'c-intrigue',
+    '\u53DB\u4E71':'c-rebel','\u8D77\u4E49':'c-rebel','\u515A\u6D3E':'c-party','\u52BF\u529B':'c-power',
+    '\u9636\u5C42':'c-class'
+  };
   return map[cat] || 'c-narrative';
 }
 /** 类别→统计键 */
 function _qijuCatKey(cat) {
-  var map = {'\u8BCF\u4EE4':'edict','\u594F\u758F':'memo','\u671D\u8BAE':'chaoyi','\u9E3F\u96C1':'letter','\u4EBA\u4E8B':'person','\u884C\u6B62':'xingzhi','\u53D9\u4E8B':'narrative'};
+  // \u6269\u542B NPC \u52BF\u529B\u63A8\u9001\u7C7B\u76EE
+  var map = {
+    '\u8BCF\u4EE4':'edict','\u594F\u758F':'memo','\u671D\u8BAE':'chaoyi',
+    '\u9E3F\u96C1':'letter','\u4EBA\u4E8B':'person','\u884C\u6B62':'xingzhi',
+    '\u53D9\u4E8B':'narrative',
+    '\u8D22\u653F':'fiscal','\u519B\u52A1':'military','\u5916\u4EA4':'diplomacy',
+    '\u5730\u653F':'province','\u8D22\u8BA1':'fiscal','\u95F4\u8C0D':'intrigue',
+    '\u53DB\u4E71':'rebel','\u8D77\u4E49':'rebel','\u515A\u6D3E':'party','\u52BF\u529B':'power',
+    '\u9636\u5C42':'class'
+  };
   return map[cat] || 'narrative';
 }
 /** 人名高亮：把角色名包成 .name */

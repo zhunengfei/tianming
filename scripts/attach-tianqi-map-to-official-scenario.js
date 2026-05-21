@@ -174,7 +174,9 @@ function attachMap() {
   if (!fs.existsSync(gameMapPath)) throw new Error(`未找到地图资产: ${gameMapPath}`);
   const scenario = readJson(scenarioPath);
   const gameMap = readJson(gameMapPath);
-  const backupPath = `${scenarioPath}.pre-map-attach-${stamp()}.bak`;
+  const backupDir = path.join(path.dirname(scenarioPath), '_archived-backups');
+  fs.mkdirSync(backupDir, { recursive: true });
+  const backupPath = path.join(backupDir, `${path.basename(scenarioPath)}.pre-map-attach-${stamp()}.bak`);
   fs.copyFileSync(scenarioPath, backupPath);
 
   const factionLookup = normalizeFactionLookup(scenario, gameMap);

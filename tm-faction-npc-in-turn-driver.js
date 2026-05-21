@@ -237,11 +237,35 @@
     return _runOneInTurn(turn, 'manual');
   }
 
+  // 调速预设·debug / 手感测试用·写入 P.conf 影响 dispatcher 与 driver
+  // 'dev'    1s/3s   开发期·几乎立刻看到 NPC 反应
+  // 'fast'   5s/15s  快节奏·感觉 NPC 跟得上手
+  // 'normal' 30s/90s 默认·桌面玩家长回合
+  // 'slow'   60s/180s 慢·省 API
+  var SPEED_PRESETS = {
+    dev:    { first: 1000,  repeat: 3000  },
+    fast:   { first: 5000,  repeat: 15000 },
+    normal: { first: 30000, repeat: 90000 },
+    slow:   { first: 60000, repeat: 180000 }
+  };
+  function setSpeed(name) {
+    var preset = SPEED_PRESETS[String(name || '').toLowerCase()];
+    if (!preset) return { ok: false, reason: 'unknown preset', available: Object.keys(SPEED_PRESETS) };
+    if (!global.P) global.P = {};
+    if (!global.P.conf) global.P.conf = {};
+    global.P.conf.npcInTurnFirstDelayMs = preset.first;
+    global.P.conf.npcInTurnRepeatDelayMs = preset.repeat;
+    // 已经排好的旧 timer 没影响·下一回合 reschedule 用新值
+    return { ok: true, preset: name, first: preset.first, repeat: preset.repeat };
+  }
+
   global.TM = global.TM || {};
   global.TM.FactionNpcInTurnDriver = {
     scheduleInTurnRuns: scheduleInTurnRuns,
     cancelInTurnTimers: cancelInTurnTimers,
     triggerNow: triggerNow,
+    setSpeed: setSpeed,
+    SPEED_PRESETS: SPEED_PRESETS,
     _runOneInTurn: _runOneInTurn,
     _pickOneFac: _pickOneFac,
     _resolvePlayerFactionNames: _resolvePlayerFactionNames,

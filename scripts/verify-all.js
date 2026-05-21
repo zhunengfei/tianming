@@ -66,6 +66,8 @@ const checks = [
   { name: 'faction-llm-priority-lifecycle', file: 'smoke-faction-llm-priority-lifecycle.js', estSec: 1, expectExit: 0 },
   { name: 'faction-llm-comprehensive-upgrade', file: 'smoke-faction-llm-comprehensive-upgrade.js', estSec: 1, expectExit: 0 },
   { name: 'faction-npc-in-turn', file: 'smoke-faction-npc-in-turn-driver.js', estSec: 1, expectExit: 0 },
+  { name: 'faction-npc-multiturn-e2e', file: 'smoke-faction-npc-multiturn-e2e.js', estSec: 1, expectExit: 0 },
+  { name: 'qiju-category-coverage', file: 'smoke-qiju-category-coverage.js', estSec: 1, expectExit: 0 },
   { name: 'engine-phase0', file: 'smoke-engine-phase0.js', estSec: 1, expectExit: 0 },
   { name: 'office-dynastification', file: 'smoke-office-dynastification.js', estSec: 1, expectExit: 0 },
   { name: 'office-appointment-sync', file: 'smoke-office-appointment-sync.js', estSec: 1, expectExit: 0 },

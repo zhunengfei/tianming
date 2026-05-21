@@ -25,8 +25,19 @@ const ALLOWED_EXTS = new Set([
 ]);
 
 const EXCLUDED_DIRS = new Set([
-  '.git', 'node_modules', '.cache', '.tmp', 'tmp', 'dist', 'build', 'release', 'coverage'
+  '.git', 'node_modules', '.cache', '.tmp', 'tmp', 'dist', 'build', 'release', 'coverage',
+  // 本地开发产物·绝不入热更包
+  '_archive', 'backups', '_screenshots', 'test-results', '_codex_tmp',
+  // godot 端 WIP 移植·web 运行时不依赖·package.json 也用 !web/godot/**/* 排掉
+  'godot'
 ]);
+
+// 额外按前缀排除·.bak-rNN 历史快照目录
+function _isExcludedDir(name) {
+  if (EXCLUDED_DIRS.has(name)) return true;
+  if (name.startsWith('.bak-')) return true;
+  return false;
+}
 
 function arg(name, fallback) {
   const idx = process.argv.indexOf('--' + name);
@@ -61,7 +72,7 @@ function walk(dir, out) {
     const abs = path.join(dir, entry.name);
     const rel = normalizeRel(abs);
     if (entry.isDirectory()) {
-      if (EXCLUDED_DIRS.has(entry.name)) return;
+      if (_isExcludedDir(entry.name)) return;
       walk(abs, out);
       return;
     }

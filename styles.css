@@ -4026,6 +4026,26 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:999;o
 .qj-rec.c-person{--cat-c:var(--celadon-400);--cat-rgb:106,154,127;}
 .qj-rec.c-xingzhi{--cat-c:var(--gold-400);--cat-rgb:184,154,83;}
 .qj-rec.c-narrative{--cat-c:var(--ink-500,#a69470);--cat-rgb:166,148,112;}
+/* NPC 势力 bridge + endturn 世界事件类目·复用近色系 */
+.qj-rec.c-fiscal{--cat-c:#c5a04a;--cat-rgb:197,160,74;}
+.qj-rec.c-military{--cat-c:#b84738;--cat-rgb:184,71,56;}
+.qj-rec.c-diplomacy{--cat-c:#5a8fb8;--cat-rgb:90,143,184;}
+.qj-rec.c-province{--cat-c:#6a9a7f;--cat-rgb:106,154,127;}
+.qj-rec.c-intrigue{--cat-c:#8e6aa8;--cat-rgb:142,106,168;}
+.qj-rec.c-rebel{--cat-c:#a84038;--cat-rgb:168,64,56;}
+.qj-rec.c-party{--cat-c:#a86c5a;--cat-rgb:168,108,90;}
+.qj-rec.c-power{--cat-c:#5a6fa8;--cat-rgb:90,111,168;}
+.qj-rec.c-class{--cat-c:#8a7a5e;--cat-rgb:138,122,94;}
+/* legend chip 对齐 */
+.qj-legend-chip.c-fiscal{--chip-c:#c5a04a;--chip-rgb:197,160,74;}
+.qj-legend-chip.c-military{--chip-c:#b84738;--chip-rgb:184,71,56;}
+.qj-legend-chip.c-diplomacy{--chip-c:#5a8fb8;--chip-rgb:90,143,184;}
+.qj-legend-chip.c-province{--chip-c:#6a9a7f;--chip-rgb:106,154,127;}
+.qj-legend-chip.c-intrigue{--chip-c:#8e6aa8;--chip-rgb:142,106,168;}
+.qj-legend-chip.c-rebel{--chip-c:#a84038;--chip-rgb:168,64,56;}
+.qj-legend-chip.c-party{--chip-c:#a86c5a;--chip-rgb:168,108,90;}
+.qj-legend-chip.c-power{--chip-c:#5a6fa8;--chip-rgb:90,111,168;}
+.qj-legend-chip.c-class{--chip-c:#8a7a5e;--chip-rgb:138,122,94;}
 
 .qj-rec-hdr{display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap;}
 .qj-cat-chip{display:inline-flex;align-items:center;gap:3px;font-family:var(--font-serif);font-size:14.5px;padding:1px 7px;background:linear-gradient(to bottom,var(--cat-c,var(--gold-400)),rgba(0,0,0,0.08));color:#1a1410;border-radius:2px;letter-spacing:0.12em;font-weight:500;line-height:14px;}

@@ -82,7 +82,9 @@ function backfillScenario(filePath) {
     console.log('skip·not found: ' + filePath);
     return;
   }
-  var bakPath = filePath + '.pre-d1-chars.bak';
+  var bakDir = path.join(path.dirname(filePath), '_archived-backups');
+  fs.mkdirSync(bakDir, { recursive: true });
+  var bakPath = path.join(bakDir, path.basename(filePath) + '.pre-d1-chars.bak');
   if (!fs.existsSync(bakPath)) fs.copyFileSync(filePath, bakPath);
   var sc = JSON.parse(fs.readFileSync(filePath, 'utf8'));
   var name = path.basename(filePath);

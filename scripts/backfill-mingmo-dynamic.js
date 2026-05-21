@@ -77,8 +77,10 @@ function backfillScenario(filePath) {
     console.log('skip·not found: ' + filePath);
     return null;
   }
-  // 备份
-  var bakPath = filePath + '.pre-dynamic-backfill.bak';
+  // 备份·走 _archived-backups 子目录
+  var bakDir = path.join(path.dirname(filePath), '_archived-backups');
+  fs.mkdirSync(bakDir, { recursive: true });
+  var bakPath = path.join(bakDir, path.basename(filePath) + '.pre-dynamic-backfill.bak');
   if (!fs.existsSync(bakPath)) {
     fs.copyFileSync(filePath, bakPath);
   }
