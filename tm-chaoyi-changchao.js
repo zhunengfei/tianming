@@ -1013,10 +1013,21 @@ async function _cc3_aiGenReact(name, item, role, onChunk) {
     p += '你出列严辞抗辩。\n';
   }
   const wordHint = (typeof _aiDialogueWordHint === 'function') ? _aiDialogueWordHint('cy') : '约 50-120 字';
+  // v3.1·prompt 末尾再重申一次 mode·让 LLM 因 recency bias 不忘
+  if (_modeTrace) {
+    p += '\n── 最后重申 ──\n';
+    p += '本回应模式 = 「' + _modeTrace.mode + '」·请回看「应答策略」段之【必含】【禁止】【自检】并严格执行。\n';
+  }
   p += '\n严格按 JSON 输出（不带其他文字、不带代码块标记）：\n';
-  p += '{"stance":"support|oppose|mediate|neutral","line":"..."}\n\n';
+  // v3.1·新加 mode 字段·让 LLM 回执自己用了哪个 mode·便于后验
+  p += '{"stance":"support|oppose|mediate|neutral","mode":"lead|second|rebut|soften|pivot|augment","line":"..."}\n\n';
   p += '要求：\n';
   p += '· stance 必须基于你档案中的派系/性格/忠诚/与陛下关系/此议之利害·不可机械随机·不可空泛中立\n';
+  if (_modeTrace) {
+    p += '· **mode 必须 = "' + _modeTrace.mode + '"** (跟"应答策略"段一致)·若你认为另一 mode 更合适·**仍须按所要求的 mode 写**·不可自行换 mode\n';
+  } else {
+    p += '· mode 须如实回执 (lead / second / rebut / soften / pivot / augment 之一)\n';
+  }
   p += '· 若议题涉及你或你的派系利益·立场须强烈\n';
   p += '· 若议题与你的记忆相关·态度应有连贯性\n';
   p += '· line 字数' + wordHint + '·半文言·朝堂奏对体·"臣……"开头·体现你的性格与身份\n';
@@ -1083,8 +1094,18 @@ async function _cc3_aiGenReact(name, item, role, onChunk) {
     const obj = JSON.parse(m[0]);
     if (!obj || typeof obj.line !== 'string' || obj.line.length < 6) return null;
     const validStances = ['support', 'oppose', 'mediate', 'neutral'];
+    const validModes   = ['lead', 'second', 'rebut', 'soften', 'pivot', 'augment'];
     const stance = validStances.indexOf(obj.stance) >= 0 ? obj.stance : 'neutral';
     const result = { stance: stance, line: obj.line.trim() };
+
+    // v3.1·LLM 回执的 mode·跟我们推的对比·不匹配 warn (不阻断·只 trace)
+    if (typeof obj.mode === 'string' && validModes.indexOf(obj.mode) >= 0) {
+      result._llmReportedMode = obj.mode;
+      if (_modeTrace && _modeTrace.mode && obj.mode !== _modeTrace.mode) {
+        console.warn('[cc3·mode-mismatch] expected ' + _modeTrace.mode + '·got ' + obj.mode + '·NPC=' + name + '·line=' + result.line.slice(0, 60));
+      }
+    }
+
     if (_modeTrace) result._modeTrace = _modeTrace;  // Slice 7·peer 可读已推之 mode
     return result;
   } catch (e) {
@@ -2055,31 +2076,61 @@ const _CC3_PHRASE_POOLS = {
     opens: ['"陛下·臣窃以为..."', '"陛下·臣有一议·愿陈之..."', '"启奏陛下·臣谨议..."'],
     closes: ['"伏乞圣裁"', '"伏惟陛下察焉"', '"臣谨奏闻"'],
     structure: '开门见山·提出你的主张并给出 1 条理由',
+    requireWords: ['臣', '陛下'],
+    requireEither: ['窃以为', '有一议', '谨议', '愚以为'],
+    requireClose: ['圣裁', '察焉', '奏闻', '俯纳'],
+    example: '陛下·臣窃以为辽东之危·非一日之积。若不即拨饷增兵·恐有崩溃之患。伏乞圣裁。',
+    selfCheck: ['是否含"臣"+"陛下"', '是否以"窃以为/有一议/谨议"之类开题', '是否给出 1 条具体理由 (非空泛)', '结句是否含"圣裁/察焉/奏闻"'],
   },
   second: {
     opens: ['"臣附 X 之议·"', '"X 公所言甚是·臣亦以为..."', '"X 公已具陈·臣略补一条..."'],
-    closes: ['"不啻 X 之言·愿陛下俯纳"'],
+    closes: ['"不啻 X 之言·愿陛下俯纳"', '"附 X 公之议·伏乞圣裁"'],
     structure: '复述 X 论点 1 句 + 1 条新理由 / 案例·不可全文重复其说',
+    requireWords: ['附', 'X'],  // X 会被 lastSpeaker 替换
+    requireEither: ['附议', '所言甚是', '亦以为', '正合臣意'],
+    requireClose: ['俯纳', '圣裁', '察焉'],
+    example: '臣附李公之议·李公方言"宗庙犹存·岂可南幸"·诚为正论。臣再补一条·汴京一失·河朔豪杰必散。愿陛下俯纳。',
+    selfCheck: ['是否含"附议/亦以为/所言甚是"附议词', '是否复述 X 论点 1 句', '是否补充 1 条新理由 (非全文重复)', '是否点 X 的名字'],
   },
   rebut: {
     opens: ['"臣窃以为 X 所言未当·"', '"X 公方言...·然臣 不敢同其议..."', '"X 公此论·臣有惑焉..."'],
-    closes: ['"伏惟陛下明察·勿堕其策"', '"愚见如此·伏乞圣裁"'],
-    structure: '先复述 X 论点 1 句·再反驳 1-2 句',
+    closes: ['"伏惟陛下明察·勿堕其策"', '"愚见如此·伏乞圣裁"', '"伏乞陛下察其谬"'],
+    structure: '先复述 X 论点 1 句·再用"然/惟/不敢同/未当"转折·给反驳理由 1-2 句',
+    requireWords: ['X'],  // X 会被 lastSpeaker 替换·rebut 必须点名
+    requireEither: ['然', '惟', '不敢同', '未当', '臣有惑', '臣窃以为不可'],  // 必含转折之一
+    requireClose: ['明察', '勿堕', '察其谬', '圣裁'],
+    forbidden: ['陛下圣明', '诚为至论', '确为正论'],  // rebut 禁出现空泛附和
+    example: '黄相方言"扬州可幸"·然臣窃以为未当。汴京未陷·宗庙犹存·岂可一去千里？金人闻之·必谓宋有畏心。伏惟陛下明察·勿堕其策。',
+    selfCheck: ['是否复述对方论点 1 句 (含引号或冒号)', '是否含转折词"然/惟/不敢同/未当"之一', '是否给出 ≥1 条反驳理由 (非空泛)', '是否点名对方', '结句是否含"明察/勿堕/察其谬"'],
   },
   soften: {
-    opens: ['"X 公忠悃可嘉·惟..."', '"X 公此心拳拳·然臣愚以为..."'],
-    closes: ['"望陛下兼听·权宜处之"'],
-    structure: '先肯定对方动机 + 婉言陈己见',
+    opens: ['"X 公忠悃可嘉·惟..."', '"X 公此心拳拳·然臣愚以为..."', '"X 公所议出于公心·惟一节有疑..."'],
+    closes: ['"望陛下兼听·权宜处之"', '"伏乞陛下并察"', '"望陛下圣裁兼采"'],
+    structure: '先肯定 X 动机或忠诚 1 句 (用"忠悃/拳拳/出于公心")·再婉言陈己见',
+    requireWords: ['X'],
+    requireEither: ['忠悃', '拳拳', '公心', '此心', '出于'],  // 必含肯定 X 动机的词
+    requireClose: ['兼听', '并察', '兼采', '权宜'],
+    example: '宗公忠悃可嘉·一片孤忠诚为可敬。惟今金兵迫近·若死守汴梁恐被困城中。望陛下兼听·权宜处之。',
+    selfCheck: ['是否先肯定 X 动机/忠诚 1 句', '是否含"忠悃/拳拳/公心/此心"之一', '是否含转折"惟/然"', '是否给出己见', '结句是否含"兼听/并察/兼采"'],
   },
   pivot: {
     opens: ['"诸臣所议皆当·然臣窃见..."', '"此议尚有一端未及..."', '"事关 X·或可交 Y 部详议..."'],
-    closes: ['"俟有定论·再呈陛下"'],
-    structure: '提议题未被讨论的侧面·或建议交某部 / 三法司 / 都察院 再议',
+    closes: ['"俟有定论·再呈陛下"', '"伏乞陛下命有司详议"'],
+    structure: '提议题未被讨论的侧面·或建议交某部 / 三法司 / 都察院 / 户部 再议·避免直接表态',
+    requireEither: ['尚有', '未及', '另有', '交.{0,3}部', '交有司', '详议', '勘报'],
+    requireClose: ['有司', '俟有定论', '详议', '勘报'],
+    forbidden: ['臣以为应', '臣坚决主张'],  // pivot 禁鲜明立场表态
+    example: '诸臣所议·或战或和·皆有道理。然臣窃见尚有一端未及·御营兵粮可支几日尚未勘明。请陛下命兵部户部详议·俟有定论·再呈陛下。',
+    selfCheck: ['是否含"尚有/未及/另有"提新侧面', '是否建议交某部/有司详议', '是否避免直接战和表态', '结句是否含"详议/勘报/俟定论"'],
   },
   augment: {
-    opens: ['"前文已多有陈说·臣补一议..."', '"诸臣所议皆有理·臣窃见..."'],
-    closes: ['"伏惟陛下察焉"'],
-    structure: '补充一个未提及的视角或案例·不重复·不附和',
+    opens: ['"前文已多有陈说·臣补一议..."', '"诸臣所议皆有理·臣窃见..."', '"诸公论已尽·臣略陈一隅..."'],
+    closes: ['"伏惟陛下察焉"', '"愿与诸臣共商"'],
+    structure: '补充一个未被前文提及的视角 / 案例 / 数据·不重复·不附和',
+    requireEither: ['前文', '诸臣', '诸公', '尚有', '补一议', '略陈'],
+    requireClose: ['察焉', '共商', '俯察'],
+    example: '诸臣所议皆有理。臣窃见尚有一隅未及·江南漕运若被金人切断·南宋亦难支撑。臣愿补此一议。伏惟陛下察焉。',
+    selfCheck: ['是否含"前文/诸臣/补一议"等承接词', '是否提供 1 条新视角 (前文未提)', '是否避免全文重复前位发言', '结句是否含"察焉/共商/俯察"'],
   },
 };
 
@@ -2094,6 +2145,7 @@ const _CC3_TONE_HINTS = {
 
 /**
  * 拼装 prompt 段·6 mode × 5 tone × cite modifier
+ * v3.1 polish·加 verb pool / forbidden / example / 自检·从弱约束改强约束
  * 返字符串·拼到 _cc3_aiGenReact 原 prompt 后
  */
 function _cc3_buildModeInstruction(modeResult, tone, state, gmCh) {
@@ -2101,20 +2153,40 @@ function _cc3_buildModeInstruction(modeResult, tone, state, gmCh) {
   const pool = _CC3_PHRASE_POOLS[mode] || _CC3_PHRASE_POOLS.augment;
   const toneHint = _CC3_TONE_HINTS[tone] || _CC3_TONE_HINTS.default;
 
-  let p = '\n── 你的应答策略 ──\n';
-  p += '【应答模式·' + mode + '】\n';
-
   // mode-specific opener·若 state 含 lastSpeaker·替换 X
   const lastName = state && state.lastSpeaker ? state.lastSpeaker : '前位';
   const opens = pool.opens.map(s => s.replace(/X/g, lastName)).join(' / ');
   const closes = pool.closes.map(s => s.replace(/X/g, lastName)).join(' / ');
+  const example = (pool.example || '').replace(/X/g, lastName);
 
+  let p = '\n── 你的应答策略·必须严格遵守 ──\n';
+  p += '【模式·' + mode + '·rebut=驳斥 / second=附议 / soften=缓和 / pivot=转移 / augment=补充 / lead=首发】\n';
   p += '内容范式·' + pool.structure.replace(/X/g, lastName) + '\n';
-  p += '朝堂语开头·' + opens + '\n';
-  p += '朝堂语结句·' + closes + '\n';
   p += '【语气】' + toneHint + '\n';
 
-  // cite modifier
+  // ── 必含词约束 ──
+  if (Array.isArray(pool.requireEither) && pool.requireEither.length) {
+    const reqList = pool.requireEither.map(w => '"' + w.replace(/X/g, lastName) + '"').join(' / ');
+    p += '【必含·开题转折】回应中至少含以下之一·' + reqList + '\n';
+  }
+  if (Array.isArray(pool.requireClose) && pool.requireClose.length) {
+    const closeList = pool.requireClose.map(w => '"' + w + '"').join(' / ');
+    p += '【必含·结句】结句须含以下之一·' + closeList + '\n';
+  }
+  if (Array.isArray(pool.forbidden) && pool.forbidden.length) {
+    p += '【禁止】不得出现·' + pool.forbidden.map(w => '"' + w + '"').join(' / ') + '\n';
+  }
+
+  // ── 候选开头/结句池 (示例·非强制) ──
+  p += '朝堂语开头候选·' + opens + '\n';
+  p += '朝堂语结句候选·' + closes + '\n';
+
+  // ── few-shot example (1 句完整结构) ──
+  if (example) {
+    p += '【完整范例】(结构参照·勿照抄词汇)·\n  「' + example + '」\n';
+  }
+
+  // ── cite modifier ──
   if (modeResult.modifiers.cite) {
     p += '【援引】此议有先例可援·你理性高·可在论述中带入一段史事 (如汉光武渡江 / 唐玄宗幸蜀)·作类比·末加"古今同道·惟陛下察焉"\n';
   }
@@ -2128,7 +2200,15 @@ function _cc3_buildModeInstruction(modeResult, tone, state, gmCh) {
     p += '【debug·persona dims 来自 personality 字符串 fallback·非 traitIds 聚合】\n';
   }
 
-  p += '\n你必须遵循上述「应答模式」·脱离视为生成失败·重新生成。\n';
+  // ── 自检 ──
+  if (Array.isArray(pool.selfCheck) && pool.selfCheck.length) {
+    p += '【生成后自检·任一为否则重写】\n';
+    pool.selfCheck.forEach((q, i) => {
+      p += '  ' + (i + 1) + '. ' + q.replace(/X/g, lastName) + '\n';
+    });
+  }
+
+  p += '\n你必须严格遵循上述「' + mode + '」模式·上述【必含】【禁止】【自检】是硬约束·脱离 = 生成失败·须重写。\n';
 
   return p;
 }

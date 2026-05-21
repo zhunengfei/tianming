@@ -3,6 +3,41 @@
   "entries": [
     {
       "date": "2026-05-22",
+      "module": "常朝大改·v3.1 prompt 强约束 polish",
+      "title": "把 NPC 应答模式的 prompt 从弱约束（候选词池 + 抽象规则）升级为强约束（必含词 + 禁词 + few-shot example + 自检 + JSON mode 回执）",
+      "items": [
+        {
+          "what": "每 mode 增 requireEither 列表 (必含转折/附议词)：rebut 必含 \"然/惟/不敢同/未当\" 之一；second 必含 \"附议/亦以为/所言甚是\" 之一；soften 必含 \"忠悃/拳拳/公心\" 之一；pivot 必含 \"尚有/未及/详议\" 之一。等。",
+          "why": "原 prompt 只列出朝堂语开头池作为「候选」，LLM 经常完全不选池里的写自己的开头。requireEither 改成「必含之一」是硬约束，LLM 自检时能直接验。"
+        },
+        {
+          "what": "每 mode 增 requireClose (必含结句词) 与 forbidden (禁词)：rebut 禁出现\"陛下圣明/诚为至论/确为正论\" 等空泛附和；pivot 禁\"臣以为应/臣坚决主张\" 等鲜明立场表态。",
+          "why": "rebut 模式下若出现\"陛下圣明诚为至论\"就明显违背模式语义，明示禁止比泛指「保持立场鲜明」可执行得多。"
+        },
+        {
+          "what": "每 mode 增 1 个完整 few-shot example，含真实人名与议题（如 rebut 范例「黄相方言扬州可幸·然臣窃以为未当·汴京未陷宗庙犹存·岂可一去千里？」）。",
+          "why": "LLM 看「内容范式·先复述论点 1 句再反驳」可能简化执行，看完整范例就有结构参照，且范例本身就包含 requireEither / requireClose 的词，等于一举多得。"
+        },
+        {
+          "what": "每 mode 增 3-5 项自检清单：rebut 自检例『1·是否复述对方论点 1 句 / 2·是否含转折词「然/惟/不敢同/未当」之一 / 3·是否给出 ≥1 条反驳理由 / 4·是否点名对方 / 5·结句是否含「明察/勿堕/察其谬」』。",
+          "why": "把抽象的「脱离视为生成失败」变成具体的『生成后逐项检验·任一为否则重写』，让 LLM 有自我纠错的明确流程。"
+        },
+        {
+          "what": "JSON 输出 schema 新增 mode 字段：LLM 须回执自己用了哪个 mode（lead/second/rebut/soften/pivot/augment）。runtime 比对回执 mode 跟我们规则推的 mode，不一致时 console.warn 留 trace，便于后期 audit。",
+          "why": "不阻断生成（避免重试导致用户等更久），但 mode 不匹配是高信号——若大量出现，说明我们的规则与 LLM 自然倾向有冲突，需要调规则或调 prompt 上下文。"
+        },
+        {
+          "what": "prompt 末尾「最后重申」段（recency bias 利用）：在 JSON 输出 spec 前一行加『本回应模式 = 「rebut」·请回看「应答策略」段之【必含】【禁止】【自检】并严格执行』；JSON 要求段加『**mode 必须 = \"rebut\"** (跟应答策略段一致)·若你认为另一 mode 更合适·**仍须按所要求的 mode 写**·不可自行换 mode』。",
+          "why": "LLM 受 prompt 末尾 token 影响最大（recency），把 mode 约束在 JSON 前再喊一遍能显著提高遵守率。强调「不可自行换 mode」拦截 LLM 自作主张行为。"
+        },
+        {
+          "what": "本 polish 不动 v3 的 6 mode 推导逻辑、stance 计算、anti-monotony guards、NPC-NPC linkage，只动 prompt 文本组装与 JSON schema。回归 4 smoke 全过。",
+          "why": "v3 主体 architecture 没问题，问题在于「LLM 是否遵守 prompt」，所以纯 prompt 层 polish 不动 architecture 是最小变更。一个 NPC LLM call 多 200-300 字 prompt token，可接受。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-22",
       "module": "常朝大改·NPC 应答化 v3 (Tier 1·9 slice)",
       "title": "常朝从「群聊」升级为「廷议」——NPC 自发表态接入完整 persona、立场推导从 stat-first 改为 persona-first、6 应答 mode + 朝堂语词库、NPC-NPC 互动留痕 AffinityMap，朝议真正塑造派系网而非消费完即烧",
       "items": [
