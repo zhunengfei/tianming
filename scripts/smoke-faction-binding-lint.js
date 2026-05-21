@@ -64,9 +64,11 @@ const ALLOW_LINES = [
   { file: 'tm-shiji-qiju-ui.js', match: /types\.faction\s*=/ },
   // tm-faction-npc-intervention.js·espionage 翻面 fallback (Membership API 不可用时)·已 try API·此为兜底
   { file: 'tm-faction-npc-intervention.js', match: /c\.faction\s*=\s*pn;/ },
-  // tm-ai-change-applier.js / tm-region-enrich.js: assignArmy first, direct write only in legacy fallback/catch.
+  // tm-ai-change-applier.js / tm-ai-change-army.js (Slice 2 拆出) / tm-region-enrich.js:
+  //   assignArmy first·direct write only in legacy fallback/catch.
   { file: 'tm-ai-change-applier.js', match: /army\.faction\s*=\s*factionName/ },
-  { file: 'tm-region-enrich.js', match: /army\.faction\s*=\s*factionName/ },
+  { file: 'tm-ai-change-army.js',    match: /army\.faction\s*=\s*factionName/ },
+  { file: 'tm-region-enrich.js',     match: /army\.faction\s*=\s*factionName/ },
   // tm-map-system.js: region.factionId mirrors map-region owner, not character/army/province membership.
   { file: 'tm-map-system.js', match: /region\.factionId\s*=\s*region\.owner/ },
 ];

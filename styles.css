@@ -3766,6 +3766,10 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:999;o
 .rw-state-chip.veteran{--st-c:var(--gold-300,#c9a85f);--st-rgb:201,168,95;}
 .rw-state-chip.away{--st-c:var(--amber-400,#c9a045);--st-rgb:201,160,69;}
 .rw-state-chip.retired{--st-c:var(--ink-500);--st-rgb:166,148,112;}
+/* 2026-05-21·入狱/流放/逃亡 状态色·与诏狱机制 + dismissal regex 同步 */
+.rw-state-chip.imprison{--st-c:#b84738;--st-rgb:184,71,56;background:rgba(184,71,56,0.18);font-weight:500;}
+.rw-state-chip.exile{--st-c:#a86c5a;--st-rgb:168,108,90;}
+.rw-state-chip.fled{--st-c:#8a7a5e;--st-rgb:138,122,94;}
 
 /* 六维属性 */
 .rw-stats{display:grid;grid-template-columns:1fr 1fr;gap:2px 10px;margin-top:3px;}

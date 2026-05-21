@@ -1012,6 +1012,32 @@
     } catch(e) { return null; }
   }
 
+  function _cloneForPersistence(data) {
+    try { return JSON.parse(JSON.stringify(data)); }
+    catch(_) { return data; }
+  }
+
+  function _exportScenarioForPersistence() {
+    if (typeof SchemaAdapter !== 'undefined' &&
+        SchemaAdapter &&
+        typeof SchemaAdapter.exportScenario === 'function') {
+      try {
+        return SchemaAdapter.exportScenario(scriptData);
+      } catch(e) {
+        if (window.TM && TM.errors && TM.errors.capture) {
+          TM.errors.capture(e, 'editor exportScenario persistence fallback');
+        } else {
+          console.warn('[editor] exportScenario failed, fallback to cloned scriptData:', e);
+        }
+      }
+    }
+    return _cloneForPersistence(scriptData);
+  }
+
+  function _saveScenarioToDesktop(fname) {
+    return window.tianming.saveScenario(fname, _exportScenarioForPersistence());
+  }
+
   function saveScript() {
     // 确保剧本有唯一ID（持久化，不会每次重新生成）
     if (!scriptData.id) {
@@ -1039,8 +1065,7 @@
         meta.scnId = scriptData.id;
         try { localStorage.setItem('tianming_editor_meta', JSON.stringify(meta)); } catch(_){}
       }
-      var _scForFile = (typeof SchemaAdapter !== 'undefined') ? SchemaAdapter.exportScenario(scriptData) : scriptData;
-      window.tianming.saveScenario(fname, _scForFile).then(function(r) {
+      _saveScenarioToDesktop(fname).then(function(r) {
         if (r && r.success) { showToast('\u5df2\u4fdd\u5b58\u5230\u5267\u672c\u6587\u4ef6\u5939'); }
         else { showToast('\u4fdd\u5b58\u5931\u8d25: ' + (r && r.error ? r.error : '')); }
       });
@@ -1118,7 +1143,7 @@
     if (window.tianming && window.tianming.isDesktop) {
       var meta = _getEditorMeta();
       var fname = (meta && meta.scnName) ? meta.scnName : (scriptData.name || 'untitled');
-      window.tianming.saveScenario(fname, scriptData).catch(function(){});
+      _saveScenarioToDesktop(fname).catch(function(){});
     }
   }
 
@@ -2126,7 +2151,7 @@
     if (window.tianming && window.tianming.isDesktop) {
       var meta = _getEditorMeta();
       var fname = (meta && meta.scnName) ? meta.scnName : (scriptData.name || 'untitled');
-      window.tianming.saveScenario(fname, scriptData).then(function() {
+      _saveScenarioToDesktop(fname).then(function() {
         window.location.href = 'index.html';
       }).catch(function() {
         window.location.href = 'index.html';

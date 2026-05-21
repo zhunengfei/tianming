@@ -368,6 +368,8 @@ var scriptData = {
           timeline: function() { if(typeof renderTimeline==='function') renderTimeline(); },
           goals: function() { if(typeof renderGoalsList==='function') renderGoalsList(); },
           influenceGroups: function() { if(typeof renderInfluenceGroupsList==='function') renderInfluenceGroupsList(); },
+          offendGroups: function() { if(typeof renderOffendGroupsList==='function') renderOffendGroupsList(); },
+          imperialEdicts: function() { if(typeof renderImperialEdictsList==='function') renderImperialEdictsList(); },
           worldSettings: function() { if(typeof renderWorldSettings==='function') renderWorldSettings(); },
           eraState: function() { if(typeof renderEraState==='function') renderEraState(); if(typeof renderEconomyConfig==='function') renderEconomyConfig(); },
           economy: function() { if(typeof renderEconomyConfig==='function') renderEconomyConfig(); },
@@ -380,8 +382,7 @@ var scriptData = {
           haremConfig: function() { if(typeof renderHaremConfig==='function') renderHaremConfig(); },
           palaceSystem: function() { if(typeof renderPalaceSystem==='function') renderPalaceSystem(); },
           administration: function() { if(typeof renderAdminTree==='function') renderAdminTree(); },
-          mapSystem: function() { if(typeof renderMap==='function') renderMap(); if(typeof renderMapSystem==='function') renderMapSystem(); if(typeof renderTerrainConfig==='function') renderTerrainConfig(); },
-          map: function() { if(typeof renderMap==='function') renderMap(); }
+          mapSystem: function() { if(typeof renderMap==='function') renderMap(); if(typeof renderMapSystem==='function') renderMapSystem(); if(typeof renderTerrainConfig==='function') renderTerrainConfig(); }
         };
         var _renderer = _panelRenderers[currentPanel];
         if (_renderer) setTimeout(_renderer, 50);
@@ -389,7 +390,7 @@ var scriptData = {
     });
 
     // 地图编辑器链接
-    var mapEditorLink = document.getElementById('map-editor-link');
+    var mapEditorLink = null;
     if (mapEditorLink) {
       mapEditorLink.addEventListener('click', function() {
         // 切换到地图面板并打开内嵌编辑器

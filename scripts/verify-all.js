@@ -68,6 +68,9 @@ const checks = [
   { name: 'faction-npc-in-turn', file: 'smoke-faction-npc-in-turn-driver.js', estSec: 1, expectExit: 0 },
   { name: 'faction-npc-multiturn-e2e', file: 'smoke-faction-npc-multiturn-e2e.js', estSec: 1, expectExit: 0 },
   { name: 'qiju-category-coverage', file: 'smoke-qiju-category-coverage.js', estSec: 1, expectExit: 0 },
+  { name: 'ai-change-applier-baseline', file: 'smoke-ai-change-applier-baseline.js', estSec: 1, expectExit: 0 },
+  { name: 'dismissal-state-regex', file: 'smoke-dismissal-state-regex.js', estSec: 1, expectExit: 0 },
+  { name: 'wendui-prison', file: 'smoke-wendui-prison.js', estSec: 1, expectExit: 0 },
   { name: 'engine-phase0', file: 'smoke-engine-phase0.js', estSec: 1, expectExit: 0 },
   { name: 'office-dynastification', file: 'smoke-office-dynastification.js', estSec: 1, expectExit: 0 },
   { name: 'office-appointment-sync', file: 'smoke-office-appointment-sync.js', estSec: 1, expectExit: 0 },
@@ -129,6 +132,8 @@ const checks = [
   { name: 'p5-eta-endturn', file: 'smoke-p5-eta-endturn.js', estSec: 1, expectExit: 0 },
   // P5-θ (2026-05-04) Editor facade fill·HTML inline retained·Office legacy AI not duplicated (Codex own)
   { name: 'p5-theta-editor', file: 'smoke-p5-theta-editor.js', estSec: 1, expectExit: 0 },
+  // 2026-05-21 scenario editor reset inventory: official scenario field coverage and editor risk gate
+  { name: 'editor-reset-inventory', file: 'smoke-editor-reset-inventory.js', estSec: 1, expectExit: 0 },
   // P6 (2026-05-04) HTML inline namespace migration lock; index/editor safe first pass (Codex own)
   { name: 'p6-inline-namespaces', file: 'smoke-p6-inline-namespaces.js', estSec: 1, expectExit: 0 },
   // P6 optional namespace lint (2026-05-04) retired aliases + migrated inline handlers stay retired

@@ -115,7 +115,7 @@ load('tm-migration.js');
 load('tm-map-system.js');
 load('tm-ai-schema.js');
 load('tm-ai-output-validator.js');
-load('tm-ai-change-applier.js');
+load('tm-ai-change-pathutils.js'); load('tm-ai-change-army.js'); load('tm-ai-change-narrative.js'); load('tm-ai-change-applier.js');
 load('tm-data-access.js');
 
 const EC = context.TM.EngineConstants;
@@ -141,11 +141,13 @@ check(endturnSource.indexOf('lastInteractionMemory/recognitionState') >= 0, 'sc0
 const militarySource = fs.readFileSync(path.join(ROOT, 'tm-military.js'), 'utf8');
 const renderSource = fs.readFileSync(path.join(ROOT, 'tm-endturn-render.js'), 'utf8');
 const applierSource = fs.readFileSync(path.join(ROOT, 'tm-ai-change-applier.js'), 'utf8');
+// 2026-05-21·Slice 2·applyAIArmyChange 已拆到 tm-ai-change-army.js
+const armySource = fs.readFileSync(path.join(ROOT, 'tm-ai-change-army.js'), 'utf8');
 const phase8FormalSource = fs.readFileSync(path.join(ROOT, 'phase8-formal-bridge.js'), 'utf8');
 check(militarySource.indexOf('a.armyType') >= 0, 'syncMilitarySources should preserve scenario armyType buckets');
 check(renderSource.indexOf("['军','势力','统帅','驻地'") >= 0, 'military risk table should show faction column');
 check(renderSource.indexOf('欠饷≥3月') >= 0, 'military risk warning should use 欠饷 wording');
-check(applierSource.indexOf('function applyAIArmyChange') >= 0, 'AI applier should expose shared army writeback helper');
+check(armySource.indexOf('function applyAIArmyChange') >= 0, 'AI army module should expose shared army writeback helper');
 check(applierSource.indexOf('military_changes') >= 0 && applierSource.indexOf('army_changes') >= 0,
   'AI applier should consume both military_changes and army_changes');
 check(phase8FormalSource.indexOf('function refreshActivePanel') >= 0 &&
@@ -980,7 +982,8 @@ let migChar = {
 };
 context.GM = { turn: 24, chars: [migChar], armies: [], facs: [] };
 let mig = context.EngineMigration.run(context.GM);
-check(mig && mig.version === 2, 'engine migration version should advance to 2');
+check(mig && mig.version === context.EngineMigration.currentVersion,
+  'engine migration version should advance to current version');
 check(mig.applied.indexOf('phase6-char-refs-memory') >= 0, 'engine migration should apply char refs memory migration');
 check(context.GM.chars[0].lastInteractionMemory && context.GM.chars[0].lastInteractionMemory.event.indexOf('secret military talk') >= 0, 'migration should backfill lastInteractionMemory');
 check(context.GM.chars[0].recognitionState && context.GM.chars[0].recognitionState.familiarity > 0, 'migration should backfill recognitionState');

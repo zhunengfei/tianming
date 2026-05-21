@@ -210,7 +210,7 @@
   </div>
   <!-- 底部栏 -->
   <div class="home-foot">
-    <div class="f-ver">天 命　v0.9-β</div>
+    <div class="f-ver">天 命　测试版 1.2.2.0</div>
     <div class="f-mid" id="home-foot-mid">春 分<span class="dot">◆</span>太 平<span class="dot">◆</span>河 清 海 晏</div>
     <div class="f-right">
       <span class="lt-dibao-btn" style="cursor:pointer;" onclick="if(window.TM_Changelog)TM_Changelog.show();" title="查看更新公告"><kbd>报</kbd> 邸 报<span class="tm-cl-dot" id="tm-cl-dot" style="display:none;"></span></span>
@@ -505,7 +505,9 @@ console.log('天命游戏脚本开始加载...');
 <script src="tm-indices.js?v=2026042714"></script>
 <script src="tm-world.js?v=2026042714"></script>
 <script src="tm-memorials.js?v=2026050105"></script>
-<script src="tm-wendui.js?v=2026050701"></script>
+<script src="tm-wendui.js?v=20260521-prison"></script>
+<!-- 2026-05-21·狱中问对模式·6 动作 + AI 解析 + 频率限制 + 朝议反应 -->
+<script src="tm-wendui-prison.js?v=20260521-prison"></script>
 <!-- R161 R6 (2026-05-03) tm-office-system 从 tm-hongyan-office 拆出·官制 system (~700 行) -->
 <script src="tm-office-system.js?v=2026050701"></script>
 <script src="tm-office-runtime.js?v=2026050701"></script>
@@ -700,7 +702,11 @@ console.log('天命游戏脚本开始加载...');
 <script src="tm-ai-schema.js?v=2026050202"></script>
 <script src="tm-ai-output-validator.js?v=2026051801"></script>
 <script src="tm-data-access.js?v=2026042714"></script>
-<script src="tm-ai-change-applier.js?v=2026050703"></script>
+<!-- 2026-05-21·Slice 1+2+3·tm-ai-change-applier.js 拆出·路径 + army + narrative·必须在 applier 之前加载·pathutils → army → narrative → applier -->
+<script src="tm-ai-change-pathutils.js?v=20260521-slice1"></script>
+<script src="tm-ai-change-army.js?v=20260521-slice2"></script>
+<script src="tm-ai-change-narrative.js?v=20260521-slice3"></script>
+<script src="tm-ai-change-applier.js?v=20260521-slice3"></script>
 <script src="tm-ai-npc-memorials.js"></script>
 <!-- 侧边抽屉·已合并三代为单文件 (R116a, 2026-04-24) -->
 <script src="tm-var-drawers.js?v=2026042714"></script>

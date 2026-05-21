@@ -331,9 +331,14 @@ function openWenduiModal(name, mode, prefillMsg) {
       if (typeof toast === 'function') toast(name + '不属本朝可直接召见人员，请经使节或鸿雁往来。');
       return;
     }
+    // 2026-05-21·下狱者不再阻断·改导向"狱中问对"模式 (tm-wendui-prison.js)
+    if ((_gCh._imprisoned || _gCh.imprisoned) && typeof window !== 'undefined' && window.WenduiPrison && typeof window.WenduiPrison.openPrompt === 'function') {
+      window.WenduiPrison.openPrompt(name, _gCh, mode);
+      return;
+    }
     var _reasons = [];
     if (_gCh.alive === false || _gCh.dead) _reasons.push('已薨');
-    if (_gCh._imprisoned || _gCh.imprisoned) _reasons.push('下狱');
+    if (_gCh._imprisoned || _gCh.imprisoned) _reasons.push('下狱');  // fallback·若 prison 模块未加载
     if (_gCh._exiled || _gCh.exiled) _reasons.push('流放');
     if (_gCh._retired) _reasons.push('致仕');
     if (_gCh._mourning) _reasons.push('丁忧');

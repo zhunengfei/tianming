@@ -2036,6 +2036,15 @@ function openCharDetail(charName) {
     if (ch._travelTo) h += '<span class="rwp-mini-tag travel" style="font-size:9px;">→'+escHtml(ch._travelTo)+'</span>';
   }
   if (ch.faction) h += '<span class="rwp-mini-tag fac" style="font-size:9px;">'+escHtml(ch.faction)+(ch.party?' · '+escHtml(ch.party):'')+'</span>';
+  // 2026-05-21·入狱/流放/逃亡 mini-tag
+  if (ch._imprisoned || ch.imprisoned) {
+    var _heldQp = Math.max(0, (GM.turn||0) - (ch._imprisonedTurn||0));
+    // 体魄沿用 ch.health (char-economy-engine 维护)
+    var _hpQp = (typeof ch.health === 'number') ? Math.round(ch.health) : 80;
+    h += '<span class="rwp-mini-tag imprison" style="font-size:9px;background:rgba(184,71,56,0.25);color:#e07a5f;" title="'+escHtml(ch._imprisonReason||'下狱')+'">诏狱·'+_heldQp+'月·体'+_hpQp+'</span>';
+  }
+  if (ch._exiled || ch.exiled) h += '<span class="rwp-mini-tag exile" style="font-size:9px;background:rgba(168,108,90,0.25);color:#c9a565;" title="'+escHtml(ch._exileReason||'流放')+'">流放</span>';
+  if (ch._fled || ch._missing) h += '<span class="rwp-mini-tag fled" style="font-size:9px;background:rgba(138,122,94,0.25);color:#a08858;">逃亡</span>';
   h += '</div>';
   h += '</div>';
   h += '<button class="qp-close" onclick="document.getElementById(\'_charDetailOv\').classList.remove(\'open\')">×</button>';

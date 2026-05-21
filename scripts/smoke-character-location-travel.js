@@ -9,6 +9,9 @@ const vm = require('vm');
 const ROOT = path.resolve(__dirname, '..');
 const utilsSrc = fs.readFileSync(path.join(ROOT, 'tm-utils.js'), 'utf8');
 const wenduiSrc = fs.readFileSync(path.join(ROOT, 'tm-wendui.js'), 'utf8');
+const pathutilsSrc = fs.readFileSync(path.join(ROOT, 'tm-ai-change-pathutils.js'), 'utf8');
+const armySrc = fs.readFileSync(path.join(ROOT, 'tm-ai-change-army.js'), 'utf8');
+const narrativeSrc = fs.readFileSync(path.join(ROOT, 'tm-ai-change-narrative.js'), 'utf8');
 const applierSrc = fs.readFileSync(path.join(ROOT, 'tm-ai-change-applier.js'), 'utf8');
 
 let passed = 0;
@@ -111,6 +114,9 @@ sandbox.globalThis = sandbox;
 vm.createContext(sandbox);
 vm.runInContext(utilsSrc, sandbox, { filename: 'tm-utils.js' });
 vm.runInContext(wenduiSrc, sandbox, { filename: 'tm-wendui.js' });
+vm.runInContext(pathutilsSrc, sandbox, { filename: 'tm-ai-change-pathutils.js' });
+vm.runInContext(armySrc, sandbox, { filename: 'tm-ai-change-army.js' });
+vm.runInContext(narrativeSrc, sandbox, { filename: 'tm-ai-change-narrative.js' });
 vm.runInContext(applierSrc, sandbox, { filename: 'tm-ai-change-applier.js' });
 
 assert(typeof sandbox._isSameLocation === 'function', 'location alias helper exists');

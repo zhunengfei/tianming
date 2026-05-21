@@ -312,6 +312,15 @@ function _rwRenderCard(c,ctx) {
     }
     _stateHtml += '<span class="rw-loc'+_awayCls+'">'+_locInner+'</span>';
   }
+  // 2026-05-21\u00B7\u4E0B\u72F1/\u6D41\u653E/\u9003\u4EA1 badge (\u4E0E\u72F1\u4E2D\u95EE\u5BF9\u673A\u5236\u540C\u6B65\u663E\u793A)
+  if (_ch._imprisoned || _ch.imprisoned) {
+    var _heldT = Math.max(0, (GM.turn||0) - (_ch._imprisonedTurn||0));
+    // 体魄沿用 _ch.health (char-economy-engine 维护)
+    var _hpVal = (typeof _ch.health === 'number') ? Math.round(_ch.health) : 80;
+    _stateHtml += '<span class="rw-state-chip imprison" title="' + escHtml(_ch._imprisonReason||'\u4E0B\u72F1') + ' / \u7FA4\u62BC ' + _heldT + ' \u6708 / \u4F53\u9B44 ' + _hpVal + '">\u8BCF\u72F1</span>';
+  }
+  if (_ch._exiled || _ch.exiled) _stateHtml += '<span class="rw-state-chip exile" title="' + escHtml(_ch._exileReason||'\u6D41\u653E') + '">\u6D41\u653E</span>';
+  if (_ch._fled || _ch._missing) _stateHtml += '<span class="rw-state-chip fled">\u9003\u4EA1</span>';
   if (_ch._mourning) _stateHtml += '<span class="rw-state-chip mourn">\u4E01\u5FE7</span>';
   if (_ch._retired) _stateHtml += '<span class="rw-state-chip retired">\u81F4\u4ED5</span>';
   if ((_ch.stress||0) > 70) _stateHtml += '<span class="rw-state-chip stress">\u91CD\u538B</span>';

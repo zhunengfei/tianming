@@ -89,7 +89,7 @@ function load(file) {
 }
 
 load('tm-utils.js');
-load('tm-ai-change-applier.js');
+load('tm-ai-change-pathutils.js'); load('tm-ai-change-army.js'); load('tm-ai-change-narrative.js'); load('tm-ai-change-applier.js');
 
 context.GM.chars = [
   { name: 'A', loyalty: 0, alive: true },

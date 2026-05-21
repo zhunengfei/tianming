@@ -69,7 +69,7 @@ load('tm-influence-groups.js');
 load('tm-corruption-engine.js');
 load('tm-ai-schema.js');
 load('tm-ai-output-validator.js');
-load('tm-ai-change-applier.js');
+load('tm-ai-change-pathutils.js'); load('tm-ai-change-army.js'); load('tm-ai-change-narrative.js'); load('tm-ai-change-applier.js');
 
 const EC = context.TM.EngineConstants;
 const IG = context.TM.InfluenceGroups;

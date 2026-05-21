@@ -6,6 +6,10 @@ const path = require('path');
 const vm = require('vm');
 
 const ROOT = path.resolve(__dirname, '..');
+// 2026-05-21·Slice 1·pathutils 已拆出·必须先加载
+const pathutilsSrc = fs.readFileSync(path.join(ROOT, 'tm-ai-change-pathutils.js'), 'utf8');
+const armySrc = fs.readFileSync(path.join(ROOT, 'tm-ai-change-army.js'), 'utf8');
+const narrativeSrc = fs.readFileSync(path.join(ROOT, 'tm-ai-change-narrative.js'), 'utf8');
 const src = fs.readFileSync(path.join(ROOT, 'tm-ai-change-applier.js'), 'utf8');
 
 function assert(cond, msg) {
@@ -61,6 +65,9 @@ const context = {
 context.window = context;
 
 vm.createContext(context);
+vm.runInContext(pathutilsSrc, context, { filename: 'tm-ai-change-pathutils.js' });
+vm.runInContext(armySrc, context, { filename: 'tm-ai-change-army.js' });
+vm.runInContext(narrativeSrc, context, { filename: 'tm-ai-change-narrative.js' });
 vm.runInContext(src, context, { filename: 'tm-ai-change-applier.js' });
 
 const result = context.applyAITurnChanges({

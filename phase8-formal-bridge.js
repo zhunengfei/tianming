@@ -4672,6 +4672,10 @@
     var out = [];
     if (!p || p.alive !== false) out.push('alive');
     else out.push('dead');
+    // 2026-05-21·下狱/流放/逃亡 优先 (覆盖位置类 token)
+    if (p && (p._imprisoned || p.imprisoned)) out.push('imprison');
+    if (p && (p._exiled || p.exiled)) out.push('exile');
+    if (p && (p._fled || p._missing)) out.push('fled');
     if (/在朝|京|京师|宫|内阁|外朝|朝中/.test(text)) out.push('court');
     if (/地方|外任|边|辽|海|镇|督师|巡抚|总兵/.test(text)) out.push('local');
     if (/后宫|内廷|司礼|太监|内臣/.test(text)) out.push('inner');
@@ -4681,6 +4685,13 @@
   function tmfRenwuStatusLabel(p){
     var tokens = tmfRenwuStatusTokens(p);
     if (tokens.indexOf('dead') >= 0) return '已殁';
+    // 2026-05-21·入狱/流放/逃亡 状态优先于位置·体现真实困境
+    if (tokens.indexOf('imprison') >= 0) {
+      var _heldM = Math.max(0, ((window.GM && GM.turn) || 0) - ((p && p._imprisonedTurn) || 0));
+      return '诏狱·' + _heldM + '月';
+    }
+    if (tokens.indexOf('exile') >= 0) return '流放';
+    if (tokens.indexOf('fled') >= 0) return '逃亡';
     if (tokens.indexOf('inner') >= 0) return '内廷';
     if (tokens.indexOf('court') >= 0) return '在朝';
     if (tokens.indexOf('local') >= 0) return '在外';

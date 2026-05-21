@@ -10,8 +10,11 @@
   'use strict';
 
   var TM = global.TM = global.TM || {};
-  var CURRENT_VERSION = 2;
+  var CURRENT_VERSION = 3;
   var migrations = [];
+
+  // ── 入狱关键词·与 tm-ai-change-applier.js onDismissal 同步 ──
+  var _IMPRISON_KW = /下狱|入狱|系狱|关押|羁押|拘押|拘禁|拘捕|缉拿|收押|监禁|捉拿|逮捕|imprison|jail/;
 
   function nowIso() {
     try { return (new Date()).toISOString(); }
@@ -227,6 +230,42 @@
         try { global.RelGraph.syncCharRefs(ch, t); } catch(_) {}
       }
     });
+  });
+
+  // 2026-05-21·v3·清洗误标 _imprisoned: true 的老存档
+  //   bug 历史·原 tm-ai-change-applier.js:443 regex 含单字「押」「拘」过宽
+  //     误判·押解/押粮/押司/签押/押韵/拘谨/拘泥/拘束 → false positive _imprisoned=true
+  //   修复后·扫存档·若 _imprisoned===true 但 _imprisonReason 缺失或不含明确入狱关键词
+  //     视为误标·清回 false·记入 GM._migrationLog 便于排查
+  register(3, 'v3-sanitize-imprisoned', function(target) {
+    var t = resolveTarget(target);
+    if (!t || !Array.isArray(t.chars)) return;
+    var cleared = [];
+    t.chars.forEach(function(ch) {
+      if (!ch || typeof ch !== 'object') return;
+      if (!ch._imprisoned && !ch.imprisoned) return;
+      var reason = String(ch._imprisonReason || '').trim();
+      // 无 reason 或 reason 不含明确入狱关键词 → 误标·清
+      if (!reason || !_IMPRISON_KW.test(reason)) {
+        ch._imprisoned = false;
+        ch.imprisoned = false;
+        if (typeof ch._imprisonedTurn !== 'undefined') ch._wasImprisonedTurn = ch._imprisonedTurn;
+        delete ch._imprisonedTurn;
+        if (reason) ch._priorAmbiguousReason = reason;
+        delete ch._imprisonReason;
+        cleared.push({ name: ch.name, priorReason: reason || '(no reason)' });
+      }
+    });
+    if (cleared.length) {
+      if (!t._migrationLog) t._migrationLog = [];
+      t._migrationLog.push({
+        version: 3, id: 'v3-sanitize-imprisoned',
+        turn: t.turn || 0, clearedCount: cleared.length,
+        cleared: cleared.slice(0, 30),  // cap·avoid bloating save
+        note: '清未明确原因的 _imprisoned 标记 (bug fix 2026-05-21·regex 过宽误判)'
+      });
+      try { console.log('[migration v3] cleared ' + cleared.length + ' false-positive _imprisoned·' + cleared.slice(0,5).map(function(c){return c.name;}).join(', ')); } catch(_) {}
+    }
   });
 
   var api = {
