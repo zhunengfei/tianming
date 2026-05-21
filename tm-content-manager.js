@@ -169,7 +169,7 @@
       '.tm-tab:hover{background:rgba(214,177,93,.12);color:#f6e5b7;}',
       '.tm-tab.is-active{background:linear-gradient(180deg,rgba(142,38,28,.86),rgba(63,20,15,.92));border-color:rgba(214,177,93,.72);color:#ffe3a1;}',
       '.tm-online-shell>div:last-child{min-height:0;display:grid;grid-template-rows:auto 1fr;}',
-      '.tm-online-body{min-height:0;padding:1rem;overflow:auto;}',
+      '.tm-online-body{min-height:0;padding:1rem;overflow-y:auto;overflow-x:hidden;}',
       '.tm-grid-2{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(280px,.9fr);gap:.8rem;}',
       '.tm-grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.55rem;}',
       '.tm-panel{border:1px solid rgba(214,177,93,.25);background:linear-gradient(180deg,rgba(255,244,199,.055),rgba(0,0,0,.13));padding:.9rem;min-width:0;}',
@@ -210,7 +210,9 @@
       '.tm-update-title{padding:1rem 1.1rem;border-bottom:1px solid rgba(214,177,93,.28);display:flex;justify-content:space-between;gap:.8rem;align-items:flex-start;background:linear-gradient(90deg,rgba(138,38,28,.34),rgba(0,0,0,.08));}',
       '.tm-update-title b{display:block;color:#f2d487;font-size:1.05rem;}',
       '.tm-update-title span{display:block;margin-top:.25rem;color:rgba(234,223,203,.66);font-size:.74rem;line-height:1.45;}',
-      '.tm-update-body{min-height:0;overflow:auto;padding:1rem;display:grid;gap:.8rem;}',
+      '.tm-update-body{min-height:0;overflow-y:auto;overflow-x:hidden;padding:1rem;display:block;}',
+      '.tm-update-body>section{display:block;margin-bottom:.8rem;}',
+      '.tm-update-body>section:last-child{margin-bottom:0;}',
       '.tm-update-progress{height:11px;background:rgba(255,255,255,.08);border:1px solid rgba(214,177,93,.32);overflow:hidden;}',
       '.tm-update-progress i{display:block;height:100%;background:linear-gradient(90deg,#a83226,#d8b56a);transition:width .18s ease;}',
       '.tm-update-log{max-height:120px;overflow:auto;border:1px solid rgba(214,177,93,.18);background:rgba(0,0,0,.22);padding:.55rem .65rem;font-size:.72rem;line-height:1.55;color:rgba(234,223,203,.66);}',
@@ -751,10 +753,13 @@
     var sizeText = formatBytes(u.size || 0);
     var kindText = u.kind === 'installer' ? '本体安装包' : (u.kind === 'hot' ? '前端热更' : '自动判定');
     var logs = (u.logs || []).map(function(x){ return '<div>' + esc(x) + '</div>'; }).join('') || '<div>等待开始...</div>';
+    var closeOnclick = u.busy
+      ? "if(confirm('更新正在进行中，确定关闭？关闭后下载将在后台继续进行。')){TMContentManager.closeApplyUpdate();}"
+      : 'TMContentManager.closeApplyUpdate()';
     var foot = '<div class="tm-actions" style="margin-top:0;">' +
       (u.canReload ? '<button class="tm-action primary" onclick="TMContentManager.reloadAppliedUpdate()">立即重载前端</button>' : '') +
       (u.canInstall ? '<button class="tm-action danger" onclick="TMContentManager.installDownloadedUpdate()">安装本体并重启</button>' : '') +
-      '<button class="tm-action" onclick="TMContentManager.closeApplyUpdate()" ' + (u.busy ? 'disabled' : '') + '>关闭</button>' +
+      '<button class="tm-action" onclick="' + closeOnclick + '">关闭</button>' +
     '</div>';
     layer.className = 'tm-update-ritual show';
     layer.innerHTML = '<div class="tm-update-box" role="dialog" aria-modal="true" aria-label="应用更新">' +
@@ -960,6 +965,16 @@
   }
 
   async function checkGameUpdate() {
+    var hotInput = document.getElementById('tm-hot-feed');
+    if (hotInput) {
+      var hotVal = hotInput.value.trim();
+      if (hotVal) { state.hotFeedUrl = hotVal; saveHotFeedUrl(hotVal); }
+    }
+    var feedInput = document.getElementById('tm-update-feed');
+    if (feedInput) {
+      var feedVal = feedInput.value.trim();
+      if (feedVal) { state.feedUrl = feedVal; saveFeedUrl(feedVal); }
+    }
     await checkHotUpdate();
     await checkUpdate();
   }

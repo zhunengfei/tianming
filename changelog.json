@@ -3,6 +3,33 @@
   "entries": [
     {
       "date": "2026-05-21",
+      "module": "主页面 / 联网中枢 / 应用更新 UI 修复",
+      "title": "修复主页退出键无效、应用更新弹窗关闭/滚动卡死、检查更新时本体源地址被清空等 4 处玩家反馈 UI bug",
+      "items": [
+        {
+          "what": "主页「案具 → 退出」改为真正退出游戏。原实现是发送 Esc 键事件，被全局监听器解释成「打开设置面板」，所以点退出反而进设置——玩家只能用任务管理器强退。新实现走 Electron IPC `app-quit` 通道，并加二次确认弹窗。",
+          "why": "玩家反馈：「主页退出键不能退出，一点就到设置界面，只能任务管理器关」。根因是旧 onclick 偷懒派发 Esc 键，但 Esc 在游戏里被绑给设置面板。"
+        },
+        {
+          "what": "「应用更新」弹窗的关闭键在下载进行中不再被 disabled。改为弹出二次确认（「下载将在后台继续」），玩家随时可以关闭弹窗去做别的事。",
+          "why": "玩家反馈：「应用更新弹窗关闭键点不动」。428MB 热更下载几分钟内 busy=true，关闭键被 disabled 全程灰着，玩家以为是 bug，其实是设计过严。"
+        },
+        {
+          "what": "「应用更新」弹窗内容支持竖向滚动。原 `.tm-update-body` 用 display:grid + overflow:auto 组合，在某些 layout 下 grid track 撑住容器导致滚动条不出现；改成 display:block + section margin 的稳定模式。",
+          "why": "玩家反馈：「应用更新弹窗无法下拉」。本次 changelog 条目较多，弹窗里只显示前 2 张卡片，下方内容被截断却不能滚动。"
+        },
+        {
+          "what": "「天命联网中枢」面板 body 改为显式 `overflow-y:auto;overflow-x:hidden`。语义等同但浏览器行为更明确，避免横向滚动条偶发抢空间。",
+          "why": "玩家反馈：「联网中枢面板也无法下拉」。同上类滚动问题的防御性强化。"
+        },
+        {
+          "what": "「检查全部更新」不再清空本体安装包源地址。原 `checkGameUpdate` 串行调用 `checkHotUpdate → checkUpdate`，中间一次 `render()` 把 `tm-update-feed` input 重建并填回空的 state.feedUrl，导致玩家刚 type 的 URL 被洗白，存进 localStorage 也是空。改为入口处先抓两个 input 值再走子流程。",
+          "why": "玩家反馈：「填完本体源地址点检查全部更新，地址就被清空了」。这个 race condition 让玩家以为是网络或服务端问题，实际是 UI 自己把输入吃了。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-21",
       "module": "诏狱问对 / 免职状态修复 / 引擎拆分",
       "title": "新增诏狱问对机制；修复人物被误标“在狱无法对话”的免职关键字 bug；ai-change-applier 引擎拆 4 模块",
       "items": [

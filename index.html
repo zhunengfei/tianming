@@ -145,7 +145,7 @@
             <button type="button" onclick="window.openContentManager&&window.openContentManager();" title="管理在线更新与创意工坊内容">工坊</button>
             <button type="button" onclick="window._loadMapEditorJSON&&window._loadMapEditorJSON();" title="载入 map-editor 导出的 JSON·装入 P.map·开卷时复用">载图</button>
             <button type="button" onclick="alert('帮助系统待接入');">帮助</button>
-            <button type="button" onclick="document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));">退出</button>
+            <button type="button" onclick="if(confirm('确定退出天命？未保存的进度将丢失。')){ if(window.tianming&&window.tianming.quitApp){ window.tianming.quitApp(); } else { window.close(); } }">退出</button>
           </div>
         </section>
       </aside>
