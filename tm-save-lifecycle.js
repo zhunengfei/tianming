@@ -1124,19 +1124,36 @@ if(window.tianming&&window.tianming.isDesktop){
   };
 }
 
-// 6. 自动存档（Electron）
+// 6. 自动存档（Electron）·2026-05-22 C2+C3 fix·
+// C2·加 _autoSaveInFlight 锁防 60s 重入互踩 (await 过程中 setInterval 可能再触发)
+// C3·tm_P_lite 不必每 60s 写·改成每 5 次 (即 5 分钟) 写一次·节约 100-500ms × 4 次
+var _autoSaveInFlight=false;
+var _autoSaveSkipCount=0;
+var _autoSaveLiteTick=0;
 if(window.tianming&&window.tianming.isDesktop){
   // 每60秒自动存档（始终保存P，游戏运行时附带GM） (timer-leak-ok·文件顶层一次性·桌面端生命周期)
   setInterval(async function(){
+    if(_autoSaveInFlight){
+      _autoSaveSkipCount++;
+      if(_autoSaveSkipCount===5)console.warn("[autoSave] 连续 5 次被跳·上一次未完成·deepClone/IPC 可能卡住");
+      return;
+    }
+    _autoSaveInFlight=true;
     try{
+      _autoSaveSkipCount=0;
       if(GM.running && typeof _awaitPostTurnJobsForSave === 'function') await _awaitPostTurnJobsForSave();
       if(GM.running && typeof _prepareGMForSave === 'function') _prepareGMForSave();
       var saveData=deepClone(P);
       if(GM.running){saveData.gameState=deepClone(GM);saveData._saveMeta={turn:GM.turn,scenario:findScenarioById(GM.sid)||{name:''},saveName:GM.saveName,date:new Date().toISOString()};}
       await window.tianming.autoSave(saveData);
-      // 同步轻量骨架；完整项目由 IndexedDB / desktop autoSave 承担，避免旧 tm_P 覆盖剧本分表。
-      try{localStorage.removeItem("tm_P");localStorage.setItem("tm_P_lite",JSON.stringify({scenarios:(P.scenarios||[]).map(function(s){return{id:s.id,name:s.name,era:s.era,role:s.role};}),ai:P.ai,_hasFullData:true}));}catch(e2){}
+      // C3·tm_P_lite 5 分钟刷一次·完整 P 已在 autoSave 里·lite 只是 boot 快速恢复用
+      _autoSaveLiteTick++;
+      if(_autoSaveLiteTick>=5){
+        _autoSaveLiteTick=0;
+        try{localStorage.removeItem("tm_P");localStorage.setItem("tm_P_lite",JSON.stringify({scenarios:(P.scenarios||[]).map(function(s){return{id:s.id,name:s.name,era:s.era,role:s.role};}),ai:P.ai,_hasFullData:true}));}catch(e2){}
+      }
     }catch(e){ console.warn("[catch] 静默异常:", e.message || e); }
+    finally{ _autoSaveInFlight=false; }
   },60000);
 
   // 启动时检测自动存档

@@ -429,8 +429,23 @@ if(window.tianming&&window.tianming.isDesktop){
   };
 }
 
-// 输入框焦点修复（Electron）
-document.addEventListener("mousedown",function(e){var t=e.target.tagName;if(t==="INPUT"||t==="TEXTAREA"||t==="SELECT"){setTimeout(function(){e.target.focus();},10);}});
+// 输入框焦点修复（Electron）·2026-05-22 B fix·
+// 老版无脑 setTimeout 10ms focus·这 10ms 内 phase8 wrapper / panel render 会 innerHTML 重建
+// e.target 变孤儿节点·focus() 给已脱树元素 → 光标消失
+// 新版·1) 立即尝试 (大多场景原生 OK·不需延迟) 2) fallback 时验证 target.isConnected
+document.addEventListener("mousedown",function(e){
+  var t=e.target.tagName;
+  if(t!=="INPUT"&&t!=="TEXTAREA"&&t!=="SELECT")return;
+  var target=e.target;
+  if(document.activeElement===target)return;
+  setTimeout(function(){
+    if(target.isConnected){
+      target.focus();
+    }else if(window._tmFocusFixDebug){
+      console.log("[focus-fix] target detached, skip focus:",t);
+    }
+  },10);
+});
 
 // 地图编辑器（覆盖简版）
 renderMapTab=function(em){

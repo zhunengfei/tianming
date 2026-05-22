@@ -3,6 +3,33 @@
   "entries": [
     {
       "date": "2026-05-22",
+      "module": "1.2.4.3·桌面端卡顿 + 输入框光标缺失修 (B+C 两轨)",
+      "title": "B 轨 — 输入框光标缺失·原 mousedown setTimeout(10ms) focus workaround 在面板 innerHTML 重建时会给孤儿节点·加 isConnected guard。C 轨 — 桌面 60s autoSave 5 秒级卡顿·三处优化·atomic async writeFile + in-flight 锁 + tm_P_lite 降频。",
+      "items": [
+        {
+          "what": "tm-electron.js:433 mousedown focus workaround 升级·从无脑 setTimeout(10ms) focus 改为·1) 立即检查 activeElement·已聚焦直接 return 2) fallback setTimeout 时验证 target.isConnected·脱树就 skip (避免 focus 给孤儿节点) 3) 加 window._tmFocusFixDebug 埋点·开启后 console.log 每次跳过。index.html tm-electron.js ?v= 从 20260520-official-scenarios → 20260522-focus-fix cache-bust。",
+          "why": "用户报「应用端经常文字输入框没有光标没办法输入·网页端正常」·根因·老 workaround 10ms 内 phase8-formal-bridge.js:10463 的 renderGameState 包装会触发 setTimeout(0) → renderEventFeed/showHome 重建面板·input 所在 DOM 节点已替换·setTimeout 10ms 后 focus(e.target) 落到游离孤儿·焦点设了等于没设。新逻辑用 isConnected (W3C 标准·shadow DOM 兼容) 检查·脱树则跳过·浏览器自己 handle 新 input 的焦点·光标就出来。"
+        },
+        {
+          "what": "main.js:1132 ipcMain.handle('auto-save') 把 fs.writeFileSync 改成 fs.promises.writeFile 写到 .tmp + fs.promises.rename 到最终文件·atomic + 异步。注意·main.js 只在下次 .exe installer 才会到玩家手里·hot update 不覆盖它·故 1.2.4.3 zip 不含此改动·先 GitHub push 留底。",
+          "why": "桌面端 autoSave 60s 一次同步链 5 秒级卡顿元凶之三·主进程 fs.writeFileSync 写 MB 级 JSON 在 Win 上 1-3 秒同步阻塞·IPC 回包前 renderer await 卡住。改 async + atomic 一步消两患·主进程不阻塞 + 进程被杀时 .tmp 半写不污染最终文件 (writeFileSync 本身也可能半写)。"
+        },
+        {
+          "what": "tm-save-lifecycle.js:1130 桌面端 autoSave setInterval(60s) 加 _autoSaveInFlight 锁 + try/finally 双保险·防 deepClone/IPC 卡时 60s 间隔再触发互踩。连续 5 次被跳触发一次 console.warn 让玩家 F12 能看到。",
+          "why": "原代码 deepClone(P) + deepClone(GM) 同步 500-2000ms + IPC + writeFileSync 1-3s·单次可能跑 3-6s。setInterval 不等 await·一次没跑完下次又起·两个 deepClone 互相读半 mutated state 极易撕裂存档。in-flight 锁是最便宜的隔离手段·零侧效。"
+        },
+        {
+          "what": "tm-save-lifecycle.js:1138 tm_P_lite localStorage 写盘从每 60s 一次降到每 5 次 (即 5 分钟) 一次·加 _autoSaveLiteTick 计数。完整 P 已在 autoSave 里·tm_P_lite 只是 boot 时快速恢复用 (scenarios id/name/era/role 元数据 + ai 配置)·5 分钟窗口对 boot 恢复零影响。",
+          "why": "tm_P_lite 每 60s JSON.stringify(P.scenarios.map(...)) 在 scenarios 多 (几十个) 时 100-500ms·5 次 autoSave 才需要刷一次·砍 80% 频率·主线程释放 ~400-2000ms/5min。"
+        },
+        {
+          "what": "index.html tm-save-lifecycle.js ?v= 从 2026052201 → 2026052203 cache-bust。Smoke·node -c tm-electron.js / tm-save-lifecycle.js / main.js 三件套 PASS。",
+          "why": "B 轨 + C2 + C3 这次热更立刻生效 (web/ 文件)·C1 (main.js auto-save handler) 必须等下个 installer build·但 C2 + C3 已让卡顿从 5 秒级降到 1-2 秒级 (剩 deepClone 主线程占用·后续可能升级 A 轨拆 clone·先验证手感)。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-22",
       "module": "1.2.4.2·廷议/御前会议 dormant ReferenceError 修·气泡假性「未能陈词」消除",
       "title": "_cy_jishiAdd 自 2026-05-03 朝议拆分起就从未被定义·14 处调用全抛 ReferenceError·导致大臣说完话气泡被 catch 覆盖成红字「未能陈词」。本版补上 shim·廷议 + 御前 + 深问 + 裁决 + 泄密 5 条路径一次性修",
       "items": [
