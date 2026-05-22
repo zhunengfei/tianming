@@ -3,6 +3,21 @@
   "entries": [
     {
       "date": "2026-05-22",
+      "module": "1.2.4.2·廷议/御前会议 dormant ReferenceError 修·气泡假性「未能陈词」消除",
+      "title": "_cy_jishiAdd 自 2026-05-03 朝议拆分起就从未被定义·14 处调用全抛 ReferenceError·导致大臣说完话气泡被 catch 覆盖成红字「未能陈词」。本版补上 shim·廷议 + 御前 + 深问 + 裁决 + 泄密 5 条路径一次性修",
+      "items": [
+        {
+          "what": "tm-chaoyi.js 顶部新增 _cy_jishiAdd(kind, topic, speaker, line, meta) shim·写入 GM.jishiRecords (per-speaker·供 AI 推演读) + 选择性写 GM.qijuHistory (仅 final/leaked/playerInterject·避免逐句刷屏)·全程 try/catch 吞错。tm-chaoyi-tinyi.js (10 处) + tm-chaoyi-yuqian.js (5 处) 调用点未改·共享父文件先加载所以两套子文件全救。",
+          "why": "用户报「廷议大臣都能说话·一说完就变成（未能陈词）」「御前会议也有」——根因·_cy_jishiAdd 在 5/3 chaoyi v2 拆分时遗漏定义·14 处 bare reference 全抛 ReferenceError。AI 流式·onChunk 把内容写进气泡·extractJSON 成功·innerHTML 设置 stance+content·然后下一行 _cy_jishiAdd 抛 → catch 触发 → 气泡覆盖「未能陈词」。完美解释「能说完但说完变红字」的瞬时切换。"
+        },
+        {
+          "what": "Smoke·node --check tm-chaoyi.js PASS。Node sandbox 跑 3 次调用 (NPC 陈言 / 皇帝裁决 / 玩家插言)·产 3 jishiRecords + 2 qijuHistory·零抛错·shim 行为符合设计。index.html tm-chaoyi.js ?v= 从 2026050301 → 2026052202 cache-bust。",
+          "why": "防 dormant 形态复发·jishiRecords 同时是 1.2.4.0 sc1q 对话承诺推演的输入源 (`tm-endturn-ai.js:1204` 引用 jishiRecords[i] 作 source_conv_id)·这 22 天玩家所有廷议/御前对话从未真正入档·sc1q dialogue_commitments 在朝议侧拿不到 source·side effect 顺手修了。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-22",
       "module": "1.2.4.1·绍宋 NPC traitIds 补全 + 热更覆盖 scenarios (架构 fix)",
       "title": "1) 绍宋 98 NPC traitIds 从全 null 补到 100% 覆盖让 1.2.4.0 G1-G3 智力反喂真生效；2) build-hot-update + main.js 联动 fix·让 scenarios JSON 改动也能进热更包 (之前只动 web/·scenarios 修改要等下个 installer 才能到玩家手里)",
       "items": [

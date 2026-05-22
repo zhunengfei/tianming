@@ -78,6 +78,72 @@ function _cyAbortChaoyi(){
   try { if(typeof addCYBubble==='function') addCYBubble('内侍','（陛下拊案——群臣噤声。）', true); } catch(e){try{window.TM&&TM.errors&&TM.errors.captureSilent(e,'tm-chaoyi-keju');}catch(_){}}
 }
 
+/**
+ * 廷议/御前会议·写入起居 + 纪事·v2 拆分后遗漏的 shim·恢复
+ *   kind:    'tinyi' | 'yuqian'
+ *   topic:   议题标题
+ *   speaker: 发言人 ('皇帝' 或 大臣 name)
+ *   line:    发言内容
+ *   meta:    { round, stance, final, playerInterject, mediation, candor, deep, secret, leaked, rescued }
+ *
+ * 行为·
+ *   1) 每条发言进 GM.jishiRecords (per-speaker·AI 推演读取)
+ *   2) 仅 final / leaked / playerInterject 进 GM.qijuHistory·避免逐句刷屏
+ *   3) record:'secret' 由调用方在外部门控·此函数仅在被调到时写入
+ *   4) 全程吞错·不影响发言气泡渲染
+ */
+function _cy_jishiAdd(kind, topic, speaker, line, meta) {
+  try {
+    meta = meta || {};
+    if (typeof GM === 'undefined') return;
+    var turn = GM.turn || 1;
+    var date = (typeof getTSText === 'function') ? getTSText(turn) : '';
+    var modeLbl = (kind === 'tinyi') ? '廷议' : (kind === 'yuqian') ? '御前' : (kind || '议');
+    var topicStr = String(topic || '').slice(0, 60);
+    var lineStr = String(line == null ? '' : line);
+
+    if (!Array.isArray(GM.jishiRecords)) GM.jishiRecords = [];
+    var isEmperor = speaker === '皇帝';
+    GM.jishiRecords.push({
+      turn: turn,
+      char: isEmperor ? '皇帝' : (speaker || ''),
+      playerSaid: isEmperor ? lineStr : ('【' + modeLbl + '】' + topicStr),
+      npcSaid: isEmperor ? '' : lineStr,
+      mode: kind || '',
+      round: meta.round || 0,
+      stance: meta.stance || '',
+      topic: topicStr,
+      candor: meta.candor || 0,
+      final: !!meta.final,
+      leaked: !!meta.leaked,
+      mediation: !!meta.mediation,
+      playerInterject: !!meta.playerInterject,
+      rescued: !!meta.rescued,
+      secret: !!meta.secret
+    });
+
+    if (meta.final || meta.leaked || meta.playerInterject) {
+      if (!Array.isArray(GM.qijuHistory)) GM.qijuHistory = [];
+      var content;
+      if (meta.final) {
+        content = '【' + modeLbl + '】' + topicStr + '·' + lineStr.slice(0, 80);
+      } else if (meta.leaked) {
+        content = '【' + modeLbl + '·泄密】' + topicStr + '·' + speaker + '：' + lineStr.slice(0, 60);
+      } else {
+        content = '【' + modeLbl + '】' + topicStr + '·陛下：' + lineStr.slice(0, 60);
+      }
+      GM.qijuHistory.unshift({
+        turn: turn,
+        date: date,
+        category: modeLbl,
+        content: content
+      });
+    }
+  } catch (e) {
+    try { if (window.TM && TM.errors && TM.errors.captureSilent) TM.errors.captureSilent(e, '_cy_jishiAdd'); } catch (_) {}
+  }
+}
+
 /** 获取玩家当前所在地（可能不是京城） */
 function _getPlayerLocation() {
   if (P.playerInfo && P.playerInfo.characterName) {
