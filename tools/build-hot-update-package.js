@@ -83,6 +83,24 @@ function walk(dir, out) {
   });
 }
 
+// 2026-05-22·扫 APP_ROOT/scenarios·把官方剧本 JSON 也打进 zip·路径 bundled-scenarios/<file>
+// 让 hot update 也能 ship scenarios 改动·不必等下个 installer
+function walkBundledScenarios() {
+  const SCENARIOS_SRC = path.join(APP_ROOT, 'scenarios');
+  const out = [];
+  if (!fs.existsSync(SCENARIOS_SRC)) return out;
+  fs.readdirSync(SCENARIOS_SRC, { withFileTypes: true }).forEach(entry => {
+    if (!entry.isFile()) return;
+    const ext = path.extname(entry.name).toLowerCase();
+    if (ext !== '.json') return;  // 只 ship 官方 JSON 剧本
+    out.push({
+      abs: path.join(SCENARIOS_SRC, entry.name),
+      zipPath: 'bundled-scenarios/' + entry.name
+    });
+  });
+  return out;
+}
+
 function readPackageVersion() {
   try {
     const pkg = JSON.parse(fs.readFileSync(path.join(APP_ROOT, 'package.json'), 'utf-8'));
@@ -138,6 +156,17 @@ function main() {
     zip.addLocalFile(file, path.dirname(rel) === '.' ? '' : path.dirname(rel));
     return { path: rel, sha256: sha256File(file), size: stat.size };
   });
+
+  // 2026-05-22·bundled scenarios·热更也能 ship 官方剧本 JSON 改动
+  const bundledScenarios = walkBundledScenarios();
+  bundledScenarios.forEach(entry => {
+    const stat = fs.statSync(entry.abs);
+    zip.addLocalFile(entry.abs, 'bundled-scenarios');
+    manifestFiles.push({ path: entry.zipPath, sha256: sha256File(entry.abs), size: stat.size });
+  });
+  if (bundledScenarios.length) {
+    console.log('[hot-update] bundled scenarios·' + bundledScenarios.length + ' file(s)·' + bundledScenarios.map(e => path.basename(e.abs)).join(', '));
+  }
 
   const manifest = {
     type: 'tianming-hot-update',

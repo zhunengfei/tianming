@@ -31,6 +31,7 @@ This directory is the Godot 4.6 rewrite workspace for Tianming.
 - Relationship-panel diplomacy-refresh scene test: `res://tests/relationship_panel_diplomacy_refresh_test.tscn`
 - Character-action-updates-relationship scene test: `res://tests/character_action_updates_relationship_test.tscn`
 - Relationship-panel character-action-refresh scene test: `res://tests/relationship_panel_character_action_refresh_test.tscn`
+- Relationship-panel character-action selective-refresh scene test: `res://tests/relationship_panel_character_action_selective_refresh_test.tscn`
 - Appointment-updates-relationship scene test: `res://tests/appointment_updates_relationship_test.tscn`
 - Relationship-panel appointment-refresh scene test: `res://tests/relationship_panel_appointment_refresh_test.tscn`
 - Monthly simulator: `res://scripts/monthly_simulator.gd`
@@ -45,6 +46,7 @@ This directory is the Godot 4.6 rewrite workspace for Tianming.
 - Monthly report panel: `res://scripts/monthly_report_panel.gd`
 - Monthly report faction-AI detail scene test: `res://tests/monthly_report_faction_ai_detail_test.tscn`
 - Monthly report history scene tests: `res://tests/monthly_report_history_panel_test.tscn`, `res://tests/monthly_report_history_main_test.tscn`
+- Monthly report state rows scene test: `res://tests/monthly_report_state_rows_test.tscn`
 - Chronicle monthly report detail scene test: `res://tests/chronicle_monthly_report_detail_test.tscn`
 - Chronicle history detail scene test: `res://tests/chronicle_history_detail_test.tscn`
 - Save slot panel: `res://scripts/save_slot_panel.gd`
@@ -69,7 +71,11 @@ This directory is the Godot 4.6 rewrite workspace for Tianming.
 - Military order history detail scene test: `res://tests/military_order_history_detail_test.tscn`
 - Army roster panel: `res://scripts/army_roster_panel.gd`
 - Army roster scene tests: `res://tests/army_state_test.tscn`, `res://tests/army_roster_panel_test.tscn`, `res://tests/army_roster_main_test.tscn`
+- Army roster state payload scene test: `res://tests/army_roster_state_payload_test.tscn`
 - Army commander assignment scene tests: `res://tests/army_commander_assignment_test.tscn`, `res://tests/army_commander_assignment_ui_test.tscn`
+- Assignment prison-filter scene test: `res://tests/assignment_prison_filter_test.tscn`
+- Character dead-filter scene test: `res://tests/character_dead_filter_test.tscn`
+- Character dead-action filter scene test: `res://tests/character_dead_action_filter_test.tscn`
 - Army action scene tests: `res://tests/army_action_test.tscn`, `res://tests/army_action_ui_test.tscn`
 - Army garrison-action scene test: `res://tests/army_garrison_action_test.tscn`
 - Army recover-control scene tests: `res://tests/army_recover_control_test.tscn`, `res://tests/army_recover_control_ui_test.tscn`
@@ -78,6 +84,7 @@ This directory is the Godot 4.6 rewrite workspace for Tianming.
 - Command-action selection-recovery scene test: `res://tests/command_action_selection_recovery_test.tscn`
 - Panel history full-visibility scene test: `res://tests/panel_history_full_visibility_test.tscn`
 - Command panel visible-text scene test: `res://tests/command_panel_visible_text_test.tscn`
+- Command panel state payload scene test: `res://tests/command_panel_state_payload_test.tscn`
 - Map region action scene test: `res://tests/map_region_action_ui_test.tscn`
 - World map panel main-scene test: `res://tests/world_map_panel_main_test.tscn`
 - Map selection runtime-removal scene test: `res://tests/map_selection_runtime_removal_test.tscn`
@@ -85,6 +92,7 @@ This directory is the Godot 4.6 rewrite workspace for Tianming.
 - World-map controller-color scene test: `res://tests/world_map_controller_color_test.tscn`
 - Diplomacy panel: `res://scripts/diplomacy_panel.gd`
 - Diplomacy scene tests: `res://tests/diplomacy_test.tscn`, `res://tests/diplomacy_ui_test.tscn`
+- Diplomacy/court panel state payload scene test: `res://tests/diplomacy_court_panel_state_payload_test.tscn`
 - Diplomacy selection-recovery scene test: `res://tests/diplomacy_selection_recovery_test.tscn`
 - Diplomacy history detail scene test: `res://tests/diplomacy_history_detail_test.tscn`
 - Court meeting panel: `res://scripts/court_meeting_panel.gd`
@@ -95,13 +103,27 @@ This directory is the Godot 4.6 rewrite workspace for Tianming.
 - Court meeting agenda full-pressure scene test: `res://tests/court_meeting_agenda_full_pressure_test.tscn`
 - Court meeting detail full-visibility scene test: `res://tests/court_meeting_detail_full_visibility_test.tscn`
 - Court meeting participant full-visibility scene test: `res://tests/court_meeting_participant_full_visibility_test.tscn`
+- Court meeting participant portrait scene tests: `res://tests/court_meeting_participant_portrait_test.tscn`, `res://tests/court_meeting_participant_portrait_budget_test.tscn`
+- Court meeting prison-filter scene test: `res://tests/court_meeting_prison_filter_test.tscn`
+- Runtime panel state payload scene test: `res://tests/runtime_panel_state_payload_test.tscn`
+- Runtime selective payload/refresh scene tests: `res://tests/runtime_panel_payload_selective_test.tscn`, `res://tests/runtime_panel_presenter_selective_refresh_test.tscn`, `res://tests/runtime_tab_host_lazy_payload_test.tscn`
+- Main lazy-tab refresh scene test: `res://tests/main_lazy_tab_refresh_test.tscn`
+- Main single-tab-container scene test: `res://tests/main_single_tab_container_test.tscn`
+- Main panel-key selection scene test: `res://tests/main_select_runtime_panel_test.tscn`
+- Runtime tab readable-name scene test: `res://tests/runtime_tab_host_readable_names_test.tscn`
+- Gameplay hub readable-navigation scene test: `res://tests/gameplay_hub_readable_navigation_test.tscn`
+- Gameplay hub quick-load disabled scene test: `res://tests/gameplay_hub_quick_load_disabled_test.tscn`
+- Main gameplay-hub panel-key navigation scene test: `res://tests/main_gameplay_hub_panel_key_navigation_test.tscn`
 - Communication scene tests: `res://tests/communication_state_test.tscn`, `res://tests/communication_ui_test.tscn`
 - Communication archive detail scene test: `res://tests/communication_archive_detail_test.tscn`
 - Communication archive full-history scene test: `res://tests/communication_archive_full_history_test.tscn`
 - Audience scene tests: `res://tests/audience_state_test.tscn`, `res://tests/audience_ui_test.tscn`
+- Audience prison-filter scene test: `res://tests/audience_prison_filter_test.tscn`
 - Audience selection-persistence scene test: `res://tests/audience_selection_persistence_test.tscn`
 - Compact list long-text scene test: `res://tests/compact_list_long_text_test.tscn`
 - Character action scene tests: `res://tests/character_action_test.tscn`, `res://tests/character_action_ui_test.tscn`
+- Prison character action scene tests: `res://tests/prison_character_action_test.tscn`, `res://tests/character_detail_prison_action_filter_test.tscn`
+- Browser panel state payload scene test: `res://tests/browser_panel_state_payload_test.tscn`
 - Character browser panel main-scene test: `res://tests/character_browser_panel_main_test.tscn`
 - Detail panel long-text scene test: `res://tests/detail_panel_long_text_test.tscn`
 - Character list runtime-addition scene test: `res://tests/character_list_runtime_addition_test.tscn`
@@ -135,6 +157,9 @@ This directory is the Godot 4.6 rewrite workspace for Tianming.
 - Save manager version check scene test: `res://tests/save_manager_version_check_test.tscn`
 - Save slot UI scene test: `res://tests/save_slot_ui_test.tscn`
 - Save slot overwrite confirmation scene test: `res://tests/save_slot_overwrite_confirm_test.tscn`
+- Save slot overwrite button-label scene test: `res://tests/save_slot_overwrite_button_label_test.tscn`
+- Save slot overwrite cancel-on-other-action scene test: `res://tests/save_slot_overwrite_cancel_on_other_action_test.tscn`
+- Save slot delete confirmation scene test: `res://tests/save_slot_delete_confirmation_test.tscn`
 - Save slot overwrite refresh scene test: `res://tests/save_slot_overwrite_refresh_test.tscn`
 - Save slot missing request scene test: `res://tests/save_slot_missing_request_test.tscn`
 - Save slot version UI scene test: `res://tests/save_slot_version_ui_test.tscn`
@@ -144,15 +169,27 @@ This directory is the Godot 4.6 rewrite workspace for Tianming.
 - Overview summary live-counts scene test: `res://tests/overview_summary_live_counts_test.tscn`
 - Overview summary live-metrics scene test: `res://tests/overview_summary_live_metrics_test.tscn`
 - Overview summary panel main-scene test: `res://tests/overview_summary_panel_main_test.tscn`
+- Overview summary state snapshot scene test: `res://tests/overview_summary_state_snapshot_test.tscn`
 - Gameplay hub snapshot state scene test: `res://tests/gameplay_hub_snapshot_state_test.tscn`
 - Gameplay hub agenda full-visibility scene test: `res://tests/gameplay_hub_agenda_full_visibility_test.tscn`
 - Gameplay hub alerts full-snapshot scene test: `res://tests/gameplay_hub_alerts_full_snapshot_test.tscn`
 - Gameplay hub history full-snapshot scene test: `res://tests/gameplay_hub_history_full_snapshot_test.tscn`
 - Runtime list removal scene test: `res://tests/runtime_list_removal_test.tscn`
 - Title screen flow scene test: `res://tests/title_screen_flow_test.tscn`
+- Title menu exclusive-sections scene test: `res://tests/title_menu_exclusive_sections_test.tscn`
+- Title continue-status scenario-name scene test: `res://tests/title_continue_status_scenario_name_test.tscn`
 - Title load slot scene test: `res://tests/title_load_slot_test.tscn`
+- Title load-menu scenario-name scene test: `res://tests/title_load_menu_scenario_name_test.tscn`
+- Title incompatible save menu scene test: `res://tests/title_incompatible_save_menu_test.tscn`
+- Title selected-scenario load-slot scene test: `res://tests/title_load_selected_scenario_slot_test.tscn`
+- Main selected-scenario load-slot scene test: `res://tests/main_load_selected_scenario_slot_test.tscn`
 - Settings manager scene test: `res://tests/settings_manager_test.tscn`
+- Settings manager UI-scale application scene test: `res://tests/settings_manager_applies_ui_scale_test.tscn`
 - Title settings scene test: `res://tests/title_settings_test.tscn`
+- Title settings menu button scene test: `res://tests/title_settings_menu_buttons_test.tscn`
+- System panel quick-load disabled scene test: `res://tests/system_panel_quick_load_disabled_test.tscn`
+- System panel settings button scene test: `res://tests/system_panel_settings_buttons_test.tscn`
+- Title scenario-selection scene tests: `res://tests/title_scenario_selection_test.tscn`, `res://tests/title_scenario_menu_scroll_test.tscn`
 - System menu UI scene test: `res://tests/system_menu_ui_test.tscn`
 - Project entry scene test: `res://tests/project_entry_test.tscn`
 - Godot MCP can detect and run the project.
@@ -165,6 +202,8 @@ This directory is the Godot 4.6 rewrite workspace for Tianming.
 - Diplomacy and faction-effect changes to `relation_to_player` or `hostility` now synchronize the corresponding player-vs-target row in `faction_relations`, keeping the relationship tab from becoming a stale script table.
 - The relationship panel refresh path is covered after diplomacy actions, so the visible `关系` tab follows the synchronized faction relation instead of only the underlying runtime array.
 - Character personnel actions that change loyalty now synchronize the emperor-vs-target row in `character_relations`, and the relationship panel refresh path is covered after those actions.
+- Character personnel commands now include the relationship panel in their selective refresh keys, so relation descriptions such as `由人物处置同步` update even when the relationship tab is inactive.
+- Relationship panel UI coverage now opens the lazy-loaded `关系` tab through the stable `relationship_panel` key before asserting visible relation rows.
 - Court appointments that increase loyalty now reuse the same emperor-vs-target relationship synchronization, including relationship-tab refresh coverage after appointments.
 - Scenario loader summaries now keep full faction-relation and region-neighbor text instead of truncating later entries before they reach runtime panels.
 - Scenario loader now searches both the original `godot` sibling `scenarios` directory and the copied `web/godot` fallback path, so the same project can run in either location without moving the original workspace.
@@ -174,24 +213,46 @@ This directory is the Godot 4.6 rewrite workspace for Tianming.
 - Gameplay hub alert snapshots now include all pending events, recommendations, correspondence, military alerts, uprisings, and faction-AI actions instead of truncating each source category.
 - Gameplay hub history snapshots now keep older action, edict, diplomacy, and other gameplay-history names visible instead of summarizing only the newest rows per category.
 - Gameplay hub snapshot, urgent-alert aggregation, and recent-history text now come from `GameState` rather than `main.gd`, so the main scene only passes save-slot availability into the hub panel.
+- Gameplay hub quick-load controls now follow quick-save availability and disable `读取` when no compatible quick slot exists.
+- Gameplay hub panel-key navigation now has main-scene coverage across every primary runtime surface, verifying that each first-screen entry opens and hydrates its target panel.
+- Gameplay hub command entries now live inside a scroll container, so the expanded first-screen surface remains reachable on smaller windows.
 - The main scene's top overview summary now keeps runtime counts plus mutable treasury, population, authority, and public sentiment rows bound to `GameState` instead of the initial scenario snapshot.
 - The top overview summary now uses a dedicated `OverviewSummaryPanel` instead of keeping the runtime bar and summary rows embedded in `main.gd`, preserving the next-month button and live count/metric labels behind a testable panel API.
+- Overview runtime snapshot and live metric composition now come from `GameState`, so `main.gd` only forwards state snapshots into `OverviewSummaryPanel`.
 - The main scene has dropped the obsolete handwritten overview-row/runtime-bar helpers, so overview rendering is owned by `OverviewSummaryPanel` without legacy garbled labels in `main.gd`.
 - The main scene has dropped legacy overview Label compatibility state; runtime bar labels and live summary row labels now live only inside `OverviewSummaryPanel`.
 - The main scene has dropped obsolete embedded character/faction/map fallback builders; those surfaces are now owned by dedicated browser and map panels, while `main.gd` only owns panel nodes, selected-region state where required, and signal routing.
 - The main scene no longer exposes the legacy raw table tab builder; every primary gameplay tab is backed by a dedicated Godot panel script with a main-scene regression test.
 - The main scene no longer carries old faction/character table-column schemas or summary-row fallback data for browser tabs; character, faction, and map panels initialize from live `GameState` data.
 - Chronicle monthly report entries now preserve concrete event names, faction-AI reasons, uprising causes, and military alert text instead of only recording aggregate counts.
+- Chronicle visible-text output now includes its title, count, and empty state so opened chronicle panels remain verifiable before the first settled record exists.
+- Monthly report row composition now comes from `GameState.monthly_report_rows()`, preserving the initial preview report and settled turn-report history without a `main.gd` adapter.
+- Monthly report visible-text output now includes the `月报` title even when a report is selected, keeping lazy-loaded report panels identifiable in main-scene navigation checks.
 - Runtime save/load now has a first Godot-native snapshot path: mutable turn state, national values, regions, factions, variables, events, histories, court recommendations, and active diplomacy commitments can be saved, restored, and advanced deterministically afterward.
 - `SaveManager` now writes JSON save slots under `user://saves`, exposes slot metadata, restore, and delete operations, and the gameplay hub quick-save/quick-load controls use the file-backed `quick` slot.
 - The main scene now includes a player-facing `存档` tab with fixed save slots, metadata display, save, load, and delete controls wired to `SaveManager`.
 - Save slots now protect existing saves with overwrite confirmation, mark unsupported save formats before restore, block incompatible loads in the UI, and show action-point/treasury/authority summary text on slot cards.
+- Save-slot overwrite confirmation now changes the selected save button label to `确认覆盖` until the second click confirms or slot metadata refreshes.
+- Save-slot overwrite confirmation now clears immediately when the player chooses to read or delete a slot, so stale `确认覆盖` labels cannot linger after a different action.
 - Save slot overwrite confirmation now resets whenever slot metadata refreshes, so stale confirmation cannot authorize a later overwrite.
 - Save slot load/delete requests now reject empty slots at the panel API level instead of emitting stale load/delete signals.
+- Save slot deletion now requires a second confirmation click and changes the delete button to `确认删除` while pending.
 - The main scene exposes `continue_from_quick_save()` as a system-level continue hook, so a future title screen can resume the file-backed quick slot without duplicating save logic.
 - The Godot project now starts at a title screen with `新局`, `继续`, `读取存档`, `设置`, and `退出`; new game loads `main.tscn`, continue resumes the file-backed quick slot, and the load menu can restore any listed save slot.
+- The title screen now keeps `读取存档`, `选择剧本`, and `设置` sections mutually exclusive, including hiding the scenario scroll container until the scenario menu is opened.
+- The title-screen load-slot menu now uses a scroll container, keeping save slots reachable as the title workflow grows.
+- The title screen can now list copied project-local scenarios, select a non-default scenario, and start `main.tscn` with that selected scenario path instead of always booting the default official Tianqi scenario.
+- Save-slot metadata now carries the source scenario path, and title-screen slot loading boots `main.tscn` with that path before restore, so non-default scenario saves are no longer rejected by scenario-name validation.
+- The title-screen continue status now shows the quick save's source scenario name, matching the load-slot menu and reducing ambiguity when saves come from multiple copied scenarios.
+- The title-screen load menu now renders each occupied slot's source scenario name from save metadata, so copied multi-scenario saves can be distinguished before loading.
+- The title screen now disables continue/load controls for incompatible save formats and shows their version warning instead of treating old saves as loadable.
+- In-game slot loading now uses the save metadata scenario path too; if the selected slot belongs to another project-local scenario, the main scene rebuilds its runtime against that scenario before restoring the snapshot.
 - Runtime settings now have a first file-backed path through `SettingsManager`, covering fullscreen, UI scale, and master volume with title-screen display/apply controls.
+- Runtime UI-scale settings now apply to the Godot root window content scale instead of only being stored as save-file metadata.
+- The title-screen settings menu now exposes clickable window/fullscreen, UI-scale, and volume controls instead of requiring tests or code to call the settings API directly.
 - The main game now includes a `系统` tab for in-game quick save/load, runtime settings application, and returning to the title screen when launched from the title flow.
+- The in-game `系统` tab now disables `快速读取` whenever no compatible quick save exists, while re-enabling it after save metadata refreshes.
+- The in-game `系统` tab now exposes matching window/fullscreen, UI-scale, and volume setting buttons, so runtime settings are adjustable from inside a campaign instead of only from the title screen.
 - Gameplay hub, save-slot, and system shell panels now expose `visible_text()` so tests can verify agenda alerts, slot summaries, and system status directly.
 - Communication archive entries now keep sender, title, body, and processing status visible after memorials or letters are archived or moved into court recommendations.
 - Event queue history entries now keep resolved choice text and applied effect details visible after event processing, so event outcomes are reviewable instead of only listing event names.
@@ -210,6 +271,7 @@ This directory is the Godot 4.6 rewrite workspace for Tianming.
 - The faction tab supports faction selection and displays leader, capital, territory, army, economy, cohesion, public opinion, resources, relation scores, and direct faction-response actions.
 - The faction tab now uses a dedicated `FactionBrowserPanel` instead of keeping the browser list embedded in `main.gd`, preserving runtime add/remove selection, detail display, and faction-action routing behind a testable panel API.
 - Character and faction browser row-button dictionaries, selected buttons, selected ids, and nested detail-panel references now live only inside their dedicated browser panels; `main.gd` only owns the panel nodes and action signal routing.
+- Character and faction browser payloads now come from `GameState.character_browser_data()` and `GameState.faction_browser_data()`, so `main.gd` no longer assembles those panels from individual runtime fields.
 - The faction tab now creates list rows for runtime-added factions, so uprising-generated or later scripted factions can be selected without rebuilding the scene.
 - Faction territory summaries now keep every runtime-controlled region visible instead of shortening long territory lists to the first few regions.
 - The character tab supports character selection, portrait loading from `../web/assets/portraits/`, and displays faction, party, class, loyalty, ambition, abilities, traits, and biography text.
@@ -245,10 +307,13 @@ This directory is the Godot 4.6 rewrite workspace for Tianming.
 - The game now has a first court appointment loop: court offices, office assignments, appointment history, action-point cost, loyalty-safe promotions, and a player-facing appointment tab.
 - Appointment now recovers selection to a live office if the previously selected runtime office is removed.
 - Appointment candidate lists now render every eligible live character in the scrollable panel instead of truncating long candidate pools.
+- Appointment candidate rows now render project-local character portraits when available, keeping personnel decisions visually tied to the character roster.
 - The game now has a first edict loop: reusable edict templates, optional target regions, action-point cost, treasury/minxin effects, regional pressure effects, issued-edict history, and a player-facing edict tab.
 - The game now has a first military order loop: military order templates, target-region selection, action-point cost, treasury/prestige effects, troop/army-pressure effects, issued-order history, and a player-facing military order tab.
 - Official `military.initialTroops` now loads into Godot runtime state as a save/load-preserved army roster, with a player-facing `军队` tab showing each force's commander, troops, morale/training/control, pay arrears, mutiny risk, composition, salary, equipment, and description.
+- Army roster panel payloads now come from `GameState.army_roster_panel_data()`, keeping live armies, commander candidates, actions, regions, histories, and action points together as a runtime state view.
 - The army roster now supports assigning or replacing commanders from live runtime characters; commander changes spend action points, clear the previous commander's command field, update army/detail UI, persist through save/load, and enter the chronicle.
+- Imprisoned or dead/deceased characters are now excluded from central appointment and army-commander candidate payloads, direct appointment/commander calls reject them before spending action points, and regional governor/commander auto-selection skips unavailable characters instead of appointing stale roster entries.
 - The army roster now supports direct army actions such as paying arrears, drilling troops, and enforcing discipline; these actions mutate live army morale/training/loyalty/control/arrears/mutiny fields, spend treasury/action points, persist through save/load, refresh the army UI, and enter the chronicle/gameplay history.
 - Army actions can now apply live effects to the selected army's current garrison region, so actions such as `驻地弹压` reduce local unrest and army pressure while improving local mood through the same army panel workflow.
 - Army actions can now recover rebel- or enemy-controlled garrison regions back to their legal owner through `收复驻地`, while recording the previous and restored controller for save/load, chronicle, and faction-territory refresh paths.
@@ -257,6 +322,8 @@ This directory is the Godot 4.6 rewrite workspace for Tianming.
 - Edict and military order panels now recover their selected target region if the previously selected runtime region is removed.
 - Edict, military order, and diplomacy panels now recover selected action templates if the previously selected runtime template is removed.
 - Appointment, court-meeting, edict, military-order, and diplomacy panels now expose `visible_text()` so UI tests can verify their displayed detail and history text directly.
+- Court action, appointment, edict, and military-order panel payloads now come from `GameState`, so `main.gd` no longer assembles those command panels from individual runtime fields.
+- Diplomacy and court-meeting panel payloads now come from `GameState`, keeping actions, factions, participants, histories, recommendations, commitments, and action points together as runtime state views.
 - The game now has a first diplomacy loop: diplomacy action templates, target-faction selection, action-point cost, treasury/prestige effects, relation/hostility effects, diplomacy history, and a player-facing diplomacy tab.
 - Diplomacy now recovers selection to a live target faction if the previously selected runtime faction is removed.
 - Diplomacy history now displays action-point cost, national effects, target-faction effects, and remaining commitment months with player-facing labels, so diplomatic outcomes remain reviewable from the diplomacy panel.
@@ -267,14 +334,21 @@ This directory is the Godot 4.6 rewrite workspace for Tianming.
 - Court meetings now include relationship-driven speeches and UI history text, so allies/rivals can change stance and explain their factional alignment during debate.
 - Court meeting detail text now keeps all agenda-pressure and debate entries visible instead of truncating longer meetings to the first few items.
 - Court meeting participant lists now keep every eligible live character visible in the scrollable panel instead of truncating longer official pools.
+- Court meetings now filter imprisoned and dead/deceased characters out of participant candidates and reject unavailable-only direct meeting calls before spending action points or recording history; released prisoners return to meeting eligibility.
 - The main game now includes a `史官实录` tab backed by `GameState.chronicle_entries()`, preserving full turn-report history plus player actions, appointments, edicts, military orders, diplomacy, court meetings, recommendations, and resolved events across save/load.
 - Chronicle government-history details now preserve multiple effect groups at once, including national, region, faction, army, and statecraft effects with player-facing labels, plus appointment predecessor and loyalty-change context.
 - The main game now includes a `奏疏来文` tab backed by saved communication inbox/archive state. Initial and monthly memorials/letters can be archived or promoted into court recommendations, and they survive save/load.
+- `奏疏来文` entries now enrich matching scenario-character senders with live identity fields and render their project-local portraits in the inbox.
 - Communication archives now display the full archived memorial/letter history instead of truncating older items out of the visible panel text.
 - Player-facing panel histories now keep older rows visible across appointments, audiences, personnel actions, court actions/meetings, edicts, military orders, diplomacy, event resolutions, faction responses, region governance, and statecraft instead of truncating to the newest few entries.
+- Communication, audience, region-governance, statecraft, and event-queue panel payloads now come from `GameState`, so `main.gd` no longer assembles those runtime panels from individual state fields.
 - The main game now includes a `问对` tab backed by saved audience history. The player can select a character and topic, spend action points, receive a deterministic response, and optionally create court recommendations from strong advice.
+- The `问对` panel now previews the selected character's project-local portrait and identity before the player summons them.
+- `问对` now filters imprisoned and dead/deceased characters out of normal audience candidates and rejects direct normal-audience calls for them without spending action points; released prisoners return to the normal audience list.
 - Audience character selectors and statecraft variable list rows now keep long official titles and variable descriptions complete instead of cutting them at fixed character counts.
 - The character detail panel now includes a `人物处置` loop backed by saved character-action history. The player can reward, admonish, or inspect a selected character, mutating loyalty/ambition/integrity and routing the result into the chronicle.
+- `人物处置` now includes a first Godot-native prison loop for imprisoned characters: 审讯、宽慰、释放、赦免、加刑 mutate live character status/health/loyalty and national 民心/皇威, persist through save/load, enter the chronicle, and are filtered in the detail UI so normal officials do not show prison-only actions.
+- `人物处置` now rejects dead/deceased characters before spending action points or recording history, and the character detail panel hides personnel-action buttons for deceased roster entries.
 - Audience now preserves selected character and topic across runtime refreshes, and recovers character selection when the selected runtime character is removed.
 - Character and faction selector rows now refresh from live runtime state after appointments, actions, and transfers, so reselecting a row cannot restore stale source-scenario fields.
 - The raw `地块` table has been replaced by a Godot-native `地块治理` panel. The player can select a region, run relief, land-survey, or fortification actions, mutate runtime region values, save the history, and surface it in the chronicle.
@@ -319,6 +393,7 @@ Phase 1 progress:
 - [x] Keep top-level faction relationship rows in sync when diplomacy/faction effects change target attitude toward the player.
 - [x] Cover relationship-tab refresh after diplomacy-driven faction relation synchronization.
 - [x] Keep top-level character relationship rows in sync when character personnel actions change loyalty, including relationship-tab refresh coverage.
+- [x] Keep relationship-panel selective refresh wired for character personnel commands.
 - [x] Keep top-level character relationship rows in sync when court appointments raise loyalty, including relationship-tab refresh coverage.
 - [x] Keep scenario loader summary text complete for faction relations and region neighbors.
 - [x] Port the first real monthly fiscal settlement step from official scenario fields.
@@ -351,9 +426,12 @@ Phase 1 progress:
 - [x] Add first court appointments with offices, candidates, action-point cost, and UI integration.
 - [x] Recover appointment office selection when the selected runtime office is removed.
 - [x] Keep appointment candidate lists complete across long eligible candidate pools.
+- [x] Show project-local character portraits in appointment candidate rows.
 - [x] Add first edict issuing flow with target regions, direct effects, and UI integration.
 - [x] Add first military order flow with target regions, troop/pressure effects, and UI integration.
 - [x] Add first official army roster runtime state and player-facing army detail tab.
+- [x] Move army roster panel payload composition from `main.gd` into `GameState`.
+- [x] Move communication, audience, region-governance, statecraft, and event-queue panel payload composition from `main.gd` into `GameState`.
 - [x] Add army commander assignment from the Godot army roster panel.
 - [x] Add direct army actions from the Godot army roster panel.
 - [x] Let direct army actions affect the army's current garrison region.
@@ -362,6 +440,8 @@ Phase 1 progress:
 - [x] Recover edict and military-order target selection when the selected runtime region is removed.
 - [x] Recover edict, military-order, and diplomacy action selection when selected runtime templates are removed.
 - [x] Add verifiable visible-text surfaces for appointment, court-meeting, edict, military-order, and diplomacy command panels.
+- [x] Move court-action, appointment, edict, and military-order panel payload composition from `main.gd` into `GameState`.
+- [x] Move diplomacy and court-meeting panel payload composition from `main.gd` into `GameState`.
 - [x] Add selected-region quick edict and military-order actions from the Godot world-map detail panel.
 - [x] Move the world-map view/detail/quick-command surface into a dedicated Godot panel with main-scene compatibility coverage.
 - [x] Remove legacy map-detail Label compatibility from `main.gd` after moving map detail assertions to `WorldMapPanel`.
@@ -387,22 +467,31 @@ Phase 1 progress:
 - [x] Add a system-level quick-continue hook for future title/menu integration.
 - [x] Add a title screen and make it the Godot project entry scene.
 - [x] Add title-screen load-slot menu support for restoring non-quick save slots.
+- [x] Put the title-screen load-slot menu in a scroll container while preserving exclusive menu switching.
+- [x] Disable title-screen continue/load controls for incompatible save formats.
+- [x] Add title-screen project-local scenario selection for new games.
+- [x] Restore non-default scenario save slots from the title screen by booting their saved scenario path first.
+- [x] Restore non-default scenario save slots from the in-game save panel by rebuilding the main runtime on the slot's scenario path.
 - [x] Add file-backed runtime settings and a title-screen settings menu.
 - [x] Add an in-game system menu with quick save/load, settings application, and return-to-title support.
 - [x] Add verifiable visible-text surfaces for gameplay hub, save-slot, and system shell panels.
 - [x] Remove obsolete handwritten overview helpers from `main.gd` after moving overview rendering into `OverviewSummaryPanel`.
 - [x] Remove legacy overview Label compatibility state from `main.gd`; tests now inspect `OverviewSummaryPanel` directly.
+- [x] Move overview runtime snapshot/live metric composition from `main.gd` into `GameState`.
 - [x] Remove obsolete embedded character/faction/map fallback builders from `main.gd` after moving those surfaces into dedicated panels.
 - [x] Remove legacy character/faction browser compatibility state from `main.gd`; tests now inspect the dedicated browser panels directly.
+- [x] Move character/faction browser panel payload composition from `main.gd` into `GameState`.
 - [x] Remove legacy world-map selected-region compatibility state from `main.gd`; tests now inspect `WorldMapPanel` directly.
 - [x] Remove leftover raw-table column schema and summary-row fallback setup from `main.gd` after all primary browser/map tabs moved to dedicated panels.
 - [x] Move gameplay hub snapshot/alert/history composition from `main.gd` into `GameState`.
+- [x] Move monthly report row composition from `main.gd` into `GameState`.
 - [x] Broaden conditional event parsing further into relationship, faction-pressure, seasonal, and named world-state predicates.
 - [x] Expand faction AI from pressure/raid events into deeper multi-region strategy, diplomacy, alliance shifts, and richer counterplay hooks.
 - [x] Expand court meetings further with relationship-driven faction speeches and broader AI agenda pressure.
 - [x] Keep court-meeting detail text complete across longer agenda-pressure and debate-entry lists.
 - [x] Keep court-meeting agenda-pressure generation complete across all qualifying frontier and relief regions.
 - [x] Keep court-meeting participant lists complete across long eligible official pools.
+- [x] Show project-local portraits for court-meeting participants while bounding long-list thumbnail decoding at startup.
 
 ## Phase 2 Runtime Completeness
 
@@ -410,12 +499,21 @@ Phase 1 progress:
 - [x] Keep `史官实录` government-history details readable across national, region, faction, army, statecraft, and appointment records.
 - [x] Expand the monthly report tab itself so old reports can be selected without going through the chronicle.
 - [x] Expand the Godot court communication surfaces beyond current events/meetings into larger player-facing correspondence and memorial flows.
+- [x] Show project-local portraits for correspondence senders when a sender matches a scenario character.
 - [x] Keep archived correspondence visible across the full communication history instead of only the newest few entries.
 - [x] Keep command, meeting, personnel, event, region, faction, and statecraft panel histories visible across their full in-memory history.
 - [x] Add a first Godot-native `问对` surface for character consultation beyond raw character browsing.
+- [x] Filter imprisoned characters out of normal `问对`, while allowing them to return after release.
 - [x] Preserve and recover audience character/topic selection across runtime refreshes.
 - [x] Keep audience selector titles and statecraft variable list descriptions complete.
+- [x] Show project-local character portraits in the Godot audience surface.
+- [x] Continue copying portrait-backed UI work into `web/godot` only; the original web runtime and source asset locations remain untouched.
 - [x] Add a first Godot-native character personnel-action surface inside the character browser.
+- [x] Add Godot-native prison-only character actions for imprisoned officials with save/load, chronicle, and UI filtering coverage.
+- [x] Filter imprisoned characters out of normal court meeting participation until release.
+- [x] Filter imprisoned characters out of central appointment, army commander, and regional personnel assignment paths until release.
+- [x] Filter dead/deceased characters out of normal audience, court meeting, central appointment, army commander, and regional personnel assignment paths.
+- [x] Filter dead/deceased characters out of character personnel actions and the detail-panel action buttons.
 - [x] Move the character browser list/detail surface into a dedicated Godot panel with main-scene compatibility coverage.
 - [x] Keep character biography and faction strategic description text complete in detail panels.
 - [x] Let the character browser add rows for runtime-created characters from events or scripts.
@@ -433,12 +531,35 @@ Phase 1 progress:
 - [x] Expand faction response with live region ownership/controller transfer.
 - [x] Replace the raw variable table with a first Godot-native statecraft panel.
 - [x] Recover statecraft selection when the selected runtime variable is removed.
+- [x] Move selected-map-region quick command routing and status text from `main.gd` into `GameState`.
+- [x] Move runtime panel payload bundling from `main.gd` into `GameState.runtime_panel_payloads()`.
+- [x] Make main-scene initial tab loading consume `runtime_panel_payloads()` instead of direct panel payload calls.
+- [x] Move player command dispatch and main-scene log text into `GameState.run_player_command()`.
+- [x] Route advance-month turn progression through `GameState.run_player_command()` as a first-class player command.
+- [x] Move save-slot and system-settings panel payloads from `main.gd` into `RuntimeShell`.
+- [x] Route save/load/delete/settings shell operations through `RuntimeShell.run_shell_command()`.
+- [x] Move main-scene runtime bootstrap from direct scenario/state/service construction into `RuntimeBootstrap`.
+- [x] Move primary runtime tab construction and initial panel data binding from `main.gd` into `RuntimeTabHost`.
+- [x] Move runtime panel refresh dispatch from `main.gd` into `RuntimePanelPresenter`.
+- [x] Move player and shell command execution wrappers from `main.gd` into `RuntimeCommandController`.
+- [x] Let successful player commands return affected runtime panel keys, so inactive source panels such as army roster still refresh their local history and detail after emitting actions.
+- [x] Copy scenario JSON and web assets into the Godot project, and make `ScenarioLoader` resolve scenarios and portraits from project-local data.
+- [x] Make main-scene startup hydrate only the current tab, with selective `GameState` payload generation and `RuntimePanelPresenter` refresh when switching tabs.
+- [x] Add a programmatic `select_runtime_panel(panel_key)` navigation path so hub buttons, tests, and future command surfaces can open and hydrate runtime tabs without depending on display text.
+- [x] Keep relationship-panel UI coverage aligned with stable-key lazy hydration.
+- [x] Route gameplay-hub navigation buttons through stable runtime panel keys while keeping display-name tab selection as a compatibility fallback.
+- [x] Expand gameplay-hub navigation to cover all primary runtime panels, including army, map, region, character, faction, relationship, monthly report, statecraft, save, and system surfaces from the first screen.
+- [x] Disable the gameplay-hub quick-load button when no quick save is available, matching the in-game system panel behavior.
+- [x] Put the expanded gameplay-hub command entry list in a scroll container so late entries stay reachable.
 - [x] Continue replacing raw data browse tabs with complete playable panels for every major web-game workflow.
 
-## Source Data Candidates
+## Copied Source Data
 
-- `../scenarios/`
-- `../web/turn-data/`
-- `../web/assets/portraits/`
+- `data/scenarios/` is the Godot runtime scenario root and remains project-local.
+- `assets/` is copied from `../assets/` and is the Godot runtime asset root.
+- `data/maps/` and `data/scenario-supplements/` are copied from `../data/` as project-local references.
+- `maps/` is copied from `../maps/` for map image/reference assets.
+- `scenarios/` is copied from `../scenarios/` as a source-reference mirror.
+- The original web directories remain read-only source references during the Godot rewrite.
 
 Do not port browser UI code directly. Treat the web version as behavior and data reference.

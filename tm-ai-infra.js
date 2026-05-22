@@ -119,13 +119,22 @@ var ModelAdapter = {
 //  解析 API 返回的 usage 字段，累计 token 消耗
 // ============================================================
 var TokenUsageTracker = {
-  _data: { promptTokens: 0, completionTokens: 0, totalCalls: 0, turnStart: 0 },
-  /** 记录一次API调用的token消耗 */
-  record: function(usage) {
+  _data: { promptTokens: 0, completionTokens: 0, totalCalls: 0, turnStart: 0, byId: {} },
+  /** 记录一次API调用的token消耗·Phase 7·加 id 参数·便于按 subcall 拆分 */
+  record: function(usage, id) {
     if (!usage) return;
-    this._data.promptTokens += (usage.prompt_tokens || 0);
-    this._data.completionTokens += (usage.completion_tokens || 0);
+    var pt = usage.prompt_tokens || 0;
+    var ct = usage.completion_tokens || 0;
+    this._data.promptTokens += pt;
+    this._data.completionTokens += ct;
     this._data.totalCalls++;
+    if (id) {
+      if (!this._data.byId) this._data.byId = {};
+      var b = this._data.byId[id] = this._data.byId[id] || { promptTokens: 0, completionTokens: 0, calls: 0 };
+      b.promptTokens += pt;
+      b.completionTokens += ct;
+      b.calls++;
+    }
   },
   /** 记录回合开始（用于计算单回合消耗） */
   markTurnStart: function() {
@@ -149,8 +158,21 @@ var TokenUsageTracker = {
       estimatedCostUSD: Math.round(estCost * 1000) / 1000
     };
   },
+  /** Phase 7·按 id 拆分快照·用于成本面板 byId 渲染 */
+  getSnapshot: function() {
+    var stats = this.getStats();
+    var byId = {};
+    if (this._data.byId) {
+      Object.keys(this._data.byId).forEach(function(id) {
+        var b = this._data.byId[id] || {};
+        var pt = b.promptTokens || 0, ct = b.completionTokens || 0;
+        byId[id] = { promptTokens: pt, completionTokens: ct, calls: b.calls || 0, estimatedCostUSD: Math.round((pt*2.5 + ct*10)/1000) / 1000 };
+      }, this);
+    }
+    return Object.assign({}, stats, { byId: byId });
+  },
   /** 重置（新游戏） */
-  reset: function() { this._data = { promptTokens: 0, completionTokens: 0, totalCalls: 0, turnStart: 0 }; }
+  reset: function() { this._data = { promptTokens: 0, completionTokens: 0, totalCalls: 0, turnStart: 0, byId: {} }; }
 };
 
 // ============================================================
@@ -643,7 +665,8 @@ async function callAI(prompt,maxTok,signal,tier,opts){
   if (opts.timeoutMs != null) fetchOpts.timeoutMs = opts.timeoutMs;
   if (opts.maxRetries != null) fetchOpts.maxRetries = opts.maxRetries;
   var data = await _aiFetchWithRetry(url, body, signal, fetchOpts);
-  if(data.usage && typeof TokenUsageTracker !== 'undefined') TokenUsageTracker.record(data.usage);
+  // Phase 7·补 id 参数·byId 拆分
+  if(data.usage && typeof TokenUsageTracker !== 'undefined') TokenUsageTracker.record(data.usage, opts.id || 'callAI:generic');
   if(data.choices&&data.choices[0]&&data.choices[0].message)return data.choices[0].message.content;
   if(data.content&&Array.isArray(data.content))return data.content.map(function(b){return b.text||"";}).join("");
   return "";
@@ -816,7 +839,7 @@ async function callAIWithTools(prompt, tools, opts) {
     console.warn('[callAIWithTools] fetch 异常·走 fallback:', e && e.message || e);
     return await _runFallback();
   }
-  if (data && data.usage && typeof TokenUsageTracker !== 'undefined') TokenUsageTracker.record(data.usage);
+  if (data && data.usage && typeof TokenUsageTracker !== 'undefined') TokenUsageTracker.record(data.usage, (opts && opts.id) || 'callAIWithTools');
   // ─── 解析响应·三路径分支 ───
   var text = '';
   var toolCalls = [];
@@ -996,7 +1019,7 @@ async function callAIMessages(messages,maxTok,signal,tier,opts){
   if (opts.timeoutMs != null) fetchOpts2.timeoutMs = opts.timeoutMs;
   if (opts.maxRetries != null) fetchOpts2.maxRetries = opts.maxRetries;
   var data = await _aiFetchWithRetry(url, body, signal, fetchOpts2);
-  if(data.usage && typeof TokenUsageTracker !== 'undefined') TokenUsageTracker.record(data.usage);
+  if(data.usage && typeof TokenUsageTracker !== 'undefined') TokenUsageTracker.record(data.usage, opts.id || 'callAIMessages');
   if(data.choices&&data.choices[0]&&data.choices[0].message)return data.choices[0].message.content;
   if(data.content&&Array.isArray(data.content))return data.content.map(function(b){return b.text||"";}).join("");
   return "";
@@ -1536,7 +1559,67 @@ function robustParseJSON(raw) {
       // Layer 2d: 修复未转义换行符
       fixed = fixed.replace(/(?<!\\)\n/g, '\\n').replace(/(?<!\\)\r/g, '\\r').replace(/(?<!\\)\t/g, '\\t');
       try { return JSON.parse(fixed); } catch(e5) {}
+      // Phase 1 C-1·Layer 2.5·jsonrepair-style 强化 (项目零依赖·内嵌实现)
+      // 应对·max_tokens 截断的尾部不完整 / 字符串内部含未转义引号 / 缺逗号 / 多余逗号
+      try {
+        var rep = fixed;
+        // 1·删 ASCII 控制字符 (除 \t \n \r 已 escape)
+        rep = rep.replace(/[ --]/g, '');
+        // 2·`}{` / `]{` / `}[` / `][` 之间缺逗号·插入
+        rep = rep.replace(/\}(\s*)\{/g, '},$1{').replace(/\](\s*)\[/g, '],$1[').replace(/\}(\s*)\[/g, '},$1[').replace(/\](\s*)\{/g, '],$1{');
+        // 3·删重复逗号 `,,` 与 `,]` `,}`·已在 Layer 2b 部分处理·再扫一遍
+        rep = rep.replace(/,\s*,+/g, ',').replace(/,\s*([}\]])/g, '$1');
+        try { return JSON.parse(rep); } catch(e6) {}
+        // 4·闭合不匹配的 } / ]·扫从前到后括号深度·结尾补 missing closers
+        var stack25 = [], inStr25 = false, esc25 = false;
+        for (var j = 0; j < rep.length; j++) {
+          var ch = rep[j];
+          if (esc25) { esc25 = false; continue; }
+          if (ch === '\\') { esc25 = true; continue; }
+          if (ch === '"') { inStr25 = !inStr25; continue; }
+          if (inStr25) continue;
+          if (ch === '{' || ch === '[') stack25.push(ch);
+          else if (ch === '}' || ch === ']') stack25.pop();
+        }
+        var tail25 = rep;
+        if (inStr25) tail25 += '"';  // 截断在字符串中间·闭合
+        while (stack25.length) {
+          var open25 = stack25.pop();
+          tail25 += (open25 === '{') ? '}' : ']';
+        }
+        // 修补 trailing comma 后再 parse
+        tail25 = tail25.replace(/,\s*([}\]])/g, '$1');
+        try { return JSON.parse(tail25); } catch(e7) {}
+      } catch(e25) {}
     }
+  }
+
+  // Layer 2.6·Layer 2 完全失败 (end<0·没闭合 brace)·从 start 截到末尾·按栈补全
+  // 应对·AI 完全没写收尾·`{"events":[{"type":"war"` 这种最严重的 max_tokens 截断
+  if (start >= 0) {
+    try {
+      var trunc = cleaned.substring(start);
+      var stack26 = [], inStr26 = false, esc26 = false;
+      for (var k = 0; k < trunc.length; k++) {
+        var c26 = trunc[k];
+        if (esc26) { esc26 = false; continue; }
+        if (c26 === '\\') { esc26 = true; continue; }
+        if (c26 === '"') { inStr26 = !inStr26; continue; }
+        if (inStr26) continue;
+        if (c26 === '{' || c26 === '[') stack26.push(c26);
+        else if (c26 === '}' || c26 === ']') stack26.pop();
+      }
+      var tail26 = trunc;
+      if (inStr26) tail26 += '"';
+      // 若最后是 `,` 或 `:` 后无值·补 null
+      tail26 = tail26.replace(/,\s*$/, '').replace(/:\s*$/, ':null');
+      while (stack26.length) {
+        var open26 = stack26.pop();
+        tail26 += (open26 === '{') ? '}' : ']';
+      }
+      tail26 = tail26.replace(/,\s*([}\]])/g, '$1');
+      try { return JSON.parse(tail26); } catch(e26b) {}
+    } catch(e26a) {}
   }
 
   // Layer 3: 按关键字段分段提取（适用于 AI 返回的半结构化文本）
@@ -3536,9 +3619,243 @@ function ensureAIDiagnostics(turn) {
   d.hints = Array.isArray(d.hints) ? d.hints : [];
   d.repairedJson = Array.isArray(d.repairedJson) ? d.repairedJson : [];
   d.failedWrites = Array.isArray(d.failedWrites) ? d.failedWrites : [];
+  // Phase 1 Q2·subcallErrors[]·按 subcall id 分组的错误日志·诊断面板可见
+  d.subcallErrors = Array.isArray(d.subcallErrors) ? d.subcallErrors : [];
+  // Phase 7·"全部历史" 持久化到 localStorage·避免 turn 切换丢失·容量 200
+  try {
+    if (typeof localStorage !== 'undefined' && d.subcallErrors.length > 0 && d._lastPersistLen !== d.subcallErrors.length) {
+      var existing = [];
+      try { existing = JSON.parse(localStorage.getItem('tianming_subcallErrors_history') || '[]'); } catch(_) {}
+      var merged = existing.concat(d.subcallErrors.slice(d._lastPersistLen || 0));
+      if (merged.length > 200) merged = merged.slice(-200);
+      localStorage.setItem('tianming_subcallErrors_history', JSON.stringify(merged));
+      d._lastPersistLen = d.subcallErrors.length;
+    }
+  } catch(_persistE) {}
   d.memory = d.memory || { events: [], snapshots: [] };
   d.memory.events = Array.isArray(d.memory.events) ? d.memory.events : [];
   d.memory.snapshots = Array.isArray(d.memory.snapshots) ? d.memory.snapshots : [];
+  return d;
+}
+
+// Phase 7·完整 4 区成本面板·读 GM._costHistory + TokenUsageTracker.getSnapshot + GM._turnAiResults
+// 调用方·设置面板"AI 成本面板"按钮·或 TM.ai.showCostPanel()
+function _escForCostPanel(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function _formatCostMoney(n) {
+  if (typeof n !== 'number' || !isFinite(n)) return '$0';
+  return '$' + (n < 0.01 ? n.toFixed(4) : n.toFixed(3));
+}
+function _formatCostTime(ms) {
+  if (typeof ms !== 'number' || !isFinite(ms) || ms < 0) return '0ms';
+  if (ms < 1000) return Math.round(ms) + 'ms';
+  return (ms / 1000).toFixed(1) + 's';
+}
+function _buildAICostPanelHTML() {
+  var G = (typeof GM !== 'undefined') ? GM : null;
+  var costHistory = (G && Array.isArray(G._costHistory)) ? G._costHistory : [];
+  var stats = (typeof TokenUsageTracker !== 'undefined' && TokenUsageTracker.getSnapshot) ? TokenUsageTracker.getSnapshot() : null;
+  var d = (typeof ensureAIDiagnostics === 'function') ? ensureAIDiagnostics() : null;
+  var currentTurn = G ? (G.turn || 0) : 0;
+  var P_ = (typeof P !== 'undefined') ? P : null;
+  var aiCfg = (P_ && P_.ai) || {};
+  var conf = (P_ && P_.conf) || {};
+  var depth = conf.aiCallDepth || 'full';
+  var depthCalls = depth === 'lite' ? 8 : (depth === 'standard' ? 11 : 17);
+  var depthEst = depth === 'lite' ? 0.10 : (depth === 'standard' ? 0.15 : 0.21);
+  var html = '';
+  html += '<div id="ai-cost-panel-backdrop" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9998;display:flex;align-items:center;justify-content:center;" onclick="if(event.target===this){var el=document.getElementById(\'ai-cost-panel-backdrop\');if(el)el.remove();}">';
+  html += '<div style="background:var(--ink-900,#1a1812);color:var(--ink-50,#e8e0d0);border:1px solid var(--ink-700,#4a4030);border-radius:6px;padding:1rem 1.2rem;max-width:680px;width:96vw;max-height:88vh;overflow:auto;font-family:inherit;font-size:0.85rem;" onclick="event.stopPropagation();">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.6rem;border-bottom:1px solid var(--ink-700,#4a4030);padding-bottom:0.4rem;"><strong style="font-size:1rem;">AI 成本面板·诊断</strong><button onclick="document.getElementById(\'ai-cost-panel-backdrop\').remove()" style="background:transparent;color:var(--ink-300,#aaa);border:none;cursor:pointer;font-size:1.2rem;">×</button></div>';
+  // ─── 区1·智能档位 ───
+  html += '<details open style="margin-bottom:0.6rem;border-left:3px solid #8b6914;padding-left:0.6rem;"><summary style="cursor:pointer;font-weight:600;color:#d4a843;">区1·智能档位</summary>';
+  html += '<div style="padding:0.4rem 0;line-height:1.6;">';
+  html += '当前深度·<strong>' + _escForCostPanel(depth) + '</strong>·预估 <strong>' + depthCalls + '</strong> 调用·~<strong>' + _formatCostMoney(depthEst) + '</strong>/回合<br/>';
+  html += '模型档位·<strong>' + _escForCostPanel(conf.modelTier || 'auto') + '</strong><br/>';
+  html += '<span style="color:var(--ink-300,#aaa);font-size:0.78rem;">改档位请用设置面板·此面板为只读总览</span>';
+  html += '</div></details>';
+  // ─── 区2·推演深度细调 (折叠) ───
+  html += '<details style="margin-bottom:0.6rem;border-left:3px solid #5a6e3a;padding-left:0.6rem;"><summary style="cursor:pointer;font-weight:600;color:#8fae5a;">区2·推演深度细调 (高级)</summary>';
+  html += '<div style="padding:0.4rem 0;line-height:1.6;font-size:0.78rem;">';
+  html += '· sc1q 对话回看·<strong>' + (conf.dialogueRecallTurns || 3) + '</strong> 回合<br/>';
+  html += '· strictSchema·<strong>' + (conf.strictSchemaEnabled ? '启用' : '关') + '</strong> (P.conf.strictSchemaEnabled)<br/>';
+  html += '· stream_sc1·<strong>' + (aiCfg.stream_sc1 === true ? '开' : '关') + '</strong>·sc1OwnedBySc1b·<strong>' + (aiCfg.sc1OwnedBySc1b !== false ? '开' : '关') + '</strong>·sc1OwnedBySc1c·<strong>' + (aiCfg.sc1OwnedBySc1c !== false ? '开' : '关') + '</strong><br/>';
+  html += '· sc17Skip·<strong>' + (aiCfg.sc17Skip !== false ? '开' : '关') + '</strong>·sc25cEnabled·<strong>' + (aiCfg.sc25cEnabled !== false ? '开' : '关') + '</strong>·sc15nEnabled·<strong>' + (aiCfg.sc15nEnabled === true ? '开' : '关') + '</strong><br/>';
+  html += '· sc16Lite·<strong>' + (aiCfg.sc16Lite === true ? '开' : '关') + '</strong>·sc18Lite·<strong>' + (aiCfg.sc18Lite === true ? '开' : '关') + '</strong>·sc2Pipeline·<strong>' + _escForCostPanel(aiCfg.sc2Pipeline || 'legacy') + '</strong>·openaiStrict·<strong>' + (aiCfg.openaiStrict === true ? '开' : '关') + '</strong>';
+  html += '</div></details>';
+  // ─── 区3·性能成本控制 ───
+  html += '<details open style="margin-bottom:0.6rem;border-left:3px solid #8b3a4a;padding-left:0.6rem;"><summary style="cursor:pointer;font-weight:600;color:#d4768a;">区3·性能成本控制</summary>';
+  html += '<div style="padding:0.4rem 0;line-height:1.7;">';
+  if (stats) {
+    var alertTh = conf.costAlertThreshold || 0.5;
+    var curUsage = TokenUsageTracker.getTurnUsage ? TokenUsageTracker.getTurnUsage() : 0;
+    var curCost = (curUsage * 5 / 1000000);  // 粗估·avg $5/M
+    var costFlag = curCost > alertTh ? ' <span style="color:#ff7766;">⚠ 超阈值</span>' : '';
+    html += '本回合·<strong>' + curUsage + '</strong> tokens·~<strong>' + _formatCostMoney(curCost) + '</strong>' + costFlag + '<br/>';
+    html += '累计·<strong>' + stats.totalTokens + '</strong> tokens·<strong>' + stats.totalCalls + '</strong> 调用·~<strong>' + _formatCostMoney(stats.estimatedCostUSD) + '</strong><br/>';
+    html += '<span style="color:var(--ink-300,#aaa);font-size:0.78rem;">阈值·' + _formatCostMoney(alertTh) + '/回合</span>';
+  } else {
+    html += '<span style="color:var(--ink-300,#aaa);">TokenUsageTracker 未加载</span>';
+  }
+  // 成本历史·折叠
+  if (costHistory.length > 0) {
+    var maxCalls = costHistory.reduce(function(m, e) { return Math.max(m, e.totalCalls || 0); }, 1);
+    html += '<details style="margin-top:0.5rem;"><summary style="cursor:pointer;color:#d4a843;font-size:0.82rem;">成本历史·最近 ' + costHistory.length + ' 回合 (点开)</summary>';
+    html += '<div style="margin-top:0.3rem;font-family:monospace;font-size:0.74rem;line-height:1.4;">';
+    costHistory.slice(-15).forEach(function(e) {
+      var bar = '█'.repeat(Math.max(1, Math.round(((e.totalCalls || 0) / maxCalls) * 12)));
+      var costEst = e.tokenUsage ? (e.tokenUsage.totalTokens * 5 / 1000000) : 0;
+      html += 'T' + (e.turn || '?') + '·' + bar.padEnd(13) + '·' + (e.totalCalls || 0) + ' 调用·' + _formatCostTime(e.totalTimeMs || 0) + (costEst > 0 ? '·~' + _formatCostMoney(costEst) : '') + (e.errors ? '·错' + e.errors : '') + (e.sc1StrictFallback ? '·strict↓' : '') + '<br/>';
+    });
+    html += '</div></details>';
+  }
+  // 按 subcall 拆分
+  if (stats && stats.byId && Object.keys(stats.byId).length > 0) {
+    html += '<details style="margin-top:0.4rem;"><summary style="cursor:pointer;color:#d4a843;font-size:0.82rem;">按 subcall 拆分</summary>';
+    html += '<div style="margin-top:0.3rem;font-family:monospace;font-size:0.74rem;line-height:1.4;">';
+    var sortedIds = Object.keys(stats.byId).sort(function(a, b) { return (stats.byId[b].estimatedCostUSD || 0) - (stats.byId[a].estimatedCostUSD || 0); });
+    sortedIds.slice(0, 15).forEach(function(id) {
+      var b = stats.byId[id];
+      html += _escForCostPanel(id).padEnd(20) + ' ' + (b.calls || 0) + '次·' + (b.promptTokens + b.completionTokens) + ' tok·' + _formatCostMoney(b.estimatedCostUSD) + '<br/>';
+    });
+    html += '</div></details>';
+  }
+  // 导出按钮
+  html += '<div style="margin-top:0.6rem;"><button onclick="if(window.TM&&TM.ai&&TM.ai.exportDiagnostics){TM.ai.exportDiagnostics();}else if(typeof exportAIDiagnosticsJSON===\'function\'){exportAIDiagnosticsJSON();}" style="background:#5a3520;color:#e8e0d0;border:1px solid #8b5028;padding:0.3rem 0.8rem;border-radius:3px;cursor:pointer;font-size:0.82rem;">↓ 导出 AI 诊断 JSON</button></div>';
+  html += '</div></details>';
+  // ─── 区4·诊断 (debug) ───
+  html += '<details style="margin-bottom:0.3rem;border-left:3px solid #4a5a8a;padding-left:0.6rem;"><summary style="cursor:pointer;font-weight:600;color:#8aa8d8;">区4·诊断 (debug·错误日志)</summary>';
+  html += '<div style="padding:0.4rem 0;font-size:0.78rem;line-height:1.5;">';
+  // GM 状态摘要
+  if (G) {
+    html += 'sc28 snapshot·' + (G._lastSc28Snapshot ? 'T' + G._lastSc28Snapshot.turn : '无') + '<br/>';
+    html += 'sc25c·' + (G._turnAiResults && G._turnAiResults.subcall25c ? (G._turnAiResults.subcall25c._dualCallSucceeded ? '双调用成功' : '部分') : '无') + '<br/>';
+    html += 'sc1q·' + (G._turnAiResults && G._turnAiResults.subcall1q ? ((G._turnAiResults.subcall1q.dialogue_commitments||[]).length + ' 承诺') : '无') + '·missed·' + ((G._sc1qMissedLastTurn||[]).length) + '<br/>';
+    html += 'strict fallback·' + (G._turnAiResults && G._turnAiResults._sc1StrictFallback ? '本回合触发' : '未触发') + '<br/>';
+    html += 'sysP cache·' + _escForCostPanel(G._sysCacheMode || 'none') + '<br/>';
+  }
+  // 错误日志
+  if (d && Array.isArray(d.subcallErrors) && d.subcallErrors.length > 0) {
+    html += '<div style="margin-top:0.5rem;color:#d4a843;font-weight:600;font-size:0.78rem;">subcall 错误 (最近 ' + Math.min(10, d.subcallErrors.length) + '·共 ' + d.subcallErrors.length + ')·</div>';
+    html += '<div style="margin-top:0.2rem;font-family:monospace;font-size:0.72rem;line-height:1.4;max-height:120px;overflow:auto;">';
+    d.subcallErrors.slice(-10).forEach(function(e) {
+      html += '[' + _escForCostPanel(e.subcall) + ':' + _escForCostPanel(e.phase) + '] ' + _escForCostPanel(String(e.err).slice(0, 150)) + '<br/>';
+    });
+    html += '</div>';
+  }
+  html += '</div></details>';
+  html += '<div style="text-align:right;margin-top:0.5rem;font-size:0.72rem;color:var(--ink-400,#888);">T' + currentTurn + ' · ' + new Date().toLocaleString() + '</div>';
+  html += '</div></div>';
+  return html;
+}
+function showAICostPanel() {
+  if (typeof document === 'undefined') return;
+  var prev = document.getElementById('ai-cost-panel-backdrop');
+  if (prev) prev.remove();
+  var html = _buildAICostPanelHTML();
+  var div = document.createElement('div');
+  div.innerHTML = html;
+  document.body.appendChild(div.firstChild);
+}
+
+// Phase 7.5 D·sysP cache 失效·P.ai.prompt / P.ai.rules / summaryRule 改后清 GM._lastSysPHash
+// 让下回合 _maybeCacheSys 知道 sys 变了·不再走 anthropic cache_control (避免无效命中)
+function clearSysPCacheHash() {
+  try {
+    if (typeof GM !== 'undefined' && GM) {
+      delete GM._lastSysPHash;
+      GM._sysCacheInvalidatedAt = Date.now();
+    }
+    if (typeof toast === 'function') toast('sysP cache 已清·下回合首次调用多花 ~$0.004');
+  } catch(_) {}
+}
+
+// Phase 7·导出本回合 AI 诊断 JSON·便于玩家上报 bug 时附数据
+// 调用方·设置面板"导出 AI 日志"按钮·UI 触发 window.exportAIDiagnosticsJSON()
+function exportAIDiagnosticsJSON() {
+  var G = (typeof GM !== 'undefined') ? GM : null;
+  var d = (typeof ensureAIDiagnostics === 'function') ? ensureAIDiagnostics() : null;
+  var payload = {
+    exportedAt: new Date().toISOString(),
+    turn: G ? (G.turn || 0) : 0,
+    diagnostics: d || null,
+    costHistory: G ? (Array.isArray(G._costHistory) ? G._costHistory.slice(-20) : []) : [],
+    // Phase 7·"全部历史"·从 localStorage 读
+    persistedErrorHistory: (function(){ try { return JSON.parse(localStorage.getItem('tianming_subcallErrors_history') || '[]'); } catch(_){ return []; } })(),
+    subcallTimings: G ? (G._subcallTimings || {}) : {},
+    aiDispatchStats: G ? (G._aiDispatchStats || {}) : {},
+    lastSc28Snapshot: G ? (G._lastSc28Snapshot || null) : null,
+    sc1qMissedLastTurn: G ? (G._sc1qMissedLastTurn || []) : [],
+    sysCacheMode: G ? (G._sysCacheMode || 'none') : 'none',
+    // 当前 P.ai opt-in flags
+    flags: (typeof P !== 'undefined' && P && P.ai) ? {
+      stream_sc1: P.ai.stream_sc1,
+      sc1OwnedBySc1b: P.ai.sc1OwnedBySc1b,
+      sc1OwnedBySc1c: P.ai.sc1OwnedBySc1c,
+      sc17Skip: P.ai.sc17Skip,
+      sc16Lite: P.ai.sc16Lite,
+      sc25cEnabled: P.ai.sc25cEnabled,
+      sc15nEnabled: P.ai.sc15nEnabled,
+      sc2Pipeline: P.ai.sc2Pipeline,
+      openaiStrict: P.ai.openaiStrict
+    } : null
+  };
+  var blob = null;
+  try { blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }); } catch(_) {}
+  if (blob && typeof URL !== 'undefined' && URL.createObjectURL) {
+    try {
+      var url = URL.createObjectURL(blob);
+      if (typeof document !== 'undefined') {
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'tianming-ai-diagnostics-T' + payload.turn + '-' + Date.now() + '.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+      }
+      if (typeof toast === 'function') toast('AI 诊断 JSON 已导出');
+      return payload;
+    } catch(_e) { try { console.warn('[exportAIDiagnostics] download fail·return payload', _e); } catch(_){} }
+  }
+  // fallback·返回 payload object·控制台显示
+  if (typeof console !== 'undefined' && console.log) console.log('[AI Diagnostics Export]', JSON.stringify(payload, null, 2));
+  return payload;
+}
+
+// Phase 1 Q2 + Phase 7·把 ctx.meta.errors 集中 push 到诊断面板·按 subcall id + category 分组
+// category·parse (JSON 解析失败) / timeout (超时) / http_4xx / http_5xx / network / validate (schema 校验失败) / other
+function _classifySubcallError(err) {
+  var msg = String((err && err.message) || err || '').toLowerCase();
+  if (/timeout|aborted|timed out/.test(msg)) return 'timeout';
+  if (/http\s*4\d{2}/.test(msg) || /\b400\b|\b401\b|\b403\b|\b404\b|\b429\b/.test(msg)) return 'http_4xx';
+  if (/http\s*5\d{2}/.test(msg) || /\b500\b|\b502\b|\b503\b|\b504\b/.test(msg)) return 'http_5xx';
+  if (/network|fetch|failed to fetch/.test(msg)) return 'network';
+  if (/parse|json|expected|unterminated|repair/.test(msg)) return 'parse';
+  if (/schema|validate|strict/.test(msg)) return 'validate';
+  return 'other';
+}
+function recordSubcallError(subcall, phase, err) {
+  var d = (typeof ensureAIDiagnostics === 'function') ? ensureAIDiagnostics() : null;
+  if (!d) return null;
+  var msg = (err && err.message) || String(err || 'unknown');
+  var category = _classifySubcallError(err);
+  d.subcallErrors.push({
+    subcall: String(subcall || 'unknown'),
+    phase: String(phase || ''),
+    category: category,
+    err: msg.slice(0, 280),
+    at: Date.now()
+  });
+  // 容量保护·只保留最近 60 项
+  if (d.subcallErrors.length > 60) d.subcallErrors = d.subcallErrors.slice(-60);
+  // 按 category 累计·便于 dashboard 显示
+  d.errorsByCategory = d.errorsByCategory || {};
+  d.errorsByCategory[category] = (d.errorsByCategory[category] || 0) + 1;
+  d.errorsBySubcall = d.errorsBySubcall || {};
+  var sk = String(subcall || 'unknown');
+  d.errorsBySubcall[sk] = (d.errorsBySubcall[sk] || 0) + 1;
   return d;
 }
 
@@ -3661,6 +3978,13 @@ Object.assign(TM, {
     ensureDiagnostics: typeof ensureAIDiagnostics === 'function' ? ensureAIDiagnostics : null,
     recordDiagnostic: typeof recordAIDiagnostic === 'function' ? recordAIDiagnostic : null,
     setBranchDiagnostic: typeof setAIBranchDiagnostic === 'function' ? setAIBranchDiagnostic : null,
+    // Phase 7·诊断 export 公开 API
+    exportDiagnostics: typeof exportAIDiagnosticsJSON === 'function' ? exportAIDiagnosticsJSON : null,
+    recordSubcallError: typeof recordSubcallError === 'function' ? recordSubcallError : null,
+    // Phase 7·4 区成本面板·设置面板按钮 + 控制台直接调
+    showCostPanel: typeof showAICostPanel === 'function' ? showAICostPanel : null,
+    // Phase 7.5 D·sysP cache hash 失效·prompt 编辑后调
+    clearSysPCacheHash: typeof clearSysPCacheHash === 'function' ? clearSysPCacheHash : null,
     memoryEntryText: typeof memoryEntryText === 'function' ? memoryEntryText : null,
     normalizeGlobalMemoryEntry: typeof normalizeGlobalMemoryEntry === 'function' ? normalizeGlobalMemoryEntry : null,
     buildMemoryDiagnosticSnapshot: typeof buildMemoryDiagnosticSnapshot === 'function' ? buildMemoryDiagnosticSnapshot : null,

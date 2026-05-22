@@ -243,6 +243,8 @@ function openSettings(){
     "<option value=\"low\""+(P.conf.modelTier==='low'?' selected':'')+">\u4F4E\u6863\uFF08\u7EBF\u5B9A\u7CBE\u7B80\u00B7GPT-3.5/\u672C\u5730\u5C0F\u6A21\u578B\uFF09</option>"+
     "<option value=\"medium\""+(P.conf.modelTier==='medium'?' selected':'')+">\u4E2D\u6863\uFF08\u5355\u6B21 8K\u00B7\u4E2D\u7B49\u88C1\u526A\uFF09</option>"+
     "<option value=\"high\""+(P.conf.modelTier==='high'?' selected':'')+">\u9AD8\u6863\uFF08\u4E0D\u88C1\u526A\u00B7Claude/GPT-4o+\uFF09</option>"+
+    // Phase 7.5 D6\u00B7GPT-5-mini \u9009\u9879 (\u5B9E\u9A8C\u6027\u00B7\u90E8\u5206\u5B50\u8C03\u7528 fallback)
+    "<option value=\"gpt5mini\""+(P.conf.modelTier==='gpt5mini'?' selected':'')+">\u5B9E\u9A8C\u00B7GPT-5-mini\uFF08\u90E8\u5206\u5B50\u8C03\u7528 fallback\uFF09</option>"+
     "</select>"+
     "<span style=\"font-size:0.68rem;color:var(--ink-300);\">\u5F3A\u5236\u88C1\u526A SC1 schema\u00B7\u5F25\u8865\u81EA\u52A8\u68C0\u6D4B\u504F\u5DEE</span>"+
     "</div></div>"+

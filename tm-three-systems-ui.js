@@ -802,8 +802,21 @@
 
     html += '<div style="margin-bottom:0.8rem;background:var(--bg-2);padding:0.55rem;border-radius:4px;font-size:0.75rem;">';
     html += '<b style="color:var(--gold);">SC16 指令</b>';
+    // F2·SC16 采纳审计·显示采纳率 + cooldown + ignoredItems
+    var sc16Comp = (fac._lastLlmApplySummary && fac._lastLlmApplySummary.sc16Compliance) || null;
+    if (sc16Comp) {
+      var compColor = sc16Comp.complianceScore >= 70 ? '#6bb07c' : (sc16Comp.complianceScore >= 40 ? '#cda54c' : '#b04030');
+      html += '<div style="margin:0.2rem 0;"><span style="color:' + compColor + ';font-weight:bold;">采纳率 ' + esc(sc16Comp.complianceScore) + '%</span> ' + esc(sc16Comp.adoptedCount) + '/' + esc(sc16Comp.directiveCount) + ' 条指令被执行</div>';
+      if (sc16Comp.ignoredItems && sc16Comp.ignoredItems.length) {
+        html += '<details style="margin:0.2rem 0;"><summary style="cursor:pointer;color:var(--red,#b04030);font-size:0.72rem;">未采纳 ' + sc16Comp.ignoredItems.length + ' 条</summary>';
+        sc16Comp.ignoredItems.forEach(function(it){ html += '<div style="font-size:0.7rem;padding-left:1rem;color:var(--txt-d);">[' + esc(it.type) + '] ' + esc(it.summary) + (it.target ? ' (target=' + esc(it.target) + ')' : '') + '</div>'; });
+        html += '</details>';
+      }
+    }
     if (directive) {
-      html += '<div>turn=' + esc(directive.turn || '?') + ' direct=' + esc(directive.hasDirectContent ? 'yes' : 'no') + '</div>';
+      html += '<div>turn=' + esc(directive.turn || '?') + ' direct=' + esc(directive.hasDirectContent ? 'yes' : 'no');
+      if (directive.cooldownApplied) html += ' <span style="color:var(--red,#b04030);font-size:0.72rem;">cooldown=' + esc(directive.cooldownApplied) + ' (' + esc(directive.cooldownDelta) + ')</span>';
+      html += '</div>';
       (directive.directives || []).slice(0, 3).forEach(function(d){ html += '<div>指令：' + _renderAiFullText(d.strategic_intent || d.must_follow || d.reason || d, 180) + '</div>'; });
       (directive.actions || []).slice(0, 4).forEach(function(a){ html += '<div>行动：' + _renderAiFullText((a.faction || fac.name) + ' -> ' + (a.target || a.targetFaction || '') + ' ' + (a.action || a.intent || ''), 180) + '</div>'; });
       (directive.diplomacy || []).slice(0, 4).forEach(function(d){ html += '<div>外交：' + _renderAiFullText((d.from || '?') + ' -> ' + (d.to || '?') + ' ' + (d.new_relation || d.type || ''), 160) + '</div>'; });
@@ -836,6 +849,122 @@
     _openModal('势力 AI 调试 · ' + fac.name, html, null);
   }
   global._tsInspectFactionAiDebug = _tsInspectFactionAiDebug;
+
+  // F3·2026-05-22·全局 NPC AI 状态面板·跨势力总览
+  function _tsInspectGlobalNpcLlm() {
+    if (!global.GM) { _toast('暂无游戏数据'); return; }
+    var status = null;
+    try {
+      if (global.TM && TM.FactionNpcLlmDecision && typeof TM.FactionNpcLlmDecision.getGlobalNpcLlmStatus === 'function') {
+        status = TM.FactionNpcLlmDecision.getGlobalNpcLlmStatus();
+      }
+    } catch(e) { _toast('状态聚合失败: ' + (e && e.message || e)); return; }
+    if (!status) { _toast('NPC LLM 决策模块未加载'); return; }
+
+    var enabledTxt = status.enabled ? (status.effectivelyOn ? '<span style="color:#6bb07c;">●已启用</span>' : '<span style="color:#cda54c;">○开关 ON 但 ' + (status.hasKey ? '未生效' : '缺 API key') + '</span>') : '<span style="color:#888;">○已关闭</span>';
+
+    var html = '<div style="padding:0.9rem;max-height:78vh;overflow-y:auto;">';
+    html += '<div style="display:flex;justify-content:space-between;gap:0.8rem;align-items:flex-start;margin-bottom:0.8rem;">';
+    html += '<div><h3 style="margin:0;color:var(--gold);">NPC AI 全局状态·T' + esc(status.turn) + '</h3><div style="font-size:0.76rem;color:var(--txt-d);">跨势力 LLM 推演总览·调度统计·候选评分·失败记录。</div></div>';
+    html += '<div style="font-size:0.85rem;">' + enabledTxt + '</div>';
+    html += '</div>';
+
+    // ─── 调度统计 5 grid ───
+    var ds = status.dispatchStats || {};
+    html += '<div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0.5rem;margin-bottom:0.8rem;font-size:0.74rem;">';
+    html += '<div style="background:var(--bg-2);padding:0.45rem;border-radius:4px;"><b>已应用</b><br><span style="color:#6bb07c;font-size:1.1rem;">' + esc(ds.applied || 0) + '</span></div>';
+    html += '<div style="background:var(--bg-2);padding:0.45rem;border-radius:4px;"><b>跑/排队</b><br><span style="color:#cda54c;font-size:1.1rem;">' + esc(ds.running || 0) + ' / ' + esc((ds.scheduled || 0) - (ds.running || 0) - (ds.applied || 0) - (ds.failed || 0) - (ds.canceled || 0)) + '</span></div>';
+    html += '<div style="background:var(--bg-2);padding:0.45rem;border-radius:4px;"><b>失败</b><br><span style="color:#b04030;font-size:1.1rem;">' + esc(ds.failed || 0) + '</span></div>';
+    html += '<div style="background:var(--bg-2);padding:0.45rem;border-radius:4px;"><b>跳过/合并</b><br><span style="font-size:1.1rem;">' + esc(ds.skipped || 0) + ' / ' + esc((ds.partial || 0) + (ds.noAction || 0)) + '</span></div>';
+    html += '<div style="background:var(--bg-2);padding:0.45rem;border-radius:4px;"><b>估算 tokens</b><br><span style="font-size:1.1rem;">' + esc(Math.round((status.estimatedTokensThisTurn || 0) / 1000)) + 'k</span></div>';
+    html += '</div>';
+
+    // ─── 候选评分矩阵 (top 8) ───
+    html += '<div style="margin-bottom:0.8rem;background:var(--bg-2);padding:0.55rem;border-radius:4px;">';
+    html += '<b style="color:var(--gold);font-size:0.78rem;">候选评分 (top 8·按 score 排)</b>';
+    if (status.candidates && status.candidates.length) {
+      html += '<div style="font-size:0.72rem;margin-top:0.4rem;">';
+      status.candidates.forEach(function(c, i) {
+        html += '<div style="border-bottom:1px dashed rgba(255,255,255,0.08);padding:0.2rem 0;display:flex;justify-content:space-between;gap:0.5rem;"><span><b>' + (i + 1) + '·</b> ' + esc(c.faction) + '</span><span style="color:var(--txt-d);">score=' + esc(c.score) + ' · ' + esc((c.reasons || []).join(' / ')) + '</span></div>';
+      });
+      html += '</div>';
+    } else {
+      html += '<div style="font-size:0.72rem;color:var(--txt-d);">暂无候选评分·本回合 SC16/精细化推演未跑。</div>';
+    }
+    html += '</div>';
+
+    // ─── 各势力 status (perFacStatus) ───
+    html += '<div style="margin-bottom:0.8rem;">';
+    html += '<b style="color:var(--gold);font-size:0.78rem;">势力状态 (' + esc(status.facCount) + ' 个 NPC 势力)</b>';
+    html += '<div style="font-size:0.72rem;background:var(--bg-2);border-radius:4px;padding:0.45rem;margin-top:0.3rem;">';
+    if (status.perFacStatus && status.perFacStatus.length) {
+      status.perFacStatus.slice(0, 20).forEach(function(p) {
+        var statusColor = '#888';
+        var statusIcon = '○';
+        if (p.status === 'applied') { statusColor = '#6bb07c'; statusIcon = '✓'; }
+        else if (p.status === 'running') { statusColor = '#cda54c'; statusIcon = '●'; }
+        else if (p.status === 'failed') { statusColor = '#b04030'; statusIcon = '✗'; }
+        else if (p.status === 'skipped') { statusColor = '#888'; statusIcon = '−'; }
+        html += '<div style="border-bottom:1px dashed rgba(255,255,255,0.08);padding:0.2rem 0;display:flex;justify-content:space-between;gap:0.5rem;">';
+        html += '<span><i style="color:' + statusColor + ';">' + statusIcon + '</i> <a href="javascript:void(0)" onclick="_tsInspectFactionAiDebug(\'' + jsEsc(p.faction) + '\')" style="color:var(--txt);text-decoration:none;border-bottom:1px dotted var(--txt-d);">' + esc(p.faction) + '</a>';
+        // F2·SC16 采纳率 badge
+        if (p.sc16ComplianceScore != null && p.sc16DirectiveCount > 0) {
+          var compColor = p.sc16ComplianceScore >= 70 ? '#6bb07c' : (p.sc16ComplianceScore >= 40 ? '#cda54c' : '#b04030');
+          html += ' <span title="SC16 采纳率: ' + esc(p.sc16ComplianceScore) + '% (' + esc(p.sc16DirectiveCount) + ' 条指令)" style="color:' + compColor + ';font-size:0.68rem;margin-left:0.3rem;">SC16:' + esc(p.sc16ComplianceScore) + '%</span>';
+        }
+        html += '</span>';
+        html += '<span style="color:var(--txt-d);">T' + esc(p.lastTurn) + ' · 应用 ' + esc(p.appliedActions) + ' 跳 ' + esc(p.skippedActions) + ' 合 ' + esc(p.mergedActions) + '</span>';
+        html += '</div>';
+        if (p.rationale) html += '<div style="font-size:0.68rem;color:var(--txt-d);padding-left:1.2rem;margin-bottom:0.15rem;">"' + esc(p.rationale) + '..."</div>';
+      });
+      if (status.perFacStatus.length > 20) html += '<div style="color:var(--txt-d);margin-top:0.3rem;">... 还有 ' + (status.perFacStatus.length - 20) + ' 个势力未显示</div>';
+    } else {
+      html += '<div style="color:var(--txt-d);">暂无 NPC 势力数据。</div>';
+    }
+    html += '</div></div>';
+
+    // ─── recentApplications ───
+    html += '<div style="margin-bottom:0.8rem;">';
+    html += '<b style="color:var(--gold);font-size:0.78rem;">最近动作 (跨势力·近 10)</b>';
+    html += '<div style="font-size:0.72rem;background:var(--bg-2);border-radius:4px;padding:0.45rem;margin-top:0.3rem;">';
+    if (status.recentApplications && status.recentApplications.length) {
+      status.recentApplications.forEach(function(r) {
+        html += '<div style="padding:0.15rem 0;">T' + esc(r.turn) + ' · <b>' + esc(r.faction) + '</b> · ' + esc(r.type) + ' <span style="color:var(--txt-d);">(' + esc(r.source) + ')</span></div>';
+      });
+    } else {
+      html += '<div style="color:var(--txt-d);">暂无动作记录。</div>';
+    }
+    html += '</div></div>';
+
+    // ─── recentFailures ───
+    if (status.recentFailures && status.recentFailures.length) {
+      html += '<div style="margin-bottom:0.8rem;">';
+      html += '<b style="color:var(--red,#b04030);font-size:0.78rem;">最近失败 (近 5)</b>';
+      html += '<div style="font-size:0.72rem;background:rgba(184,80,60,0.08);border-radius:4px;padding:0.45rem;margin-top:0.3rem;">';
+      status.recentFailures.forEach(function(f) {
+        html += '<div style="border-bottom:1px dashed rgba(184,80,60,0.2);padding:0.25rem 0;">';
+        html += '<b>T' + esc(f.turn) + ' · ' + esc(f.faction || '<dispatch>') + '</b> · kind=' + esc(f.kind);
+        if (f.error) html += '<br><span style="color:var(--txt-d);">' + esc(String(f.error).slice(0, 200)) + '</span>';
+        if (f.rawPreview) html += '<details style="margin-top:0.2rem;"><summary style="cursor:pointer;color:var(--txt-d);">raw preview</summary><pre style="font-size:0.68rem;white-space:pre-wrap;margin:0.2rem 0 0;color:var(--txt);">' + esc(f.rawPreview) + '</pre></details>';
+        html += '</div>';
+      });
+      html += '</div></div>';
+    }
+
+    // ─── pickLog ───
+    if (status.pickLog && status.pickLog.length) {
+      html += '<details style="margin-bottom:0.8rem;background:var(--bg-2);padding:0.55rem;border-radius:4px;font-size:0.72rem;"><summary style="cursor:pointer;color:var(--gold);">最近 10 次随机选择 (pickLog)</summary>';
+      html += '<div style="margin-top:0.4rem;">';
+      status.pickLog.forEach(function(p) {
+        html += '<div style="padding:0.15rem 0;">T' + esc(p.turn) + ' · pool=' + esc(p.pool) + ' · selected=<b>' + esc(p.selected) + '</b> <span style="color:var(--txt-d);">from ' + esc((p.candidates || []).length) + ' candidates</span></div>';
+      });
+      html += '</div></details>';
+    }
+
+    html += '</div>';
+    _openModal('NPC AI 全局状态', html, null);
+  }
+  global._tsInspectGlobalNpcLlm = _tsInspectGlobalNpcLlm;
 
   // ─────── Phase F2·干预 action handlers ───────
   function _runIntervention(fnName, args, successMsg) {
@@ -1002,6 +1131,21 @@
   function _facPower(fac) {
     return fac && fac.derivedStrength ? _num(fac.derivedStrength.value, 0) : _num(fac && fac.strength, 50);
   }
+  // F3·2026-05-22·NPC LLM 状态 badge·读 GM._npcFactionLlmLedger.runs[fac].status
+  function _npcLlmStatusBadge(facName) {
+    if (!global.GM || !facName) return '';
+    var llmOn = !!(global.TM && TM.FactionNpcSettings && TM.FactionNpcSettings.isAiPrecisionEnabled && TM.FactionNpcSettings.isAiPrecisionEnabled());
+    if (!llmOn) return '';
+    var runs = (GM._npcFactionLlmLedger && GM._npcFactionLlmLedger.runs) || {};
+    var run = runs[facName];
+    if (!run) return '<i title="NPC AI 待机" style="color:#888;">○</i>';
+    var s = run.status;
+    if (s === 'running') return '<i title="NPC AI 正在跑" style="color:#6bb07c;">●</i>';
+    if (s === 'applied') return '<i title="NPC AI 已执行" style="color:#6bb07c;">✓</i>';
+    if (s === 'failed') return '<i title="NPC AI 失败·点势力AI 看详情" style="color:#b04030;">✗</i>';
+    if (s === 'skipped') return '<i title="NPC AI 已跳过" style="color:#888;">−</i>';
+    return '<i title="NPC AI 状态: ' + esc(s || '?') + '" style="color:#888;">·</i>';
+  }
   function _factionCard(fac, selectedName, playerFac) {
     var met = _facMetrics(fac);
     var ds = fac.derivedStrength || null;
@@ -1014,11 +1158,12 @@
     var rel = playerFac && fac.name !== playerFac ? _relationBetween(playerFac, fac.name) : null;
     var relTone = isPlayer ? 'self' : _relationTone(rel);
     var title = (fac.leader || fac.ruler || fac.factionLeader || '无主') + (fac.territory ? ' · ' + fac.territory : '');
+    var aiBadge = isPlayer ? '' : _npcLlmStatusBadge(fac.name);
     return '<button class="frp-card ' + (isSel ? 'active ' : '') + tone + '" onclick="viewFac(\'' + jsEsc(fac.name) + '\')">' +
       '<span class="frp-card-mark" style="background:' + esc(fac.color || '') + '"></span>' +
       '<span class="frp-card-main"><strong>' + esc(fac.name) + '</strong><em>' + esc(title) + '</em></span>' +
       '<span class="frp-card-side"><b>' + Math.round(power) + '</b><i>' + _fmtNum(met.soldiers) + '兵</i></span>' +
-      '<span class="frp-card-tags"><i class="' + relTone + '">' + (isPlayer ? '本朝' : esc(_relationLabel(rel))) + '</i><i>' + esc((ds && ds.label) || (dh && dh.labels && dh.labels.overall) || '平') + '</i></span>' +
+      '<span class="frp-card-tags"><i class="' + relTone + '">' + (isPlayer ? '本朝' : esc(_relationLabel(rel))) + '</i><i>' + esc((ds && ds.label) || (dh && dh.labels && dh.labels.overall) || '平') + '</i>' + aiBadge + '</span>' +
       '</button>';
   }
   function _listNames(list, limit, render) {
@@ -1174,7 +1319,9 @@
       if (tone === 'hostile' || tone === 'tense') hostileCount++;
       if (rel && /war|战/.test(String(rel.type || ''))) warCount++;
     });
-    var html = '<div class="frp-shell"><header class="frp-top"><div><span>天下势力</span><h1>势力天平</h1></div><p>按国势、兵力、财政、人物和外交把所有势力摊开，先看谁强，后看哪里会炸。</p></header>';
+    var llmOn = !!(global.TM && TM.FactionNpcSettings && TM.FactionNpcSettings.isAiPrecisionEnabled && TM.FactionNpcSettings.isAiPrecisionEnabled());
+    var aiBtn = llmOn ? '<button class="bt bs" onclick="_tsInspectGlobalNpcLlm()" style="margin-left:auto;font-size:0.78rem;padding:0.3rem 0.7rem;background:rgba(107,176,124,0.15);color:var(--celadon-400,#6bb07c);">NPC AI 全局状态</button>' : '';
+    var html = '<div class="frp-shell"><header class="frp-top"><div><span>天下势力</span><h1>势力天平</h1></div><p>按国势、兵力、财政、人物和外交把所有势力摊开，先看谁强，后看哪里会炸。</p>' + aiBtn + '</header>';
     html += '<div class="frp-overview">' + _miniStat('势力', factions.length + '家') + _miniStat('总兵', _fmtNum(totalSoldiers)) + _miniStat('敌压', hostileCount + '家', hostileCount ? 'warn' : 'good') + _miniStat('战事', warCount + '处', warCount ? 'bad' : 'mid') + '</div>';
     html += '<div class="frp-grid"><aside class="frp-list">';
     factions.forEach(function(f){ html += _factionCard(f, selected.name, playerFac); });

@@ -1808,6 +1808,67 @@
           });
         }
 
+        // Phase 2.5·dialogue_commitment_feedback apply (与 commitment_update 故意分离·source_conv_id 关联)
+        // SC1 输出此字段·sc1q→SC1→apply 闭环·apply 时根据 source_conv_id 找对应 commit·非命中则新建 (sc1q-only commit)
+        if (p1.dialogue_commitment_feedback && Array.isArray(p1.dialogue_commitment_feedback)) {
+          if (!GM._npcCommitments || typeof GM._npcCommitments !== 'object') GM._npcCommitments = {};
+          var _sc1qResults = (GM._turnAiResults && GM._turnAiResults.subcall1q) || {};
+          var _sc1qCommits = Array.isArray(_sc1qResults.dialogue_commitments) ? _sc1qResults.dialogue_commitments : [];
+          p1.dialogue_commitment_feedback.forEach(function(dcf) {
+            if (!dcf || !dcf.npc) return;
+            // 查匹配 sc1q commit (R-D dedup·source_conv_id 优先)
+            var srcCommit = null;
+            if (dcf.source_conv_id) {
+              srcCommit = _sc1qCommits.find(function(c) { return c && c.source_conv_id === dcf.source_conv_id; });
+            }
+            var nm = dcf.npc;
+            if (!Array.isArray(GM._npcCommitments[nm])) GM._npcCommitments[nm] = [];
+            var arr = GM._npcCommitments[nm];
+            var _curT = GM.turn || 1;
+            var taskRef = (srcCommit && srcCommit.task) || dcf.task || '';
+            // dedup·当前回合 assignedTurn 且 task 相似度视为重复
+            var dup = arr.find(function(c) {
+              if (!c || c.assignedTurn !== _curT) return false;
+              if (!c.task || !taskRef) return false;
+              return c.task.indexOf(taskRef.slice(0, 10)) >= 0 || taskRef.indexOf(c.task.slice(0, 10)) >= 0;
+            });
+            var target = dup;
+            if (!target) {
+              target = {
+                id: 'sc1q_' + _curT + '_' + nm + '_' + arr.length,
+                task: taskRef,
+                category: 'dialogue',
+                assignedTurn: _curT,
+                deadline: (srcCommit && srcCommit.deadline) || 3,
+                status: dcf.status || 'pending',
+                progress: parseInt(dcf.progressPercent, 10) || 0,
+                willingness: (srcCommit && srcCommit.willingness) || 0.5,
+                npcPromise: (srcCommit && srcCommit.required_npc_action) || '',
+                feedback: dcf.feedback || '',
+                lastUpdateTurn: _curT,
+                _sc1qSource: dcf.source_type || (srcCommit && srcCommit.source_type) || '',
+                _sc1qSourceConvId: dcf.source_conv_id || '',
+                _sc1qTarget: (srcCommit && srcCommit.required_npc_action) || '',
+                _sc1qPlayerEmphasis: (srcCommit && srcCommit.player_emphasis) || ''
+              };
+              arr.push(target);
+            } else {
+              if (dcf.status) target.status = dcf.status;
+              if (dcf.feedback) target.feedback = dcf.feedback;
+              if (dcf.progressPercent != null) target.progress = Math.max(0, Math.min(100, parseInt(dcf.progressPercent, 10) || 0));
+              target.lastUpdateTurn = _curT;
+            }
+            if (target.status === 'completed') {
+              addEB('对话·履行', nm + '·' + String(taskRef).slice(0, 30) + '·' + String(dcf.feedback || '').slice(0, 40));
+              if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(nm, '对话承诺已履行·' + String(taskRef).slice(0, 40), '慰', 4);
+            } else if (target.status === 'failed' || target.status === 'obstructed') {
+              addEB('对话·失诺', nm + '·' + String(taskRef).slice(0, 30) + '·' + String(dcf.feedback || '').slice(0, 40));
+              if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(nm, '对话承诺失诺·' + String(taskRef).slice(0, 40), '愧', 4);
+            }
+          });
+          _dbg('[dialogue_commitment_feedback] applied ' + p1.dialogue_commitment_feedback.length + ' feedbacks');
+        }
+
         // ── 起义前兆（酝酿期） ──
         if (p1.revolt_precursor && Array.isArray(p1.revolt_precursor)) {
           if (!Array.isArray(GM._revoltPrecursors)) GM._revoltPrecursors = [];

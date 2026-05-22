@@ -47,6 +47,7 @@ tools/smoke-1627-runtime.js
 tools/smoke-fiscal-three-numbers.js
 tools/smoke-pre-endturn-save.js
 tools/smoke-save-name-and-double.js
+tools/fill-shaosong-traits.js
 
 # 一次性 asset 处理工具 (alpha 处理图片等·非生产)
 preview/img/_remove-white-bg.js

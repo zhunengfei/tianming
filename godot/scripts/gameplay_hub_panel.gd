@@ -13,6 +13,7 @@ var authority_label: Label
 var agenda_box: VBoxContainer
 var report_label: Label
 var history_label: Label
+var quick_load_button: Button
 
 func _ready() -> void:
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -82,23 +83,36 @@ func _ready() -> void:
 	command_margin.add_theme_constant_override("margin_bottom", 10)
 	command_panel.add_child(command_margin)
 
+	var command_scroll: ScrollContainer = ScrollContainer.new()
+	command_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	command_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	command_margin.add_child(command_scroll)
+
 	var command_box: VBoxContainer = VBoxContainer.new()
 	command_box.add_theme_constant_override("separation", 8)
-	command_margin.add_child(command_box)
+	command_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	command_scroll.add_child(command_box)
 	command_box.add_child(_make_label("政务入口", 16, Color(0.88, 0.72, 0.42)))
-	_add_tab_button(command_box, "本月行动", "行动")
-	_add_tab_button(command_box, "御前会议", "御前会议")
-	_add_tab_button(command_box, "诏令", "诏令")
-	_add_tab_button(command_box, "军令", "军令")
-	_add_tab_button(command_box, "外交", "外交")
-	_add_tab_button(command_box, "任免", "任免")
-	_add_tab_button(command_box, "问对", "问对")
-	_add_tab_button(command_box, "奏疏来文", "奏疏来文")
-	_add_tab_button(command_box, "史官实录", "史官实录")
-	_add_tab_button(command_box, "事件", "事件")
-	_add_tab_button(command_box, "存档", "存档")
-	_add_tab_button(command_box, "系统", "系统")
-	_add_tab_button(command_box, "天下图", "天下图")
+	_add_tab_button(command_box, "本月行动", "court_action_panel")
+	_add_tab_button(command_box, "御前会议", "court_meeting_panel")
+	_add_tab_button(command_box, "诏令", "edict_panel")
+	_add_tab_button(command_box, "军令", "military_order_panel")
+	_add_tab_button(command_box, "军队", "army_roster_panel")
+	_add_tab_button(command_box, "外交", "diplomacy_panel")
+	_add_tab_button(command_box, "任免", "appointment_panel")
+	_add_tab_button(command_box, "问对", "audience_panel")
+	_add_tab_button(command_box, "奏疏来文", "communication_panel")
+	_add_tab_button(command_box, "史官实录", "chronicle_panel")
+	_add_tab_button(command_box, "事件", "event_queue_panel")
+	_add_tab_button(command_box, "天下图", "world_map_panel")
+	_add_tab_button(command_box, "地块", "region_governance_panel")
+	_add_tab_button(command_box, "人物", "character_browser_panel")
+	_add_tab_button(command_box, "势力", "faction_browser_panel")
+	_add_tab_button(command_box, "关系", "relationship_panel")
+	_add_tab_button(command_box, "月报", "monthly_report_panel")
+	_add_tab_button(command_box, "变量", "statecraft_panel")
+	_add_tab_button(command_box, "存档", "save_slot_panel")
+	_add_tab_button(command_box, "系统", "system_panel")
 
 	var save_row: HBoxContainer = HBoxContainer.new()
 	save_row.add_theme_constant_override("separation", 8)
@@ -113,14 +127,15 @@ func _ready() -> void:
 	)
 	save_row.add_child(save_button)
 
-	var load_button: Button = Button.new()
-	load_button.text = "读取"
-	load_button.custom_minimum_size.y = 30
-	load_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	load_button.pressed.connect(func() -> void:
+	quick_load_button = Button.new()
+	quick_load_button.text = "读取"
+	quick_load_button.custom_minimum_size.y = 30
+	quick_load_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	quick_load_button.disabled = true
+	quick_load_button.pressed.connect(func() -> void:
 		emit_signal("load_requested")
 	)
-	save_row.add_child(load_button)
+	save_row.add_child(quick_load_button)
 
 	var next_button: Button = Button.new()
 	next_button.text = "下一月"
@@ -150,6 +165,7 @@ func set_snapshot(snapshot: Dictionary) -> void:
 		_set_agenda([])
 		report_label.text = ""
 		history_label.text = ""
+		_set_quick_load_enabled(false)
 		return
 
 	date_label.text = "%s  ·  行动点 %d" % [
@@ -178,6 +194,7 @@ func set_snapshot(snapshot: Dictionary) -> void:
 		agenda.append(str(raw))
 	if bool(snapshot.get("has_quick_save", false)):
 		agenda.append("已有暂存可读取")
+	_set_quick_load_enabled(bool(snapshot.get("has_quick_save", false)))
 	_set_agenda(agenda)
 
 	report_label.text = "月报：%s" % str(snapshot.get("last_report", ""))
@@ -203,6 +220,10 @@ func _set_agenda(items: Array) -> void:
 	for raw in items:
 		agenda_box.add_child(_make_label("· %s" % str(raw), 14, Color(0.86, 0.80, 0.68)))
 
+func _set_quick_load_enabled(enabled: bool) -> void:
+	if quick_load_button != null:
+		quick_load_button.disabled = not enabled
+
 func _node_text(node: Node) -> String:
 	if node == null:
 		return ""
@@ -215,13 +236,13 @@ func _node_text(node: Node) -> String:
 			lines.append(text)
 	return "\n".join(lines)
 
-func _add_tab_button(parent: VBoxContainer, button_text: String, tab_name: String) -> void:
+func _add_tab_button(parent: VBoxContainer, button_text: String, panel_key: String) -> void:
 	var button: Button = Button.new()
 	button.text = button_text
 	button.custom_minimum_size.y = 30
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.pressed.connect(func() -> void:
-		emit_signal("tab_requested", tab_name)
+		emit_signal("tab_requested", panel_key)
 	)
 	parent.add_child(button)
 

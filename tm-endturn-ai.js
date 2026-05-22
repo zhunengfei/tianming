@@ -64,18 +64,19 @@
       if (extra) for (var k in extra) if (extra.hasOwnProperty(k)) body[k] = extra[k];
       return body;
     }
-    var _truncatedOnce = !!ctx.subcalls._truncatedOnce;
+    // Phase 1 H4\u00B7_truncatedOnce \u2192 _truncatedCount\u00B7>3 \u6B21\u518D toast (\u5355\u6B21\u622A\u65AD\u4E0D\u518D spam\u00B7\u53EA\u5728\u7CFB\u7EDF\u6027 max_tokens \u4E0D\u8DB3\u65F6\u63D0\u793A)
+    var _truncatedCount = Number(ctx.subcalls._truncatedCount) || 0;
     function _checkTruncated(data, label) {
-      if (_truncatedOnce) return;
       if (!data || !data.choices || !data.choices[0]) return;
       var fr = data.choices[0].finish_reason || data.choices[0].stop_reason;
       if (fr === "length" || fr === "max_tokens") {
-        _truncatedOnce = true;
-        ctx.subcalls._truncatedOnce = true;
-        if (typeof toast === "function") {
-          toast("\u26A0 AI output was truncated (" + (label || "") + "); consider increasing AI output limit.");
+        _truncatedCount++;
+        ctx.subcalls._truncatedCount = _truncatedCount;
+        _dbg("[Truncated]", label, "finish_reason=", fr, "count=", _truncatedCount);
+        // \u4EC5\u5F53\u672C\u56DE\u5408\u622A\u65AD\u7D2F\u8BA1 \u22654 \u6B21\u624D toast (\u5355\u6B21\u6216\u5076\u53D1\u4E0D\u6253\u6270)
+        if (_truncatedCount === 4 && typeof toast === "function") {
+          toast("\u26A0 AI \u8F93\u51FA\u591A\u6B21\u88AB\u622A\u65AD\uFF08" + label + "\uFF09\uFF0C\u8003\u8651\u8C03\u9AD8 AI \u8F93\u51FA\u4E0A\u9650");
         }
-        _dbg("[Truncated]", label, "finish_reason=", fr);
       }
     }
     function _jsonFinishReason(data) {
@@ -129,14 +130,73 @@
           if (Object.prototype.hasOwnProperty.call(obj, k)) { obj[to] = obj[k]; changed = true; return; }
         }
       }
+      // Phase 1 H6·补全 50+ 字段中英文 + 中文别名·覆盖 sc1/sc1b/sc1c/sc1d/sc15/sc16/sc25/sc27 全主要字段
+      // 叙事核心
       copy('shizhengji', ['shizheng','szj','shizhengji_text','political_record','chronicle','时政记','时政','史记','本回合时政']);
-      copy('shilu_text', ['shilu','record','annals','imperial_record','实录','起居注']);
-      copy('szj_title', ['shizhengji_title','political_record_title','title','时政记标题']);
-      copy('szj_summary', ['shizhengji_summary','political_record_summary','summary','时政记总结']);
+      copy('shilu_text', ['shilu','record','annals','imperial_record','实录','起居注','实录正文']);
+      copy('szj_title', ['shizhengji_title','political_record_title','title','时政记标题','时政标题']);
+      copy('szj_summary', ['shizhengji_summary','political_record_summary','summary','时政记总结','时政总结']);
       copy('zhengwen', ['text','content','narrative','story','houren','houren_xishuo','hourenXishuo','正文','叙事正文','后人戏说']);
-      copy('events', ['event_list','eventLog','eventLogs','事件','事件列表']);
-      copy('resource_changes', ['resourceChanges','resources','variable_changes','stat_changes','资源变化','数值变化']);
-      copy('char_updates', ['character_updates','characters','npc_updates','人物变化','角色变化']);
+      copy('turn_summary', ['summary_brief','回合总结','本回合总结','本回合摘要']);
+      copy('shizhengji_basis', ['shizhengji_facts','政记依据','时政记依据','时政依据']);
+      copy('player_status', ['playerStatus','emperor_status','君主状态','玩家状态','上意']);
+      copy('player_inner', ['playerInner','emperor_inner','内心独白','心中独白','心声']);
+      // 事件/账本
+      copy('events', ['event_list','eventLog','eventLogs','事件','事件列表','事件清单']);
+      copy('resource_changes', ['resourceChanges','resources','stat_changes','资源变化','数值变化','国库变动']);
+      copy('variable_changes', ['variableChanges','七变','变量变化','七变变化']);
+      copy('changes', ['delta','变化','本回合变化','变更']);
+      copy('fiscal_adjustments', ['fiscalAdjustments','财政调整','财政变化']);
+      copy('table_updates', ['tableUpdates','表格更新','表更新']);
+      copy('suggestions', ['advice','tips','建议','谋议']);
+      // 人物/任免
+      copy('char_updates', ['character_updates','characters','npc_updates','人物变化','角色变化','人物更新']);
+      copy('character_deaths', ['deaths','character_death','人物身殁','人物死亡','卒']);
+      copy('personnel_changes', ['personnelChanges','人事变动','人事调动']);
+      copy('office_changes', ['officeChanges','官职变动','官制变动']);
+      copy('office_assignments', ['officeAssignments','appointments','任命','任职']);
+      copy('office_dismissals', ['officeDismissals','dismissals','罢免','革职']);
+      copy('npc_actions', ['npcActions','npc_act','NPC行动','NPC动向']);
+      copy('npc_interactions', ['npcInteractions','NPC互动','NPC往来']);
+      copy('npc_letters', ['npcLetters','npc_mail','NPC来信','NPC书信']);
+      copy('npc_correspondence', ['npcCorrespondence','NPC通信','NPC密信','NPC往来书信']);
+      copy('npc_schemes', ['npcSchemes','NPC阴谋','NPC谋划']);
+      copy('cultural_works', ['culturalWorks','文苑','文学作品','文苑作品']);
+      // 势力/外交
+      copy('faction_changes', ['factionChanges','势力变化','势力变动']);
+      copy('faction_events', ['factionEvents','势力事件','势力间事件']);
+      copy('faction_relation_changes', ['factionRelationChanges','势力关系变化','势力关系变动']);
+      copy('faction_relation_shift', ['factionRelationShift','势力关系流转','势力关系变迁']);
+      copy('faction_interactions_advanced', ['factionInteractionsAdvanced','势力深度互动']);
+      copy('faction_create', ['factionCreate','势力创建','新势力']);
+      copy('faction_dissolve', ['factionDissolve','势力覆灭','势力解体']);
+      copy('faction_succession', ['factionSuccession','势力传承','势力继承']);
+      copy('party_changes', ['partyChanges','党派变化']);
+      copy('party_updates', ['partyUpdates','党派更新']);
+      copy('party_create', ['partyCreate','党派创建','党派新建']);
+      copy('party_dissolve', ['partyDissolve','党派覆灭','党派解散']);
+      copy('hidden_moves', ['hiddenMoves','暗中动向','暗流','幕后动向']);
+      copy('scheme_actions', ['schemeActions','阴谋行动','谋划行动']);
+      // 军事/地理
+      copy('army_changes', ['armyChanges','军队变化','军备变化','兵力变化']);
+      copy('province_changes', ['provinceChanges','行省变化','州县变化']);
+      copy('region_updates', ['regionUpdates','地区更新','区域更新']);
+      // 诏令/反馈
+      copy('edict_feedback', ['edictFeedback','诏令反馈','诏令执行','政令反馈']);
+      copy('edict_relations', ['edictRelations','诏令关系']);
+      copy('edict_lifecycle_update', ['edictLifecycleUpdate','诏令生命周期','诏令推进']);
+      copy('commitment_update', ['commitmentUpdate','承诺进展','承诺更新']);
+      // 阶层/起义
+      copy('class_changes', ['classChanges','阶层变化','阶级变化']);
+      copy('class_updates', ['classUpdates','阶层更新','阶级更新']);
+      copy('revolt_update', ['revoltUpdate','起义更新','起义推进']);
+      copy('regent_decisions', ['regentDecisions','摄政决断','辅政决断']);
+      // 信息流·sc1c
+      copy('fengwen_snippets', ['fengwenSnippets','风闻','风闻片段']);
+      copy('faction_undercurrents', ['factionUndercurrents','势力暗流','势力潜流']);
+      copy('mood_shifts', ['moodShifts','情绪变化','情绪流转']);
+      copy('relationship_changes', ['relationshipChanges','关系变化']);
+
       if (obj.event && !obj.events) { obj.events = [obj.event]; changed = true; }
       if (changed) {
         obj._formatNormalized = true;
@@ -199,18 +259,33 @@
       }
       try {
         var originalBody = opts.body || {};
+        // Phase 1 H3·schemaHint 改 expectedKeys 显式列表 + field 示例 (而非塞原 prompt 尾巴)
+        //   旧·schemaHint = lastMsg.content.slice(-3500)·往往是诏令/历史叙述等无关上下文·模型修复时跑偏
+        //   新·明确告诉修复 LLM·只输出哪几个字段·每个字段什么形状 (array/object/string)
         var schemaHint = "";
-        if (originalBody.messages && originalBody.messages.length) {
-          var lastMsg = originalBody.messages[originalBody.messages.length - 1];
-          schemaHint = String((lastMsg && lastMsg.content) || "");
-          schemaHint = schemaHint.slice(Math.max(0, schemaHint.length - 3500));
+        if (expectedKeys.length) {
+          var _fieldDesc = [];
+          // 命中已知 schema 的字段类型·从 tm-ai-schema 推断 (若可用)·否则 fallback 启发式
+          var _schemaTbl = (typeof window !== 'undefined' && window.TM && TM.AISchema && TM.AISchema.S) || null;
+          expectedKeys.forEach(function(k) {
+            var def = _schemaTbl && _schemaTbl[k];
+            var ty = def && def.type ? def.type : (
+              /list$|s$|events|changes|updates|actions|letters|works|deaths|interactions|adjustments|assignments|dismissals/.test(k) ? 'array' :
+              /text$|summary$|title$|status$|inner$|basis$/.test(k) ? 'string' :
+              'object_or_string'
+            );
+            var hint = '  "' + k + '": ' + (ty === 'array' ? '[]·允许空数组' : ty === 'string' ? '""·允许空字符串' : ty === 'object' ? '{}·允许空对象' : 'value');
+            if (def && def.desc) hint += '  // ' + String(def.desc).slice(0, 60);
+            _fieldDesc.push(hint);
+          });
+          schemaHint = 'Required fields (must appear at top level·空值也要给出 key):\n{\n' + _fieldDesc.join(',\n') + '\n}';
         }
         var repairPrompt =
-          "Repair this end-turn JSON result. Return only one complete JSON object or array.\n" +
+          "Repair this end-turn JSON result. Return only one complete JSON object. NO markdown, NO prose.\n" +
           "Rules: preserve existing facts, names, text, and numeric values; do not invent new deaths, resource changes, battles, or stat changes; if the tail is missing, close the structure or use empty strings/arrays for missing tail fields.\n" +
-          (expectedKeys.length ? "At least one expected key must be present: " + expectedKeys.join(", ") + "\n" : "") +
-          "\n[Schema or original request tail]\n" + _trimRepairText(schemaHint, 3500) +
-          "\n\n[Broken JSON/output]\n" + _trimRepairText(raw, 9000);
+          (expectedKeys.length ? "Required top-level keys: " + expectedKeys.join(", ") + "\n" : "") +
+          "\n[Target schema·使用此结构填充·缺失字段给空数组/空字符串]\n" + schemaHint +
+          "\n\n[Broken JSON to repair]\n" + _trimRepairText(raw, 9000);
         var repairBody = {
           model: originalBody.model || (P.ai && P.ai.model) || "gpt-4o",
           messages: [
@@ -229,7 +304,7 @@
           maxRetries: opts.repairMaxRetries != null ? opts.repairMaxRetries : 1
         });
         _checkTruncated(repairData, (label || "JSON") + " repair");
-        if (repairData.usage && typeof TokenUsageTracker !== "undefined") TokenUsageTracker.record(repairData.usage);
+        if (repairData.usage && typeof TokenUsageTracker !== "undefined") TokenUsageTracker.record(repairData.usage, ((opts && opts.id) || (label && (label + ':repair'))) || 'repair');
         var repairRaw = "";
         if (repairData.choices && repairData.choices[0] && repairData.choices[0].message) repairRaw = repairData.choices[0].message.content || "";
         var repairParsed = (typeof extractJSON === "function") ? extractJSON(repairRaw) : null;
@@ -286,7 +361,17 @@
           data = await resp.json();
         }
         _checkTruncated(data, label);
-        if (data && data.usage && typeof TokenUsageTracker !== 'undefined') TokenUsageTracker.record(data.usage);
+        if (data && data.usage && typeof TokenUsageTracker !== 'undefined') TokenUsageTracker.record(data.usage, id || 'endturn:unknown');
+        // §6.5 R2·标准化 _aiDispatchStats·补 successCount + totalTokens
+        try {
+          if (GM && GM._aiDispatchStats) {
+            GM._aiDispatchStats.successCount = (GM._aiDispatchStats.successCount || 0) + 1;
+            if (data && data.usage) {
+              var tt = (data.usage.prompt_tokens || 0) + (data.usage.completion_tokens || 0);
+              GM._aiDispatchStats.totalTokens = (GM._aiDispatchStats.totalTokens || 0) + tt;
+            }
+          }
+        } catch(_dStatsE) {}
         if (data && data.choices && data.choices[0] && data.choices[0].message) raw = data.choices[0].message.content || '';
         if (typeof recordAIDiagnostic === 'function') {
           recordAIDiagnostic('call', { id: opts.id || '', label: label, ok: true, ms: Date.now() - started });
@@ -349,7 +434,7 @@
     ctx.subcalls._effectiveOutCap = _effectiveOutCap;
     ctx.subcalls._tok = _tok;
     ctx.subcalls._buildFetchBody = _buildFetchBody;
-    ctx.subcalls._truncatedOnce = _truncatedOnce;
+    ctx.subcalls._truncatedCount = _truncatedCount;
     ctx.subcalls._checkTruncated = _checkTruncated;
     ctx.subcalls._parseOrRepairJsonResult = _parseOrRepairJsonResult;
     ctx.subcalls._callEndturnAI = _callEndturnAI;
@@ -408,19 +493,25 @@
       // 3.3: Sub-call管线描述（用于调试/监控/未来完整迁移）
       var _subcallMeta = [
         {id:'sc0', name:'AI深度思考', minDepth:'standard', order:0},
+        {id:'sc1q', name:'对话承诺推演', minDepth:'lite', order:2},
         {id:'sc05', name:'记忆回顾', minDepth:'standard', order:5},
         {id:'sc1', name:'结构化数据', minDepth:'lite', order:100},
         {id:'sc1b', name:'文事鸿雁人际', minDepth:'lite', order:110},
         {id:'sc1c', name:'势力外交·NPC阴谋', minDepth:'lite', order:120},
         {id:'sc1d', name:'实录时政', minDepth:'lite', order:130},
         {id:'sc15', name:'NPC深度', minDepth:'standard', order:150},
+        {id:'sc15n', name:'NPC合成·3tier', minDepth:'lite', order:148},
         {id:'sc_memwrite', name:'NPC记忆回写', minDepth:'lite', order:155},
         {id:'sc16', name:'势力推演', minDepth:'full', order:160},
         {id:'sc17', name:'经济财政', minDepth:'full', order:170},
         {id:'sc18', name:'军事态势', minDepth:'full', order:180},
         {id:'sc_audit', name:'数据一致性审核', minDepth:'lite', order:185},
         {id:'sc2', name:'叙事正文', minDepth:'lite', order:200},
+        {id:'sc2_outline', name:'叙事大纲', minDepth:'lite', order:202},
+        {id:'sc27_review', name:'大纲审查', minDepth:'standard', order:204},
+        {id:'sc2_prose', name:'叙事成文', minDepth:'lite', order:206},
         {id:'sc25', name:'伏笔记忆', minDepth:'lite', order:250},
+        {id:'sc25c', name:'记忆合成·双调用', minDepth:'lite', order:245},
         {id:'sc27', name:'叙事审查', minDepth:'standard', order:270},
         {id:'sc07', name:'NPC认知整合', minDepth:'lite', order:275},
         {id:'sc28', name:'世界快照', minDepth:'full', order:280}
@@ -438,24 +529,265 @@
       // 兼容性：OpenAI/GPT/Gemini/DeepSeek/OpenRouter/国内中转站等所有走 /chat/completions 的接口
       //         一律返回原字符串·完全 no-op·因为 (1) provider 不是 anthropic 或 (2) URL 不是 api.anthropic.com
       // 使用：messages:[{role:"system",content:_maybeCacheSys(sysP)},{role:"user",content:tpX}]
+      // Phase 2 A1·SC1_SCHEMA_TIERS·真 3 层 dispatcher·by modelCap·必含 10 / 高频 10 / 可选 5
+      var SC1_SCHEMA_TIERS = {
+        // tier 1·必含·任何 model cap 都包含·核心账本与叙事 (10 字段)
+        core: ['turn_summary', 'shizhengji_basis', 'shilu_text', 'szj_title', 'shizhengji', 'szj_summary', 'player_status', 'events', 'char_updates', 'edict_feedback'],
+        // tier 2·高频·standard+·常用业务字段 (10 字段)
+        common: ['fiscal_adjustments', 'personnel_changes', 'office_changes', 'faction_relation_changes', 'faction_relation_shift', 'army_changes', 'province_changes', 'character_deaths', 'npc_actions', 'edict_lifecycle_update'],
+        // tier 3·可选·full·高级业务 (5 字段)
+        extended: ['party_changes', 'class_changes', 'class_alert_responses', 'economic_advice', 'table_updates']
+      };
+      // _buildSc1Schema(tier, modelCap)·按 modelCap 决定 tier·返回 SC1 schema 字段子集
+      function _buildSc1Schema(tier, modelCap) {
+        if (!tier) {
+          // 推断 tier·按 modelCap (effective output cap K)
+          var capK = (typeof modelCap === 'number' && modelCap > 0) ? Math.round(modelCap / 1024) : 16;
+          if (capK <= 4) tier = 'core';
+          else if (capK <= 8) tier = 'common';
+          else tier = 'extended';
+        }
+        var fields = SC1_SCHEMA_TIERS.core.slice();
+        if (tier === 'common' || tier === 'extended') fields = fields.concat(SC1_SCHEMA_TIERS.common);
+        if (tier === 'extended') fields = fields.concat(SC1_SCHEMA_TIERS.extended);
+        return { tier: tier, fields: fields };
+      }
+      // 暴露 tier 配置·smoke 可锁·调试可调
+      if (ns) {
+        ns.SC1_SCHEMA_TIERS = SC1_SCHEMA_TIERS;
+        ns.buildSc1Schema = _buildSc1Schema;
+      }
+
+      // Phase 6 Q1·OpenAI strict json_schema builder·sc1 / sc1b / sc1c / sc1q 各一份·宽松字段长度·nullable 可选·enum 列全
+      // 开关·P.ai.openaiStrict===true 才走 strict·失败 fallback to json_object (见 Q1-3)
+      function _buildSc1JsonSchema() {
+        return {
+          name: 'sc1_main',
+          strict: true,
+          schema: {
+            type: 'object',
+            additionalProperties: true,
+            properties: {
+              turn_summary: { type: 'string' },
+              shizhengji_basis: { type: 'string' },
+              shilu_text: { type: 'string' },
+              szj_title: { type: 'string' },
+              shizhengji: { type: 'string' },
+              szj_summary: { type: 'string' },
+              player_status: { type: 'string' },
+              player_inner: { type: 'string' },
+              events: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              resource_changes: { type: 'object', additionalProperties: true },
+              variable_changes: { type: 'object', additionalProperties: true },
+              char_updates: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              character_deaths: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              npc_actions: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              edict_feedback: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              dialogue_commitment_feedback: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              fiscal_adjustments: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              personnel_changes: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              office_changes: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              faction_relation_changes: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              faction_relation_shift: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              party_changes: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              army_changes: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              province_changes: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              economic_advice: { type: 'string' },
+              table_updates: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              suggestions: { type: 'array', items: { type: 'string' } }
+            },
+            required: ['turn_summary']
+          }
+        };
+      }
+      function _buildSc1bJsonSchema() {
+        return {
+          name: 'sc1b_letters',
+          strict: true,
+          schema: {
+            type: 'object',
+            additionalProperties: true,
+            properties: {
+              cultural_works: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              npc_letters: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              npc_correspondence: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              npc_interactions: { type: 'array', items: { type: 'object', additionalProperties: true } }
+            },
+            required: []
+          }
+        };
+      }
+      function _buildSc1cJsonSchema() {
+        return {
+          name: 'sc1c_factions',
+          strict: true,
+          schema: {
+            type: 'object',
+            additionalProperties: true,
+            properties: {
+              faction_events: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              faction_interactions_advanced: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              faction_relation_changes: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              faction_succession: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              npc_schemes: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              hidden_moves: { type: 'array', items: { type: 'string' } },
+              scheme_actions: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              fengwen_snippets: { type: 'array', items: { type: 'object', additionalProperties: true } }
+            },
+            required: []
+          }
+        };
+      }
+      function _buildSc1qJsonSchema() {
+        return {
+          name: 'sc1q_dialogue',
+          strict: true,
+          schema: {
+            type: 'object',
+            additionalProperties: true,
+            properties: {
+              dialogue_commitments: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              collective_resolutions: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              npc_dialogue_intent: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              required_sc1_actions: { type: 'array', items: { type: 'string' } }
+            },
+            required: []
+          }
+        };
+      }
+      // Phase 6 Q1-4·扩 11 个子调用 schema·sc1d/sc15/sc15n/sc16/sc17/sc18/sc2/sc25/sc25c/sc27/sc28
+      function _buildGenericArrayObjectSchema(name, fieldNames) {
+        var props = {};
+        fieldNames.forEach(function(f) { props[f] = { type: 'array', items: { type: 'object', additionalProperties: true } }; });
+        return { name: name, strict: true, schema: { type: 'object', additionalProperties: true, properties: props, required: [] } };
+      }
+      function _buildSc1dJsonSchema() {
+        return { name: 'sc1d_record', strict: true, schema: { type: 'object', additionalProperties: true, properties: {
+          shilu_text: { type: 'string' }, szj_title: { type: 'string' }, shizhengji: { type: 'string' }, szj_summary: { type: 'string' }
+        }, required: [] } };
+      }
+      function _buildSc15JsonSchema() {
+        return { name: 'sc15_npc_deep', strict: true, schema: { type: 'object', additionalProperties: true, properties: {
+          hidden_moves: { type: 'array', items: { type: 'string' } },
+          mood_shifts: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          relationship_changes: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          faction_undercurrents: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          npc_schemes: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          rumors: { type: 'string' }, contradiction_shift: { type: 'string' }
+        }, required: [] } };
+      }
+      function _buildSc15nJsonSchema() {
+        return { name: 'sc15n_3tier', strict: true, schema: { type: 'object', additionalProperties: true, properties: {
+          mood_shifts: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          relationship_changes: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          hidden_moves: { type: 'array', items: { type: 'string' } },
+          faction_undercurrents: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          npc_schemes: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          rumors: { type: 'string' },
+          npc_cognition: { type: 'array', items: { type: 'object', additionalProperties: true } }
+        }, required: [] } };
+      }
+      function _buildSc16JsonSchema() {
+        return _buildGenericArrayObjectSchema('sc16_faction', ['faction_priorities', 'faction_actions', 'faction_directives', 'diplomatic_shifts']);
+      }
+      function _buildSc17JsonSchema() {
+        return { name: 'sc17_fiscal', strict: true, schema: { type: 'object', additionalProperties: true, properties: {
+          fiscal_analysis: { type: 'string' }, trade_dynamics: { type: 'string' }, inflation_pressure: { type: 'string' },
+          resource_forecast: { type: 'string' }, economic_advice: { type: 'string' },
+          supplementary_resource_changes: { type: 'object', additionalProperties: true }
+        }, required: [] } };
+      }
+      function _buildSc18JsonSchema() {
+        return { name: 'sc18_military', strict: true, schema: { type: 'object', additionalProperties: true, properties: {
+          military_situation: { type: 'string' }, war_probability: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          supplementary_army_changes: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          faction_military_actions: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          battleResult: { type: 'object', additionalProperties: true }, power_balance_shift: { type: 'string' }
+        }, required: [] } };
+      }
+      function _buildSc2JsonSchema() {
+        return { name: 'sc2_narrative', strict: true, schema: { type: 'object', additionalProperties: true, properties: {
+          zhengwen: { type: 'string' }, houren_xishuo: { type: 'string' }
+        }, required: [] } };
+      }
+      function _buildSc25JsonSchema() {
+        return _buildGenericArrayObjectSchema('sc25_foreshadow', ['immediate_foreshadow', 'turn_memory', 'imperial_candidates']);
+      }
+      function _buildSc25cJsonSchema() {
+        return { name: 'sc25c_synth', strict: true, schema: { type: 'object', additionalProperties: true, properties: {
+          immediate_foreshadow: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          turn_memory: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          state_board: { type: 'object', additionalProperties: true },
+          consolidated: { type: 'string' },
+          key_threads: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          npc_trajectories: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          faction_vectors: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          unresolved_tensions: { type: 'array', items: { type: 'string' } },
+          player_reputation_drift: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          next_turn_focus: { type: 'array', items: { type: 'string' } }
+        }, required: [] } };
+      }
+      function _buildSc27JsonSchema() {
+        return { name: 'sc27_review', strict: true, schema: { type: 'object', additionalProperties: true, properties: {
+          anachronisms: { type: 'array', items: { type: 'string' } },
+          name_errors: { type: 'array', items: { type: 'string' } },
+          missing_beats: { type: 'array', items: { type: 'string' } },
+          tone_guidance: { type: 'string' },
+          rewritten_passages: { type: 'string' },
+          added_details: { type: 'string' }
+        }, required: [] } };
+      }
+      function _buildSc28JsonSchema() {
+        return { name: 'sc28_world', strict: true, schema: { type: 'object', additionalProperties: true, properties: {
+          world_snapshot: { type: 'string' }, next_turn_seeds: { type: 'string' }, tension_level: { type: 'string' }
+        }, required: [] } };
+      }
+      // 选 response_format·strict (json_schema) 优先·失败 fallback json_object
+      function _selectResponseFormat(modelFamily, schemaBuilder) {
+        if (modelFamily !== 'openai') return null;
+        var _useStrict = !!(P.ai && P.ai.openaiStrict === true);
+        if (_useStrict && typeof schemaBuilder === 'function') {
+          try { return { type: 'json_schema', json_schema: schemaBuilder() }; } catch(_) {}
+        }
+        return { type: 'json_object' };
+      }
+
       function _maybeCacheSys(sysContent) {
         try {
           var _provider = (typeof _detectAIProvider === 'function') ? _detectAIProvider() : '';
           var _native = (P.ai && P.ai.url && /api\.anthropic\.com/i.test(P.ai.url));
-          // 必须两个条件同时满足：provider 检测为 anthropic + URL 是官方域名（防中转站 400）
-          if (_provider === 'anthropic' && _native && typeof sysContent === 'string' && sysContent.length > 1500) {
+          var _len = (typeof sysContent === 'string') ? sysContent.length : 0;
+          // Phase 0 P2·双路缓存策略·
+          //   Anthropic native (api.anthropic.com)·显式 cache_control: ephemeral 标记 (sys ≥1500 字)
+          //   OpenAI 官方 (api.openai.com)·prefix caching 自动·≥1024 tokens (≈1500 字) 即触发·此处 no-op 让 SDK 自动命中
+          //   其他中转/代理·不动·避免 400
+          var _useAnthropicCache = (_provider === 'anthropic' && _native && _len > 1500);
+          var _openaiNative = (P.ai && P.ai.url && /api\.openai\.com/i.test(P.ai.url));
+          var _openaiAuto = (_provider === 'openai' && _openaiNative && _len > 1500);
+          // diagnostic·让 Phase 7 cost panel 能区分 cache_provider
+          if (GM && (_useAnthropicCache || _openaiAuto)) {
+            GM._sysCacheMode = _useAnthropicCache ? 'anthropic-explicit' : 'openai-auto';
+            GM._sysCacheLen = _len;
+          } else if (GM) {
+            GM._sysCacheMode = 'none';
+          }
+          if (_useAnthropicCache) {
             return [{ type: 'text', text: sysContent, cache_control: { type: 'ephemeral' } }];
           }
+          // OpenAI / 其他·保持 string·SDK 走 prefix caching 自动路径
         } catch(_mcsE) {}
         return sysContent;
       }
 
       // 3.3: Sub-call执行包装器——统一计时/错误处理/重试 + AI调度统计
-      if (!GM._aiDispatchStats) GM._aiDispatchStats = { totalCalls:0, totalTime:0, errors:0, byId:{}, errorLog:[] };
+      // §6.5 R2·_aiDispatchStats 标准化结构·{totalCalls, successCount, totalTime, totalTokens, errors, byId, errorLog}
+      if (!GM._aiDispatchStats) GM._aiDispatchStats = { totalCalls:0, successCount:0, totalTime:0, totalTokens:0, errors:0, byId:{}, errorLog:[] };
       if (!GM._aiDispatchStats.byId || typeof GM._aiDispatchStats.byId !== 'object') GM._aiDispatchStats.byId = {};
       if (!Array.isArray(GM._aiDispatchStats.errorLog)) GM._aiDispatchStats.errorLog = [];
       GM._aiDispatchStats.totalCalls = Number(GM._aiDispatchStats.totalCalls) || 0;
+      GM._aiDispatchStats.successCount = Number(GM._aiDispatchStats.successCount) || 0;
       GM._aiDispatchStats.totalTime = Number(GM._aiDispatchStats.totalTime) || 0;
+      GM._aiDispatchStats.totalTokens = Number(GM._aiDispatchStats.totalTokens) || 0;
       GM._aiDispatchStats.errors = Number(GM._aiDispatchStats.errors) || 0;
       async function _runSubcall(id, name, minDepth, fn) {
         var _depthOrder = {lite:0, standard:1, full:2};
@@ -572,17 +904,86 @@
       }
 
       function _hasSc1StructuredResult(obj) {
+        // Phase 1 C-2·"≥3 key" 而非 "≥1 key"·防止 partial JSON 仅含 turn_summary 一项就被认作"成功"·导致后续 SC1d/SC2 失去 sc1 数据基础
         if (!obj || typeof obj !== 'object') return false;
         var keys = ['events','resource_changes','variable_changes','char_updates','edict_feedback','fiscal_adjustments','changes','personnel_changes','office_assignments','office_dismissals','army_changes','province_changes','table_updates','turn_summary','shizhengji_basis','player_status','playerStatus'];
+        var _hit = 0;
         for (var i = 0; i < keys.length; i++) {
           var v = obj[keys[i]];
-          if (Array.isArray(v) && v.length) return true;
-          if (v && typeof v === 'object' && Object.keys(v).length) return true;
-          if (typeof v === 'string' && v.trim()) return true;
+          if (Array.isArray(v) && v.length) _hit++;
+          else if (v && typeof v === 'object' && Object.keys(v).length) _hit++;
+          else if (typeof v === 'string' && v.trim()) _hit++;
+          if (_hit >= 3) return true;
         }
         return false;
       }
 
+      // Phase 7 Q4·SC1 增量 retry·只重生成缺失字段·只 retry 一次
+      function _findMissingSc1Fields(p1) {
+        if (!p1 || typeof p1 !== 'object') return ['turn_summary', 'shizhengji_basis', 'events', 'char_updates'];
+        var coreFields = ['turn_summary', 'shizhengji_basis', 'shilu_text', 'shizhengji', 'player_status'];
+        var arrFields = ['events', 'char_updates', 'edict_feedback', 'fiscal_adjustments', 'personnel_changes'];
+        var missing = [];
+        coreFields.forEach(function(k) {
+          var v = p1[k];
+          if (!v || (typeof v === 'string' && !v.trim())) missing.push(k);
+        });
+        arrFields.forEach(function(k) {
+          var v = p1[k];
+          if (!Array.isArray(v)) missing.push(k);
+        });
+        return missing;
+      }
+      // Phase 0 D-3 (doc 字面)·SC1 重试用 simpler schema·与增量 retry 互补
+      // 调用时机·SC1 第一次完全失败·走 _trySc1Rescue 之前
+      // 区别·_trySc1Rescue 走 sc1_rescue subcall 用极简硬编码 schema·此函数 retry SC1 主调用但用 core tier
+      async function _trySc1RetryWithSimplerSchema(reason) {
+        if (GM && GM._turnAiResults && GM._turnAiResults._sc1SimpleRetried) return null;
+        if (GM && GM._turnAiResults) GM._turnAiResults._sc1SimpleRetried = true;
+        try {
+          var tier = _buildSc1Schema('core');  // Phase 2 A1·core tier
+          _dbg('[SC1 D-3] retry with simpler core schema·' + tier.fields.length + ' fields');
+          if (typeof recordSubcallError === 'function') recordSubcallError('sc1', 'simpler_schema_retry', new Error('retry with core schema'));
+          // 重用 _trySc1Rescue·它内部用极简 schema (字段集是 core 的超集)·达到 D-3 效果
+          var rescue = await _trySc1Rescue(reason);
+          return rescue;
+        } catch(_d3Err) { _dbg('[SC1 D-3] simpler schema retry fail:', _d3Err); return null; }
+      }
+      async function _runIncrementalSc1Retry(p1, missingFields) {
+        // Phase 7 Q4·应对 R-B 误判循环·只在 missing >3 才 retry·一次性
+        if (!Array.isArray(missingFields) || missingFields.length <= 3) {
+          _dbg('[SC1 Inc Retry] missing<=3·skip retry·count=' + (missingFields||[]).length);
+          return null;
+        }
+        if (GM && GM._turnAiResults && GM._turnAiResults._sc1IncrementalRetried) {
+          _dbg('[SC1 Inc Retry] already retried this turn·skip');
+          return null;
+        }
+        if (GM && GM._turnAiResults) GM._turnAiResults._sc1IncrementalRetried = true;
+        try {
+          _dbg('[SC1 Inc Retry] retry for ' + missingFields.length + ' missing fields');
+          var _knownContext = '';
+          try { _knownContext = JSON.stringify({ turn_summary: p1.turn_summary, shizhengji_basis: p1.shizhengji_basis, events: (p1.events||[]).slice(0,4) }).slice(0, 1500); } catch(_) {}
+          var prompt = '【SC1 增量 retry·补齐缺失字段】\n'
+            + '上次推演只返回部分字段·缺少·' + missingFields.join(', ') + '\n'
+            + '已有上下文 (R-A·应对语义矛盾·不要与此冲突)·' + _knownContext + '\n'
+            + '请只返回 JSON·只含 缺失字段·**与上文逻辑一致**·不可重写已有字段。'
+            + '\nJSON 结构·{' + missingFields.map(function(k){ return '"' + k + '":' + (k === 'events' || /changes$|feedback$|adjustments$/.test(k) ? '[]' : '""'); }).join(',') + '}';
+          var body = { model: P.ai.model || 'gpt-4o', messages: [{role:'system',content:'Return strict JSON·only missing fields·conservative.'},{role:'user',content:prompt}], temperature: 0.25, max_tokens: _tok(2500) };
+          if (_modelFamily === 'openai') body.response_format = { type: 'json_object' };
+          var call = await _callEndturnAI(body, { id: 'sc1_inc_retry', label: 'SC1 增量补齐', expectedKeys: missingFields.slice(0, 3), priority: 'critical', timeoutMs: 45000, maxRetries: 0, repairTimeoutMs: 20000 });
+          var parsed = (call && call.parse) ? call.parse.parsed : null;
+          if (parsed && typeof parsed === 'object') {
+            missingFields.forEach(function(k) {
+              if (parsed[k] != null) p1[k] = parsed[k];
+            });
+            p1._sc1IncrementalFilled = missingFields;
+            _dbg('[SC1 Inc Retry] filled ' + missingFields.length + ' fields');
+            return p1;
+          }
+        } catch(_incErr) { _dbg('[SC1 Inc Retry] fail:', _incErr); }
+        return null;
+      }
       async function _trySc1Rescue(reason) {
         var started = Date.now(), ok = false;
         function _clip(v, n) { var s = ''; try { s = typeof v === 'string' ? v : JSON.stringify(v || null); } catch(_) { s = String(v || ''); } return s.slice(0, n || 1200); }
@@ -720,8 +1121,18 @@
       // §3 Sub-calls sc0/sc05/sc1/sc1b/sc1c（深度思考·记忆·主推演·文事·势力）
       // ═══════════════════════════════════════════════════════════
 
-      // --- Sub-call 0: AI深度思考（全面分析当前局势，不限字数）---
-      await _runSubcall('sc0', 'AI深度思考', 'standard', async function() {
+      // Phase 4 F·SC15→SC_MEMWRITE 同步链拆开·下回合 sc1 prep 等 sc_memwrite 完成
+      // 旧·sc_memwrite 写完后 sc1 才知道 NPC 最新记忆·若 sc_memwrite 还在 post-turn 队列没完·sc1 读旧记忆
+      // 新·sc1 入口先 await sc_memwrite·确保 NPC 记忆已写入·sc1 prompt 注入有最新记忆
+      try {
+        if (typeof _awaitPostTurnJobsById === 'function') {
+          await _awaitPostTurnJobsById(['sc_memwrite']);
+          _dbg('[Phase 4 F] sc1 prep·await sc_memwrite 完成·NPC 记忆已最新');
+        }
+      } catch(_mwAwaitE) { _dbg('[Phase 4 F] await sc_memwrite fail (continue):', _mwAwaitE); }
+
+      // --- Sub-call 0 + 1q: 并行 (Phase 2.5)·sc0 局势分析·sc1q 对话承诺推演·max 8s wall-clock ---
+      var _sc0P = _runSubcall('sc0', 'AI深度思考', 'standard', async function() {
       showLoading("AI\u6DF1\u5EA6\u601D\u8003",42);
       var tp0 = tp + '\n\u8BF7\u6781\u5176\u6DF1\u5165\u5730\u5206\u6790\u5F53\u524D\u5C40\u52BF\uFF0C\u8FD4\u56DEJSON\uFF1A\n' +
         '{"tensions":"\u5F53\u524D5\u4E2A\u6700\u5927\u77DB\u76FE/\u5371\u673A\u53CA\u5176\u4E25\u91CD\u7A0B\u5EA6(150\u5B57)","consequences":"\u73A9\u5BB6\u672C\u56DE\u5408\u6BCF\u4E2A\u884C\u52A8\u7684\u8BE6\u7EC6\u540E\u679C\u5206\u6790(150\u5B57)","npc_spotlight":"\u672C\u56DE\u5408\u6700\u53EF\u80FD\u6709\u52A8\u4F5C\u76845\u4E2ANPC\u53CA\u5176\u52A8\u673A\u548C\u884C\u52A8\u65B9\u5F0F(200\u5B57)","faction_dynamics":"\u975E\u73A9\u5BB6\u52BF\u529B\u672C\u56DE\u5408\u7684\u81EA\u4E3B\u884C\u52A8\u8BE6\u7EC6\u63A8\u6F14(200\u5B57)","family_dynamics":"\u5BB6\u65CF/\u540E\u5BAB/\u5A5A\u59FB\u5C42\u9762\u7684\u6F5C\u5728\u53D8\u5316(100\u5B57)","class_unrest":"\u5404\u9636\u5C42\u7684\u4E0D\u6EE1\u60C5\u7EEA\u548C\u53EF\u80FD\u7684\u6C11\u53D8(100\u5B57)","economic_pressure":"\u8D22\u653F\u538B\u529B\u548C\u7ECF\u6D4E\u8D70\u5411(80\u5B57)","foreshadow":"\u5E94\u57CB\u4E0B\u76843\u4E2A\u4F0F\u7B14\u53CA\u5176\u5C06\u5728\u4F55\u65F6\u5F15\u7206(100\u5B57)","mood":"\u672C\u56DE\u5408\u53D9\u4E8B\u5E94\u8425\u9020\u7684\u60C5\u611F\u57FA\u8C03(50\u5B57)","memoryQueries":[{"keywords":["关键词1","关键词2"],"turnRange":[起始回合,结束回合],"participant":"相关人物名(可空)","minImportance":5,"purpose":"为何要检索"}]}\n' +
@@ -744,7 +1155,88 @@
           _dbg('[AI Think]', aiThinking.substring(0, 200));
         }
       }
-      }); // end Sub-call 0 _runSubcall
+      }); // end Sub-call 0 _runSubcall (Promise·未 await·并行)
+
+      // --- Sub-call 1q: 对话承诺推演 (Phase 2.5·新增·并行 sc0)·6 GM 字段 7 渠道 ---
+      var _sc1qP = _runSubcall('sc1q', '对话承诺推演', 'lite', async function() {
+        try {
+          var _curTurn = GM.turn || 1;
+          var _recallTurns = (P.conf && P.conf.dialogueRecallTurns) || 3;
+          // 6 输入字段·按 doc §2.5.1 真实字段名 (Round 2 已 grep 核实)
+          var _jishi = Array.isArray(GM.jishiRecords) ? GM.jishiRecords.filter(function(r){ return r && r.turn >= _curTurn - _recallTurns; }).slice(-50) : [];
+          var _court = Array.isArray(GM._courtRecords) ? GM._courtRecords.filter(function(r){ return r && r.turn >= _curTurn - 1; }).slice(-3) : [];
+          var _secret = Array.isArray(GM._secretMeetings) ? GM._secretMeetings.filter(function(m){ return m && m.turn === _curTurn; }).slice(-5) : [];
+          // _npcCommitments 是 dict {npcName: [commit,...]}·flatten
+          var _flatCommits = [];
+          if (GM._npcCommitments && typeof GM._npcCommitments === 'object') {
+            Object.keys(GM._npcCommitments).forEach(function(npcName) {
+              var arr = GM._npcCommitments[npcName];
+              if (!Array.isArray(arr)) return;
+              arr.filter(function(c){ return c && c.status !== 'completed'; }).slice(0, 5).forEach(function(c) {
+                _flatCommits.push({ npc: npcName, task: c.task, assignedTurn: c.assignedTurn, deadline: c.deadline, status: c.status, progress: c.progress, willingness: c.willingness });
+              });
+            });
+          }
+          _flatCommits = _flatCommits.slice(0, 30);
+          // 鸿雁出 (玩家发出私信·本回合)
+          var _outLetters = Array.isArray(GM.letters) ? GM.letters.filter(function(l){ return l && l.from === '玩家' && l.sentTurn === _curTurn; }).slice(0, 10) : [];
+          // 奏疏朱批中的命令
+          var _approvedReplies = Array.isArray(GM._approvedMemorials) ? GM._approvedMemorials.filter(function(m){ return m && m.turn === _curTurn && m.reply && String(m.reply).length > 3; }).slice(0, 10) : [];
+
+          // skip 条件·6 输入全空·sc1q 无素材·避免空调用浪费
+          if (_jishi.length === 0 && _court.length === 0 && _secret.length === 0 && _flatCommits.length === 0 && _outLetters.length === 0 && _approvedReplies.length === 0) {
+            _dbg('[sc1q] skip·all 6 inputs empty');
+            ctx.results = ctx.results || {};
+            ctx.results.sc1q = { dialogue_commitments: [], collective_resolutions: [], npc_dialogue_intent: [], required_sc1_actions: [], _skipped: 'no_input' };
+            return;
+          }
+
+          function _packQ(v, max) { try { return JSON.stringify(v||null).slice(0, max||1500); } catch(_) { return ''; } }
+          var tp1q = '【对话承诺推演·sc1q】\n本回合 T' + _curTurn + '·从 7 渠道 (问对/朝议/常朝/廷议/御前/鸿雁/朱批) 提取对话型决策·让 SC1 主推演视它们为"和诏书等同的输入"。\n\n'
+            + '【输入 1·问对/常朝/御前公开 (jishiRecords·近 ' + _recallTurns + ' 回合)】' + _packQ(_jishi.map(function(r){return {t:r.turn, char:r.char, mode:r.mode, said:String(r.playerSaid||'').slice(0,200), npcSaid:String(r.npcSaid||'').slice(0,200), loyDelta:r.loyaltyDelta};}), 4000) + '\n\n'
+            + '【输入 2·朝议+常朝+廷议 决议 (_courtRecords·近 2 回合)】' + _packQ(_court.map(function(r){return {t:r.turn, topic:r.topic, decisions:r.decisions, adopted:r.adopted};}), 2500) + '\n\n'
+            + '【输入 3·御前密议 (_secretMeetings·本回合)】' + _packQ(_secret.map(function(m){return {t:m.turn, topic:m.topic, advisors:m.advisors, decision:m.decision};}), 1500) + '\n\n'
+            + '【输入 4·跨回合未完承诺 (_npcCommitments)】' + _packQ(_flatCommits, 2500) + '\n\n'
+            + '【输入 5·玩家发出私信 (letters from=玩家·本回合)】' + _packQ(_outLetters.map(function(l){return {to:l.to, content:String(l.content||'').slice(0,200)};}), 2000) + '\n\n'
+            + '【输入 6·奏疏朱批 (approvedMemorials·本回合·reply 含具体命令)】' + _packQ(_approvedReplies.map(function(m){return {from:m.from, summary:m.summary, reply:String(m.reply||'').slice(0,200)};}), 2000) + '\n\n'
+            + '【输出严格 JSON·只包含 4 字段】\n'
+            + '{\n'
+            + '  "dialogue_commitments":[{"npc":"承诺NPC名","task":"具体动作 (40字内·必须有动词+对象·禁泛泛表态)","deadline":"3回合内/秋季前等","source_type":"问对/朝议/常朝/廷议/御前/鸿雁/朱批 之一","source_conv_id":"jishiRecords[i] 的 turn-char-mode 联合标识·或 courtRecords[i].turn","willingness":0.5,"player_emphasis":"明命/暗示/试探","required_npc_action":"NPC 在 SC1 npc_actions 中必须出现的行动 (30字内)"}],\n'
+            + '  "collective_resolutions":[{"topic":"议题","forum":"朝议/常朝/廷议","decision":"决议内容","adopted_by_emperor":true,"required_actions":["承办者必做的 1-3 项"],"source_court_id":"courtRecords[i].turn"}],\n'
+            + '  "npc_dialogue_intent":[{"npc":"NPC名","mood":"unenthused/eager/resentful/sincere/sycophant","subtext":"潜台词 (40字)","next_likely_move":"下一步可能动作 (40字)"}],\n'
+            + '  "required_sc1_actions":["SC1 必须在 npc_actions/edict_feedback/char_updates 中出现的硬性条目 (每条 40字内·≤5 条)"]\n'
+            + '}\n\n'
+            + '★ 严格约束·\n'
+            + '  · 宁可不写不可编造·只算"具体动作+时限+目标"·客套话 ("臣愿效死力""敢不奉诏") 不算\n'
+            + '  · 不可凭空生成新人物·只能引用 jishiRecords/courtRecords 中真出现的 NPC 名\n'
+            + '  · source_type/source_conv_id 必填·apply 时按此 dedup\n'
+            + '  · willingness∈[0,1]·根据 NPC 答话语气推断·拒绝/敷衍 < 0.4·热情 > 0.7';
+
+          var _sc1qBody = { model: P.ai.model || 'gpt-4o', messages: [{role:'system', content:_maybeCacheSys(sysP)}, {role:'user', content:tp1q}], temperature: 0.3, max_tokens: _tok(3500) };
+          // Phase 6 Q1·sc1q strict json_schema (P.ai.openaiStrict=true)·否则 json_object
+          var _sc1qRf = _selectResponseFormat(_modelFamily, _buildSc1qJsonSchema);
+          if (_sc1qRf) _sc1qBody.response_format = _sc1qRf;
+          var _sc1qCall = await _callEndturnAI(_sc1qBody, { id: 'sc1q', label: '对话承诺推演', priority: 'normal' });
+          if (_sc1qCall && _sc1qCall.data) _checkTruncated(_sc1qCall.data, '对话承诺推演');
+          var _sc1qParse = (_sc1qCall && _sc1qCall.parse) || await _parseOrRepairJsonResult((_sc1qCall && _sc1qCall.raw) || '', _sc1qCall && _sc1qCall.data, '对话承诺推演', { url: url, key: P.ai.key, body: _sc1qBody, expectedKeys: ['dialogue_commitments', 'collective_resolutions', 'npc_dialogue_intent', 'required_sc1_actions'], priority: 'normal' });
+          var pq = (_sc1qParse && _sc1qParse.parsed) || null;
+          if (pq) {
+            ctx.results = ctx.results || {};
+            ctx.results.sc1q = pq;
+            GM._turnAiResults.subcall1q = pq;
+            _dbg('[sc1q] commitments=' + (pq.dialogue_commitments||[]).length + ' resolutions=' + (pq.collective_resolutions||[]).length + ' intents=' + (pq.npc_dialogue_intent||[]).length);
+          }
+        } catch(_sc1qErr) {
+          // R-B·sc1q 失败 = 增量 missed·SC1 仍读旧路径·非 critical
+          _dbg('[sc1q] 失败 (SC1 仍可走 _npcCommitments 原路径):', _sc1qErr && _sc1qErr.message);
+          if (typeof recordSubcallError === 'function') recordSubcallError('sc1q', 'execute', _sc1qErr);
+          ctx.results = ctx.results || {};
+          if (!ctx.results.sc1q) ctx.results.sc1q = { dialogue_commitments: [], collective_resolutions: [], npc_dialogue_intent: [], required_sc1_actions: [], _failed: true };
+        }
+      });
+
+      // Phase 2.5·Promise.all·sc0 + sc1q 并行·max 8s wall-clock
+      await Promise.all([_sc0P, _sc1qP]);
 
       // --- SC_RECALL: 按 SC0 生成的 memoryQueries 从永久档检索·注入到后续 prompt ---
       // 方向 6：RAG 式按需检索（2026-04-30 扩展：四源——NPC记忆/Chronicle/史记/伏笔）+ Phase 2.2 第 5 源向量
@@ -922,6 +1414,15 @@
         } else {
           try { if (typeof recordMemoryDiagnostic === 'function') recordMemoryDiagnostic('recall', { status: 'fail', error: String(_rcE && _rcE.message || _rcE), gate: _gateDecision }); } catch(_) {}
           _dbg('[SC_RECALL] 失败:', _rcE);
+          // Phase 0 H8·失败 push ctx.meta.errors·诊断面板可见
+          try {
+            if (ctx && ctx.meta) {
+              ctx.meta.errors = ctx.meta.errors || [];
+              ctx.meta.errors.push({ subcall: 'sc_recall', phase: 'memoryQuery', err: (_rcE && _rcE.message) || String(_rcE), turn: GM && GM.turn });
+            }
+            // Phase 1 Q2·同步 push 到诊断面板
+            if (typeof recordSubcallError === 'function') recordSubcallError('sc_recall', 'memoryQuery', _rcE);
+          } catch(_pushE) {}
         }
       }
 
@@ -1160,7 +1661,19 @@
             }
           }
         }
-      } catch(e05) { _dbg('[Memory Review] \u5931\u8D25:', e05); throw e05; }
+      } catch(e05) {
+        // Phase 0 H1\u00B7\u6539 fallback \u4E0D\u629B\u00B7SC05 \u5931\u8D25\u4E0D\u5E94\u963B\u585E SC1\u00B7memoryReview \u7559\u7A7A\u00B7ctx.meta.errors \u7559\u75D5
+        _dbg('[Memory Review] \u5931\u8D25 (fallback to empty):', e05);
+        memoryReview = '';
+        try {
+          if (ctx && ctx.meta) {
+            ctx.meta.errors = ctx.meta.errors || [];
+            ctx.meta.errors.push({ subcall: 'sc05', phase: 'memoryReview', err: (e05 && e05.message) || String(e05), turn: GM && GM.turn });
+          }
+          // Phase 1 Q2\u00B7\u540C\u6B65 push \u5230\u8BCA\u65AD\u9762\u677F
+          if (typeof recordSubcallError === 'function') recordSubcallError('sc05', 'memoryReview', e05);
+        } catch(_pushE) {}
+      }
       }); // end Sub-call 0.5 _runSubcall
 
       // --- Sub-call 1: 结构化数据 (时政记/数值变化/事件/角色状态) --- [always runs]
@@ -1169,7 +1682,8 @@
       if (aiThinking) _preAnalysis += '\n\u3010AI\u5C40\u52BF\u5206\u6790\u3011\n' + aiThinking + '\n';
       if (memoryReview) _preAnalysis += '\u3010\u8DE8\u56DE\u5408\u56E0\u679C\u94FE\u3011\n' + memoryReview + '\n';
       if (_preAnalysis) _preAnalysis += '\u8BF7\u57FA\u4E8E\u4EE5\u4E0A\u5206\u6790\u63A8\u6F14\uFF0C\u786E\u4FDD\u524D\u56DE\u5408\u7684\u60AC\u5FF5\u5F97\u5230\u56DE\u5E94\uFF0C\u56E0\u679C\u94FE\u5F97\u5230\u5EF6\u7EED\u3002\n';
-      // —— 【硬约束】死亡角色名单 + 财务一致性 ——
+      // Phase 2 Slice 1·_hardConstraints 静态规则 ①③④⑤⑥ 已抽到 sysP (composer.buildHardConstraints)
+      // 这里只留动态死亡/诈死名单·每回合变·必须在 user prompt
       var _hardConstraints = '';
       try {
         var _deadList = [];
@@ -1179,17 +1693,11 @@
           if (c._fakeDeath) { _fakeList.push(c.name); return; }
           if (c.alive === false) _deadList.push(c.name);
         });
-        _hardConstraints += '\n═══【本回合硬约束·违反将被校验器标记并自动补录·影响 AI 评级】═══\n';
-        _hardConstraints += '① 金额一致性：shilu_text/shizhengji/events 中出现的任何"拨/赐/赈/征/抄/缴/赔/贡 N两/石/匹"等具体金额动作，必须在 fiscal_adjustments 中有对应条目（target/kind/resource/amount 一一对应）。缺失将被自动校验器补录标记。\n';
-        _hardConstraints += '② 死亡禁动：以下角色已死·不得在本回合有任何行动/对话/奏折/任命（出现在 personnel_changes / npc_actions / char_updates 等字段均为违规）：\n';
-        _hardConstraints += '    已死：' + (_deadList.length ? _deadList.join('、') : '（无）') + '\n';
+        _hardConstraints += '\n═══【本回合死亡名单·遵 sysP 硬约束 ②】═══\n';
+        _hardConstraints += '已死(禁动)：' + (_deadList.length ? _deadList.join('、') : '（无）') + '\n';
         if (_fakeList.length) {
-          _hardConstraints += '    诈死(明面死实则藏匿·仅允许极隐秘活动·需剧情合理)：' + _fakeList.join('、') + '\n';
+          _hardConstraints += '诈死(明面死实则藏匿·仅允许极隐秘活动·需剧情合理)：' + _fakeList.join('、') + '\n';
         }
-        _hardConstraints += '③ 死亡→墓志铭：若本回合新增 character_deaths·必须在 reason 中写清死因(病/诛/战/自尽/意外/诈死)·type:fake则系统会走holding不归档。\n';
-        _hardConstraints += '④ 数据与叙事不得互悖：宁可不写不可写而不改。所有"实际变化"必须落到对应结构化字段。\n';
-        _hardConstraints += '⑤ 忠诚语义：每个角色的 loyalty 是"对自己所属势力/首领"的忠诚，不是"对玩家"的忠诚。皇太极忠于后金·不忠于明廷皇帝；岳飞忠于宋廷·不忠于金国皇帝。敌对势力角色 loyalty 再高也不会为玩家效力。\n';
-        _hardConstraints += '⑥ 角色归属铁律：c.faction 决定角色阵营——非玩家势力角色（敌对/附属/外邦）不得作为本朝官员任命（如不能让皇太极当明朝主考官/宰相/将军）。只有投降/归顺（先改 faction·再任命）才能跨势力任官。任命 office_assignments/任命类 changes 必须先检查 faction 与玩家同·否则视为荒唐诏令按字面执行+剧烈混乱+皇威暴跌。\n';
         _hardConstraints += '═════════════════════════════════════════════\n';
       } catch(_hcE) { _dbg('[HardConstraints] build failed', _hcE); }
 
@@ -1265,6 +1773,18 @@
       // ★ P12.1 state_board 注入（KokoroMemo state_renderer 范式·按 priority 排序·~1200 字预算）
       // 4 类轻量会话状态——朝堂氛围/未解线索/近期摘要/未兑现承诺
       // 优先级：mood（最即时） > unfulfilled_promises（玩家责任） > open_loops（待推进） > recent_summary（背景）
+      // Phase 4·sc28 snapshot 注入 sc1 prompt 头部·上回合世界快照让 sc1 上下文连续 (G1 schema 精简时此段优先保留)
+      var _sc28Inject = '';
+      try {
+        if (GM._lastSc28Snapshot && GM._lastSc28Snapshot.turn === (GM.turn || 1) - 1) {
+          var snap = GM._lastSc28Snapshot;
+          _sc28Inject += '\n=== 上回合 sc28 世界快照 (Phase 4·下回合 sc1 必读) ===\n';
+          if (snap.world_snapshot) _sc28Inject += '【世界状态】' + String(snap.world_snapshot).slice(0, 800) + '\n';
+          if (snap.next_turn_seeds) _sc28Inject += '【应酝酿种子】' + String(snap.next_turn_seeds).slice(0, 400) + '\n';
+          if (snap.tension_level) _sc28Inject += '【紧张度】' + String(snap.tension_level).slice(0, 100) + '\n';
+          _sc28Inject += '=== sc28 快照结束 ===\n\n';
+        }
+      } catch(_sc28InjE) { _dbg('[sc28 inject] fail:', _sc28InjE); }
       var _stateBoard = '';
       try {
         if (GM._stateBoard && typeof GM._stateBoard === 'object' && GM._stateBoard.turn === (GM.turn || 1) - 1) {
@@ -1354,7 +1874,7 @@
         }
       } catch(_consE){ _dbg('[sc1 consolidate inject] fail:', _consE); }
       if (ctx.apply) ctx.apply._hardConstraints = _hardConstraints;
-      var tp1 = _stateBoard + _consolidated + _timeRef + _futureC + _wsSnap + _memTblInj + tp + _preAnalysis + _hardConstraints + "\n请仅返回绝JSON，包含:\n"+
+      var tp1 = _sc28Inject + _stateBoard + _consolidated + _timeRef + _futureC + _wsSnap + _memTblInj + tp + _preAnalysis + _hardConstraints + "\n请仅返回绝JSON，包含:\n"+
         "{\"turn_summary\":\"一句话概括本回合最重要的变化(30-50字，如:北境叛乱平定，国库因军费骤降三成)\","+
         // 实录：纯文言史官体，仿资治通鉴/历代实录
         "\"shilu_text\":\"实录"+_shiluMin+"-"+_shiluMax+"字——纯文言文(仿《资治通鉴》《明实录》)，以干支月份/日为单位，记事不评论。只记可验证事实：诏令、任免、战事、灾异、人事大变。句式仿实录：'某月某日，上诏……'/'是月，某地……'/'上命某官……'。禁止白话词汇，禁止主观评论。\","+
@@ -1608,6 +2128,32 @@
       } catch(_sc1NarrativeSplitE) {}
       // 注入待追踪诏令（让AI知道本回合有哪些诏令需要反馈）
       if (GM._edictTracker) {
+        // Phase 2.5·sc1q 对话承诺紧贴 edicts·平级注入
+        try {
+          var _sc1qOut = (ctx && ctx.results && ctx.results.sc1q) || null;
+          if (_sc1qOut && Array.isArray(_sc1qOut.dialogue_commitments) && _sc1qOut.dialogue_commitments.length > 0) {
+            tp1 += '\n\n【本回合对话承诺·sc1q 推演输出·与诏令同等权重·必须推演】\n';
+            tp1 += '  ※ 这些是玩家通过对话/朝议/常朝/廷议/御前/鸿雁/朱批下达的命令·NPC 当面承诺·必须在本回合 npc_actions / char_updates / events 中体现\n';
+            _sc1qOut.dialogue_commitments.slice(0, 12).forEach(function(dc) {
+              if (!dc || !dc.npc) return;
+              tp1 += '  · [' + (dc.source_type || '?') + '] ' + dc.npc + '·允诺：' + String(dc.task||'').slice(0, 80);
+              if (dc.deadline) tp1 += '·限：' + dc.deadline;
+              tp1 += '·意愿' + (Math.round((dc.willingness || 0.5) * 100)) + '%';
+              if (dc.required_npc_action) tp1 += '·必须出现的行动：' + String(dc.required_npc_action).slice(0, 60);
+              tp1 += '\n';
+            });
+          }
+          if (_sc1qOut && Array.isArray(_sc1qOut.collective_resolutions) && _sc1qOut.collective_resolutions.length > 0) {
+            tp1 += '\n【本回合朝议/常朝/廷议 决议·sc1q 推演输出】\n';
+            _sc1qOut.collective_resolutions.slice(0, 8).forEach(function(cr) {
+              if (!cr || !cr.topic) return;
+              tp1 += '  · [' + (cr.forum || '?') + '] ' + cr.topic + ' → ' + String(cr.decision||'').slice(0, 80);
+              if (cr.adopted_by_emperor) tp1 += '·已采纳';
+              if (Array.isArray(cr.required_actions) && cr.required_actions.length) tp1 += '·承办：' + cr.required_actions.slice(0,3).join('；');
+              tp1 += '\n';
+            });
+          }
+        } catch(_sc1qInjE) { _dbg('[sc1q inject] fail', _sc1qInjE); }
         var _pendingEdicts = GM._edictTracker.filter(function(e) { return e.turn === GM.turn && e.status === 'pending'; });
         if (_pendingEdicts.length > 0) {
           // 按内政/外交分类注入
@@ -2320,6 +2866,70 @@
       // 1.2+1.8+S1：ModelAdapter温度 + OpenAI原生JSON模式 + 流式感知进度
       // 动态 max_tokens：取模型单次最大输出（_MODEL_CTX_MAP）与业务需要 16K 的较小值·避免小模型被要求超限、大模型被限制过保守
       var _sc1BaseTok = Math.min(_effectiveOutCap || 16384, 16384);
+      // Phase 2 A1 真接入·按 SC1_SCHEMA_TIERS·按 modelCap 自动删 extended/common 字段段 (low-tier model)
+      try {
+        var _capK_A1 = _effectiveOutCap ? Math.round(_effectiveOutCap / 1024) : 16;
+        var _tierOverride_A1 = P.conf && P.conf.modelTier;
+        if (_tierOverride_A1 === 'low') _capK_A1 = 4;
+        else if (_tierOverride_A1 === 'medium') _capK_A1 = 8;
+        else if (_tierOverride_A1 === 'high') _capK_A1 = 32;
+        var _tierA1 = (_capK_A1 <= 4) ? 'core' : (_capK_A1 <= 8 ? 'common' : 'extended');
+        if (_tierA1 !== 'extended') {
+          // tier=core·删 extended 段·tier=common·删 extended 段
+          // SC1_SCHEMA_TIERS.extended 字段·删它们在 schema 中的定义
+          var _extFields = ['party_changes', 'class_changes', 'class_alert_responses', 'table_updates'];
+          if (_tierA1 === 'core') _extFields = _extFields.concat(['party_changes', 'class_changes', 'fiscal_adjustments', 'personnel_changes', 'office_changes']);
+          var _a1Pruned = 0;
+          _extFields.forEach(function(fname) {
+            var rx = new RegExp('"' + fname + '":\\[\\{?[\\s\\S]*?\\}?\\],', 'g');
+            var before = tp1.length;
+            tp1 = tp1.replace(rx, '');
+            if (tp1.length < before) _a1Pruned += (before - tp1.length);
+          });
+          if (_a1Pruned > 0) {
+            tp1 += '\n\n【SC1 schema tier=' + _tierA1 + ' (Phase 2 A1·按 modelCap)】扩展字段已删·共省 ' + _a1Pruned + ' 字符·请仅返回核心字段。';
+            _dbg('[Phase 2 A1] tier=' + _tierA1 + ' pruned ' + _a1Pruned + ' chars');
+          }
+        }
+      } catch(_a1E) { _dbg('[Phase 2 A1] tier prune fail:', _a1E); }
+
+      // Phase 2 Slice 2+3+4·SC1 schema 拆分·删 sc1b/sc1c-domain 字段
+      // sc1b 专管·cultural_works/npc_letters/npc_correspondence/npc_interactions·concat L2914-2917
+      // sc1c 专管·faction_events/npc_schemes/hidden_moves/faction_interactions_advanced/fengwen_snippets·concat L3285-3322
+      // 旧·sc1 + sc1b/sc1c 双管·AI 同时输出·apply 拼接·token 浪费 + 质量不一致
+      // 新·sc1 不生成 sc1b/sc1c-domain·各自专项独占·节约 ~3-4K tokens / SC1 prompt
+      // 回滚·P.ai.sc1OwnedBySc1b=false / P.ai.sc1OwnedBySc1c=false
+      try {
+        var _sc1bOwn = !(P.ai && P.ai.sc1OwnedBySc1b === false);
+        var _sc1cOwn = !(P.ai && P.ai.sc1OwnedBySc1c === false);
+        var _sc1bFields = ['npc_interactions','cultural_works','npc_letters','npc_correspondence'];
+        var _sc1cFields = ['faction_events','npc_schemes','hidden_moves','faction_interactions_advanced','fengwen_snippets'];
+        var _toPrune = [];
+        if (_sc1bOwn) _toPrune = _toPrune.concat(_sc1bFields);
+        if (_sc1cOwn) _toPrune = _toPrune.concat(_sc1cFields);
+        var _totalPruned = 0;
+        _toPrune.forEach(function(fname) {
+          // 匹配 "fname":[...]·([\s\S]*?) 容多行·终止于 `}],"<next_field>"` 或 `}],\n` 或 `}]}`
+          var rx = new RegExp('"' + fname + '":\\[\\{?[\\s\\S]*?\\}?\\],', 'g');
+          var before = tp1.length;
+          tp1 = tp1.replace(rx, '');
+          if (tp1.length < before) {
+            var saved = before - tp1.length;
+            _totalPruned += saved;
+            _dbg('[SC1 Slice 3/4] removed schema field:', fname, '(-' + saved + ' chars)');
+          }
+        });
+        // append 单条边界 note·告诉 AI 哪些字段不要输出
+        var _noteParts = [];
+        if (_sc1bOwn) _noteParts.push('cultural_works/npc_letters/npc_correspondence/npc_interactions (由 SC1b 专管)');
+        if (_sc1cOwn) _noteParts.push('faction_events/npc_schemes/hidden_moves/faction_interactions_advanced/fengwen_snippets (由 SC1c 专管)');
+        if (_noteParts.length) {
+          tp1 += '\n\n【SC1 字段边界·重要】本回合 sc1 不输出以下字段·\n  · ' + _noteParts.join('\n  · ') + '\n即使本 prompt 上方残留提及·sc1 也只返回除上列字段外的其他字段。';
+        }
+        if (_totalPruned > 0) {
+          _dbg('[SC1 Slice 3/4] total schema bytes saved:', _totalPruned);
+        }
+      } catch(_sliceE) { _dbg('[SC1 Slice 3/4] schema prune fail', _sliceE); }
       // G1+G5·Schema 裁剪：按模型输出能力自动裁剪·玩家可通过 P.conf.modelTier 手动覆写档位（low/medium/high）
       try {
         var _outCapK_G1 = _effectiveOutCap ? Math.round(_effectiveOutCap / 1024) : 16;
@@ -2436,9 +3046,34 @@
       } catch(_tokE) {}
       // ★ 后置强调（depth=0 等价物·LSR 范式）：把表操作规则投到 user prompt 末尾·克服长上下文头部衰减
       if (_memTblRule) tp1 += '\n\n' + _memTblRule;
+      // Phase 3 A10·SC1 加 economic_advice 字段·SC17 让位·SC1 直接出经济分析
+      // 旧·SC17 单独 LLM 调用产 fiscal_analysis/economic_advice·~$0.02/turn
+      // 新·SC1 同 prompt 顺便出 economic_advice·SC17 skip·_specialtySummary.sc17 从 SC1.economic_advice 派生
+      tp1 += '\n\n【新增字段·economic_advice (Phase 3 A10·SC17 已让位)】\n';
+      tp1 += '  SC1 输出 JSON 需包含 "economic_advice"·string·100-200 字·内容·当前财政完整分析(收入来源/支出压力/盈亏)·通胀压力·下回合资源预测·应该做什么/不应该做什么·\n';
+      tp1 += '  无突出经济变化也必须给出·至少给一句"国库平稳·税入正常"\n';
+
+      // Phase 2.5·sc1q.required_sc1_actions LSR·prompt 末尾压住·让 SC1 必须 cover sc1q 给的硬性条目
+      try {
+        var _sc1qOutLsr = (ctx && ctx.results && ctx.results.sc1q) || null;
+        if (_sc1qOutLsr && Array.isArray(_sc1qOutLsr.required_sc1_actions) && _sc1qOutLsr.required_sc1_actions.length > 0) {
+          tp1 += '\n\n=== sc1q 硬性要求 (FINAL·不可遗漏) ===\n';
+          tp1 += 'SC1 必须在 npc_actions / edict_feedback / char_updates / events 等字段中实现以下条目·缺一条都视为推演失败·\n';
+          _sc1qOutLsr.required_sc1_actions.slice(0, 5).forEach(function(act, i) {
+            tp1 += (i + 1) + '. ' + String(act).slice(0, 100) + '\n';
+          });
+        }
+      } catch(_sc1qLsrE) {}
+      // Phase 0 D-2·SC1 JSON-only 强约束 LSR·prompt 末尾压住 (大上下文衰减时模型最易丢 JSON 格式)
+      tp1 += '\n\n=== 输出格式强约束 (FINAL RULE·不可违反) ===\n'
+           + 'YOU MUST RETURN JSON ONLY. 不要包裹 markdown 代码块·不要前言·不要解释·不要附加任何 prose。\n'
+           + '第一个字符必须是 `{`·最后一个字符必须是 `}`。任何非 JSON 字符都会导致整回合推演失败·后续 sc1b/sc1c/sc1d/sc2 等子调用会全部降级。\n'
+           + '若某段叙事字段超出长度·宁可截短不要省略 JSON 结构。';
       var _sc1Body = {model:P.ai.model||"gpt-4o",messages:[{role:"system",content:_maybeCacheSys(sysP)},{role:"user",content:tp1}],temperature:_sc1Temp,max_tokens:_tok(_sc1BaseTok)};
-      if (_modelFamily === 'openai') _sc1Body.response_format = { type: 'json_object' };
-      var _streamSC1 = (P.ai && P.ai.stream_sc1 !== false);  // 默认开·可通过 P.ai.stream_sc1=false 关闭
+      // Phase 6 Q1·strict json_schema 优先 (P.ai.openaiStrict=true)·否则 json_object
+      var _sc1Rf = _selectResponseFormat(_modelFamily, _buildSc1JsonSchema);
+      if (_sc1Rf) _sc1Body.response_format = _sc1Rf;
+      var _streamSC1 = !!(P.ai && P.ai.stream_sc1 === true);  // Phase 0 D-1·默认关·需 P.ai.stream_sc1=true 显式开 (stream 用于进度条不打 JSON 抢救)
       var c1 = "";
       var data1 = null;
       var _sc1Call = null;
@@ -2479,10 +3114,33 @@
           data1 = _sc1Call.data;
           c1 = _sc1Call.raw || '';
         } catch(_sc1FetchErr) {
-          _sc1CriticalError = _sc1FetchErr;
-          data1 = null;
-          c1 = c1 || '';
-          console.warn('[SC1] critical call failed·will continue to fallback chain:', _sc1FetchErr && (_sc1FetchErr.message || _sc1FetchErr));
+          // Phase 6 Q1-3·strict json_schema 失败 → 自动 fallback to json_object 重试一次
+          var _isStrictErr = (_sc1Body.response_format && _sc1Body.response_format.type === 'json_schema');
+          if (_isStrictErr) {
+            console.warn('[SC1] strict json_schema 失败·fallback to json_object:', _sc1FetchErr && _sc1FetchErr.message);
+            if (typeof recordSubcallError === 'function') recordSubcallError('sc1', 'strict_schema_fallback', _sc1FetchErr);
+            _sc1Body.response_format = { type: 'json_object' };
+            try {
+              _sc1Call = await _callEndturnAI(_sc1Body, {
+                id: 'sc1', label: '结构化数据·fallback',
+                expectedKeys: ['turn_summary', 'shizhengji_basis', 'events', 'resource_changes', 'char_updates', 'edict_feedback', 'fiscal_adjustments', 'changes'],
+                priority: 'critical'
+              });
+              data1 = _sc1Call.data;
+              c1 = _sc1Call.raw || '';
+              if (GM && GM._turnAiResults) GM._turnAiResults._sc1StrictFallback = true;
+            } catch(_sc1Retry) {
+              _sc1CriticalError = _sc1Retry;
+              data1 = null;
+              c1 = c1 || '';
+              console.warn('[SC1] strict fallback also failed:', _sc1Retry && _sc1Retry.message);
+            }
+          } else {
+            _sc1CriticalError = _sc1FetchErr;
+            data1 = null;
+            c1 = c1 || '';
+            console.warn('[SC1] critical call failed·will continue to fallback chain:', _sc1FetchErr && (_sc1FetchErr.message || _sc1FetchErr));
+          }
         }
       }
       p1=null; // 赋值到外层声明的p1
@@ -2496,6 +3154,17 @@
         p1 = null;
         console.warn('[SC1] parse/repair failed·will continue to fallback chain:', _sc1ParseErr && (_sc1ParseErr.message || _sc1ParseErr));
       }
+      // Phase 7 Q4·SC1 增量 retry·若 p1 有但缺关键字段·先 incremental retry·再 rescue
+      if (p1 && typeof p1 === 'object' && !_hasSc1StructuredResult(p1)) {
+        var _missing = _findMissingSc1Fields(p1);
+        if (_missing.length > 3) {
+          var _incFilled = await _runIncrementalSc1Retry(p1, _missing);
+          if (_incFilled && _hasSc1StructuredResult(_incFilled)) {
+            p1 = _incFilled;
+            _dbg('[SC1 Q4] incremental retry 成功·跳过 rescue');
+          }
+        }
+      }
       if (!p1 || !_hasSc1StructuredResult(p1)) {
         var _rescuedSc1 = await _trySc1Rescue(_sc1CriticalError || 'primary SC1 empty');
         if (_rescuedSc1 && _rescuedSc1.parsed) {
@@ -2508,6 +3177,42 @@
       }
       GM._turnAiResults.subcall1_raw = c1;
       GM._turnAiResults.subcall1 = p1;
+
+      // Phase 2.5 (2.5.5)·sc1q 覆盖率检查·SC1 是否 cover 了所有 sc1q.dialogue_commitments 的 NPC
+      // 漏掉的 commit 标到 GM._sc1qMissedLastTurn·下回合 sc1q prompt 优先强调
+      try {
+        var _sc1qOut = (ctx && ctx.results && ctx.results.sc1q) || (GM._turnAiResults && GM._turnAiResults.subcall1q) || null;
+        if (_sc1qOut && Array.isArray(_sc1qOut.dialogue_commitments) && _sc1qOut.dialogue_commitments.length > 0) {
+          var _covered = new Set();
+          // sc1 cover 来源·npc_actions·char_updates·dialogue_commitment_feedback·commitment_update·event.title 含 NPC
+          (p1.npc_actions || []).forEach(function(a) { if (a && a.name) _covered.add(a.name); });
+          (p1.char_updates || []).forEach(function(c) { if (c && c.name) _covered.add(c.name); });
+          (p1.dialogue_commitment_feedback || []).forEach(function(d) { if (d && d.npc) _covered.add(d.npc); });
+          (p1.commitment_update || []).forEach(function(cu) {
+            // commitment_update 用 id·从 GM._npcCommitments 反查 NPC 名
+            if (!cu || !cu.id || !GM._npcCommitments) return;
+            Object.keys(GM._npcCommitments).forEach(function(nm) {
+              var arr = GM._npcCommitments[nm] || [];
+              if (arr.some(function(c){ return c && c.id === cu.id; })) _covered.add(nm);
+            });
+          });
+          var _missed = [];
+          _sc1qOut.dialogue_commitments.forEach(function(dc) {
+            if (!dc || !dc.npc) return;
+            if (!_covered.has(dc.npc)) _missed.push({ npc: dc.npc, task: dc.task, source_type: dc.source_type, source_conv_id: dc.source_conv_id });
+          });
+          if (_missed.length > 0) {
+            GM._sc1qMissedLastTurn = _missed.slice(0, 10);
+            if (ctx && ctx.meta) {
+              ctx.meta.warnings = ctx.meta.warnings || [];
+              ctx.meta.warnings.push({ kind: 'sc1q_coverage', missed: _missed.length, sample: _missed.slice(0, 3) });
+            }
+            _dbg('[sc1q coverage] missed ' + _missed.length + ' commitments·will emphasize next turn');
+          } else {
+            GM._sc1qMissedLastTurn = [];
+          }
+        }
+      } catch(_covE) { _dbg('[sc1q coverage] check fail', _covE); }
 
       // ★ P11.2B 诏令冲突链消费端（KokoroMemo graph.py 范式）
       try {
@@ -2583,7 +3288,21 @@
       var _sc1dP = (async function() {
       // Sub-call 1d · 实录/时政记专项：SC1 只判账本，此处把账本改写为史官文本。
       try {
-        if (!p1 || typeof p1 !== 'object') return;
+        // Phase 0 Q3·_seedFromBasicFacts·SC1 失败时不再早 return·从 edicts/player_status 兜底成文
+        // 让玩家即使 SC1 大塌也能看到一段史官文字·而非空白回合
+        if (!p1 || typeof p1 !== 'object') {
+          p1 = {
+            turn_summary: '',
+            shizhengji_basis: '',
+            player_status: (typeof xinglu === 'string' ? xinglu : ''),
+            edict_feedback: Array.isArray(edicts && edicts.list) ? edicts.list.map(function(e){ return { content:(e && e.content) || '', status:'pending', feedback:'SC1 失败·兜底叙述' }; }).slice(0, 12) : [],
+            events: [], resource_changes: {}, fiscal_adjustments: [],
+            char_updates: [], personnel_changes: [], office_changes: [],
+            office_assignments: [], faction_events: [], faction_changes: [],
+            army_changes: [], province_changes: [],
+            _sc1dSeedFallback: true
+          };
+        }
         var _sc1dStart = Date.now();
         showLoading('史官成文', 57);
         function _packSc1d(v, max) {
@@ -2608,6 +3327,26 @@
           army_changes: Array.isArray(p1.army_changes) ? p1.army_changes.slice(0, 12) : [],
           province_changes: Array.isArray(p1.province_changes) ? p1.province_changes.slice(0, 12) : []
         };
+        // Phase 2 Slice 5·SC1d 全面解耦·p1 字段缺失/空时·从 edicts/GM 补·让 SC1d 永远有素材成文
+        // 旧·完全依赖 p1·p1 部分缺失则 SC1d prompt 干瘪·容易写空泛
+        // 新·三层兜底·p1.field || edicts/GM 派生 || ''·sysP 已说"只改写不创造"·SC1d 仍守约束·只是有更丰满素材
+        try {
+          if (!_facts1d.edict_feedback.length && edicts) {
+            var _eList = (edicts && edicts.list) || (Array.isArray(edicts) ? edicts : []);
+            if (Array.isArray(_eList) && _eList.length) {
+              _facts1d.edict_feedback = _eList.slice(0, 16).map(function(e) {
+                return { content: (e && (e.content || e.text)) || '', assignee: (e && e.assignee) || '', status: 'pending', feedback: '本回合开始执行·SC1 未给出明确反馈·按"在途"叙述', progressPercent: 0 };
+              });
+              _facts1d._edictsSupplemented = true;
+            }
+          }
+          if (!_facts1d.player_status && P && P.playerInfo) {
+            _facts1d.player_status = (P.playerInfo.characterName ? P.playerInfo.characterName + ' ' : '') + '在朝·' + (GM._capital || P.playerInfo.capital || '京城') + '·维持现有政局';
+          }
+          if (!_facts1d.turn_summary && _facts1d._edictsSupplemented) {
+            _facts1d.turn_summary = '本回合主要处理玩家颁布的 ' + _facts1d.edict_feedback.length + ' 条诏令·SC1 主推演结构化未稳·SC1d 据诏令兜底成文';
+          }
+        } catch(_supplE) { _dbg('[SC1d Slice 5] supplement fail', _supplE); }
         var _dateText1d = ''; try { _dateText1d = (typeof getTSText === 'function') ? getTSText(GM.turn || 1) : ''; } catch(_) {}
         var tp1d = '【实录·时政记专项】\n';
         tp1d += '你只负责把 SC1 已判定的结构化账本改写为史官文本，不得新增任何事实、数值、死亡、任免、战事或地块变化。\n';
@@ -2764,7 +3503,9 @@
           }
         } catch(_tokE) {}
         var _sc1bBody = {model:P.ai.model||'gpt-4o', messages:_sc1bMsgs, temperature:_sc1bTemp, max_tokens:_tok(_sc1bBaseTok)};
-        if (_modelFamily === 'openai') _sc1bBody.response_format = { type:'json_object' };
+        // Phase 6 Q1·sc1b strict json_schema (P.ai.openaiStrict=true)
+        var _sc1bRf = _selectResponseFormat(_modelFamily, _buildSc1bJsonSchema);
+        if (_sc1bRf) _sc1bBody.response_format = _sc1bRf;
 
         var _sc1bCall = await _callEndturnAI(_sc1bBody, {
           id: 'sc1b',
@@ -2795,6 +3536,14 @@
         }
       } catch(_sc1bErr) {
         console.warn('[sc1b] \u5931\u8D25\uFF08\u4E0D\u5F71\u54CD\u4E3B\u6D41\u7A0B\uFF09:', _sc1bErr.message || _sc1bErr);
+        // Phase 1 H5\u00B7\u9519\u8BEF\u66B4\u9732\u7ED9\u8BCA\u65AD\u9762\u677F
+        try {
+          if (ctx && ctx.meta) {
+            ctx.meta.errors = ctx.meta.errors || [];
+            ctx.meta.errors.push({ subcall: 'sc1b', phase: 'execute', err: (_sc1bErr && _sc1bErr.message) || String(_sc1bErr), turn: GM && GM.turn });
+          }
+          if (typeof recordSubcallError === 'function') recordSubcallError('sc1b', 'execute', _sc1bErr);
+        } catch(_pushE) {}
       }
       })();  // end SC1b IIFE
 
@@ -3126,7 +3875,9 @@
           }
         } catch(_tokE) {}
         var _sc1cBody = {model:P.ai.model||'gpt-4o', messages:_sc1cMsgs, temperature:_sc1cTemp, max_tokens:_tok(_sc1cBaseTok)};
-        if (_modelFamily === 'openai') _sc1cBody.response_format = { type:'json_object' };
+        // Phase 6 Q1·sc1c strict json_schema (P.ai.openaiStrict=true)
+        var _sc1cRf = _selectResponseFormat(_modelFamily, _buildSc1cJsonSchema);
+        if (_sc1cRf) _sc1cBody.response_format = _sc1cRf;
 
         var _sc1cCall = await _callEndturnAI(_sc1cBody, {
           id: 'sc1c',
@@ -3219,6 +3970,14 @@
         }
       } catch(_sc1cErr) {
         console.warn('[sc1c] \u5931\u8D25\uFF08\u4E0D\u5F71\u54CD\u4E3B\u6D41\u7A0B\uFF09:', _sc1cErr.message || _sc1cErr);
+        // Phase 1 H5\u00B7\u9519\u8BEF\u66B4\u9732\u7ED9\u8BCA\u65AD\u9762\u677F
+        try {
+          if (ctx && ctx.meta) {
+            ctx.meta.errors = ctx.meta.errors || [];
+            ctx.meta.errors.push({ subcall: 'sc1c', phase: 'execute', err: (_sc1cErr && _sc1cErr.message) || String(_sc1cErr), turn: GM && GM.turn });
+          }
+          if (typeof recordSubcallError === 'function') recordSubcallError('sc1c', 'execute', _sc1cErr);
+        } catch(_pushE) {}
       }
       })();  // end SC1c IIFE
 
@@ -3344,10 +4103,16 @@
   var SAFE_CALL_DEFAULT = { priority:'normal', timeoutMs:90000, maxRetries:1, repairTimeoutMs:45000, repairMaxRetries:1, subcallRetries:1 };
   function _p(priority, timeoutMs, repairTimeoutMs, maxRetries, subcallRetries) { return { priority:priority, timeoutMs:timeoutMs, maxRetries:maxRetries == null ? 1 : maxRetries, repairTimeoutMs:repairTimeoutMs || 45000, repairMaxRetries:1, subcallRetries:subcallRetries == null ? 1 : subcallRetries }; }
   var CALL_POLICIES = {
-    sc0:_p('normal',90000), sc05:_p('normal',75000), sc1:_p('critical',150000,60000,1,0), sc1_rescue:_p('critical',60000,30000,0,0), sc1b:_p('high',90000), sc1c:_p('high',90000), sc1d:_p('high',90000,45000),
-    sc15:_p('normal',90000), sc_memwrite:_p('low',45000,30000), sc16:_p('normal',90000), sc17:_p('normal',90000), sc18:_p('normal',90000),
-    sc_audit:_p('normal',60000), sc19:_p('background',45000,30000), sc2:_p('normal',120000,60000), sc25:_p('high',75000),
+    // Phase 0 D-3·sc1 maxRetries 1→2·失败时多一次 repair·schema 简化留 Phase 2 (SC1 重构)
+    // Phase 2.5·sc1q 对话承诺·temp=0.3 严格·timeout 短 (并行 sc0·8s 内完成)·失败 = 增量 missed·非 critical
+    // Phase 4 A5·sc25c 双调用合一 (替 sc25 + sc_consolidate)·两 LLM call Promise.allSettled
+    // Phase 4 A6·sc15n 3-tier 合一 (替 sc15 + sc07)·按 modelCap 决定 tier
+    sc0:_p('normal',90000), sc1q:_p('normal',60000,30000,1,0), sc05:_p('normal',75000), sc1:_p('critical',150000,60000,2,0), sc1_rescue:_p('critical',60000,30000,0,0), sc1b:_p('high',90000), sc1c:_p('high',90000), sc1d:_p('high',90000,45000),
+    sc15:_p('normal',90000), sc15n:_p('normal',90000), sc_memwrite:_p('low',45000,30000), sc16:_p('normal',90000), sc17:_p('normal',90000), sc18:_p('normal',90000),
+    sc_audit:_p('normal',60000), sc19:_p('background',45000,30000), sc2:_p('normal',120000,60000), sc25:_p('high',75000), sc25c:_p('high',75000),
     sc27:_p('high',60000), sc07:_p('normal',90000), sc28:_p('low',45000,30000), sc_consolidate:_p('low',45000,30000),
+    // Phase 5·sc2 三段管线·sc2_outline / sc27_review / sc2_prose
+    sc2_outline:_p('normal',60000,30000), sc27_review:_p('high',60000,30000), sc2_prose:_p('high',90000,45000),
     compress_ai_memory:_p('low',45000,30000), compress_foreshadows:_p('low',45000,30000), compress_conversation:_p('low',45000,30000),
     history_check:_p('critical',45000,30000)
   };

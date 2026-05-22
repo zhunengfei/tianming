@@ -93,8 +93,12 @@
       requiredSubFields: ['name']
     },
     faction_updates:          { type: 'array', desc: '势力增量更新', consumedBy: ['applier:1263'] },
-    faction_events:           { type: 'array', desc: '势力间自主事件（战争/联盟/政变/行军/围城）' },
-    faction_relation_changes: { type: 'array', desc: '势力间关系变化' },
+    faction_events:           { type: 'array', desc: '势力间自主事件（战争/联盟/政变/行军/围城）', consumedBy: ['endturn-ai-infer:sc1c', 'tm-endturn-apply.js:1302'] },
+    faction_relation_changes: { type: 'array', desc: '势力间关系变化（旧模型·扁平 GM.factionRelations 写）' },
+    faction_relation_shift:   { type: 'array', desc: '势力关系变化（新模型·走 setFactionRelation mirror·{from,to,relation_delta,new_type,event,reason}）', consumedBy: ['endturn-ai-infer:sc1', 'tm-endturn-apply.js:2423'] },
+    // Phase 2 删的 9 字段·deprecated 标记·validator 仍接受·apply 仍读 (concat from sc1b/sc1c)·SC1 不再要求
+    // 老存档 + 旧 prompt 模板兼容
+    // 注·这些字段仍在 schema 内 (npc_interactions/cultural_works/npc_letters/npc_correspondence/faction_events/npc_schemes/hidden_moves/faction_interactions_advanced/fengwen_snippets)·只是 SC1 prompt 不再要 AI 输出·sc1b/sc1c 专管
     faction_create:           { type: 'array', desc: '新势力崛起（独立/割据/称帝/复国）' },
     faction_succession:       { type: 'array', desc: '势力首脑传承' },
     faction_dissolve:         { type: 'array', desc: '势力覆灭（不得用于玩家势力）' },
@@ -208,6 +212,7 @@
     region_updates:     { type: 'array', desc: '地区数据增量' },
     project_updates:    { type: 'array', desc: '工程项目进度' },
     edict_feedback:     { type: 'array', desc: '诏令/裁断执行回报', consumedBy: ['endturn:9514'] },
+    dialogue_commitment_feedback: { type: 'array', desc: 'sc1q 对话承诺反馈（与 edict_feedback 同形·status:executing/completed/failed/delayed·source_conv_id 关联 sc1q.dialogue_commitments）', consumedBy: ['endturn-apply:_applyDialogueCommitmentFeedback'] },
     edict_lifecycle_update: { type: 'array', desc: '诏令生命周期推进', consumedBy: ['endturn:8843'] },
     route_disruptions:  { type: 'array', desc: '驿道/信使路线阻断或恢复', consumedBy: ['endturn-ai-infer'] },
     foreshadowing:      { type: 'array', desc: '伏笔埋设/回收', consumedBy: ['endturn-ai-infer:sc25'] },

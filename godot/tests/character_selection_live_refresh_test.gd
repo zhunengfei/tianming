@@ -7,9 +7,9 @@ func _ready() -> void:
 	add_child(main)
 	await get_tree().process_frame
 
-	var panel: Node = _find_node_with_script(main, "res://scripts/character_detail_panel.gd")
-	if panel == null:
-		_fail("Main scene does not expose the character detail panel")
+	var browser_panel: Node = _find_node_with_script(main, "res://scripts/character_browser_panel.gd")
+	if browser_panel == null:
+		_fail("Main scene does not expose the character browser panel")
 		return
 
 	var game_state: RefCounted = main.get("game_state") as RefCounted
@@ -39,10 +39,13 @@ func _ready() -> void:
 		_fail("Appointment did not create a detectable live character title change")
 		return
 
-	var selected_button: Button = Button.new()
-	main.call("_on_character_selected", stale_character, selected_button)
+	browser_panel.call("select_character", character_id)
 	await get_tree().process_frame
 
+	var panel: Node = browser_panel.get("character_detail_panel") as Node
+	if panel == null:
+		_fail("Character browser panel does not expose the character detail panel")
+		return
 	var displayed: Dictionary = _dict(panel.get("current_character"))
 	var displayed_title: String = str(displayed.get("official_title", displayed.get("title", "")))
 	if displayed_title != new_title:

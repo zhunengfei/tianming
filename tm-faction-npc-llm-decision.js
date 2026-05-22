@@ -897,6 +897,319 @@
   }
 
   // ──────────────────────────────────────────────────────────
+  // G1·Tier 1 智力反喂·2026-05-22·把已存的 ledger 反喂 prompt·让 LLM 看见自己的过去
+  // ──────────────────────────────────────────────────────────
+
+  // 段 1·自己的长期战略记忆·读 fac.aiStrategy (action-engine.ensureStrategyV2 写)
+  function _formatOwnStrategicMemory(fac) {
+    var s = fac && fac.aiStrategy;
+    if (!s || typeof s !== 'object') return [];
+    var lines = [];
+    var turn = _currentTurn();
+    var staleness = turn - _safeNum(s.lastUpdatedTurn);
+    lines.push('  Your own strategic memory (across turns). Use to maintain continuity·avoid contradicting your own past objectives without reason.');
+    if (s.posture) lines.push('  posture·' + _txt(s.posture, 30));
+    if (s.currentPlan) lines.push('  currentPlan·' + _txt(s.currentPlan, 140));
+    if (s.lastDecision && s.lastDecision.turn) {
+      var ld = s.lastDecision;
+      lines.push('  lastDecision·T' + ld.turn + ' (' + (staleness === 0 ? 'this turn' : staleness + ' turns ago') + ')·types=[' + _arr(ld.actionTypes).slice(0, 8).join(',') + ']·rationale=' + _txt(ld.rationale, 140));
+    }
+    var listFmt = function(label, list, max, fn) {
+      list = _arr(list);
+      if (!list.length) return;
+      var items = list.slice(-max).map(fn || function(x){ return _txt(x, 50); });
+      lines.push('  ' + label + '·' + items.join(' / '));
+    };
+    listFmt('objectives', s.objectives, 6);
+    listFmt('threats', s.threats, 4);
+    listFmt('alliances', s.alliances, 4);
+    listFmt('claims', s.claims, 4);
+    listFmt('grudges', s.grudges, 4);
+    listFmt('militaryPlans', s.militaryPlans, 3);
+    listFmt('treaties', s.treaties, 3);
+    if (s.cooldowns && typeof s.cooldowns === 'object') {
+      var cdEntries = Object.keys(s.cooldowns).map(function(k) {
+        var t = _safeNum(s.cooldowns[k]);
+        return { type: k, turn: t, gap: turn - t };
+      }).filter(function(c){ return c.gap >= 0 && c.gap <= 3; }).sort(function(a, b){ return a.gap - b.gap; }).slice(0, 5);
+      if (cdEntries.length) {
+        lines.push('  recentActionTypes (cooldown hint·不必每回合都重复)·' + cdEntries.map(function(c){ return c.type + '(T' + c.turn + ',' + c.gap + 'ago)'; }).join(' / '));
+      }
+    }
+    return lines.length > 1 ? lines : [];
+  }
+
+  // 段 2·上回合失败动作·读 fac._lastLlmApplySummary (action-engine.applyDecision 写)
+  function _formatLastTurnFailures(fac) {
+    var summary = fac && fac._lastLlmApplySummary;
+    if (!summary || typeof summary !== 'object') return [];
+    var turn = _currentTurn();
+    var staleness = turn - _safeNum(summary.turn);
+    if (staleness <= 0 || staleness > 2) return [];  // 仅近 2 回合·避免陈旧
+    var skipped = _arr(summary.skippedDetails);
+    var merged = _arr(summary.mergedDetails);
+    if (!skipped.length && !merged.length) return [];
+    var lines = [];
+    lines.push('  Last turn (' + staleness + 'T ago) failures. Avoid repeating the same mistake·correct target names / preflight conditions.');
+    skipped.slice(0, 6).forEach(function(d) {
+      var parts = [d.type || '?'];
+      if (d.reason) parts.push('reason=' + _txt(d.reason, 60));
+      if (d.target) parts.push('target=' + _txt(d.target, 40));
+      lines.push('  SKIP·' + parts.join(' | '));
+    });
+    merged.slice(0, 3).forEach(function(d) {
+      var parts = [d.type || '?'];
+      if (d.reason) parts.push('reason=' + _txt(d.reason, 60));
+      if (d.firstSource && d.dupSource) parts.push('dup·' + d.firstSource + '+' + d.dupSource);
+      lines.push('  MERGE·' + parts.join(' | '));
+    });
+    return lines;
+  }
+
+  // G2-A·敌情心智模型·读对手势力的 aiStrategy·top 3 by threat·让 LLM 预测对手下一步
+  function _formatOpponentMindModel(fac) {
+    var G = global.GM || {};
+    if (!fac || !fac.name || !Array.isArray(G.facs)) return [];
+    var myName = fac.name;
+    var playerNames = _resolvePlayerFactionNames();
+    var candidates = [];
+    var myThreats = (fac.aiStrategy && Array.isArray(fac.aiStrategy.threats)) ? fac.aiStrategy.threats : [];
+    G.facs.forEach(function(other) {
+      if (!other || !other.name || other.name === myName) return;
+      if (_isPlayerFaction(other, playerNames)) return;  // 玩家 = 单独的 PLAYER_RECENT 段·不入对手模型
+      var score = 0;
+      var reasons = [];
+      var rel = _arr(G.factionRelations).find(function(r){ return r && r.from === myName && r.to === other.name; });
+      if (rel) {
+        var v = _safeNum(rel.value);
+        if (v <= -50) { score += 80; reasons.push('hostile'); }
+        else if (v <= -30) { score += 50; reasons.push('cold'); }
+      }
+      var inWar = _arr(G.activeWars).some(function(w) {
+        var t = _txt(w, 300);
+        var sides = _arr(w.sides).join('|');
+        return (t.indexOf(myName) >= 0 && t.indexOf(other.name) >= 0) || (sides.indexOf(myName) >= 0 && sides.indexOf(other.name) >= 0);
+      });
+      if (inWar) { score += 100; reasons.push('war'); }
+      if (myThreats.indexOf(other.name) >= 0) { score += 60; reasons.push('my-threat'); }
+      var theirStrategy = other.aiStrategy;
+      if (theirStrategy && Array.isArray(theirStrategy.threats) && theirStrategy.threats.indexOf(myName) >= 0) {
+        score += 50; reasons.push('they-threat-me');
+      }
+      if (theirStrategy && Array.isArray(theirStrategy.objectives)) {
+        var attackingMe = theirStrategy.objectives.some(function(o){ return String(o).indexOf(myName) >= 0; });
+        if (attackingMe) { score += 40; reasons.push('targeting-me'); }
+      }
+      if (score >= 30) candidates.push({ fac: other, score: score, reasons: reasons });
+    });
+    candidates.sort(function(a, b){ return b.score - a.score; });
+    candidates = candidates.slice(0, 3);
+    if (!candidates.length) return [];
+    var lines = [];
+    lines.push('  Top opponents (≤3)·mind-model·use to predict their next move and time your own actions / defense.');
+    candidates.forEach(function(c, i) {
+      var o = c.fac;
+      var s = o.aiStrategy || {};
+      var head = '  #' + (i + 1) + ' ' + o.name + ' [' + c.reasons.join('+') + ' / score=' + c.score + ']';
+      if (s.posture) head += ' posture=' + _txt(s.posture, 20);
+      if (s.lastDecision && s.lastDecision.turn) head += ' lastT=' + s.lastDecision.turn;
+      if (s.lastDecision && s.lastDecision.rationale) head += ' rationale="' + _txt(s.lastDecision.rationale, 70) + '"';
+      lines.push(head);
+      if (Array.isArray(s.objectives) && s.objectives.length) {
+        lines.push('     objectives·' + _arr(s.objectives).slice(-5).map(function(x){ return _txt(x, 40); }).join(' / '));
+      }
+      if (Array.isArray(s.threats) && s.threats.length) {
+        lines.push('     theirThreats·' + _arr(s.threats).slice(-4).join(' / '));
+      }
+      if (Array.isArray(s.militaryPlans) && s.militaryPlans.length) {
+        lines.push('     militaryPlans·' + _arr(s.militaryPlans).slice(-3).map(function(x){ return _txt(x, 30); }).join(' / '));
+      }
+      if (Array.isArray(s.alliances) && s.alliances.length) {
+        lines.push('     theirAllies·' + _arr(s.alliances).slice(-3).join(' / '));
+      }
+    });
+    lines.push('  ► 用法·若对手 objectives 含本势力名 → 备防或先制·若对手 alliances 含本势力之敌 → 平衡外交·若对手赤字/虚弱 → 趁机施压。');
+    return lines;
+  }
+
+  // G3-B·盟友心智模型·G2-A 的对称版·top 2-3 盟友·让 LLM 与盟友协调而非独立决策
+  function _formatAllyMindModel(fac) {
+    var G = global.GM || {};
+    if (!fac || !fac.name || !Array.isArray(G.facs)) return [];
+    var myName = fac.name;
+    var playerNames = _resolvePlayerFactionNames();
+    var myAllies = (fac.aiStrategy && Array.isArray(fac.aiStrategy.alliances)) ? fac.aiStrategy.alliances : [];
+    var candidates = [];
+    G.facs.forEach(function(other) {
+      if (!other || !other.name || other.name === myName) return;
+      if (_isPlayerFaction(other, playerNames)) return;
+      var score = 0;
+      var reasons = [];
+      var rel = _arr(G.factionRelations).find(function(r){ return r && r.from === myName && r.to === other.name; });
+      if (rel) {
+        var v = _safeNum(rel.value);
+        if (v >= 50) { score += 80; reasons.push('friendly'); }
+        else if (v >= 30) { score += 40; reasons.push('warm'); }
+      }
+      if (myAllies.indexOf(other.name) >= 0) { score += 70; reasons.push('declared-ally'); }
+      var theirStrategy = other.aiStrategy;
+      if (theirStrategy && Array.isArray(theirStrategy.alliances) && theirStrategy.alliances.indexOf(myName) >= 0) {
+        score += 50; reasons.push('they-ally-me');
+      }
+      // 同敌·共有 threats·算 partial ally
+      if (fac.aiStrategy && theirStrategy && Array.isArray(fac.aiStrategy.threats) && Array.isArray(theirStrategy.threats)) {
+        var sharedThreats = fac.aiStrategy.threats.filter(function(t){ return theirStrategy.threats.indexOf(t) >= 0; });
+        if (sharedThreats.length) { score += 30 + sharedThreats.length * 10; reasons.push('shared-threats:' + sharedThreats.slice(0, 2).join(',')); }
+      }
+      if (score >= 30) candidates.push({ fac: other, score: score, reasons: reasons });
+    });
+    candidates.sort(function(a, b){ return b.score - a.score; });
+    candidates = candidates.slice(0, 3);
+    if (!candidates.length) return [];
+    var lines = [];
+    lines.push('  Top allies (≤3)·use to coordinate (don\'t duplicate their effort·don\'t act against shared interest).');
+    candidates.forEach(function(c, i) {
+      var o = c.fac;
+      var s = o.aiStrategy || {};
+      var head = '  #' + (i + 1) + ' ' + o.name + ' [' + c.reasons.join('+') + ' / score=' + c.score + ']';
+      if (s.posture) head += ' posture=' + _txt(s.posture, 20);
+      if (s.lastDecision && s.lastDecision.turn) head += ' lastT=' + s.lastDecision.turn;
+      if (s.lastDecision && s.lastDecision.rationale) head += ' rationale="' + _txt(s.lastDecision.rationale, 70) + '"';
+      lines.push(head);
+      if (Array.isArray(s.objectives) && s.objectives.length) {
+        lines.push('     theirObjectives·' + _arr(s.objectives).slice(-4).map(function(x){ return _txt(x, 40); }).join(' / '));
+      }
+      if (Array.isArray(s.threats) && s.threats.length) {
+        lines.push('     theirThreats·' + _arr(s.threats).slice(-4).join(' / '));
+      }
+      if (Array.isArray(s.militaryPlans) && s.militaryPlans.length) {
+        lines.push('     theirMilitaryPlans·' + _arr(s.militaryPlans).slice(-3).map(function(x){ return _txt(x, 30); }).join(' / '));
+      }
+    });
+    lines.push('  ► 用法·若盟友已在打共敌·你可包抄 / 钳形·不必正面重叠。若盟友已 fortify·你可放心扩张。若盟友 lastDecision 与本势力相反·应外交沟通·或调整自己。');
+    return lines;
+  }
+
+  // G3-C·决策风格趋势·读 fac.aiStyleTrajectory·近 5 回合·算趋势 rising/falling/stable·提示 LLM 保持/纠偏
+  function _formatDecisionStyleTrend(fac) {
+    var traj = fac && fac.aiStyleTrajectory;
+    if (!Array.isArray(traj) || traj.length < 2) return [];
+    var lines = [];
+    var last = traj[traj.length - 1];
+    var first = traj[0];
+    function trendLabel(prev, cur) {
+      var d = cur - prev;
+      if (Math.abs(d) < 10) return 'stable';
+      return d > 0 ? 'rising' : 'falling';
+    }
+    function classify(score, dims) {
+      // dims·["aggressiveness","passive"]·return label by threshold
+      if (score >= 70) return dims[0] + '-extreme';
+      if (score >= 50) return dims[0];
+      if (score >= 30) return 'mixed';
+      return dims[1];
+    }
+    lines.push('  Your decision style over last ' + traj.length + ' turns (T' + first.turn + '→T' + last.turn + ')·use to detect inconsistency·不要 today 鹰派 / tomorrow 鸽派。');
+    lines.push('  aggressiveness·当前 ' + last.aggressiveness + '·' + trendLabel(first.aggressiveness, last.aggressiveness) + ' (' + classify(last.aggressiveness, ['鹰派', '鸽派']) + ')');
+    lines.push('  riskTaking·当前 ' + last.riskTaking + '·' + trendLabel(first.riskTaking, last.riskTaking) + ' (' + classify(last.riskTaking, ['冒险', '保守']) + ')');
+    lines.push('  fiscalDiscipline·当前 ' + last.fiscalDiscipline + '·' + trendLabel(first.fiscalDiscipline, last.fiscalDiscipline) + ' (' + classify(last.fiscalDiscipline, ['紧缩', '放任']) + ')');
+    lines.push('  expansionism·当前 ' + last.expansionism + '·' + trendLabel(first.expansionism, last.expansionism) + ' (' + classify(last.expansionism, ['扩张', '守成']) + ')');
+    // 一致性检查·近 3 回合方差超 30 = inconsistent
+    if (traj.length >= 3) {
+      var aggs = traj.slice(-3).map(function(r){ return r.aggressiveness; });
+      var aggMax = Math.max.apply(null, aggs), aggMin = Math.min.apply(null, aggs);
+      if (aggMax - aggMin > 30) {
+        lines.push('  ⚠ aggressiveness 近 3 回合波动 ' + (aggMax - aggMin) + ' 分·风格不一致·本回合宜延续上回合方向 (除非有明确局势触发)。');
+      }
+    }
+    return lines;
+  }
+
+  // G2-B·财政成本对齐·让 LLM 把"100k 银的购买力"列入考量
+  function _formatFiscalContext(fac) {
+    if (!fac) return [];
+    var t = fac.treasury || {};
+    var de = fac.derivedEconomy || {};
+    var monthlyMil = _safeNum(de.annualMilitaryCost) / 12;
+    var annualTax = _safeNum(de.annualTaxIncome);
+    var net = _safeNum(de.netFlow);
+    var money = _safeNum(t.money);
+    if (!annualTax && !monthlyMil && !money) return [];
+    var lines = [];
+    lines.push('  Cost-awareness·算几个比率·决策时把"现在花 X 万贵不贵"列入考量·禁穷势力大赏 / 富势力欠饷。');
+    if (money && monthlyMil > 0) {
+      var months = Math.round(money / monthlyMil * 10) / 10;
+      lines.push('  treasury_runway·国库 ' + Math.round(money / 1000) + 'k 银·按月军费 ' + Math.round(monthlyMil / 1000) + 'k 算·可支 ' + months + ' 月');
+    }
+    if (annualTax && monthlyMil > 0) {
+      var mil_pct = Math.round(monthlyMil * 12 / annualTax * 100);
+      lines.push('  military_burden·年军费 ' + mil_pct + '% 年税·' + (mil_pct >= 100 ? '入不敷出·不可持续' : (mil_pct >= 70 ? '吃紧' : '可控')));
+    }
+    if (annualTax > 0) {
+      var rwd10 = Math.round(100000 / annualTax * 1000) / 10;
+      var rwd100 = Math.round(1000000 / annualTax * 100);
+      lines.push('  reward_cost_hint·一次赏 10万 = 年税 ' + rwd10 + '%·100万 = ' + rwd100 + '%·决策前估算 treasuryDelta 占年税比');
+    }
+    if (net !== 0 && annualTax > 0) {
+      var sev = Math.round(Math.abs(net) / annualTax * 100);
+      lines.push('  deficit_status·' + (net < 0 ? '赤字 ' + sev + '%·须紧缩' : '盈余 ' + sev + '%·可投资'));
+    }
+    var warnings = [];
+    if (money && monthlyMil > 0 && money / monthlyMil < 6) {
+      warnings.push('runway < 6 月·本回合优先 fiscal_policy 增收 (减俸 / 加税)·或 diplomacy 求和·避免 大赏 / 大兴');
+    }
+    if (net < 0 && annualTax > 0 && Math.abs(net) > annualTax * 0.2) {
+      warnings.push('赤字 > 20% 年税·禁 reward_distribution / 加禄·应 减俸 / 紧缩支出·或加税 (代价民心 -)');
+    }
+    if (money > 0 && net > 0 && annualTax > 0 && net > annualTax * 0.3) {
+      warnings.push('盈余 > 30%·可用于 military 加饷 (士气 +) / fortifications (防御 +) / 民生 (民心 +)·与其闲置不如投资');
+    }
+    warnings.forEach(function(w){ lines.push('  ⚠ ' + w); });
+    return lines;
+  }
+
+  // G2-C·主君内核·读 ruler 的 coreMotivations/redLines/personalGrudges·剧本未定义则 skip
+  function _formatRulerPsyche(fac, ruler) {
+    if (!ruler) return [];
+    var lines = [];
+    var has = false;
+    function push(label, val, max) {
+      if (val == null) return;
+      if (Array.isArray(val) && val.length) {
+        has = true;
+        lines.push('  ' + label + '·' + val.slice(0, 3).map(function(x){ return _txt(x, 100); }).join(' / '));
+      } else if (typeof val === 'string' && val.trim()) {
+        has = true;
+        lines.push('  ' + label + '·' + _txt(val, max || 200));
+      }
+    }
+    push('coreMotivations·核心动机 (决策内核·所有 action 应一致)', ruler.coreMotivations, 200);
+    push('redLines·红线 (任何 action 都不可触·包括 SC16 directive 要求时)', ruler.redLines, 200);
+    push('personalGrudges·个人恩怨 (针对 char / fac·影响 office_change / diplomacy 偏向)', ruler.personalGrudges, 200);
+    if (!has) return [];
+    lines.unshift('  Ruler psyche·主君不可逾越的内核·若 SC16 / 局势要求违反 redLines·rationale 须说明权衡 (通常·应拒绝)。');
+    return lines;
+  }
+
+  // 段 3·上回合 SC16 采纳率·读 fac._lastLlmApplySummary.sc16Compliance (F2 写)
+  function _formatLastTurnCompliance(fac) {
+    var summary = fac && fac._lastLlmApplySummary;
+    if (!summary || !summary.sc16Compliance) return [];
+    var c = summary.sc16Compliance;
+    if (!c.hasDirectContent) return [];  // 仅当上回合 SC16 给过实质指令
+    var turn = _currentTurn();
+    var staleness = turn - _safeNum(summary.turn);
+    if (staleness <= 0 || staleness > 1) return [];  // 仅紧邻上回合
+    var lines = [];
+    lines.push('  Last turn SC16 directive compliance. Review what you ignored — SC16 directives reflect strategic intent·repeated 忽视会被 cooldown 降优先级。');
+    lines.push('  score·' + (c.complianceScore || 0) + '%·' + (c.adoptedCount || 0) + '/' + (c.directiveCount || 0) + ' adopted');
+    _arr(c.ignoredItems).slice(0, 4).forEach(function(it) {
+      lines.push('  IGNORED·[' + (it.type || '?') + '] ' + _txt(it.summary, 70) + (it.target ? ' (target=' + _txt(it.target, 30) + ')' : ''));
+    });
+    return lines;
+  }
+
+  // ──────────────────────────────────────────────────────────
   // Build prompt — 拼 fac state·让 LLM 全面理解再决策
   // ──────────────────────────────────────────────────────────
   function _buildPrompt(fac) {
@@ -940,6 +1253,18 @@
 
     var user = '请输出本回合该势力的内政决策·strict JSON·无 markdown·无注释。schema:\n';
     var extra = [];
+    // G1·2026-05-22·智力反喂 3 段·必须在世界态势 / SC16 / 候选目标之前·让 LLM 先看见"自己的过去"再读"当前局面"
+    _pushSection(extra, 'OWN_STRATEGIC_MEMORY', _formatOwnStrategicMemory(fac));
+    // G3-C·决策风格趋势·紧跟 strategic memory·一组成"自我感知"
+    _pushSection(extra, 'DECISION_STYLE_TREND', _formatDecisionStyleTrend(fac));
+    _pushSection(extra, 'LAST_TURN_FAILURES', _formatLastTurnFailures(fac));
+    _pushSection(extra, 'LAST_TURN_COMPLIANCE', _formatLastTurnCompliance(fac));
+    // G2·2026-05-22·智力 Tier 2 加深 3 段·敌情心智 + 财政成本 + 主君内核
+    _pushSection(extra, 'RULER_PSYCHE', _formatRulerPsyche(fac, ruler));
+    _pushSection(extra, 'OPPONENT_MIND_MODEL', _formatOpponentMindModel(fac));
+    // G3-B·盟友心智·紧跟 OPPONENT·让 LLM 一组成"外部关系网"
+    _pushSection(extra, 'ALLY_MIND_MODEL', _formatAllyMindModel(fac));
+    _pushSection(extra, 'FISCAL_CONTEXT', _formatFiscalContext(fac));
     _pushSection(extra, 'RECENT_WORLD', _formatRecentWorld(fac.name));
     _pushSection(extra, 'PLAYER_RECENT', _formatPlayerRecent());
     _pushSection(extra, 'SCENARIO_FACTION_PROFILE', _formatFactionProfile(fac));
@@ -961,19 +1286,32 @@
       sys += '\n\nAI_DECISION_CONTEXT:';
       sys += extra.join('\n');
       sys += '\n以上情报均为势力本回合决策依据：优先尊重近事、史记、玩家诏令、势力旧账、战事关系与人物记忆；不要只按当前数值面板机械出招。';
+      sys += '\n**特别注意**·若有 OWN_STRATEGIC_MEMORY 段·你的决策须维持战略连续性·勿凭空换主线 (除非世界态势剧变·需在 rationale 说明)。若有 LAST_TURN_FAILURES 段·必须修正其中的错误目标 / 名称·勿重复同一失败。若有 LAST_TURN_COMPLIANCE 段·权衡上回合无视的 SC16 指令·若仍认为不该执行·应在 rationale 给理由·否则本回合宜采纳。';
+      sys += '\n**Tier 2**·若有 RULER_PSYCHE 段·redLines 不可碰·coreMotivations 决定主线方向·personalGrudges 影响 office / diplomacy 倾向。若有 OPPONENT_MIND_MODEL 段·应预测对手下一步并提前部署 (rationale 提及对手意图)。若有 FISCAL_CONTEXT 段·所有 fiscal/reward action 须考虑 runway / deficit·穷势力禁大赏·盈余势力应投资。';
+      sys += '\n**Tier 3**·若有 DECISION_STYLE_TREND 段·须 (a) 保持当前 style 一致性 (除非世界态势剧变·rationale 说明转向理由)·(b) 若 ⚠ 波动警告触发·本回合应延续上回合方向。若有 ALLY_MIND_MODEL 段·应与盟友协调·不重复其 effort·共敌时分工 (e.g., 盟友主攻则本势力侧翼或后勤)。rationale 必须按 Phase 1/2/(3) 写·每 phase 含 cause·shopping list 式罗列动作视为不合格。';
     }
 
+    // F1·2026-05-22·单轨 actions[]·删 legacy memorials/edict/chaoyi/office 字段·所有动作走 actions[]
+    // G3-A·2026-05-22·rationale 升级为 phase 计划结构·shopping list → 因果叙事
     user += '{\n';
-    user += '  "rationale": "主君考量·50-150 字",\n';
-    user += '  "memorials": [{"from":"char.name","type":"军务|政务|民生|经济|人事|密奏","content":"奏疏 60-120 字","rulerDecision":"approved|rejected|annotated|referred","ruling":"朱批 10-30 字","loyaltyDelta":-5至5}, ...0-3 条],\n';
-    user += '  "edict": {"type":"催征|减俸|补饷|整军|安抚|罢党争|怀柔|赏赐|巡抚|经略","content":"诏令 60-120 字","trigger":"财政危|军权弱|朝堂裂|稳定·示恩|...","treasuryDelta":-500000至500000,"loyaltyDeltas":{"court":-10至10,"general":0,"clan":0}},\n';
-    user += '  "chaoyi": {"type":"cooperate|attack|compromise|infight|null (单派则 null)","summary":"20-50 字","partyImbalanceDelta":-0.2至0.2,"loyaltyDeltaByParty":{"partyA":-5至5}},\n';
-    user += '  "office": [{"kind":"promote|demote","target":"char.name","newPosition":"按 paradigm 头衔","loyaltyDelta":-10至10,"reason":"..."}, ...0-1 条],\n';
-    user += '  "actions": [{"type":"office_change|fiscal_policy|military_order|diplomacy|province_policy|spy_or_intrigue|rebellion_policy","target":"char.name","newPosition":"官职","resource":"money|grain|cloth","treasuryDelta":0,"incomeDelta":0,"expenseDelta":0,"army":"army.name","commander":"char.name","soldiersDelta":0,"moraleDelta":0,"trainingDelta":0,"targetFaction":"faction.name","relationDelta":-20,"treaty":"条约名","province":"province.name","ownerFaction":"faction.name","minxinDelta":0,"corruptionDelta":0,"unrestDelta":0,"taxDelta":0,"intrigue":"spread_rumor|bribe|sabotage","policy":"incite|pacify|sponsor","support":1,"reason":"20-60 chars"}, ...0-8]\n';
+    user += '  "rationale": "主君考量·80-250 字·须含因果链·格式·Phase 1·X (cause: 何故而做)。Phase 2·Y (因 X 后果·或对 X 失败的补救)。Phase 3·Z (后续预防 / 长期承接·可选)。每 phase 必明 action_type + target·若只有一 phase 则只写 Phase 1·不可省略 cause 描述。",\n';
+    user += '  "actions": [ ...本回合所有动作·0-8 条·每条按下表填字段 ]\n';
     user += '}\n';
-    user += 'actions 可选但优先用于真实外部动作: office_change 字段 {target,newPosition,kind:"promote|demote|appoint",loyaltyDelta,reason}; fiscal_policy 字段 {resource:"money|grain|cloth",treasuryDelta,incomeDelta,expenseDelta,reason}; military_order 字段 {army, order:"change_commander|move|reinforce|train", commander, destination, soldiersDelta, moraleDelta, trainingDelta}; diplomacy 字段 {targetFaction, relationDelta:-100至100, relationType, treaty, durationTurns, reason}; province_policy 字段 {province, policy:"transfer_owner|pacify|extract|reform", ownerFaction, minxinDelta, corruptionDelta, unrestDelta, taxDelta, reason}; spy_or_intrigue 字段 {targetFaction,intrigue:"spread_rumor|bribe|sabotage",relationDelta,pressure,reason}; rebellion_policy 字段 {targetFaction,policy:"incite|sponsor|pacify",support,reason}。';
-    user += '\n约束: type/decision/kind 必须是给定 enum·content 必须中文古文风·目标 char 必须在治下 chars 列表中·军队/地块/势力名必须来自上下文·所有数值必须在区间内。';
+    user += '\n动作字段速查 (10 种 type·完整 required/optional 见 ACTION_CONTRACT 段):';
+    user += '\n  type ∈ {memorial|edict|court_alignment|office_change|fiscal_policy|military_order|diplomacy|province_policy|spy_or_intrigue|rebellion_policy}';
+    user += '\n  memorial         {from, type:"军务|政务|民生|经济|人事|密奏", content(60-120 字古文), rulerDecision:"approved|rejected|annotated|referred", ruling(10-30 字), loyaltyDelta:-5至5}';
+    user += '\n  edict            {type:"催征|减俸|补饷|整军|安抚|罢党争|怀柔|赏赐|巡抚|经略", content(60-120 字古文), trigger, treasuryDelta:-500000至500000, loyaltyDeltas:{court,general,clan}:-15至15}';
+    user += '\n  court_alignment  {type:"cooperate|attack|compromise|infight", summary(20-50 字), partyImbalanceDelta:-0.2至0.2, loyaltyDeltaByParty:{partyName:-5至5}}';
+    user += '\n  office_change    {kind:"promote|demote|appoint", target, newPosition(paradigm 头衔), loyaltyDelta:-10至10, reason}';
+    user += '\n  fiscal_policy    {resource:"money|grain|cloth", treasuryDelta, incomeDelta, expenseDelta, reason}';
+    user += '\n  military_order   {army, order:"change_commander|move|reinforce|train", commander, destination, soldiersDelta, moraleDelta, trainingDelta, reason}';
+    user += '\n  diplomacy        {targetFaction, relationDelta:-100至100, relationType, treaty, durationTurns, reason}';
+    user += '\n  province_policy  {province, policy:"transfer_owner|pacify|extract|reform", ownerFaction, minxinDelta, corruptionDelta, unrestDelta, taxDelta, reason}';
+    user += '\n  spy_or_intrigue  {targetFaction, intrigue:"spread_rumor|bribe|sabotage", relationDelta, pressure, reason}';
+    user += '\n  rebellion_policy {targetFaction, policy:"incite|sponsor|pacify", support, reason}';
+    user += '\n约束: 单轨 actions[]·不要再用 memorials/edict/chaoyi/office 顶层字段 (已废)·所有动作放 actions[]。type/enum 必须用给定值·content 必须中文古文风。';
     user += '\nTARGET RULE: char/army/province/faction names must come from ACTION_CANDIDATES or the visible context above. Prefer concrete actions[] that operationalize SC16_WORLD_DIRECTIVE; do not invent invisible characters or armies.';
+    user += '\nLIMITS: actions[] 长度 0-8·宁少勿多·空数组也允许。';
 
     return { system: sys, user: user };
   }
@@ -1092,6 +1430,8 @@
     if (engine && typeof engine.validateDecision === 'function') {
       return engine.validateDecision(d);
     }
+    // F0·2026-05-22·fallback path 应已死 (action-engine 在 index.html 中先于 decision 加载)·warn 一次以便回收
+    try { console.warn('[npc-llm-decision] _validateDecision fallback fired·FactionActionEngine missing — please report'); } catch(_){}
     if (!d || typeof d !== 'object') return null;
     if (typeof d.rationale !== 'string') d.rationale = '';
     if (!Array.isArray(d.memorials)) d.memorials = [];
@@ -1163,6 +1503,8 @@
     if (engine && typeof engine.normalizeDecisionActions === 'function') {
       return engine.normalizeDecisionActions(fac, decision, opts);
     }
+    // F0·2026-05-22·fallback path 应已死 (action-engine 在 index.html 中先于 decision 加载)·warn 一次以便回收
+    try { console.warn('[npc-llm-decision] _normalizeDecisionActions fallback fired·FactionActionEngine missing — please report'); } catch(_){}
     opts = opts || {};
     var turn = _safeNum(opts.turn) || ((global.GM && global.GM.turn) || 1);
     var d = _validateDecision(decision);
@@ -1432,6 +1774,8 @@
     if (engine && typeof engine.applyDecision === 'function') {
       return engine.applyDecision(fac, decision);
     }
+    // F0·2026-05-22·~260 行 fallback 应已死 (action-engine 在 index.html 中先于 decision 加载)·warn 一次以便回收·下个 sprint 评估删除
+    try { console.warn('[npc-llm-decision] _applyDecision fallback fired·FactionActionEngine missing — please report'); } catch(_){}
     var turn = (global.GM && global.GM.turn) || 1;
     var entry = (global.GM && global.GM._facIndex && global.GM._facIndex[fac.name]) || null;
     var alive = (entry && entry.chars) ? entry.chars.filter(function(c){ return c.alive !== false; }) : [];
@@ -1924,10 +2268,123 @@
     };
   }
 
+  // F3·2026-05-22·全局 NPC LLM 状态聚合·跨势力总览·诊断面板用
+  function getGlobalNpcLlmStatus() {
+    var G = global.GM || {};
+    var turn = _safeNum(G.turn) || _currentTurn();
+    var settings = {};
+    try {
+      if (global.TM && TM.FactionNpcSettings && typeof TM.FactionNpcSettings.getStatus === 'function') {
+        settings = TM.FactionNpcSettings.getStatus() || {};
+      }
+    } catch(_){}
+    var dispatch = G._npcFactionLlmDispatchLedger || null;
+    var dispatchStats = (dispatch && dispatch.stats) ? Object.assign({}, dispatch.stats) : { scheduled:0, running:0, applied:0, partial:0, noAction:0, skipped:0, failed:0, canceled:0 };
+    var allJobs = _arr(dispatch && dispatch.jobs);
+    var runs = (G._npcFactionLlmLedger && G._npcFactionLlmLedger.runs) || {};
+    var pickLog = _arr(G._npcFactionLlmPickLog).slice(-10).reverse();
+    var candRows = _arr(G._npcFactionLlmCandidateRanks && G._npcFactionLlmCandidateRanks.rows).slice(0, 8);
+    var playerFacNames = _resolvePlayerFactionNames();
+
+    // perFacStatus·每个 NPC 势力的 last apply summary + run status
+    var perFacStatus = [];
+    _arr(G.facs).forEach(function(f) {
+      if (!f || !f.name || _isPlayerFaction(f, playerFacNames)) return;
+      var run = runs[f.name] || null;
+      var statusLabel = 'idle';
+      if (run) {
+        if (run.status === 'applied') statusLabel = 'applied';
+        else if (run.status === 'failed') statusLabel = 'failed';
+        else if (run.status === 'running') statusLabel = 'running';
+        else if (run.status === 'skipped') statusLabel = 'skipped';
+      }
+      var sc = (f._lastLlmApplySummary && f._lastLlmApplySummary.sc16Compliance) || null;
+      perFacStatus.push({
+        faction: f.name,
+        status: statusLabel,
+        lastTurn: run ? (run.turn || run.lastTurn || 0) : 0,
+        appliedActions: (f._lastLlmApplySummary && f._lastLlmApplySummary.appliedActions) || 0,
+        skippedActions: (f._lastLlmApplySummary && f._lastLlmApplySummary.skippedActions) || 0,
+        mergedActions: (f._lastLlmApplySummary && f._lastLlmApplySummary.mergedActions) || 0,
+        sc16ComplianceScore: sc ? sc.complianceScore : null,  // F2·null = 无 directive·0 = 完全忽视
+        sc16DirectiveCount: sc ? sc.directiveCount : 0,
+        rationale: (f._lastLlmRationale && f._lastLlmRationale.text) ? String(f._lastLlmRationale.text).slice(0, 60) : ''
+      });
+    });
+
+    // recentApplications·跨势力·按 turn desc·取近 10
+    var recentApplications = [];
+    _arr(G.facs).forEach(function(f) {
+      if (!f || _isPlayerFaction(f, playerFacNames)) return;
+      _arr(f._npcLlmActionLedger).filter(function(r){ return r && r.status === 'applied'; }).slice(-6).forEach(function(r) {
+        recentApplications.push({
+          turn: r.turn || 0,
+          faction: f.name,
+          type: r.type,
+          source: r.source || ''
+        });
+      });
+    });
+    recentApplications.sort(function(a, b){ return (b.turn || 0) - (a.turn || 0); });
+    recentApplications = recentApplications.slice(0, 10);
+
+    // recentFailures·跨势力·失败 run + dispatch failed
+    var recentFailures = [];
+    Object.keys(runs).forEach(function(name) {
+      var r = runs[name];
+      if (!r || r.status !== 'failed') return;
+      recentFailures.push({
+        turn: r.turn || r.lastTurn || 0,
+        faction: name,
+        kind: (r.failure && r.failure.kind) || 'unknown',
+        error: (r.failure && r.failure.error) || '',
+        rawPreview: (r.failure && r.failure.rawPreview) ? String(r.failure.rawPreview).slice(0, 180) : ''
+      });
+    });
+    allJobs.filter(function(j){ return j && j.status === 'failed'; }).slice(-5).forEach(function(j) {
+      recentFailures.push({
+        turn: j.turn || 0,
+        faction: '',
+        kind: 'dispatch',
+        error: j.error || '',
+        rawPreview: ''
+      });
+    });
+    recentFailures.sort(function(a, b){ return (b.turn || 0) - (a.turn || 0); });
+    recentFailures = recentFailures.slice(0, 5);
+
+    // 简易 cost 估算·按 dispatch.applied · 6000 maxTokens (per run prompt + output 估算)
+    var estimatedTokensThisTurn = 0;
+    try {
+      var maxTok = _safeNum(settings.maxTokens) || 6000;
+      var appliedThisTurn = _safeNum(dispatchStats.applied) + _safeNum(dispatchStats.partial);
+      // 假定每 run 平均 input ~3000 tok·output ~maxTok·rough estimate
+      estimatedTokensThisTurn = appliedThisTurn * (3000 + maxTok);
+    } catch(_){}
+
+    return {
+      turn: turn,
+      enabled: !!settings.enabled,
+      effectivelyOn: !!settings.effectivelyOn,
+      hasKey: !!settings.hasKey,
+      settings: settings,
+      dispatchStats: dispatchStats,
+      candidates: candRows,
+      pickLog: pickLog,
+      perFacStatus: perFacStatus,
+      recentApplications: recentApplications,
+      recentFailures: recentFailures,
+      estimatedTokensThisTurn: estimatedTokensThisTurn,
+      facCount: perFacStatus.length,
+      activeJobs: _safeNum(dispatchStats.running) + _safeNum(dispatchStats.scheduled)
+    };
+  }
+
   global.TM = global.TM || {};
   global.TM.FactionNpcLlmDecision = {
     decideFor: decideFor,
     decideAll: decideAll,
+    getGlobalNpcLlmStatus: getGlobalNpcLlmStatus,
     _buildPrompt: _buildPrompt,
     buildRecentTrajectoryContextForSc16: buildRecentTrajectoryContextForSc16,
     buildFactionAdminSummaryForSc16: buildFactionAdminSummaryForSc16,
@@ -1944,6 +2401,6 @@
   };
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { decideFor: decideFor, decideAll: decideAll, hasRunThisTurn: hasRunThisTurn, countRunsThisTurn: countRunsThisTurn, buildRecentTrajectoryContextForSc16: buildRecentTrajectoryContextForSc16, buildFactionAdminSummaryForSc16: buildFactionAdminSummaryForSc16, buildFactionAiDiagnostics: buildFactionAiDiagnostics, _resolvePlayerFactionNames: _resolvePlayerFactionNames, _isPlayerFaction: _isPlayerFaction, _normalizeDecisionActions: _normalizeDecisionActions };
+    module.exports = { decideFor: decideFor, decideAll: decideAll, hasRunThisTurn: hasRunThisTurn, countRunsThisTurn: countRunsThisTurn, buildRecentTrajectoryContextForSc16: buildRecentTrajectoryContextForSc16, buildFactionAdminSummaryForSc16: buildFactionAdminSummaryForSc16, buildFactionAiDiagnostics: buildFactionAiDiagnostics, getGlobalNpcLlmStatus: getGlobalNpcLlmStatus, _resolvePlayerFactionNames: _resolvePlayerFactionNames, _isPlayerFaction: _isPlayerFaction, _normalizeDecisionActions: _normalizeDecisionActions };
   }
 })(typeof window !== 'undefined' ? window : (typeof global !== 'undefined' ? global : globalThis));

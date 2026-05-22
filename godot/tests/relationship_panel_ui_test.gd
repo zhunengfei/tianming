@@ -27,6 +27,10 @@ func _ready() -> void:
 	if game_state == null or not game_state.has_method("relationship_rows"):
 		_fail("Main scene did not initialize relationship runtime rows")
 		return
+	if not main.has_method("select_runtime_panel") or not bool(main.call("select_runtime_panel", "relationship_panel")):
+		_fail("Main scene could not open the relationship panel by stable key")
+		return
+	await get_tree().process_frame
 	var rows: Dictionary = game_state.call("relationship_rows")
 	var character_rows: Array = _array(rows.get("characters", []))
 	var faction_rows: Array = _array(rows.get("factions", []))

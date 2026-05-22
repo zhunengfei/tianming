@@ -221,7 +221,7 @@ function normalize(s) {
           } else {
             o[k] = v.replace(/_\d{13}_/g, '_<TS>_').replace(/\b\d{13}\b/g, '<TS>');
           }
-        } else if (k === 'savedAt' || k === 'timestamp' || k === 'updatedAt' || k === '_ts') {
+        } else if (k === 'savedAt' || k === 'timestamp' || k === 'updatedAt' || k === '_ts' || k === 'ts') {
           o[k] = '<TS>';
         } else {
           walk(v);

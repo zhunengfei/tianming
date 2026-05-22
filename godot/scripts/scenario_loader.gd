@@ -2,12 +2,11 @@ extends RefCounted
 
 class_name ScenarioLoader
 
-const SCENARIO_DIR := "res://../scenarios"
+const SCENARIO_DIR := "res://data/scenarios"
 const SCENARIO_DIRS := [
-	"res://../scenarios",
-	"res://../../scenarios",
+	"res://data/scenarios",
 ]
-const WEB_ROOT := "res://../web"
+const ASSET_ROOT := "res://"
 
 static func load_official_summary() -> Dictionary:
 	var scenario_dirs: PackedStringArray = _scenario_dir_candidates()
@@ -20,6 +19,61 @@ static func load_official_summary() -> Dictionary:
 			"error": "No official Tianqi scenario JSON found under %s" % _join_packed_strings(scenario_dirs, ", ")
 		}
 
+	return _load_summary_from_file(file_path, scenario_dir)
+
+static func load_summary_from_path(path: String) -> Dictionary:
+	var file_path: String = _normalize_file_path(path)
+	if file_path.is_empty():
+		return {
+			"ok": false,
+			"error": "Scenario path is empty"
+		}
+	var scenario_dir: String = _scenario_dir_for_file(file_path)
+	if scenario_dir.is_empty():
+		return {
+			"ok": false,
+			"error": "Scenario path is outside the project scenario roots: %s" % path
+		}
+	if not FileAccess.file_exists(file_path):
+		return {
+			"ok": false,
+			"error": "Scenario file does not exist: %s" % file_path
+		}
+	return _load_summary_from_file(file_path, scenario_dir)
+
+static func list_project_scenarios() -> Array:
+	var rows: Array = []
+	for scenario_dir in _scenario_dir_candidates():
+		var dir: DirAccess = DirAccess.open(scenario_dir)
+		if dir == null:
+			continue
+		var files: PackedStringArray = dir.get_files()
+		files.sort()
+		for file_name in files:
+			if not file_name.ends_with(".json"):
+				continue
+			var file_path: String = scenario_dir.path_join(file_name)
+			var result: Dictionary = _load_summary_from_file(file_path, scenario_dir)
+			if not bool(result.get("ok", false)):
+				continue
+			var summary: Dictionary = _dict(result.get("summary", {}))
+			rows.append({
+				"path": file_path,
+				"scenario_dir": scenario_dir,
+				"file_name": file_name,
+				"name": str(summary.get("name", file_name)),
+				"dynasty": str(summary.get("dynasty", "")),
+				"era": str(summary.get("era", "")),
+				"emperor": str(summary.get("emperor", "")),
+				"start_year": int(_number(summary.get("start_year", 0))),
+				"start_month": int(_number(summary.get("start_month", 1))),
+				"characters": int(_number(summary.get("characters", 0))),
+				"factions": int(_number(summary.get("factions", 0))),
+				"map_regions": int(_number(summary.get("map_regions", 0)))
+			})
+	return rows
+
+static func _load_summary_from_file(file_path: String, scenario_dir: String) -> Dictionary:
 	var text: String = FileAccess.get_file_as_string(file_path)
 	var err: Error = FileAccess.get_open_error()
 	if err != OK:
@@ -41,6 +95,19 @@ static func load_official_summary() -> Dictionary:
 		"scenario_dir": scenario_dir,
 		"summary": _build_summary(parsed)
 	}
+
+static func _normalize_file_path(path: String) -> String:
+	if path.begins_with("res://") or path.begins_with("user://"):
+		return ProjectSettings.globalize_path(path)
+	return path
+
+static func _scenario_dir_for_file(file_path: String) -> String:
+	var normalized_file: String = file_path.replace("\\", "/")
+	for scenario_dir in _scenario_dir_candidates():
+		var normalized_dir: String = str(scenario_dir).replace("\\", "/")
+		if normalized_file == normalized_dir or normalized_file.begins_with("%s/" % normalized_dir):
+			return scenario_dir
+	return ""
 
 static func _scenario_dir_candidates() -> PackedStringArray:
 	var candidates := PackedStringArray()
@@ -114,9 +181,9 @@ static func _build_summary(data: Dictionary) -> Dictionary:
 		"dynasty": str(data.get("dynasty", "")),
 		"era": str(data.get("era", "")),
 		"emperor": str(data.get("emperor", "")),
-		"start_year": int(data.get("startYear", 0)),
-		"start_month": int(data.get("startMonth", _infer_month_from_name(scenario_name))),
-		"start_day": int(data.get("startDay", 1)),
+		"start_year": int(_number(data.get("startYear", 0))),
+		"start_month": int(_number(data.get("startMonth", _infer_month_from_name(scenario_name)))),
+		"start_day": int(_number(data.get("startDay", 1))),
 		"characters": _array(data.get("characters", data.get("chars", []))).size(),
 		"factions": _array(data.get("factions", [])).size(),
 		"parties": _array(data.get("parties", [])).size(),
@@ -622,7 +689,7 @@ static func _portrait_path(portrait: String) -> String:
 		return ""
 	if portrait.is_absolute_path():
 		return portrait
-	return ProjectSettings.globalize_path(WEB_ROOT.path_join(portrait))
+	return ProjectSettings.globalize_path(ASSET_ROOT.path_join(portrait))
 
 static func _number(value: Variant) -> float:
 	if typeof(value) == TYPE_INT or typeof(value) == TYPE_FLOAT:

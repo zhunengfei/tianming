@@ -94,7 +94,7 @@ func visible_text() -> String:
 	var report: Dictionary = _selected_report()
 	if report.is_empty():
 		return "月报\n尚未载入回合报告。"
-	return "%d年%d月\n%s\n%s\n%s" % [
+	return "月报\n%d年%d月\n%s\n%s\n%s" % [
 		int(_num(report.get("year", 0))),
 		int(_num(report.get("month", 0))),
 		fiscal_label.text,

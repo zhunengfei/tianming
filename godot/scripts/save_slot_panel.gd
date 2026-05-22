@@ -9,7 +9,10 @@ signal delete_slot_requested(slot_id: String)
 var slots_box: VBoxContainer
 var status_label: Label
 var slot_metadata_by_id: Dictionary = {}
+var save_buttons_by_slot_id: Dictionary = {}
+var delete_buttons_by_slot_id: Dictionary = {}
 var pending_overwrite_slot_id: String = ""
+var pending_delete_slot_id: String = ""
 
 func _ready() -> void:
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -43,11 +46,15 @@ func set_slots(slots: Array) -> void:
 	if slots_box == null:
 		return
 	pending_overwrite_slot_id = ""
+	pending_delete_slot_id = ""
+	save_buttons_by_slot_id.clear()
+	delete_buttons_by_slot_id.clear()
 	slot_metadata_by_id.clear()
 	for child in slots_box.get_children():
 		child.queue_free()
 	if slots.is_empty():
 		pending_overwrite_slot_id = ""
+		pending_delete_slot_id = ""
 		slots_box.add_child(_make_label("暂无槽位。", 14, Color(0.82, 0.78, 0.68)))
 		return
 	for raw in slots:
@@ -67,9 +74,12 @@ func visible_text() -> String:
 	]
 
 func request_save_slot(slot_id: String) -> Dictionary:
+	pending_delete_slot_id = ""
+	_update_delete_button_labels()
 	var metadata: Dictionary = _dict(slot_metadata_by_id.get(slot_id, {}))
 	if bool(metadata.get("exists", false)) and pending_overwrite_slot_id != slot_id:
 		pending_overwrite_slot_id = slot_id
+		_update_save_button_labels()
 		set_status("槽位已有存档，再次点击保存将覆盖。")
 		return {
 			"ok": false,
@@ -77,6 +87,7 @@ func request_save_slot(slot_id: String) -> Dictionary:
 			"slot_id": slot_id
 		}
 	pending_overwrite_slot_id = ""
+	_update_save_button_labels()
 	emit_signal("save_slot_requested", slot_id)
 	return {
 		"ok": true,
@@ -86,6 +97,9 @@ func request_save_slot(slot_id: String) -> Dictionary:
 
 func request_load_slot(slot_id: String) -> Dictionary:
 	pending_overwrite_slot_id = ""
+	pending_delete_slot_id = ""
+	_update_save_button_labels()
+	_update_delete_button_labels()
 	var metadata: Dictionary = _dict(slot_metadata_by_id.get(slot_id, {}))
 	if not bool(metadata.get("exists", false)):
 		var missing: String = "妲戒綅鏆傛棤瀛樟。"
@@ -114,8 +128,11 @@ func request_load_slot(slot_id: String) -> Dictionary:
 
 func request_delete_slot(slot_id: String) -> Dictionary:
 	pending_overwrite_slot_id = ""
+	_update_save_button_labels()
 	var metadata: Dictionary = _dict(slot_metadata_by_id.get(slot_id, {}))
 	if not bool(metadata.get("exists", false)):
+		pending_delete_slot_id = ""
+		_update_delete_button_labels()
 		var missing: String = "妲戒綅鏆傛棤瀛樟。"
 		set_status(missing)
 		return {
@@ -124,6 +141,17 @@ func request_delete_slot(slot_id: String) -> Dictionary:
 			"error": missing,
 			"slot_id": slot_id
 		}
+	if pending_delete_slot_id != slot_id:
+		pending_delete_slot_id = slot_id
+		_update_delete_button_labels()
+		set_status("槽位已有存档，再次点击删除将确认删除。")
+		return {
+			"ok": false,
+			"needs_confirm": true,
+			"slot_id": slot_id
+		}
+	pending_delete_slot_id = ""
+	_update_delete_button_labels()
 	emit_signal("delete_slot_requested", slot_id)
 	return {
 		"ok": true,
@@ -162,6 +190,7 @@ func _add_slot_row(metadata: Dictionary) -> void:
 	save_button.pressed.connect(func() -> void:
 		request_save_slot(slot_id)
 	)
+	save_buttons_by_slot_id[slot_id] = save_button
 	row.add_child(save_button)
 
 	var load_button: Button = _make_button("读取")
@@ -176,6 +205,7 @@ func _add_slot_row(metadata: Dictionary) -> void:
 	delete_button.pressed.connect(func() -> void:
 		request_delete_slot(slot_id)
 	)
+	delete_buttons_by_slot_id[slot_id] = delete_button
 	row.add_child(delete_button)
 
 func _slot_title(slot_id: String) -> String:
@@ -184,6 +214,22 @@ func _slot_title(slot_id: String) -> String:
 	if slot_id.begins_with("slot_"):
 		return "槽位 %s" % slot_id.trim_prefix("slot_")
 	return slot_id
+
+func _update_save_button_labels() -> void:
+	for raw_slot_id in save_buttons_by_slot_id.keys():
+		var slot_id: String = str(raw_slot_id)
+		var button: Button = save_buttons_by_slot_id[slot_id] as Button
+		if button == null:
+			continue
+		button.text = "确认覆盖" if slot_id == pending_overwrite_slot_id else "保存"
+
+func _update_delete_button_labels() -> void:
+	for raw_slot_id in delete_buttons_by_slot_id.keys():
+		var slot_id: String = str(raw_slot_id)
+		var button: Button = delete_buttons_by_slot_id[slot_id] as Button
+		if button == null:
+			continue
+		button.text = "确认删除" if slot_id == pending_delete_slot_id else "删除"
 
 func _slot_desc(metadata: Dictionary) -> String:
 	if not bool(metadata.get("exists", false)):

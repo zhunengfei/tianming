@@ -144,6 +144,7 @@ func _metadata_from_snapshot(snapshot: Dictionary, exists: bool) -> Dictionary:
 		"format": format,
 		"compatible": compatible,
 		"version_warning": "" if compatible else "unsupported save format: %s" % format,
+		"scenario_path": str(snapshot.get("scenario_path", "")),
 		"scenario_name": str(snapshot.get("scenario_name", "")),
 		"turn": int(_number(state.get("turn", 0))),
 		"year": int(_number(state.get("year", 0))),

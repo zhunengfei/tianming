@@ -1842,6 +1842,21 @@
       sysP += '\n★ 规则：所有长期诏书每回合都必须体现效果·不可忘记。效果可正可负·可前好后坏或反之。在 shizhengji/zhengwen 中体现·在 var_changes 中实化。';
     }
 
+    // Phase 2 Slice 1·硬约束块抽到 sysP·走 cache·全管线共享 (sc1/sc1b/sc1c/sc1d/sc15/sc16/sc17/sc18/sc2/sc27 均受益)
+    // 旧·SC1 user prompt 每回合 380 字硬约束重复发·占 prompt tokens 又 cache miss
+    // 新·sysP 一份·只有死亡名单/诈死名单 (动态) 留 user prompt
+    try {
+      if (typeof TM !== 'undefined' && TM.PromptComposer && typeof TM.PromptComposer.buildHardConstraints === 'function') {
+        sysP += TM.PromptComposer.buildHardConstraints();
+      }
+    } catch(_hcInjE) { try { console.warn('[prompt.build] hardConstraints inject failed', _hcInjE); } catch(_){} }
+    // Phase 7 Wall-clock·共享 prompt prefix (角色/势力/时代)·19 子调用都用·sysP 一份·删重复段
+    try {
+      if (typeof TM !== 'undefined' && TM.PromptComposer && typeof TM.PromptComposer.buildSharedPromptPrefix === 'function') {
+        sysP += TM.PromptComposer.buildSharedPromptPrefix(GM);
+      }
+    } catch(_sppInjE) { try { console.warn('[prompt.build] sharedPromptPrefix inject failed', _sppInjE); } catch(_){} }
+
     // ★ 三系统运行时状态（势力 lifePhase·党派 influence/officeCount·军队 mutinyRisk）
     if (TM && TM.EndTurnAIContext && typeof TM.EndTurnAIContext.appendPromptPolicyContext === 'function') {
       sysP = TM.EndTurnAIContext.appendPromptPolicyContext(sysP, {

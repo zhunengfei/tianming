@@ -989,6 +989,14 @@ async function _cc3_aiGenReact(name, item, role, onChunk) {
 
     p += _cc3_buildModeInstruction(_modeResult, _tone, _state, gmCh || ch);
 
+    // Slice 9·Tier 2·层 5 累积参考 + 层 6 皇帝意图 cue
+    try {
+      const _cumHint = _cc3_cumulativeHint(_state, gmCh || ch, item);
+      if (_cumHint) p += _cumHint;
+      const _empCue = _cc3_emperorCueHint(item, _state);
+      if (_empCue) p += _empCue;
+    } catch (tier2Err) { console.warn('[cc3·tier2] hint 生成失败·跳过·', tier2Err && tier2Err.message); }
+
     _modeTrace = {
       mode: _modeResult.mode,
       tone: _tone,
@@ -2271,6 +2279,102 @@ function _cc3_capCite(citeFlag, item) {
   return true;
 }
 
+// ============================================================
+// 常朝大改·Slice 9·Tier 2·层 5 累积参考 + 层 6 皇帝 cue·2026-05-22
+// ============================================================
+
+/**
+ * 层 5·累积参考 hint·读 state·返 prompt 段
+ * 3 个触发场景·alliesPiledOn ≥ 3 / oppStanceCount ≥ 3 / momentum=consensus-against-me
+ * 返空字符串表示无 hint·不影响 prompt
+ *
+ * @param {Object} state — _cc3_analyzeDebate 返的 state
+ * @param {Object} gmCh  — 当前 NPC 数据
+ * @param {Object} item  — 议程项
+ */
+function _cc3_cumulativeHint(state, gmCh, item) {
+  if (!state) return '';
+  const hints = [];
+
+  // 场景 A·阵营同声·≥ 3 人同党同立场·后续 NPC 应精炼
+  if (state.alliesPiledOn >= 3) {
+    hints.push('【累积参考·阵营同声】本议题已有 ' + state.alliesPiledOn + ' 位同党表态于"' + (state.myStance || '?') + '"。你不必从头陈词·精炼一句·补一小点新角度。朝堂语转向"一字千钧"·开头如"诸臣所论·臣不敢复赘·臣只一言"·正文短·避免重复同党论据。');
+  }
+
+  // 场景 B·势单·对面阵营 ≥ 3·宜 soften / pivot
+  if (state.oppStanceCount >= 3 && state.alliesPiledOn < 2) {
+    hints.push('【累积参考·势单】本议题已有 ' + state.oppStanceCount + ' 位反对你的立场·而你阵营仅 ' + (state.alliesPiledOn || 0) + ' 人附议。处势单·宜 soften 寻台阶 / pivot 转具体方案。强硬死撑会被群言压倒·除非 honor / vengefulness 极高方可凛然 lead。');
+  }
+
+  // 场景 C·共识相反·辩论压倒性 against me·宜 pivot 让步或死硬 lead
+  if (state.momentum === 'consensus-against-me') {
+    hints.push('【累积参考·共识相反】辩论已形成压倒共识·近 3 位发言中至少 2 位跟你立场相反。宜 pivot 到"暂行 + 徐图"类让步点·或若 honor / vengefulness 极高·则死硬 lead·凛然不让·朝堂语带"虽千万人吾往矣"之气。');
+  }
+
+  return hints.length ? '\n\n── 累积参考 (层 5·Tier 2) ──\n' + hints.join('\n') : '';
+}
+
+/**
+ * 层 6·皇帝意图 cue·读 item._lastEmperorIntent (上一议题写入)·返 prompt 段
+ * 影响后续 NPC 对"皇帝刚做了什么"的感知
+ *
+ * @param {Object} item — 议程项·_lastEmperorIntent 字段
+ * @param {Object} state — debate state·含 myStance·用于判断同党 vs 政敌
+ */
+function _cc3_emperorCueHint(item, state) {
+  const cue = item && item._lastEmperorIntent;
+  if (!cue || !cue.intent || cue.intent === 'neutral') return '';
+  const targetStr = cue.target ? ('·目标=' + cue.target) : '';
+  const fromTitle = cue.fromItemTitle || '前议';
+  const intentDesc = {
+    'praise': '陛下嘉奖 / 准奏了上一议' + (cue.target ? '·重点褒奖 ' + cue.target : '') + '。若你为同党或附议方·可借势 second / augment·朝堂语带"圣明烛照"开篇。若你为政敌方·谨慎反驳·不可正面攻击·宜转 mediate / pivot 提"另有所虑"。',
+    'punish': '陛下训斥 / 驳回了上一议' + (cue.target ? '·重点训斥 ' + cue.target : '') + '。若你为政敌方·借势 rebut last speaker·朝堂语用"圣明烛照·X 所言果如圣谕..." / "陛下英断" 开篇。若你为同党方·宜 soften 找台阶·勿步后尘·朝堂语用"X 所论容有未谛·非其本心..." 缓颊。',
+    'doubt': '陛下留中 / 转议了上一议' + (cue.target ? '·涉 ' + cue.target : '') + '。表示陛下未决·你可补具体执行细节给陛下定夺·mode 偏 supplementary / pivot·勿再争是非·应陈方略。'
+  }[cue.intent] || '';
+  if (!intentDesc) return '';
+  return '\n\n── 皇帝意图 cue (层 6·Tier 2) ──\n【上一议·' + fromTitle + '·' + (cue.action || '?') + targetStr + '·intent=' + cue.intent + '】\n' + intentDesc;
+}
+
+/**
+ * action → intent 映射·写入 nextItem._lastEmperorIntent 时用
+ * praise / punish / doubt / neutral
+ */
+function _cc3_actionToIntent(action) {
+  if (action === 'approve' || action === 'praise' || action === 'decree') return 'praise';
+  if (action === 'reject' || action === 'admonish') return 'punish';
+  if (action === 'hold' || action === 'escalate' || action === 'refer' || action === 'modify') return 'doubt';
+  // probe / summon → neutral·探询动作非情感
+  return 'neutral';
+}
+
+/**
+ * Slice 9 层 6 写入·把 emperor intent 传给 AGENDA[currentIdx + 1]
+ * 在 _cc3_writeActionToGM 末尾调·只覆盖紧邻下一议题·避免污染 N+2 等更远议题
+ *
+ * @param {string} action — finalize 的动作名
+ * @param {*} extra       — action 附带数据 (admonish/praise/summon 时 = NPC name)
+ * @param {Object} curItem — 当前结束的议题
+ */
+function _cc3_writeNextItemEmperorIntent(action, extra, curItem) {
+  const intent = _cc3_actionToIntent(action);
+  if (intent === 'neutral') return;  // 探询/传召 不传 cue
+  if (typeof state === 'undefined' || typeof AGENDA === 'undefined') return;
+  const nextIdx = state.currentIdx + 1;
+  if (nextIdx >= AGENDA.length) return;  // 末议题·无后继
+  const nextItem = AGENDA[nextIdx];
+  if (!nextItem) return;
+  // 覆盖式写入·避免污染再下议题
+  nextItem._lastEmperorIntent = {
+    intent: intent,
+    action: action,
+    target: (typeof extra === 'string' && extra.length < 60) ? extra : null,
+    fromItemIdx: state.currentIdx,
+    fromItemTitle: (curItem && curItem.title || '').slice(0, 40),
+    turn: (typeof GM !== 'undefined' && GM.turn) || 0,
+    writtenAt: Date.now()
+  };
+}
+
 /**
  * NPC-NPC consequence linkage·朝议塑造派系网而非消费完即烧
  * 在 _cc3_aiGenReact 末尾·LLM 返结果后追加
@@ -3160,6 +3264,10 @@ async function finalizeAction(action, extra) {
 
   // ─── P0 GM 状态写入·v3 决议真持久化 ───
   _cc3_writeActionToGM(action, item, extra, label);
+
+  // ─── Slice 9 层 6·把 emperor intent 传给下一议题·写在 GM 状态之后·state.currentIdx++ 之前
+  try { _cc3_writeNextItemEmperorIntent(action, extra, item); }
+  catch (intentErr) { console.warn('[cc3·tier2] emperor intent 写入失败·跳过·', intentErr && intentErr.message); }
 
   // ─── 抗辩触发判定（高争议·准/驳 后 30%）───
   if ((action === 'approve' || action === 'reject') && item.controversial >= 7 && Math.random() < 0.45) {

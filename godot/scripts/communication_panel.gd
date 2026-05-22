@@ -100,10 +100,25 @@ func _add_item(item: Dictionary) -> void:
 	margin.add_theme_constant_override("margin_bottom", 8)
 	panel.add_child(margin)
 
+	var item_root: HBoxContainer = HBoxContainer.new()
+	item_root.add_theme_constant_override("separation", 10)
+	item_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	margin.add_child(item_root)
+
+	var sender_texture: Texture2D = _load_portrait_texture(str(item.get("sender_portrait_path", "")))
+	if sender_texture != null:
+		var portrait_rect: TextureRect = TextureRect.new()
+		portrait_rect.texture = sender_texture
+		portrait_rect.custom_minimum_size = Vector2(72, 96)
+		portrait_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+		portrait_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		portrait_rect.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		item_root.add_child(portrait_rect)
+
 	var box: VBoxContainer = VBoxContainer.new()
 	box.add_theme_constant_override("separation", 5)
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	margin.add_child(box)
+	item_root.add_child(box)
 
 	box.add_child(_make_label(_item_heading(item), 15, Color(0.90, 0.78, 0.52)))
 	box.add_child(_make_label(str(item.get("body", "")), 13, Color(0.88, 0.84, 0.74)))
@@ -125,12 +140,26 @@ func _add_action_button(parent: HBoxContainer, label: String, communication_id: 
 	parent.add_child(button)
 
 func _item_heading(item: Dictionary) -> String:
+	var sender_text: String = str(item.get("sender", ""))
+	var sender_title: String = str(item.get("sender_title", "")).strip_edges()
+	if not sender_title.is_empty():
+		sender_text = "%s · %s" % [sender_text, sender_title]
 	return "第%d回合 · %s · %s · 优先 %d" % [
 		int(_num(item.get("turn", 0))),
-		str(item.get("sender", "")),
+		sender_text,
 		str(item.get("title", "")),
 		int(_num(item.get("priority", 0)))
 	]
+
+func _load_portrait_texture(path: String) -> Texture2D:
+	if path.is_empty() or not FileAccess.file_exists(path):
+		return null
+	var image: Image = Image.new()
+	var err: Error = image.load(path)
+	if err != OK:
+		push_warning("Failed to load communication sender portrait %s error=%d" % [path, err])
+		return null
+	return ImageTexture.create_from_image(image)
 
 func _item_text(item: Dictionary) -> String:
 	return "%s\n%s" % [_item_heading(item), str(item.get("body", ""))]

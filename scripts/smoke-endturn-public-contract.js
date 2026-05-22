@@ -74,14 +74,14 @@ assert(aiInferLines.length >= 200 && aiInferLines.length <= 280,
 const aiModulePath = path.join(ROOT, 'tm-endturn-ai.js');
 assert(fs.existsSync(aiModulePath), 'tm-endturn-ai.js exists');
 const aiModuleLines = fs.readFileSync(aiModulePath, 'utf8').split('\n').length;
-assert(aiModuleLines >= 2600 && aiModuleLines <= 3450, 'tm-endturn-ai.js line count 2600-3450, actual ' + aiModuleLines);
+assert(aiModuleLines >= 2600 && aiModuleLines <= 4300, 'tm-endturn-ai.js line count 2600-4300, actual ' + aiModuleLines);  // 12 项补完后 ~4123·上限 4300
 
 const applyModulePath = path.join(ROOT, 'tm-endturn-apply.js');
 assert(fs.existsSync(applyModulePath), 'tm-endturn-apply.js exists');
 const applyModuleLines = fs.readFileSync(applyModulePath, 'utf8').split('\n').length;
-assert(applyModuleLines >= 4550 && applyModuleLines <= 4850, 'tm-endturn-apply.js line count 4550-4850, actual ' + applyModuleLines);
-assert(followupModuleLines.length >= 2200 && followupModuleLines.length <= 2750,
-  'tm-endturn-followup.js line count 2200-2750, actual ' + followupModuleLines.length);
+assert(applyModuleLines >= 4550 && applyModuleLines <= 5050, 'tm-endturn-apply.js line count 4550-5050, actual ' + applyModuleLines);  // Phase 2.5 加 dialogue_commitment_feedback apply 后 ~4905
+assert(followupModuleLines.length >= 2200 && followupModuleLines.length <= 3500,
+  'tm-endturn-followup.js line count 2200-3500, actual ' + followupModuleLines.length);  // Phase 0-7 全做后 ~3315
 
 // P7-eta·tm-endturn-record.js: 文件存在·finalize export·sanitize 留 ai-infer·suggestions 优先 ctx.record
 const recordModulePath = path.join(ROOT, 'tm-endturn-record.js');

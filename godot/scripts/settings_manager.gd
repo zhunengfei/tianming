@@ -78,6 +78,13 @@ func delete_settings_file() -> Dictionary:
 	return {"ok": true, "deleted": true}
 
 func apply_runtime_settings() -> void:
+	var ui_scale: float = clampf(_number(settings.get("ui_scale", 1.0)), 0.8, 1.5)
+	var main_loop: MainLoop = Engine.get_main_loop()
+	if main_loop is SceneTree:
+		var tree: SceneTree = main_loop as SceneTree
+		if tree.root != null:
+			tree.root.content_scale_factor = ui_scale
+
 	var master_bus: int = AudioServer.get_bus_index("Master")
 	if master_bus >= 0:
 		var volume: float = clampf(_number(settings.get("master_volume", 0.8)), 0.0, 1.0)

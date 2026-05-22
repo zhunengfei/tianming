@@ -10,6 +10,7 @@ signal return_title_requested
 var status_label: Label
 var settings_label: Label
 var quick_label: Label
+var quick_load_button: Button
 
 func _ready() -> void:
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -50,11 +51,11 @@ func _ready() -> void:
 		emit_signal("quick_save_requested")
 	)
 	save_row.add_child(save_button)
-	var load_button: Button = _make_button("快速读取")
-	load_button.pressed.connect(func() -> void:
+	quick_load_button = _make_button("快速读取")
+	quick_load_button.pressed.connect(func() -> void:
 		emit_signal("quick_load_requested")
 	)
-	save_row.add_child(load_button)
+	save_row.add_child(quick_load_button)
 
 	var settings_panel: PanelContainer = PanelContainer.new()
 	root.add_child(settings_panel)
@@ -66,24 +67,18 @@ func _ready() -> void:
 	settings_box.add_child(_make_label("设置", 16, Color(0.90, 0.82, 0.64)))
 	settings_label = _make_label("", 13, Color(0.78, 0.72, 0.62))
 	settings_box.add_child(settings_label)
-	var settings_row: HBoxContainer = HBoxContainer.new()
-	settings_row.add_theme_constant_override("separation", 8)
-	settings_box.add_child(settings_row)
-	var windowed_button: Button = _make_button("窗口")
-	windowed_button.pressed.connect(func() -> void:
-		emit_signal("settings_apply_requested", {"fullscreen": false})
-	)
-	settings_row.add_child(windowed_button)
-	var scale_button: Button = _make_button("界面 1.25")
-	scale_button.pressed.connect(func() -> void:
-		emit_signal("settings_apply_requested", {"ui_scale": 1.25})
-	)
-	settings_row.add_child(scale_button)
-	var volume_button: Button = _make_button("音量 80%")
-	volume_button.pressed.connect(func() -> void:
-		emit_signal("settings_apply_requested", {"master_volume": 0.8})
-	)
-	settings_row.add_child(volume_button)
+	_add_settings_button_row(settings_box, [
+		{"text": "窗口", "values": {"fullscreen": false}},
+		{"text": "全屏", "values": {"fullscreen": true}},
+	])
+	_add_settings_button_row(settings_box, [
+		{"text": "界面 1.00", "values": {"ui_scale": 1.0}},
+		{"text": "界面 1.25", "values": {"ui_scale": 1.25}},
+	])
+	_add_settings_button_row(settings_box, [
+		{"text": "音量 40%", "values": {"master_volume": 0.4}},
+		{"text": "音量 80%", "values": {"master_volume": 0.8}},
+	])
 
 	var return_button: Button = _make_button("返回标题")
 	return_button.custom_minimum_size.y = 36
@@ -97,6 +92,8 @@ func _ready() -> void:
 func set_data(settings: Dictionary, has_quick_save: bool) -> void:
 	if quick_label != null:
 		quick_label.text = "快速存档：%s" % ("可读取" if has_quick_save else "暂无")
+	if quick_load_button != null:
+		quick_load_button.disabled = not has_quick_save
 	if settings_label != null:
 		settings_label.text = "窗口：%s · 界面 %.2f · 音量 %d%%" % [
 			"全屏" if bool(settings.get("fullscreen", false)) else "窗口",
@@ -130,6 +127,24 @@ func _make_button(text: String) -> Button:
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	return button
 
+func _add_settings_button_row(parent: VBoxContainer, buttons: Array) -> void:
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	parent.add_child(row)
+	for raw in buttons:
+		var item: Dictionary = _dict(raw)
+		_add_settings_button(row, str(item.get("text", "")), _dict(item.get("values", {})))
+
+func _add_settings_button(row: HBoxContainer, text: String, values: Dictionary) -> void:
+	if text.is_empty() or values.is_empty():
+		return
+	var button: Button = _make_button(text)
+	var payload: Dictionary = values.duplicate(true)
+	button.pressed.connect(func() -> void:
+		emit_signal("settings_apply_requested", payload)
+	)
+	row.add_child(button)
+
 func _make_label(text: String, font_size: int, color: Color) -> Label:
 	var label: Label = Label.new()
 	label.text = text
@@ -143,3 +158,6 @@ func _num(value: Variant) -> float:
 	if typeof(value) == TYPE_INT or typeof(value) == TYPE_FLOAT:
 		return float(value)
 	return str(value).to_float()
+
+func _dict(value: Variant) -> Dictionary:
+	return value if typeof(value) == TYPE_DICTIONARY else {}

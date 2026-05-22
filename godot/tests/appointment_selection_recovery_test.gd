@@ -16,6 +16,13 @@ func _ready() -> void:
 	if game_state == null:
 		_fail("Main scene did not initialize GameState")
 		return
+	if not main.has_method("select_runtime_panel"):
+		_fail("Main scene does not expose select_runtime_panel")
+		return
+	if not bool(main.call("select_runtime_panel", "appointment_panel")):
+		_fail("Main scene could not open appointment_panel")
+		return
+	await get_tree().process_frame
 
 	var removed_office_id: String = str(panel.get("selected_office_id"))
 	if removed_office_id.is_empty():

@@ -156,6 +156,8 @@ func _refresh_actions() -> void:
 		var action_id: String = str(action.get("id", ""))
 		if action_id.is_empty():
 			continue
+		if not _action_matches_character_state(action):
+			continue
 		var button: Button = Button.new()
 		button.text = "%s · 耗行动点 %d\n%s" % [
 			str(action.get("name", action_id)),
@@ -170,6 +172,47 @@ func _refresh_actions() -> void:
 		)
 		action_box.add_child(button)
 	action_history_label.text = _history_text()
+
+func _action_matches_character_state(action: Dictionary) -> bool:
+	if _is_current_character_dead():
+		return false
+	var is_prisoner: bool = _is_current_character_imprisoned()
+	var requires_prisoner: bool = bool(action.get("requires_imprisoned", false))
+	if requires_prisoner:
+		return is_prisoner
+	if is_prisoner and not bool(action.get("allow_imprisoned", false)):
+		return false
+	return true
+
+func _is_current_character_dead() -> bool:
+	if bool(current_character.get("dead", false)) or bool(current_character.get("_dead", false)) or bool(current_character.get("deceased", false)):
+		return true
+	var status_text: String = "%s %s %s" % [
+		str(current_character.get("status", "")),
+		str(current_character.get("current_status", "")),
+		str(current_character.get("official_title", current_character.get("title", "")))
+	]
+	for marker in ["已故", "病故", "身亡", "死亡", "亡故", "卒", "殁", "薨", "遇害"]:
+		if status_text.contains(marker):
+			return true
+	return false
+
+func _is_current_character_imprisoned() -> bool:
+	if _is_current_character_dead():
+		return false
+	if bool(current_character.get("_imprisoned", current_character.get("imprisoned", false))):
+		return true
+	var status_text: String = "%s %s %s" % [
+		str(current_character.get("status", "")),
+		str(current_character.get("current_status", "")),
+		str(current_character.get("official_title", current_character.get("title", "")))
+	]
+	if status_text.contains("出狱") or status_text.contains("释") or status_text.contains("赦"):
+		return false
+	for marker in ["下狱", "系狱", "入狱", "收押", "关押", "被逮"]:
+		if status_text.contains(marker):
+			return true
+	return false
 
 func _history_text() -> String:
 	var character_id: String = str(current_character.get("id", ""))

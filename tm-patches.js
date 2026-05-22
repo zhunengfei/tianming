@@ -517,12 +517,35 @@ openSettings=function(){
     // 模式+AI深度
     "<div class=\"settings-section\"><h4>\u6E38\u620F\u6A21\u5F0F</h4>"+
     "<div class=\"rw\"><div class=\"fd\"><label>\u6A21\u5F0F</label><select id=\"s-mode\"><option value=\"yanyi\" "+(P.conf.gameMode==="yanyi"?"selected":"")+">\u6F14\u4E49</option><option value=\"light_hist\" "+(P.conf.gameMode==="light_hist"?"selected":"")+">\u8F7B\u5EA6\u53F2\u5B9E</option><option value=\"strict_hist\" "+(P.conf.gameMode==="strict_hist"?"selected":"")+">\u4E25\u683C\u53F2\u5B9E</option></select></div>"+
-    "<div class=\"fd\"><label>AI\u63A8\u6F14\u6DF1\u5EA6</label><select id=\"s-aidepth\"><option value=\"full\" "+((P.conf.aiCallDepth||'full')==='full'?'selected':'')+">\u5B8C\u6574(11\u8C03\u7528)</option><option value=\"standard\" "+((P.conf.aiCallDepth||'full')==='standard'?'selected':'')+">\u6807\u51C6(6\u8C03\u7528)</option><option value=\"lite\" "+((P.conf.aiCallDepth||'full')==='lite'?'selected':'')+">\u7CBE\u7B80(3\u8C03\u7528)</option></select></div></div></div>"+
+    // Phase 7.5 D2\u00B7\u4E09\u6863\u91CD\u5B9A\u4E49 (doc \u5B57\u9762)\u00B7\u5168 18 (\u542B sc1q + sc2/sc27 3stage 3 \u6BB5) / \u5FEB 14 (Phase 4 \u5408\u5E76\u00B7\u8DF3 sc_consolidate) / \u8DF3 10 (\u8DF3 sc16/17/18/sc_audit)
+    "<div class=\"fd\"><label>AI\u63A8\u6F14\u6DF1\u5EA6</label><select id=\"s-aidepth\"><option value=\"full\" "+((P.conf.aiCallDepth||'full')==='full'?'selected':'')+">\u5B8C\u6574\u00B7\u5168 (18 \u8C03\u7528\u00B7\u542B sc1q + 3stage)</option><option value=\"standard\" "+((P.conf.aiCallDepth||'full')==='standard'?'selected':'')+">\u6807\u51C6\u00B7\u5FEB (14 \u8C03\u7528\u00B7Phase 4 \u5408\u5E76\u540E)</option><option value=\"lite\" "+((P.conf.aiCallDepth||'full')==='lite'?'selected':'')+">\u7CBE\u7B80\u00B7\u8DF3 (10 \u8C03\u7528\u00B7\u8DF3 sc16/17/18/sc_audit)</option></select></div>"+
+    // Phase 7\u00B7"AI \u6210\u672C\u9762\u677F"\u6309\u94AE (4 \u533A) + "\u5BFC\u51FA AI \u65E5\u5FD7" \u6309\u94AE
+    "<div class=\"fd\"><label>AI \u8BCA\u65AD</label><div style=\"display:flex;gap:0.4rem;\">"+
+    "<button class=\"bt bs bsm\" onclick=\"if(window.TM&&TM.ai&&TM.ai.showCostPanel){TM.ai.showCostPanel();}else if(typeof showAICostPanel==='function'){showAICostPanel();}else{toast('\u6210\u672C\u9762\u677F\u672A\u52A0\u8F7D');}\">\uD83D\uDCCA AI \u6210\u672C\u9762\u677F</button>"+
+    "<button class=\"bt bs bsm\" onclick=\"if(window.TM&&TM.ai&&TM.ai.exportDiagnostics){TM.ai.exportDiagnostics();}else if(typeof exportAIDiagnosticsJSON==='function'){exportAIDiagnosticsJSON();}else{toast('\u8BCA\u65AD API \u672A\u52A0\u8F7D');}\">\u2193 \u5BFC\u51FA\u65E5\u5FD7</button>"+
+    "</div></div>"+
+    // Phase 7.5 A\u00B79 \u4E2A\u65B0 P.ai opt-in toggle \u66B4\u9732\u00B7user \u53EF\u52FE\u9009\u5207\u6362
+    "<div class=\"fd\" style=\"flex-direction:column;align-items:flex-start;gap:0.3rem;\"><label>AI \u7BA1\u7EBF\u5F00\u5173 (\u9AD8\u7EA7)</label>"+
+    "<div style=\"display:grid;grid-template-columns:1fr 1fr;gap:0.25rem;font-size:0.78rem;width:100%;\">"+
+    "<label><input type=\"checkbox\" "+(P.ai && P.ai.stream_sc1===true?'checked':'')+" onchange=\"if(!P.ai)P.ai={};P.ai.stream_sc1=this.checked;saveP();\"> SC1 stream</label>"+
+    "<label><input type=\"checkbox\" "+(P.ai && P.ai.openaiStrict===true?'checked':'')+" onchange=\"if(!P.ai)P.ai={};P.ai.openaiStrict=this.checked;P.conf.strictSchemaEnabled=this.checked;saveP();\"> OpenAI strict</label>"+
+    "<label><input type=\"checkbox\" "+(!(P.ai && P.ai.sc1OwnedBySc1b===false)?'checked':'')+" onchange=\"if(!P.ai)P.ai={};P.ai.sc1OwnedBySc1b=this.checked;saveP();\"> SC1 \u8BA9 sc1b</label>"+
+    "<label><input type=\"checkbox\" "+(!(P.ai && P.ai.sc1OwnedBySc1c===false)?'checked':'')+" onchange=\"if(!P.ai)P.ai={};P.ai.sc1OwnedBySc1c=this.checked;saveP();\"> SC1 \u8BA9 sc1c</label>"+
+    "<label><input type=\"checkbox\" "+(!(P.ai && P.ai.sc17Skip===false)?'checked':'')+" onchange=\"if(!P.ai)P.ai={};P.ai.sc17Skip=this.checked;saveP();\"> SC17 \u8DF3</label>"+
+    "<label><input type=\"checkbox\" "+(P.ai && P.ai.sc16Lite===true?'checked':'')+" onchange=\"if(!P.ai)P.ai={};P.ai.sc16Lite=this.checked;saveP();\"> SC16 lite</label>"+
+    "<label><input type=\"checkbox\" "+(P.ai && P.ai.sc18Lite===true?'checked':'')+" onchange=\"if(!P.ai)P.ai={};P.ai.sc18Lite=this.checked;saveP();\"> SC18 lite</label>"+
+    "<label><input type=\"checkbox\" "+(!(P.ai && P.ai.sc25cEnabled===false)?'checked':'')+" onchange=\"if(!P.ai)P.ai={};P.ai.sc25cEnabled=this.checked;saveP();\"> sc25c \u53CC\u8C03\u7528</label>"+
+    "<label><input type=\"checkbox\" "+(P.ai && P.ai.sc15nEnabled===true?'checked':'')+" onchange=\"if(!P.ai)P.ai={};P.ai.sc15nEnabled=this.checked;saveP();\"> sc15n 3-tier</label>"+
+    "<label><input type=\"checkbox\" "+(P.ai && P.ai.sc2Pipeline==='3stage'?'checked':'')+" onchange=\"if(!P.ai)P.ai={};P.ai.sc2Pipeline=this.checked?'3stage':null;saveP();\"> sc2 3stage</label>"+
+    "</div>"+
+    "<span style=\"font-size:0.7rem;color:var(--ink-300,#888);\">\u6CE8\u00B7\u6539\u540E\u6E05 sysP cache\u00B7\u9996\u56DE\u5408\u591A\u82B1 ~$0.004 (Phase 7.5 D)</span>"+
+    "</div></div></div>"+
 
     // ⚠️ P.conf.showRelation 当前是僵尸字段——UI 写但无消费者读·将来或补 renderCharProfile 端读取或删此 UI
     // 人物志
     "<div class=\"settings-section\"><h4>\u4EBA\u7269\u5FD7</h4>"+
-    "<div class=\"toggle-wrap\"><label class=\"toggle\"><input type=\"checkbox\" id=\"s-showrel\" "+(P.conf.showRelation!==false?"checked":"")+" onchange=\"P.conf.showRelation=this.checked\"><span class=\"toggle-slider\"></span></label><div>\u663E\u793A\u5173\u7CFB</div></div></div>"+
+    // Phase 7.5 D1\u00B7showRelation zombie toggle \u5DF2\u5220 (UI \u5199\u65E0\u6D88\u8D39\u8005\u8BFB\u00B7\u89C1 doc \u00A76.6)
+    ""+
 
     // 提示词
     "<div class=\"settings-section\"><h4>AI\u63D0\u793A\u8BCD</h4>"+

@@ -457,6 +457,449 @@ func last_report_text() -> String:
 		return "月度结算尚未开始"
 	return str(monthly_simulator.call("report_text", last_turn_report))
 
+func monthly_report_rows() -> Array:
+	var reports: Array = turn_reports.duplicate(true)
+	if reports.is_empty() and not last_turn_report.is_empty():
+		reports.append(last_turn_report.duplicate(true))
+	return reports
+
+func character_browser_data() -> Dictionary:
+	return {
+		"characters": characters.duplicate(true),
+		"actions": character_actions(),
+		"history": character_action_history.duplicate(true),
+		"action_points": action_points
+	}
+
+func faction_browser_data() -> Dictionary:
+	return {
+		"factions": factions.duplicate(true),
+		"actions": faction_actions(),
+		"history": faction_action_history.duplicate(true),
+		"action_points": action_points
+	}
+
+func court_action_panel_data() -> Dictionary:
+	return {
+		"actions": player_actions.duplicate(true),
+		"history": action_history.duplicate(true),
+		"action_points": action_points
+	}
+
+func appointment_panel_data() -> Dictionary:
+	return {
+		"offices": court_offices.duplicate(true),
+		"characters": assignment_candidate_characters(),
+		"assignments": office_assignments.duplicate(true),
+		"history": appointment_history.duplicate(true),
+		"action_points": action_points
+	}
+
+func edict_panel_data() -> Dictionary:
+	return {
+		"templates": edict_templates.duplicate(true),
+		"regions": map_regions.duplicate(true),
+		"history": issued_edicts.duplicate(true),
+		"action_points": action_points
+	}
+
+func military_order_panel_data() -> Dictionary:
+	return {
+		"templates": military_order_templates.duplicate(true),
+		"regions": map_regions.duplicate(true),
+		"history": issued_military_orders.duplicate(true),
+		"action_points": action_points
+	}
+
+func army_roster_panel_data() -> Dictionary:
+	return {
+		"armies": armies.duplicate(true),
+		"characters": assignment_candidate_characters(),
+		"command_history": army_command_history.duplicate(true),
+		"action_points": action_points,
+		"actions": army_actions(),
+		"action_history": army_action_history.duplicate(true),
+		"regions": map_regions.duplicate(true),
+		"redeployment_history": army_redeployment_history.duplicate(true)
+	}
+
+func diplomacy_panel_data() -> Dictionary:
+	return {
+		"actions": diplomacy_actions.duplicate(true),
+		"factions": factions.duplicate(true),
+		"history": diplomacy_history.duplicate(true),
+		"action_points": action_points,
+		"commitments": active_diplomacy_commitments.duplicate(true)
+	}
+
+func court_meeting_panel_data() -> Dictionary:
+	return {
+		"topics": court_meeting_topics.duplicate(true),
+		"characters": court_meeting_characters(),
+		"history": court_meeting_history.duplicate(true),
+		"action_points": action_points,
+		"pending_recommendations": pending_court_recommendations.duplicate(true),
+		"enacted_recommendations": enacted_court_recommendations.duplicate(true)
+	}
+
+func communication_panel_data() -> Dictionary:
+	return {
+		"items": communication_items(),
+		"archive": communication_archive.duplicate(true)
+	}
+
+func audience_panel_data() -> Dictionary:
+	return {
+		"characters": audience_characters(),
+		"topics": audience_topics(),
+		"history": audience_history.duplicate(true),
+		"action_points": action_points
+	}
+
+func region_governance_panel_data() -> Dictionary:
+	return {
+		"regions": map_regions.duplicate(true),
+		"actions": region_governance_actions(),
+		"history": region_governance_history.duplicate(true),
+		"action_points": action_points
+	}
+
+func statecraft_panel_data() -> Dictionary:
+	return {
+		"variables": variable_rows(),
+		"actions": statecraft_actions(),
+		"history": statecraft_history.duplicate(true),
+		"action_points": action_points
+	}
+
+func event_queue_panel_data() -> Dictionary:
+	return {
+		"events": event_queue.duplicate(true),
+		"resolved_events": resolved_events.duplicate(true)
+	}
+
+func runtime_panel_payloads(has_quick_save: bool = false, panel_keys: Array = []) -> Dictionary:
+	var requested: Dictionary = _runtime_payload_filter(panel_keys)
+	var result: Dictionary = {}
+	if _wants_runtime_payload(requested, "overview"):
+		result["overview"] = overview_runtime_snapshot()
+	if _wants_runtime_payload(requested, "map"):
+		result["map"] = map_view_data()
+	if _wants_runtime_payload(requested, "faction_browser"):
+		result["faction_browser"] = faction_browser_data()
+	if _wants_runtime_payload(requested, "character_browser"):
+		result["character_browser"] = character_browser_data()
+	if _wants_runtime_payload(requested, "monthly_report"):
+		result["monthly_report"] = monthly_report_rows()
+	if _wants_runtime_payload(requested, "chronicle"):
+		result["chronicle"] = chronicle_entries()
+	if _wants_runtime_payload(requested, "communication"):
+		result["communication"] = communication_panel_data()
+	if _wants_runtime_payload(requested, "audience"):
+		result["audience"] = audience_panel_data()
+	if _wants_runtime_payload(requested, "region_governance"):
+		result["region_governance"] = region_governance_panel_data()
+	if _wants_runtime_payload(requested, "statecraft"):
+		result["statecraft"] = statecraft_panel_data()
+	if _wants_runtime_payload(requested, "event_queue"):
+		result["event_queue"] = event_queue_panel_data()
+	if _wants_runtime_payload(requested, "court_action"):
+		result["court_action"] = court_action_panel_data()
+	if _wants_runtime_payload(requested, "appointment"):
+		result["appointment"] = appointment_panel_data()
+	if _wants_runtime_payload(requested, "edict"):
+		result["edict"] = edict_panel_data()
+	if _wants_runtime_payload(requested, "military_order"):
+		result["military_order"] = military_order_panel_data()
+	if _wants_runtime_payload(requested, "army_roster"):
+		result["army_roster"] = army_roster_panel_data()
+	if _wants_runtime_payload(requested, "diplomacy"):
+		result["diplomacy"] = diplomacy_panel_data()
+	if _wants_runtime_payload(requested, "court_meeting"):
+		result["court_meeting"] = court_meeting_panel_data()
+	if _wants_runtime_payload(requested, "gameplay_hub"):
+		result["gameplay_hub"] = gameplay_hub_snapshot(has_quick_save)
+	if _wants_runtime_payload(requested, "relationship"):
+		result["relationship"] = relationship_rows()
+	return result
+
+func _runtime_payload_filter(panel_keys: Array) -> Dictionary:
+	var result: Dictionary = {}
+	for raw_key in panel_keys:
+		var key: String = str(raw_key)
+		match key:
+			"overview_summary_panel":
+				result["overview"] = true
+			"world_map_panel":
+				result["map"] = true
+			"faction_browser_panel":
+				result["faction_browser"] = true
+			"character_browser_panel":
+				result["character_browser"] = true
+			"monthly_report_panel":
+				result["monthly_report"] = true
+			"chronicle_panel":
+				result["chronicle"] = true
+			"communication_panel":
+				result["communication"] = true
+			"audience_panel":
+				result["audience"] = true
+			"region_governance_panel":
+				result["region_governance"] = true
+			"statecraft_panel":
+				result["statecraft"] = true
+			"event_queue_panel":
+				result["event_queue"] = true
+			"court_action_panel":
+				result["court_action"] = true
+			"appointment_panel":
+				result["appointment"] = true
+			"edict_panel":
+				result["edict"] = true
+			"military_order_panel":
+				result["military_order"] = true
+			"army_roster_panel":
+				result["army_roster"] = true
+			"diplomacy_panel":
+				result["diplomacy"] = true
+			"court_meeting_panel":
+				result["court_meeting"] = true
+			"gameplay_hub_panel":
+				result["gameplay_hub"] = true
+			"relationship_panel":
+				result["relationship"] = true
+			_:
+				result[key] = true
+	return result
+
+func _wants_runtime_payload(requested: Dictionary, payload_key: String) -> bool:
+	return requested.is_empty() or requested.has(payload_key)
+
+func run_player_command(command_type: String, args: Dictionary = {}) -> Dictionary:
+	var result: Dictionary = {}
+	match command_type:
+		"advance_month":
+			result = {
+				"ok": true,
+				"report": advance_month()
+			}
+		"court_action":
+			result = perform_player_action(str(args.get("action_id", "")))
+		"court_meeting":
+			result = hold_court_meeting(str(args.get("topic_id", "")), _array(args.get("participant_ids", [])))
+		"court_recommendation":
+			result = enact_court_recommendation(str(args.get("recommendation_id", "")))
+		"edict":
+			result = issue_edict(str(args.get("edict_id", "")), str(args.get("target_region_id", "")))
+		"military_order":
+			result = issue_military_order(str(args.get("order_id", "")), str(args.get("target_region_id", "")))
+		"army_commander":
+			result = appoint_army_commander(str(args.get("army_id", "")), str(args.get("character_id", "")))
+		"army_action":
+			result = issue_army_action(str(args.get("action_id", "")), str(args.get("army_id", "")))
+		"army_redeploy":
+			result = redeploy_army(str(args.get("army_id", "")), str(args.get("target_region_id", "")))
+		"diplomacy":
+			result = issue_diplomacy_action(str(args.get("action_id", "")), str(args.get("target_faction_id", "")))
+		"diplomacy_commitment_renew":
+			result = renew_diplomacy_commitment(str(args.get("commitment_id", "")), str(args.get("target_faction_id", "")))
+		"diplomacy_commitment_break":
+			result = break_diplomacy_commitment(str(args.get("commitment_id", "")), str(args.get("target_faction_id", "")))
+		"appointment":
+			result = appoint_character(str(args.get("character_id", "")), str(args.get("office_id", "")))
+		"audience":
+			result = hold_audience(str(args.get("character_id", "")), str(args.get("topic_id", "")))
+		"region_governance":
+			result = perform_region_governance(str(args.get("region_id", "")), str(args.get("action_id", "")))
+		"statecraft":
+			result = perform_statecraft_action(str(args.get("variable_name", "")), str(args.get("action_id", "")))
+		"communication":
+			result = process_communication(str(args.get("communication_id", "")), str(args.get("action", "archive")))
+		"event":
+			result = resolve_event(str(args.get("event_id", "")), int(_number(args.get("choice_index", -1))))
+		"faction":
+			result = perform_faction_action(str(args.get("faction_id", "")), str(args.get("action_id", "")))
+		"map_region":
+			result = issue_region_quick_command(str(args.get("command_type", "")), str(args.get("command_id", "")), str(args.get("target_region_id", "")))
+		"character":
+			result = perform_character_action(str(args.get("character_id", "")), str(args.get("action_id", "")))
+		_:
+			return {
+				"ok": false,
+				"error": "unknown player command: %s" % command_type
+			}
+	if bool(result.get("ok", false)):
+		result["log_message"] = _player_command_log_message(command_type, result, args)
+	return result
+
+func _player_command_log_message(command_type: String, result: Dictionary, args: Dictionary) -> String:
+	match command_type:
+		"advance_month":
+			return "[TianmingGodot] advanced month: %s | %s" % [
+				date_text(),
+				last_report_text()
+			]
+		"court_action":
+			return "[TianmingGodot] player action: %s" % str(_dict(result.get("action", {})).get("name", args.get("action_id", "")))
+		"court_meeting":
+			return "[TianmingGodot] court meeting: %s -> %s %.0f" % [
+				str(_dict(result.get("topic", {})).get("name", args.get("topic_id", ""))),
+				str(result.get("outcome", "")),
+				_number(result.get("score", 0))
+			]
+		"court_recommendation":
+			return "[TianmingGodot] court recommendation: %s" % str(_dict(result.get("recommendation", {})).get("name", args.get("recommendation_id", "")))
+		"edict":
+			return "[TianmingGodot] edict: %s -> %s" % [
+				str(_dict(result.get("edict", {})).get("name", args.get("edict_id", ""))),
+				str(_dict(result.get("record", {})).get("target_region", ""))
+			]
+		"military_order":
+			return "[TianmingGodot] military order: %s -> %s" % [
+				str(_dict(result.get("order", {})).get("name", args.get("order_id", ""))),
+				str(_dict(result.get("record", {})).get("target_region", ""))
+			]
+		"army_commander":
+			return "[TianmingGodot] army commander: %s" % str(_dict(result.get("record", {})).get("name", args.get("army_id", "")))
+		"army_action":
+			return "[TianmingGodot] army action: %s -> %s" % [
+				str(_dict(result.get("action", {})).get("name", args.get("action_id", ""))),
+				str(_dict(result.get("record", {})).get("army", args.get("army_id", "")))
+			]
+		"army_redeploy":
+			return "[TianmingGodot] army redeploy: %s -> %s" % [
+				str(_dict(result.get("record", {})).get("army", args.get("army_id", ""))),
+				str(_dict(result.get("record", {})).get("target_region", args.get("target_region_id", "")))
+			]
+		"diplomacy":
+			return "[TianmingGodot] diplomacy: %s -> %s" % [
+				str(_dict(result.get("action", {})).get("name", args.get("action_id", ""))),
+				str(_dict(result.get("record", {})).get("target_faction", ""))
+			]
+		"diplomacy_commitment_renew":
+			return "[TianmingGodot] renew diplomacy commitment: %s -> %s" % [
+				str(_dict(result.get("record", {})).get("name", args.get("commitment_id", ""))),
+				str(_dict(result.get("record", {})).get("target_faction", args.get("target_faction_id", "")))
+			]
+		"diplomacy_commitment_break":
+			return "[TianmingGodot] break diplomacy commitment: %s -> %s" % [
+				str(_dict(result.get("record", {})).get("name", args.get("commitment_id", ""))),
+				str(_dict(result.get("record", {})).get("target_faction", args.get("target_faction_id", "")))
+			]
+		"appointment":
+			return "[TianmingGodot] appointment: %s -> %s" % [
+				str(_dict(result.get("character", {})).get("name", args.get("character_id", ""))),
+				str(_dict(result.get("office", {})).get("name", args.get("office_id", "")))
+			]
+		"audience":
+			return "[TianmingGodot] audience: %s -> %s" % [
+				str(_dict(result.get("character", {})).get("name", args.get("character_id", ""))),
+				str(_dict(result.get("topic", {})).get("name", args.get("topic_id", "")))
+			]
+		"region_governance":
+			return "[TianmingGodot] region governance: %s -> %s" % [
+				str(_dict(result.get("target_region", {})).get("name", args.get("region_id", ""))),
+				str(_dict(result.get("action", {})).get("name", args.get("action_id", "")))
+			]
+		"statecraft":
+			return "[TianmingGodot] statecraft: %s -> %s" % [
+				str(args.get("variable_name", "")),
+				str(_dict(result.get("action", {})).get("name", args.get("action_id", "")))
+			]
+		"communication":
+			return "[TianmingGodot] communication %s: %s" % [
+				str(args.get("action", "archive")),
+				str(_dict(result.get("communication", {})).get("title", args.get("communication_id", "")))
+			]
+		"event":
+			return "[TianmingGodot] resolved event: %s" % str(_dict(result.get("event", {})).get("name", args.get("event_id", "")))
+		"faction":
+			return "[TianmingGodot] faction action: %s -> %s" % [
+				str(_dict(result.get("target_faction", {})).get("name", args.get("faction_id", ""))),
+				str(_dict(result.get("action", {})).get("name", args.get("action_id", "")))
+			]
+		"map_region":
+			return "[TianmingGodot] map region command: %s" % str(result.get("status", args.get("command_id", "")))
+		"character":
+			return "[TianmingGodot] character action: %s -> %s" % [
+				str(_dict(result.get("character", {})).get("name", args.get("character_id", ""))),
+				str(_dict(result.get("action", {})).get("name", args.get("action_id", "")))
+			]
+	return "[TianmingGodot] %s" % command_type
+
+func overview_runtime_snapshot() -> Dictionary:
+	var metrics: Dictionary = {}
+	for key in [
+		"characters_count",
+		"factions_count",
+		"party_class_count",
+		"variables_count",
+		"events_count",
+		"map_regions_count",
+		"guoku_money",
+		"guoku_grain",
+		"neitang_money",
+		"population_registered",
+		"population_hidden",
+		"huangquan",
+		"huangwei",
+		"minxin"
+	]:
+		metrics[key] = overview_live_summary_value(key)
+	return {
+		"date_text": date_text(),
+		"treasury_text": treasury_text(),
+		"neitang_text": neitang_text(),
+		"authority_text": authority_text(),
+		"population_text": population_text(),
+		"report_text": last_report_text(),
+		"metrics": metrics
+	}
+
+func overview_live_summary_value(metric_key: String) -> String:
+	match metric_key:
+		"characters_count":
+			return "%d 人" % characters.size()
+		"factions_count":
+			return "%d 个" % factions.size()
+		"party_class_count":
+			return "%d / %d" % [
+				_unique_field_count(characters, "party"),
+				_unique_field_count(characters, "social_class")
+			]
+		"variables_count":
+			return "%d 项" % variables.size()
+		"events_count":
+			return "%d 件" % event_deck.size()
+		"map_regions_count":
+			return "%d 块" % map_regions.size()
+		"guoku_money":
+			return fmt_big(guoku_money, "")
+		"guoku_grain":
+			return fmt_big(guoku_grain, "")
+		"neitang_money":
+			return fmt_big(neitang_money, "")
+		"population_registered":
+			return fmt_big(population_registered, "")
+		"population_hidden":
+			return fmt_big(population_hidden, "")
+		"huangquan":
+			return "%d" % roundi(huangquan)
+		"huangwei":
+			return "%d" % roundi(huangwei)
+		"minxin":
+			return "%d" % roundi(minxin)
+	return ""
+
+func _unique_field_count(rows: Array, key: String) -> int:
+	var seen: Dictionary = {}
+	for raw in rows:
+		var row: Dictionary = _dict(raw)
+		var value: String = str(row.get(key, ""))
+		if not value.is_empty():
+			seen[value] = true
+	return seen.size()
+
 func gameplay_hub_snapshot(has_quick_save: bool = false) -> Dictionary:
 	return {
 		"date": date_text(),
@@ -657,7 +1100,7 @@ func _communication_entry(id_suffix: String, kind: String, sender: String, title
 	var entry_turn: int = int(_number(report.get("turn", turn)))
 	var entry_year: int = int(_number(report.get("year", year)))
 	var entry_month: int = int(_number(report.get("month", month)))
-	return {
+	var entry: Dictionary = {
 		"id": "communication-%s" % id_suffix,
 		"kind": kind,
 		"sender": sender,
@@ -671,6 +1114,31 @@ func _communication_entry(id_suffix: String, kind: String, sender: String, title
 		"month": entry_month,
 		"recommendation_effects": recommendation_effects.duplicate(true),
 		"status": "pending"
+	}
+	var sender_identity: Dictionary = _communication_sender_identity(sender)
+	for key in sender_identity.keys():
+		entry[key] = sender_identity[key]
+	return entry
+
+func _communication_sender_identity(sender: String) -> Dictionary:
+	var sender_name: String = sender.strip_edges()
+	if sender_name.is_empty():
+		return {}
+	var character: Dictionary = character_by_name(sender_name)
+	if character.is_empty():
+		for raw in characters:
+			var candidate: Dictionary = _dict(raw)
+			var candidate_name: String = str(candidate.get("name", ""))
+			if not candidate_name.is_empty() and sender_name.contains(candidate_name):
+				character = candidate
+				break
+	if character.is_empty():
+		return {}
+	return {
+		"sender_id": str(character.get("id", "")),
+		"sender_title": str(character.get("official_title", character.get("title", ""))),
+		"sender_faction": str(character.get("faction", "")),
+		"sender_portrait_path": str(character.get("portrait_path", ""))
 	}
 
 func _communication_recommendation(item: Dictionary) -> Dictionary:
@@ -711,6 +1179,33 @@ func _communication_entry_before(a: Dictionary, b: Dictionary) -> bool:
 func audience_topics() -> Array:
 	return _default_audience_topics()
 
+func audience_characters() -> Array:
+	var rows: Array = []
+	for raw in characters:
+		var character: Dictionary = _dict(raw)
+		if _character_is_unavailable_for_court_interaction(character):
+			continue
+		rows.append(character.duplicate(true))
+	return rows
+
+func court_meeting_characters() -> Array:
+	var rows: Array = []
+	for raw in characters:
+		var character: Dictionary = _dict(raw)
+		if _character_is_unavailable_for_court_interaction(character):
+			continue
+		rows.append(character.duplicate(true))
+	return rows
+
+func assignment_candidate_characters() -> Array:
+	var rows: Array = []
+	for raw in characters:
+		var character: Dictionary = _dict(raw)
+		if _character_unavailable_for_personnel_assignment(character):
+			continue
+		rows.append(character.duplicate(true))
+	return rows
+
 func hold_audience(character_id: String, topic_id: String) -> Dictionary:
 	if action_points <= 0:
 		return {
@@ -722,6 +1217,16 @@ func hold_audience(character_id: String, topic_id: String) -> Dictionary:
 		return {
 			"ok": false,
 			"error": "unknown character: %s" % character_id
+		}
+	if _character_is_imprisoned(character):
+		return {
+			"ok": false,
+			"error": "imprisoned characters cannot hold normal audience: %s" % character_id
+		}
+	if _character_is_dead(character):
+		return {
+			"ok": false,
+			"error": "dead characters cannot hold normal audience: %s" % character_id
 		}
 	var topic: Dictionary = _audience_topic_by_id(topic_id)
 	if topic.is_empty():
@@ -1024,6 +1529,7 @@ func _chronicle_history_details(row: Dictionary) -> String:
 	if not description.is_empty():
 		parts.append(description)
 	_append_chronicle_effect_group(parts, "朝廷", _dict(row.get("applied", {})), "national")
+	_append_chronicle_effect_group(parts, "朝廷", _dict(row.get("national_applied", {})), "national")
 	_append_chronicle_effect_group(parts, "地块", _dict(row.get("region_applied", {})), "region")
 	_append_chronicle_effect_group(parts, "势力", _dict(row.get("faction_applied", {})), "faction")
 	_append_chronicle_effect_group(parts, "军队", _dict(row.get("army_applied", {})), "army")
@@ -1464,16 +1970,33 @@ func perform_character_action(character_id: String, action_id: String) -> Dictio
 		}
 
 	var character: Dictionary = _dict(characters[character_index]).duplicate(true)
+	if _character_is_dead(character):
+		return {
+			"ok": false,
+			"error": "dead characters cannot receive personnel actions: %s" % character_id
+		}
+	var is_prison_action: bool = bool(action.get("requires_imprisoned", false))
+	if is_prison_action and not _character_is_imprisoned(character):
+		return {
+			"ok": false,
+			"error": "character is not imprisoned: %s" % character_id
+		}
+	if _character_is_imprisoned(character) and not is_prison_action and not bool(action.get("allow_imprisoned", false)):
+		return {
+			"ok": false,
+			"error": "imprisoned characters require prison actions: %s" % character_id
+		}
 	var before: Dictionary = character.duplicate(true)
 	var applied: Dictionary = {}
 	for key in _dict(action.get("character_effects", {})).keys():
 		var delta: float = _number(_dict(action.get("character_effects", {})).get(key, 0))
 		var old_value: float = _number(character.get(key, 0))
 		var new_value: float = old_value + delta
-		if key in ["loyalty", "ambition", "integrity", "benevolence", "charisma"]:
+		if key in ["loyalty", "ambition", "integrity", "benevolence", "charisma", "health"]:
 			new_value = clampf(new_value, 0.0, 100.0)
 		character[key] = roundi(new_value)
 		applied[key] = roundi(new_value - old_value)
+	var prison_applied: Dictionary = _apply_character_prison_effect(character, action)
 	character["last_personnel_action"] = str(action.get("name", action_id))
 	character["last_personnel_turn"] = turn
 	character["last_personnel_result"] = _character_action_outcome(character, action)
@@ -1486,6 +2009,7 @@ func perform_character_action(character_id: String, action_id: String) -> Dictio
 		if variable_values.has(key):
 			set_variable_value(str(key), variable_value(str(key)) + variable_delta)
 			variable_applied[key] = variable_delta
+	var national_applied: Dictionary = _apply_effects(_dict(action.get("effects", {})))
 
 	action_points -= cost
 	neitang_money -= inner_cost
@@ -1503,7 +2027,10 @@ func perform_character_action(character_id: String, action_id: String) -> Dictio
 		"inner_treasury_cost": inner_cost,
 		"outcome": str(character.get("last_personnel_result", "")),
 		"description": _character_action_description(before, character, action, applied, variable_applied),
+		"prison_action": is_prison_action,
+		"prison_applied": prison_applied,
 		"applied": applied,
+		"national_applied": national_applied,
 		"variable_applied": variable_applied
 	}
 	character_action_history.append(record)
@@ -1604,6 +2131,11 @@ func appoint_character(character_id: String, office_id: String) -> Dictionary:
 	var old_holder_id: String = str(office_assignments.get(office_id, ""))
 	var old_holder_name: String = str(character_by_id(old_holder_id).get("name", "")) if not old_holder_id.is_empty() else ""
 	var character: Dictionary = _dict(characters[character_index]).duplicate(true)
+	if _character_unavailable_for_personnel_assignment(character):
+		return {
+			"ok": false,
+			"error": "character unavailable for appointment: %s" % character_id
+		}
 	var old_title: String = str(character.get("official_title", character.get("title", "")))
 	var old_loyalty: float = _number(character.get("loyalty", 0))
 	character["official_title"] = str(office.get("name", office_id))
@@ -1664,6 +2196,82 @@ func _character_action_by_id(action_id: String) -> Dictionary:
 			return action
 	return {}
 
+func _character_is_imprisoned(character: Dictionary) -> bool:
+	if _character_is_dead(character):
+		return false
+	if bool(character.get("_imprisoned", character.get("imprisoned", false))):
+		return true
+	var status_text: String = "%s %s %s" % [
+		str(character.get("status", "")),
+		str(character.get("current_status", "")),
+		str(character.get("official_title", character.get("title", "")))
+	]
+	if status_text.contains("出狱") or status_text.contains("释") or status_text.contains("赦"):
+		return false
+	for marker in ["下狱", "系狱", "入狱", "收押", "关押", "被逮"]:
+		if status_text.contains(marker):
+			return true
+	return false
+
+func _character_is_dead(character: Dictionary) -> bool:
+	if bool(character.get("dead", false)) or bool(character.get("_dead", false)) or bool(character.get("deceased", false)):
+		return true
+	var status_text: String = "%s %s %s" % [
+		str(character.get("status", "")),
+		str(character.get("current_status", "")),
+		str(character.get("official_title", character.get("title", "")))
+	]
+	for marker in ["已故", "病故", "身亡", "死亡", "亡故", "卒", "殁", "薨", "遇害"]:
+		if status_text.contains(marker):
+			return true
+	return false
+
+func _character_is_unavailable_for_court_interaction(character: Dictionary) -> bool:
+	return _character_is_dead(character) or _character_is_imprisoned(character)
+
+func _apply_character_prison_effect(character: Dictionary, action: Dictionary) -> Dictionary:
+	var effect: String = str(action.get("prison_effect", ""))
+	var applied: Dictionary = {}
+	match effect:
+		"inquire":
+			character["last_prison_dialogue"] = "审讯案情"
+			applied["dialogue"] = "inquire"
+		"comfort":
+			character["last_prison_dialogue"] = "宽慰安抚"
+			applied["dialogue"] = "comfort"
+		"release":
+			_clear_character_imprisonment(character, "释囚候任")
+			applied["imprisoned"] = false
+			applied["status"] = str(character.get("status", ""))
+		"pardon":
+			_clear_character_imprisonment(character, "赦免候任")
+			character["pardon_turn"] = turn
+			applied["imprisoned"] = false
+			applied["status"] = str(character.get("status", ""))
+		"punish":
+			character["last_prison_dialogue"] = "加刑究问"
+			applied["dialogue"] = "punish"
+	if _number(character.get("health", 100)) <= 0.0:
+		character["dead"] = true
+		character["_imprisoned"] = false
+		character["imprisoned"] = false
+		character["status"] = "狱中卒"
+		character["_deathCause"] = "狱中卒"
+		character["death_cause"] = "狱中卒"
+		applied["death"] = "狱中卒"
+	return applied
+
+func _clear_character_imprisonment(character: Dictionary, status: String) -> void:
+	character["_imprisoned"] = false
+	character["imprisoned"] = false
+	character["_imprisonedTurn"] = 0
+	character["imprisoned_turn"] = 0
+	character["status"] = status
+	character["current_status"] = status
+	if str(character.get("official_title", character.get("title", ""))).contains("下狱"):
+		character["official_title"] = "候任"
+		character["title"] = "候任"
+
 func _character_action_outcome(character: Dictionary, action: Dictionary) -> String:
 	var action_id: String = str(action.get("id", ""))
 	match action_id:
@@ -1677,6 +2285,18 @@ func _character_action_outcome(character: Dictionary, action: Dictionary) -> Str
 			if _number(character.get("integrity", 0)) <= 40.0:
 				return "%s考语可疑，宜再核其事。" % str(character.get("name", "臣工"))
 			return "%s考语平实，暂照旧任用。" % str(character.get("name", "臣工"))
+		"prison_inquire":
+			return "%s狱中受问，案情再明。" % str(character.get("name", "囚臣"))
+		"prison_comfort":
+			return "%s狱中受慰，怨望稍解。" % str(character.get("name", "囚臣"))
+		"prison_release":
+			return "%s奉旨出狱，候命听用。" % str(character.get("name", "囚臣"))
+		"prison_pardon":
+			return "%s蒙恩赦免，旧案暂结。" % str(character.get("name", "囚臣"))
+		"prison_punish":
+			if bool(character.get("dead", false)):
+				return "%s加刑过重，狱中身亡。" % str(character.get("name", "囚臣"))
+			return "%s被加刑究问，身心俱损。" % str(character.get("name", "囚臣"))
 	return "%s已奉旨处置。" % str(character.get("name", "臣工"))
 
 func _character_action_description(before: Dictionary, after: Dictionary, action: Dictionary, applied: Dictionary, variable_applied: Dictionary) -> String:
@@ -1688,6 +2308,12 @@ func _character_action_description(before: Dictionary, after: Dictionary, action
 		parts.append("%s %d→%d" % [label, old_value, new_value])
 	for key in variable_applied.keys():
 		parts.append("%s %s" % [str(key), _signed_big(_number(variable_applied.get(key, 0)), "")])
+	if _character_is_imprisoned(before) and not _character_is_imprisoned(after):
+		parts.append("羁押解除")
+	if not _character_is_imprisoned(before) and _character_is_imprisoned(after):
+		parts.append("收押")
+	if str(after.get("status", "")) != str(before.get("status", "")) and not str(after.get("status", "")).is_empty():
+		parts.append("状态：%s" % str(after.get("status", "")))
 	if parts.is_empty():
 		return str(action.get("description", ""))
 	return "，".join(parts)
@@ -1704,6 +2330,8 @@ func _character_stat_label(key: String) -> String:
 			return "仁德"
 		"charisma":
 			return "声望"
+		"health":
+			return "健康"
 	return key
 
 func _relieved_from_office(character_id: String, _office_id: String) -> void:
@@ -1714,6 +2342,43 @@ func _relieved_from_office(character_id: String, _office_id: String) -> void:
 	character["official_title"] = "候任"
 	character["title"] = "候任"
 	characters[index] = character
+
+func issue_region_quick_command(command_type: String, command_id: String, target_region_id: String) -> Dictionary:
+	if target_region_id.is_empty():
+		return {
+			"ok": false,
+			"error": "no selected region",
+			"status": "no selected region"
+		}
+
+	var result: Dictionary = {}
+	match command_type:
+		"edict":
+			result = issue_edict(command_id, target_region_id)
+		"military_order":
+			result = issue_military_order(command_id, target_region_id)
+		_:
+			return {
+				"ok": false,
+				"error": "unknown command type: %s" % command_type,
+				"status": "unknown command type: %s" % command_type
+			}
+
+	if not bool(result.get("ok", false)):
+		result["status"] = str(result.get("error", "command failed"))
+		return result
+
+	var record: Dictionary = _dict(result.get("record", {}))
+	var target_region: Dictionary = _dict(result.get("target_region", {}))
+	var target_label: String = str(target_region.get("name", record.get("target_region", target_region_id)))
+	if target_label.is_empty():
+		target_label = target_region_id
+	result["status"] = "已执行：%s -> %s（%s）" % [
+		str(record.get("name", command_id)),
+		target_label,
+		target_region_id
+	]
+	return result
 
 func issue_edict(edict_id: String, target_region_id: String = "") -> Dictionary:
 	if action_points <= 0:
@@ -2005,8 +2670,20 @@ func _region_assignment_score(character: Dictionary, region: Dictionary, role: S
 	return score
 
 func _is_character_unavailable_for_assignment(character: Dictionary) -> bool:
+	if _character_is_dead(character):
+		return true
+	if _character_is_imprisoned(character):
+		return true
 	var title: String = str(character.get("official_title", character.get("title", "")))
 	if title.contains("已罢") or title.contains("闲居") or title.contains("丁忧"):
+		return true
+	var status: String = str(character.get("status", ""))
+	return status.contains("亡") or status.contains("死")
+
+func _character_unavailable_for_personnel_assignment(character: Dictionary) -> bool:
+	if _character_is_imprisoned(character):
+		return true
+	if _character_is_dead(character):
 		return true
 	var status: String = str(character.get("status", ""))
 	return status.contains("亡") or status.contains("死")
@@ -2144,6 +2821,11 @@ func appoint_army_commander(army_id: String, character_id: String) -> Dictionary
 
 	var army: Dictionary = _dict(armies[army_index]).duplicate(true)
 	var character: Dictionary = _dict(characters[character_index]).duplicate(true)
+	if _character_unavailable_for_personnel_assignment(character):
+		return {
+			"ok": false,
+			"error": "character unavailable for army command: %s" % character_id
+		}
 	var previous_commander: String = str(army.get("commander", ""))
 	var previous_commander_id: String = str(army.get("commander_id", ""))
 	var army_name: String = str(army.get("name", army_id))
@@ -3196,6 +3878,8 @@ func _meeting_participants(participant_ids: Array) -> Array:
 		var character: Dictionary = character_by_id(id)
 		if character.is_empty():
 			continue
+		if _character_is_unavailable_for_court_interaction(character):
+			continue
 		seen[id] = true
 		rows.append(character)
 		if rows.size() >= 6:
@@ -4083,6 +4767,82 @@ static func _default_character_actions() -> Array:
 			},
 			"variable_effects": {
 				"吏治": 2
+			}
+		},
+		{
+			"id": "prison_inquire",
+			"name": "狱中审讯",
+			"category": "囚犯处置",
+			"cost": 1,
+			"requires_imprisoned": true,
+			"prison_effect": "inquire",
+			"description": "入狱问案，追索供词与牵连，不改变囚犯羁押状态。",
+			"character_effects": {
+				"loyalty": -4
+			}
+		},
+		{
+			"id": "prison_comfort",
+			"name": "狱中宽慰",
+			"category": "囚犯处置",
+			"cost": 1,
+			"requires_imprisoned": true,
+			"prison_effect": "comfort",
+			"description": "遣人慰问囚臣，稍减怨望，但外廷易疑为私恩。",
+			"character_effects": {
+				"loyalty": 4,
+				"health": 5
+			},
+			"effects": {
+				"民心": -1
+			}
+		},
+		{
+			"id": "prison_release",
+			"name": "释出候任",
+			"category": "囚犯处置",
+			"cost": 1,
+			"requires_imprisoned": true,
+			"prison_effect": "release",
+			"description": "令刑部释出羁押者，暂令候任听用，代价较轻。",
+			"character_effects": {
+				"loyalty": 2
+			},
+			"effects": {
+				"民心": -1,
+				"皇威": -2
+			}
+		},
+		{
+			"id": "prison_pardon",
+			"name": "赦免旧案",
+			"category": "囚犯处置",
+			"cost": 1,
+			"requires_imprisoned": true,
+			"prison_effect": "pardon",
+			"description": "特旨赦免旧案，囚臣感恩，但会折损法度威信。",
+			"character_effects": {
+				"loyalty": 8
+			},
+			"effects": {
+				"民心": -4,
+				"皇威": -5
+			}
+		},
+		{
+			"id": "prison_punish",
+			"name": "加刑究问",
+			"category": "囚犯处置",
+			"cost": 1,
+			"requires_imprisoned": true,
+			"prison_effect": "punish",
+			"description": "加重刑讯以求速结，能立威，但严重伤损囚臣。",
+			"character_effects": {
+				"loyalty": -20,
+				"health": -20
+			},
+			"effects": {
+				"皇威": 1
 			}
 		}
 	]

@@ -26,6 +26,8 @@ func _ready() -> void:
 	if characters.is_empty():
 		_fail("Character UI does not have characters")
 		return
+	panel.call("set_character", _dict(characters[0]))
+	panel.call("set_character_actions", game_state.call("character_actions"), game_state.get("character_action_history"), game_state.get("action_points"))
 	var character_id: String = str(_dict(characters[0]).get("id", ""))
 	panel.emit_signal("character_action_requested", character_id, "inspect")
 	await get_tree().process_frame

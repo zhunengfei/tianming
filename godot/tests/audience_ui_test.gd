@@ -32,6 +32,8 @@ func _ready() -> void:
 	if characters.is_empty() or topics.is_empty():
 		_fail("Audience UI does not have characters and topics")
 		return
+	var audience_data: Dictionary = game_state.call("audience_panel_data")
+	panel.call("set_data", _array(audience_data.get("characters", [])), _array(audience_data.get("topics", [])), _array(audience_data.get("history", [])), int(audience_data.get("action_points", 0)))
 	var character_id: String = str(_dict(characters[0]).get("id", ""))
 	var topic_id: String = str(_dict(topics[0]).get("id", ""))
 	panel.emit_signal("audience_requested", character_id, topic_id)

@@ -5,6 +5,8 @@ class_name AudiencePanel
 signal audience_requested(character_id: String, topic_id: String)
 
 var points_label: Label
+var portrait_rect: TextureRect
+var character_summary_label: Label
 var character_select: OptionButton
 var topic_select: OptionButton
 var topic_label: Label
@@ -36,6 +38,22 @@ func _ready() -> void:
 	points_label = _make_label("", 13, Color(0.72, 0.64, 0.50))
 	root.add_child(points_label)
 
+	var character_preview: HBoxContainer = HBoxContainer.new()
+	character_preview.add_theme_constant_override("separation", 10)
+	character_preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.add_child(character_preview)
+
+	portrait_rect = TextureRect.new()
+	portrait_rect.custom_minimum_size = Vector2(112, 148)
+	portrait_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	portrait_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait_rect.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	character_preview.add_child(portrait_rect)
+
+	character_summary_label = _make_label("", 13, Color(0.84, 0.78, 0.66))
+	character_summary_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	character_preview.add_child(character_summary_label)
+
 	var controls: HBoxContainer = HBoxContainer.new()
 	controls.add_theme_constant_override("separation", 8)
 	root.add_child(controls)
@@ -44,6 +62,7 @@ func _ready() -> void:
 	character_select.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	character_select.item_selected.connect(func(idx: int) -> void:
 		selected_character_id = str(character_select.get_item_metadata(idx))
+		_refresh_character_preview()
 	)
 	controls.add_child(character_select)
 
@@ -82,11 +101,18 @@ func set_data(characters: Array, topics: Array, history: Array, action_points: i
 	points_label.text = "行动点：%d · 选择人物与问对主题" % action_points
 	_fill_characters()
 	_fill_topics()
+	_refresh_character_preview()
 	_refresh_topic_label()
 	history_label.text = _history_text()
 
 func visible_text() -> String:
-	return "问对\n%s\n%s" % [topic_label.text, _history_text()]
+	var character: Dictionary = _character_by_id(selected_character_id)
+	return "问对\n%s %s\n%s\n%s" % [
+		str(character.get("name", "")),
+		str(character.get("official_title", character.get("title", ""))),
+		topic_label.text,
+		_history_text()
+	]
 
 func _fill_characters() -> void:
 	character_select.clear()
@@ -123,6 +149,32 @@ func _refresh_topic_label() -> void:
 		str(topic.get("name", "")),
 		str(topic.get("desc", ""))
 	]
+
+func _refresh_character_preview() -> void:
+	if portrait_rect == null or character_summary_label == null:
+		return
+	var character: Dictionary = _character_by_id(selected_character_id)
+	if character.is_empty():
+		portrait_rect.texture = null
+		character_summary_label.text = "请选择问对人物"
+		return
+	character_summary_label.text = "%s\n%s\n%s" % [
+		str(character.get("name", "")),
+		str(character.get("official_title", character.get("title", ""))),
+		str(character.get("faction", ""))
+	]
+	_load_portrait(str(character.get("portrait_path", "")))
+
+func _load_portrait(path: String) -> void:
+	portrait_rect.texture = null
+	if path.is_empty() or not FileAccess.file_exists(path):
+		return
+	var image: Image = Image.new()
+	var err: Error = image.load(path)
+	if err != OK:
+		push_warning("Failed to load audience portrait %s error=%d" % [path, err])
+		return
+	portrait_rect.texture = ImageTexture.create_from_image(image)
 
 func _request_audience() -> void:
 	var character_id: String = str(character_select.get_selected_metadata())

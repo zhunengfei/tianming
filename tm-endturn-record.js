@@ -31,7 +31,51 @@
 
   var ns = global.TM.Endturn.AI.record;
 
+  // Phase 7·_costHistory hook·每回合末汇总 _subcallMeta 成本/token·写入 GM._costHistory
+  // 最近 20 回合·设置面板"成本历史"区显示·诊断 export 也可读
+  function _captureCostHistorySnapshot() {
+    try {
+      var GM = (typeof global !== 'undefined' && global.GM) || (typeof window !== 'undefined' && window.GM);
+      if (!GM) return;
+      var stats = GM._aiDispatchStats || {};
+      var totalCalls = Number(stats.totalCalls) || 0;
+      var totalTime = Number(stats.totalTime) || 0;
+      var errors = Number(stats.errors) || 0;
+      var byId = {};
+      if (stats.byId && typeof stats.byId === 'object') {
+        Object.keys(stats.byId).forEach(function(id) {
+          var s = stats.byId[id] || {};
+          byId[id] = { calls: s.calls || 0, totalTime: s.totalTime || 0, errors: s.errors || 0, name: s.name || id };
+        });
+      }
+      // TokenUsageTracker 累计 (若可用)
+      var tokenUsage = null;
+      try {
+        if (typeof global.TokenUsageTracker !== 'undefined' && global.TokenUsageTracker.getSnapshot) {
+          tokenUsage = global.TokenUsageTracker.getSnapshot();
+        }
+      } catch(_) {}
+      if (!Array.isArray(GM._costHistory)) GM._costHistory = [];
+      GM._costHistory.push({
+        turn: GM.turn || 0,
+        ts: Date.now(),
+        totalCalls: totalCalls,
+        totalTimeMs: totalTime,
+        errors: errors,
+        byId: byId,
+        tokenUsage: tokenUsage,
+        modelTier: (typeof global !== 'undefined' && global.P && global.P.conf && global.P.conf.modelTier) || 'standard',
+        // Phase 6 标记
+        sc1StrictFallback: !!(GM._turnAiResults && GM._turnAiResults._sc1StrictFallback)
+      });
+      // 容量保护·最近 20 回合
+      if (GM._costHistory.length > 20) GM._costHistory = GM._costHistory.slice(-20);
+    } catch(_costE) {
+      try { if (typeof console !== 'undefined') console.warn('[costHistory] capture fail:', _costE); } catch(_){}
+    }
+  }
   ns.finalize = function(ctx) {
+    _captureCostHistorySnapshot();
     var record = (ctx && ctx.record) ? ctx.record : {};
     var input = (ctx && ctx.input) ? ctx.input : {};
     return {
@@ -49,4 +93,6 @@
       hourenXishuo: record.hourenXishuo || ''
     };
   };
+  // Phase 7·诊断 export 公开 API·便于设置面板按钮调用
+  ns._captureCostHistorySnapshot = _captureCostHistorySnapshot;
 })(typeof window !== 'undefined' ? window : globalThis);

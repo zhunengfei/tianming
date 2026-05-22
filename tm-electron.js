@@ -28,6 +28,28 @@ if(window.tianming&&window.tianming.isDesktop){
       count('parties') + count('classes') + vars + count('events') + count('relations') > 0;
   }
 
+  // 2026-05-22·loadScenario·hot bundled fallback wrapper
+  // 老 .exe + 1.2.4.1+ hot update 时·main.js 不知 bundled-scenarios/·renderer 自己 try fetch
+  // 成功 → 用 hot 版·失败 → fallback IPC 走 main.js (拿 installer bundled)
+  async function _loadScenarioWithHotFallback(name) {
+    var fileName = String(name || '').trim();
+    if (!fileName) return { success: false, error: 'empty name' };
+    if (!/\.json$/i.test(fileName)) fileName += '.json';
+    // 1. try fetch hot bundled (相对路径·hot update 解压后 hotRoot/bundled-scenarios/<file>)
+    try {
+      var resp = await fetch('bundled-scenarios/' + encodeURIComponent(fileName) + '?t=' + Date.now());
+      if (resp.ok) {
+        var data = await resp.json();
+        console.log('[loadScenario] 从 hot bundled-scenarios 加载:', fileName);
+        return { success: true, data: data, source: 'hot-update' };
+      }
+    } catch (e) {
+      // fetch 失败 (没 hot 或文件不存在)·静默 fallback
+    }
+    // 2. fallback IPC (main.js·走 installer BUNDLED_SCENARIOS_DIR 或 user-scenarios)
+    return await window.tianming.loadScenario(name);
+  }
+
   async function _ensureOfficialScenarioFiles(){
     var seeder = window.TMOfficialScenarioSeeder;
     if (!seeder || typeof seeder.ensure !== 'function') return;
@@ -99,11 +121,11 @@ if(window.tianming&&window.tianming.isDesktop){
       scn = _idbRecord.gameState;
       console.log('[desktopEnterScn] 从IndexedDB加载最新编辑数据:', name);
     } else {
-      // 从磁盘加载
-      var r = await window.tianming.loadScenario(name);
+      // 从磁盘加载·优先 hot bundled-scenarios·fallback IPC
+      var r = await _loadScenarioWithHotFallback(name);
       if(!r.success){toast('加载失败: '+(r.error||''));return;}
       scn = r.data;
-      console.log('[desktopEnterScn] 从磁盘加载:', name);
+      console.log('[desktopEnterScn] 从磁盘加载:', name, '·source=' + (r.source || 'ipc'));
     }
     // 生成稳定ID：如果文件中没有id，用文件名生成确定性id（避免每次生成不同id导致重复）
     if(!scn.id){scn.id='scn_file_'+name.replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g,'_');}
@@ -167,7 +189,7 @@ if(window.tianming&&window.tianming.isDesktop){
   };
 
   window.desktopStartScn=async function(name){
-    var r=await window.tianming.loadScenario(name);
+    var r=await _loadScenarioWithHotFallback(name);
     if(!r.success){toast('加载失败: '+(r.error||''));return;}
     var scn=r.data;
     if(!_isPlayableScenario(scn)){

@@ -902,6 +902,174 @@
     return '';
   }
 
+  // F2·2026-05-22·SC16 采纳审计·比对 fac._sc16Directive 跟 decision.actions[] 的重叠度
+  function _normName(v) { return String(v == null ? '' : v).replace(/\s+/g, '').trim().toLowerCase(); }
+  function _auditSc16Compliance(fac, actions, turn) {
+    var directive = (fac && fac._sc16Directive) || null;
+    if (!directive) return null;
+    var dActions = _arr(directive.actions);
+    var dDiplomacy = _arr(directive.diplomacy);
+    var dDirectives = _arr(directive.directives);
+    var totalDirectiveItems = dActions.length + dDiplomacy.length + dDirectives.length;
+    if (!totalDirectiveItems) return null;
+    // 把 decision.actions[] 索引化·分别按 targetFaction / province / target / army 建集合
+    var appliedActionList = _arr(actions).filter(function(a){ return a && a.payload; });
+    var byTargetFac = {}, byProvince = {}, byTargetChar = {}, byArmy = {}, byDiplomacyTo = {}, byActionType = {};
+    appliedActionList.forEach(function(a) {
+      var p = a.payload || {};
+      var tFac = _normName(p.targetFaction || p.toFaction || p.target || p.newOwner || p.ownerFaction);
+      var prov = _normName(p.province || p.region || p.division);
+      var tChar = _normName(p.target || p.from || p.char);
+      var army = _normName(p.army || p.armyName);
+      if (tFac) byTargetFac[tFac] = (byTargetFac[tFac] || 0) + 1;
+      if (prov) byProvince[prov] = (byProvince[prov] || 0) + 1;
+      if (tChar) byTargetChar[tChar] = (byTargetChar[tChar] || 0) + 1;
+      if (army) byArmy[army] = (byArmy[army] || 0) + 1;
+      byActionType[a.type] = (byActionType[a.type] || 0) + 1;
+      if (a.type === 'diplomacy' && tFac) byDiplomacyTo[tFac] = (byDiplomacyTo[tFac] || 0) + 1;
+    });
+    var rationaleText = (fac && fac._lastLlmRationale && fac._lastLlmRationale.text) ? String(fac._lastLlmRationale.text).toLowerCase() : '';
+
+    var adopted = 0;
+    var ignoredItems = [];
+    // directive.actions[]·目标 = target/targetFaction/province，匹配 decision 里同 target 的任意 action
+    dActions.forEach(function(da) {
+      var target = _normName(da.target || da.targetFaction || da.toFaction);
+      var province = _normName(da.province || da.region);
+      var matched = (target && (byTargetFac[target] || byTargetChar[target])) || (province && byProvince[province]);
+      if (matched) adopted++;
+      else ignoredItems.push({ type:'action', summary:_txtPreview(da.action || da.intent || da.reason || da, 80), target:da.target || da.targetFaction || da.province || '' });
+    });
+    // directive.diplomacy[]·匹配 decision 中 diplomacy action 的 to
+    dDiplomacy.forEach(function(dd) {
+      var to = _normName(dd.to || dd.toFaction || dd.targetFaction);
+      var matched = to && byDiplomacyTo[to];
+      if (matched) adopted++;
+      else ignoredItems.push({ type:'diplomacy', summary:(dd.from || '?') + '→' + (dd.to || '?') + ' ' + (dd.new_relation || dd.type || ''), target:dd.to || '' });
+    });
+    // directive.directives[]·strategic intent·软匹配·rationale 含关键词 OR 任意 action type 匹配 preferred_actions
+    dDirectives.forEach(function(dd) {
+      var pref = _arr(dd.preferred_actions || dd.preferredActions);
+      var intent = String(dd.strategic_intent || dd.must_follow || dd.reason || '').toLowerCase();
+      var matched = false;
+      pref.forEach(function(p) {
+        var k = _normName(p);
+        if (k && byActionType[k]) matched = true;
+      });
+      if (!matched && intent) {
+        ['diplomacy','military','fiscal','memorial','edict','office'].forEach(function(token) {
+          if (intent.indexOf(token) >= 0 && byActionType[token + (token === 'fiscal' ? '_policy' : (token === 'office' ? '_change' : (token === 'military' ? '_order' : '')))]) matched = true;
+        });
+        if (rationaleText && intent.split(/[，。·、 ]+/).some(function(w){ return w.length >= 3 && rationaleText.indexOf(w) >= 0; })) matched = true;
+      }
+      if (matched) adopted++;
+      else ignoredItems.push({ type:'directive', summary:_txtPreview(intent || JSON.stringify(dd), 80), target:'' });
+    });
+
+    var complianceScore = totalDirectiveItems > 0 ? Math.round(100 * adopted / totalDirectiveItems) : 0;
+    var result = {
+      turn: turn,
+      directiveCount: totalDirectiveItems,
+      directiveActions: dActions.length,
+      directiveDiplomacy: dDiplomacy.length,
+      directiveDirectives: dDirectives.length,
+      adoptedCount: adopted,
+      ignoredItems: ignoredItems.slice(0, 8),
+      complianceScore: complianceScore,
+      hasDirectContent: !!directive.hasDirectContent,
+      priorityScore: directive.priorityScore || 0,
+      priorityRank: directive.priorityRank || 0,
+      directiveHash: directive.directiveHash || ''  // F2 Sub 3·让 cooldown 跨回合查"已执行"
+    };
+    if (!Array.isArray(fac._sc16ComplianceHistory)) fac._sc16ComplianceHistory = [];
+    fac._sc16ComplianceHistory.push(result);
+    if (fac._sc16ComplianceHistory.length > 8) fac._sc16ComplianceHistory = fac._sc16ComplianceHistory.slice(-8);
+    return result;
+  }
+  // G3-C·2026-05-22·决策风格 rolling memory·从当回合 actions 算 4 metric·写入 fac.aiStyleTrajectory 滑窗 5
+  function _updateStyleTrajectory(fac, actions, turn) {
+    if (!fac || !Array.isArray(actions) || !actions.length) return null;
+    var total = actions.length;
+    // 1·aggressiveness·军事 + 敌意外交 + 间谍 + 叛乱 占比 0-100
+    var aggressive = actions.filter(function(a){
+      if (a.type === 'military_order' || a.type === 'spy_or_intrigue' || a.type === 'rebellion_policy') return true;
+      if (a.type === 'diplomacy') {
+        var p = a.payload || {};
+        return _safeNum(p.relationDelta) < -10;
+      }
+      return false;
+    }).length;
+    var aggressiveness = Math.round(aggressive / total * 100);
+    // 2·riskTaking·大 treasuryDelta abs + 违约 (relationDelta < -50) + spy
+    var risk = 0;
+    actions.forEach(function(a) {
+      var p = a.payload || {};
+      var td = Math.abs(_safeNum(p.treasuryDelta));
+      if (td >= 100000) risk += 2;
+      else if (td >= 30000) risk += 1;
+      if (a.type === 'diplomacy' && _safeNum(p.relationDelta) <= -50) risk += 2;
+      if (a.type === 'spy_or_intrigue') risk += 1;
+      if (a.type === 'rebellion_policy') risk += 2;
+    });
+    var riskTaking = Math.min(100, Math.round(risk / total * 50));
+    // 3·fiscalDiscipline·正向·减俸 / 紧缩 类·负向·赏赐 / 加禄 类
+    var disciplineScore = 0;
+    actions.forEach(function(a) {
+      var p = a.payload || {};
+      if (a.type === 'edict') {
+        var et = String(p.type || '');
+        if (et === '减俸' || et === '催征' || et === '罢党争') disciplineScore += 1;
+        if (et === '赏赐' || et === '怀柔') disciplineScore -= 1;
+      }
+      if (a.type === 'fiscal_policy') {
+        if (_safeNum(p.expenseDelta) < 0) disciplineScore += 1;
+        if (_safeNum(p.treasuryDelta) < -50000) disciplineScore -= 1;
+      }
+    });
+    var fiscalDiscipline = 50 + Math.round(disciplineScore * 100 / Math.max(1, total));
+    fiscalDiscipline = Math.max(0, Math.min(100, fiscalDiscipline));
+    // 4·expansionism·province / military 攻势 / 外扩外交占比
+    var expansion = actions.filter(function(a) {
+      if (a.type === 'province_policy') {
+        var p = a.payload || {};
+        return String(p.policy || '').indexOf('transfer') >= 0 || _safeNum(p.unrestDelta) < 0;
+      }
+      if (a.type === 'military_order') {
+        var p = a.payload || {};
+        return String(p.order || '') === 'move' || String(p.order || '') === 'reinforce';
+      }
+      return false;
+    }).length;
+    var expansionism = Math.round(expansion / total * 100);
+
+    var row = {
+      turn: turn,
+      aggressiveness: aggressiveness,
+      riskTaking: riskTaking,
+      fiscalDiscipline: fiscalDiscipline,
+      expansionism: expansionism,
+      actionCount: total
+    };
+    if (!Array.isArray(fac.aiStyleTrajectory)) fac.aiStyleTrajectory = [];
+    // 同 turn 覆盖·不同 turn 追加
+    var existing = fac.aiStyleTrajectory.findIndex(function(r){ return r && r.turn === turn; });
+    if (existing >= 0) fac.aiStyleTrajectory[existing] = row;
+    else fac.aiStyleTrajectory.push(row);
+    if (fac.aiStyleTrajectory.length > 5) fac.aiStyleTrajectory = fac.aiStyleTrajectory.slice(-5);
+    return row;
+  }
+
+  function _txtPreview(v, max) {
+    var s = '';
+    if (v == null) s = '';
+    else if (typeof v === 'string') s = v;
+    else if (typeof v === 'object') s = JSON.stringify(v);
+    else s = String(v);
+    s = s.replace(/\s+/g, ' ').trim();
+    if (max && s.length > max) return s.slice(0, max) + '...';
+    return s;
+  }
+
   function _hasLocalDuplicate(fac, action) {
     var key = _actionDedupeKey(action);
     if (!key) return false;
@@ -920,6 +1088,8 @@
     var ruler = _rulerOf(alive);
     var ctx = { alive:alive, ruler:ruler };
     var summary = { memorials:0, edicts:0, chaoyi:0, office:0, actions:0, attemptedActions: actions.length, skippedActions:0, mergedActions:0, skippedDetails:[], mergedDetails:[] };
+    // F1·2026-05-22·in-batch 去重·防 LLM 同一 decision 重复 emit (legacy+native 双填或纯 native 双填)
+    var seenBatchKeys = {};
     actions.forEach(function(action) {
       var preflight = validateActionTarget(fac, action, ctx);
       if (!preflight || !preflight.ok) {
@@ -927,6 +1097,14 @@
         summary.skippedActions++;
         summary.skippedDetails.push({ actionId: action.actionId, type: action.type, reason: preflightDetail.reason, target: preflight && (preflight.target || preflight.army || preflight.province || preflight.resource) });
         _recordAction(fac, action, 'skipped', preflightDetail);
+        return;
+      }
+      var batchKey = _actionDedupeKey(action);
+      if (batchKey && seenBatchKeys[batchKey]) {
+        var batchMergeDetail = { reason:'duplicate in batch', key:batchKey, firstSource:seenBatchKeys[batchKey].source, dupSource:action.source };
+        summary.mergedActions++;
+        summary.mergedDetails.push({ actionId: action.actionId, type: action.type, reason: batchMergeDetail.reason, key: batchKey, firstSource:batchMergeDetail.firstSource, dupSource:batchMergeDetail.dupSource });
+        _recordAction(fac, action, 'merged', batchMergeDetail);
         return;
       }
       if (_hasLocalDuplicate(fac, action)) {
@@ -942,6 +1120,7 @@
         var key = res.summaryKey || action.type;
         summary[key] = (summary[key] || 0) + 1;
         summary.actions++;
+        if (batchKey) seenBatchKeys[batchKey] = { source: action.source, actionId: action.actionId };
         _recordAction(fac, action, 'applied', res.detail || null);
       } else {
         var failReason = (res && res.reason) || 'apply failed';
@@ -952,6 +1131,11 @@
     });
     if (d && d.rationale) fac._lastLlmRationale = { turn:turn, text:d.rationale };
     ensureStrategyV2(fac, d, actions);
+    // G3-C·2026-05-22·决策风格 rolling memory·写在 strategy 后·只算 applied actions·skipped 不入
+    try { _updateStyleTrajectory(fac, actions.filter(function(a){ return a && a.type; }), turn); } catch(_){}
+    // F2 Sub 1·2026-05-22·SC16 采纳审计·跑在 strategy 之后·summary 之前·结果挂在 summary 上
+    var compliance = null;
+    try { compliance = _auditSc16Compliance(fac, actions, turn); } catch(_){}
     try {
       fac._lastLlmApplySummary = {
         turn: turn,
@@ -962,10 +1146,23 @@
         mergedActions: summary.mergedActions,
         skippedDetails: summary.skippedDetails.slice(-8),
         mergedDetails: summary.mergedDetails.slice(-8),
+        sc16Compliance: compliance,
         updatedAt: Date.now()
       };
     } catch(_){}
+    if (compliance) summary.sc16Compliance = compliance;
     return summary;
+  }
+
+  function getSc16Compliance(facName) {
+    var G = global.GM || {};
+    var fac = (Array.isArray(G.facs) && facName) ? G.facs.find(function(x){ return x && x.name === facName; }) : null;
+    if (!fac) return null;
+    return {
+      faction: facName,
+      last: (fac._lastLlmApplySummary && fac._lastLlmApplySummary.sc16Compliance) || null,
+      history: _arr(fac._sc16ComplianceHistory).slice()
+    };
   }
 
   function _latestRunTurn(fac) {
@@ -1110,7 +1307,8 @@
     formatActionContractForPrompt: formatActionContractForPrompt,
     ensureStrategy: ensureStrategyV2,
     scoreFactionCandidate: scoreFactionCandidate,
-    rankFactionCandidates: rankFactionCandidates
+    rankFactionCandidates: rankFactionCandidates,
+    getSc16Compliance: getSc16Compliance
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = global.TM.FactionActionEngine;

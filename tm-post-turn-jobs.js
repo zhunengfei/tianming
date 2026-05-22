@@ -26,7 +26,9 @@
 // ════════════════════════════════════════════════════════════════════════
 
 var _POST_TURN_NEXT_REQUIRED_IDS = {
-  sc25: true
+  // Phase 4 A5·sc25 已并入 sc25c·此 dict 改 sc25c·sc25 保留兼容 (旧存档过渡)
+  sc25: true,
+  sc25c: true
 };
 
 var _POST_TURN_CRITICAL_IDS = _POST_TURN_NEXT_REQUIRED_IDS;
@@ -323,14 +325,21 @@ function _ensurePostTurnJobQueue() {
   return GM._postTurnJobs;
 }
 
-function _enqueuePostTurnJob(id, fn) {
+// Phase 4 P3·post-turn DAG·_enqueuePostTurnJob 支持 dependsOn:['sc28', 'sc25c'] 正式 API
+// 与 _awaitPostTurnJobsById 互补·dependsOn 在入队时声明·调度时自动 await 前置
+function _enqueuePostTurnJob(id, fn, opts) {
   var q = _ensurePostTurnJobQueue();
   if (!q || typeof fn !== 'function') return null;
-  var p = Promise.resolve().then(fn).catch(function(e){
+  var dependsOn = (opts && Array.isArray(opts.dependsOn)) ? opts.dependsOn : null;
+  var wrappedFn = dependsOn ? async function() {
+    try { await _awaitPostTurnJobsById(dependsOn); } catch(_dE) { _dbg('[PostTurn DAG] await deps fail for ' + id + ':', _dE); }
+    return fn();
+  } : fn;
+  var p = Promise.resolve().then(wrappedFn).catch(function(e){
     try { if (typeof recordMemoryDiagnostic === 'function') recordMemoryDiagnostic('post_turn_job', { id: id, status: 'fail', error: String(e && e.message || e) }); } catch(_) {}
     _dbg('[PostTurn]' + id + ' failed:', e);
   });
-  q.pending.push({ id: id, promise: p });
+  q.pending.push({ id: id, promise: p, dependsOn: dependsOn });
   return p;
 }
 

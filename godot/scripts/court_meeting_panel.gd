@@ -5,6 +5,8 @@ class_name CourtMeetingPanel
 signal court_meeting_requested(topic_id: String, participant_ids: Array)
 signal court_recommendation_requested(recommendation_id: String)
 
+const PARTICIPANT_PORTRAIT_BUDGET := 8
+
 var topics_box: VBoxContainer
 var recommendations_box: VBoxContainer
 var participants_box: VBoxContainer
@@ -17,6 +19,7 @@ var current_history: Array = []
 var current_pending_recommendations: Array = []
 var current_debate_entries: Array = []
 var current_agenda_pressure: Array = []
+var portrait_texture_cache: Dictionary = {}
 
 func _ready() -> void:
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -130,6 +133,7 @@ func _update_participants(topics: Array, characters: Array, action_points: int) 
 	]
 	hold_button.disabled = action_points < cost or selected_topic_id.is_empty() or selected_participant_ids.is_empty()
 
+	var portrait_budget: int = PARTICIPANT_PORTRAIT_BUDGET
 	for raw in _sorted_characters(characters, str(topic.get("domain", ""))):
 		var character: Dictionary = _dict(raw)
 		var id: String = str(character.get("id", ""))
@@ -137,7 +141,7 @@ func _update_participants(topics: Array, characters: Array, action_points: int) 
 			continue
 		var selected: bool = id in selected_participant_ids
 		var button: Button = Button.new()
-		button.text = "%s  忠%d 智%d 政%d 军%d\n%s" % [
+		var participant_text: String = "%s  忠%d 智%d 政%d 军%d\n%s" % [
 			str(character.get("name", "")),
 			int(_num(character.get("loyalty", 0))),
 			int(_num(character.get("intelligence", 0))),
@@ -147,6 +151,10 @@ func _update_participants(topics: Array, characters: Array, action_points: int) 
 		]
 		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var should_try_portrait: bool = selected or portrait_budget > 0
+		var rendered_portrait: bool = _apply_participant_button_content(button, character, participant_text, should_try_portrait)
+		if rendered_portrait and portrait_budget > 0:
+			portrait_budget -= 1
 		button.modulate = Color(1.0, 0.86, 0.55, 1.0) if selected else Color.WHITE
 		button.pressed.connect(func() -> void:
 			_toggle_participant(id)
@@ -236,6 +244,59 @@ func _candidate_score(character: Dictionary, domain: String) -> float:
 			return _num(character.get("military", 0)) * 0.45 + _num(character.get("valor", 0)) * 0.2 + _num(character.get("intelligence", 0)) * 0.2 + loyalty * 0.15
 		_:
 			return _num(character.get("intelligence", 0)) * 0.35 + _num(character.get("administration", 0)) * 0.35 + loyalty * 0.3
+
+func _apply_participant_button_content(button: Button, character: Dictionary, participant_text: String, allow_portrait: bool = true) -> bool:
+	if not allow_portrait:
+		button.text = participant_text
+		return false
+	var texture: Texture2D = _load_portrait_texture(str(character.get("portrait_path", "")))
+	if texture == null:
+		button.text = participant_text
+		return false
+	button.text = ""
+	button.custom_minimum_size.y = 92
+	button.tooltip_text = "%s\n%s" % [
+		str(character.get("name", "")),
+		str(character.get("official_title", character.get("title", "")))
+	]
+	var row: HBoxContainer = HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", 8)
+	row.set_anchors_preset(Control.PRESET_FULL_RECT)
+	row.offset_left = 8
+	row.offset_top = 6
+	row.offset_right = -8
+	row.offset_bottom = -6
+	button.add_child(row)
+
+	var portrait_rect: TextureRect = TextureRect.new()
+	portrait_rect.texture = texture
+	portrait_rect.custom_minimum_size = Vector2(54, 72)
+	portrait_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	portrait_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(portrait_rect)
+
+	var text_label: Label = _make_label(participant_text, 13, Color(0.88, 0.84, 0.74))
+	text_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	text_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(text_label)
+	return true
+
+func _load_portrait_texture(path: String) -> Texture2D:
+	if path.is_empty() or not FileAccess.file_exists(path):
+		return null
+	if portrait_texture_cache.has(path):
+		return portrait_texture_cache[path] as Texture2D
+	var image: Image = Image.new()
+	var err: Error = image.load(path)
+	if err != OK:
+		push_warning("Failed to load court meeting participant portrait %s error=%d" % [path, err])
+		return null
+	image.resize(54, 72, Image.INTERPOLATE_LANCZOS)
+	var texture: Texture2D = ImageTexture.create_from_image(image)
+	portrait_texture_cache[path] = texture
+	return texture
 
 func _topic_by_id(topics: Array, topic_id: String) -> Dictionary:
 	for raw in topics:

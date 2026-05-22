@@ -53,6 +53,11 @@ func set_entries(entries: Array) -> void:
 
 func visible_text() -> String:
 	var lines: PackedStringArray = PackedStringArray()
+	lines.append("史官实录")
+	lines.append("" if count_label == null else count_label.text)
+	if last_entries.is_empty():
+		lines.append("尚无已结算回合或政务记录。")
+		return "\n".join(lines)
 	for raw in last_entries:
 		var entry: Dictionary = _dict(raw)
 		lines.append(_entry_text(entry))

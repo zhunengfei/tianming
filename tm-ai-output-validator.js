@@ -37,7 +37,8 @@
     // 数组字段
     character_deaths: 'array',
     char_updates: 'array', relations: 'array',
-    faction_changes: 'array', faction_events: 'array', faction_relation_changes: 'array', faction_updates: 'array',
+    faction_changes: 'array', faction_events: 'array', faction_relation_changes: 'array', faction_relation_shift: 'array', faction_updates: 'array',
+    dialogue_commitment_feedback: 'array',
     party_changes: 'array', party_updates: 'array',
     class_changes: 'array', class_updates: 'array',
     class_alert_responses: 'array',

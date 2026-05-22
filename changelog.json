@@ -3,6 +3,108 @@
   "entries": [
     {
       "date": "2026-05-22",
+      "module": "1.2.4.1·绍宋 NPC traitIds 补全 + 热更覆盖 scenarios (架构 fix)",
+      "title": "1) 绍宋 98 NPC traitIds 从全 null 补到 100% 覆盖让 1.2.4.0 G1-G3 智力反喂真生效；2) build-hot-update + main.js 联动 fix·让 scenarios JSON 改动也能进热更包 (之前只动 web/·scenarios 修改要等下个 installer 才能到玩家手里)",
+      "items": [
+        {
+          "what": "【架构 fix·hot update 覆盖 scenarios】build-hot-update-package.js 新增 walkBundledScenarios()·把 tianming/scenarios/*.json (9 个官方剧本·绍宋/天启/崇祯/挽天倾/3 个 demo) 打进 zip·路径 bundled-scenarios/<file>·额外占 ~10MB。tm-electron.js loadScenario 加 renderer-side fallback wrapper·先 fetch('bundled-scenarios/<file>') 拿 hot 版·失败 fallback IPC 走 main.js installer bundled (老 .exe 也能直接生效)。main.js resolveScenarioPath 同步加 hot bundled-scenarios 优先级 (next .exe build 后 IPC 路径也优先 hot 版)。",
+          "why": "1.2.4.0 changelog 写了「G2-C ruler psyche 7 个主君补 3 字段」但 scenarios/ 在 web/ 外面·原 build script 只 walk web/·导致 G2-C 的 scenarios JSON 改动**没进 1.2.4.0 zip**·玩家热更后 RULER_PSYCHE 段仍 skip。1.2.4.1 一次性补·关键是 renderer-side fallback 让老 .exe 玩家立即就能拿到新 scenarios·不必等下个 installer。所有未来 scenarios patch 都能热更推。"
+        },
+        {
+          "what": "新增 web/tools/fill-shaosong-traits.js 一次性 migration 脚本·中文 keyword → CK3 trait_id 映射·覆盖 36 personality + 关键 lifestyle/commander/role/health 类·~30 trait id × 5-15 keyword。多源扫描 personality + bio + belief + faith + title + role + appearance + diction + _memory.event。对立组解析 17 对 (brave/craven·calm/wrathful 等) 按 score 取强者·top 6 traits per char。",
+          "why": "1.2.4.0 G2-C 只补了 3 个 ruler 的 psyche 字段·余下 95 个 chars (含李纲/宗泽/岳飞/韩世忠/张邦昌等核心人物) 的 traitIds 仍是 null·导致 TM.NpcEngine.aggregateDims 全返 0·G1-G3 反喂段的 8D 修正在绍宋全部失效。"
+        },
+        {
+          "what": "scenarios/绍宋·建炎元年八月（官方）.json·98/98 chars 全 fill·零 unmatched。样本质量·李纲 [brave,just,impatient,strategist,aggressive_attacker,reckless] / 宗泽 [brave,just,impatient,unyielding_defender,reckless] / 岳飞 [calm,shy,just,strategist,brave,content] / 韩世忠 [brave,strategist,gallant,diligent,honest,just] / 张邦昌 [deceitful,craven,cautious_leader] / 王彦 [strategist,brave,zealous,unyielding_defender] / 韦氏 [patient,vengeful,family_first,compassionate,scarred,depressed] / 完颜宗翰 [calm,brave,callous,aggressive_attacker,arrogant,patient]。",
+          "why": "trait 分布合史实·主战派文相得 reckless/impatient·武人豪侠得 gallant·伪楚趋附得 deceitful/craven·北狩遗孀得 scarred/depressed/vengeful·金西路军主帅得 callous/aggressive_attacker·人格区分度跟天启 200+ 已 traited chars 拉平。"
+        },
+        {
+          "what": "Smoke 验证·smoke-faction-npc-llm-decision PASS·smoke-faction-npc-multiturn-e2e PASS (5 turns·40 LLM calls)·smoke-changchao-persona-stance PASS (4/4 distinct dims profiles)·JSON valid。",
+          "why": "下游 8D 聚合 (常朝 layer 3 / 立场推导 / G1-G3 反喂) 跟 traitIds 联动正确，绍宋玩家本版起跟天启玩家拿到等质量的 persona-driven NPC 决策。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-22",
+      "module": "1.2.4.0·势力 LLM 智力大升级 + 回合推演 AI 全面升级 (双 sprint 合并)",
+      "title": "NPC 自主推演从「数值反应」升级为「有记忆 / 有计划 / 有人格 / 有对手心智」；回合推演 19 子调用全面健壮性收口、3 段管线、双调用合一、strict schema、4 区成本面板",
+      "items": [
+        {
+          "what": "【势力 LLM·F1】双轨 schema 收口——删 legacy memorials/edict/chaoyi/office 顶层 4 字段，LLM 输出单轨 actions[]，in-batch 去重防 LLM 双填重复 emit，~270 token / prompt 省。",
+          "why": "原 prompt 有双轨可选，LLM 经常同时填顶层 + actions 数组导致下游双重处理；单轨更清晰，token 省 ~10%。"
+        },
+        {
+          "what": "【势力 LLM·F2】SC16 闭环——新增 sc16Compliance 采纳审计 + directiveHash + 跨回合 cooldown，重复无视的 directive priority -20，已采纳的 priority -30。",
+          "why": "原 SC16 给 NPC 战略指令后没回看 NPC 是否采纳，导致 LLM 持续无视；闭环后 NPC 不再每回合被同一指令打扰。"
+        },
+        {
+          "what": "【势力 LLM·F3】NPC AI 全局诊断面板——势力列表加「NPC AI 全局状态」按钮，跨势力 candidates/dispatch/pickLog/failures 总览，每势力行加 status badge + SC16:N% compliance badge。",
+          "why": "原诊断分散在每势力 tab 内，全局视角缺；统一面板让 user 一眼看到哪势力 LLM 在工作 / 哪势力 SC16 采纳率低。"
+        },
+        {
+          "what": "【势力 LLM·G1·Tier 1 智力反喂】prompt 加 3 段：OWN_STRATEGIC_MEMORY (NPC 看见自己长期目标 / cooldowns) + LAST_TURN_FAILURES (LLM 看见上回合 fail target 不再重复) + LAST_TURN_COMPLIANCE (LLM 自查 SC16 采纳)。",
+          "why": "原 NPC LLM 每回合 stateless，重复犯同样错误 (打不下来的城继续打 / 已采纳的指令再写一遍)；反喂自己历史让决策连贯。"
+        },
+        {
+          "what": "【势力 LLM·G2·Tier 2 智力加深】prompt 加 3 段：OPPONENT_MIND_MODEL (top 3 对手 strategy/militaryPlans·NPC 能预测对手) + FISCAL_CONTEXT (runway/deficit/reward_cost ratio·穷势力禁大赏) + RULER_PSYCHE (主君 coreMotivations/redLines/personalGrudges·区分度升一档)。",
+          "why": "原 NPC 不知对手在想什么，外交 / 军事决策瞎打；不知自家财政能撑多久，挥霍无度；主君人格只是 stat 数字，没有动机表达。三段补齐后 NPC 决策真正像「有脑子的政治家」。"
+        },
+        {
+          "what": "【势力 LLM·G3·Tier 3 智力结构改】prompt 加 2 段 + rationale 升级：ALLY_MIND_MODEL (top 3 盟友 strategy·NPC 与盟友协调而非独立决策) + DECISION_STYLE_TREND (5 turns rolling·防今鹰派明鸽派)；rationale 改为 Phase 1/2/3 因果链结构 (cause/effect/contingency)。",
+          "why": "原 NPC 决策风格突变 (上回合鹰派今回合鸽派)、不与盟友协调；新结构让决策有 5 回合趋势惯性 + 盟友视角 + 三段式因果说理。"
+        },
+        {
+          "what": "【势力 LLM·G2-C】剧本 ruler psyche 数据补全——天启 4 ruler (皇太极/林丹汗/奢崇明/安邦彦) + 绍宋 3 ruler (赵构/完颜吴乞买/完颜宗翰) 共 7 个主君·补 coreMotivations/redLines/personalGrudges 3 字段·共 21 条历史/剧本依据的人格数据。",
+          "why": "G2 RULER_PSYCHE 段需要剧本数据填充才生效；7 个主君手工补齐后绍宋 + 天启两个官方剧本 G1-G3 反喂真生效。"
+        },
+        {
+          "what": "【回合推演·Phase 0】Quick Wins 7 项：SC1 stream 默认关 (D-1)·SC1 prompt 末尾 LSR JSON-only 强约束 (D-2)·sc1 maxRetries 1→2 (D-3)·SC05 catch 改 fallback (H1)·SC_RECALL catch 加 ctx.meta.errors (H8)·sysP cache_control OpenAI+Anthropic 双路 (P2)·SC1d _seedFromBasicFacts 兜底成文 (Q3)。",
+          "why": "SC1 主推演失败率 ~30% 主因是 JSON 格式漂移；这 7 项是零架构改动的快赢，预期 SC1 成功率 70%→85%。"
+        },
+        {
+          "what": "【回合推演·Phase 1】健壮性收口 8 项：jsonrepair Layer 2.5/2.6 处理 max_tokens 截断·_hasSc1StructuredResult ≥3 key·schemaHint 改 expectedKeys 列表·_truncatedCount ≥4 才 toast·sc1b/sc1c catch + ctx.meta.errors·补全 50+ 中文别名·sc_audit auto_patches verify + 回退·诊断面板 subcallErrors。",
+          "why": "原 robustParseJSON 只 4 层修复，max_tokens 截断时尾部不完整就丢；新 Layer 2.5/2.6 用栈补全闭合，加上 50+ 中文别名 (NPC动向→npc_actions 等)，覆盖率 95% → 99%。"
+        },
+        {
+          "what": "【回合推演·Phase 2】SC1 family 重构 5 slice：sysP 加 buildHardConstraints 全管线共享 cache·SC1 schema 删 sc1b-domain 4 字段 (cultural_works/npc_letters/npc_correspondence/npc_interactions) + sc1c-domain 5 字段·SC1d 解耦支持 SC1 失败兜底成文·SC1_SCHEMA_TIERS 真 3 层 dispatcher (按 modelCap 删 extended/common 字段段)。",
+          "why": "SC1 prompt 原 ~30K tokens 太大易丢字段；sc1b/sc1c 专管小字段域避免 sc1 大段重复输出；3 层 dispatcher 让低端 model (gpt-4o-mini 等) 输出 cap ≤4K 时自动只要 core 10 字段。"
+        },
+        {
+          "what": "【回合推演·Phase 2.5】sc1q 对话承诺推演 (新增子调用)：和 sc0 Promise.all 并行 (零 wall-clock 增加)·读 6 GM 字段覆盖 7 渠道 (问对/朝议/常朝/廷议/御前/鸿雁/朱批)·输出 dialogue_commitments + collective_resolutions + npc_dialogue_intent + required_sc1_actions·apply 闭环 dialogue_commitment_feedback + dedup_with_wendui·sc_audit 覆盖率检查。",
+          "why": "原 SC1 只读 edicts 诏书，问对/朝议/常朝/廷议/御前的对话承诺被埋在 25K prompt 中段权重低，常被忽略；sc1q 把对话决策提取为「和诏书等同的输入」，承诺被推演率 30% → 90%。"
+        },
+        {
+          "what": "【回合推演·Phase 3】深度推演重构 5 项：SC15 hidden_moves/npc_schemes 边界明文 (本回合 vs 跨回合)·SC16 加硬规则必输 diplomatic_shifts·SC17 默认 skip 由 SC1.economic_advice 替代 (-$0.02/turn)·SC16 lite variant + SC18 lite variant·SC18 battleResult 后验 (commanderFate/affectedArmies/faction id 校验·荒诞战役 reject)。",
+          "why": "SC1c/SC16 diplomatic_shifts 双轨写产生矛盾；SC17 单独 LLM 调用浪费 (SC1 顺便可以给经济建议)；SC18 偶尔输出荒诞战报 (commander 不存在/army 不存在)，后验 reject 这些。"
+        },
+        {
+          "what": "【回合推演·Phase 4】记忆层合并 5 项：sc25c 双调用合一 (tactical temp=0.3 / strategic temp=0.5·R-H 决定)·sc15n 3-tier 合一 (core/common/extended 按 modelTier)·post-turn DAG dependsOn 正式 API·sc28 snapshot 注入下回合 sc1 prompt 头部·sc_memwrite async lazy + sc1 prep await sc_memwrite。",
+          "why": "原 sc25 + sc_consolidate 两个独立调用语义重叠；sc15 + sc07 同样；合并后用 dual-temp 提质 + 3-tier 减 token；sc28 上回合 world_snapshot 注入下回合 sc1 让叙事连续性提升一档。"
+        },
+        {
+          "what": "【回合推演·Phase 5】sc2/sc27 合并三阶段 (opt-in P.ai.sc2Pipeline=3stage)：sc2_outline (temp=0.5 输出场景大纲) → sc27_review (temp=0.3 审 outline 而非 prose·宁可不报告) → sc2_prose (按 outline+review 写完整正文)·失败时 fallback 到 legacy sc2 + sc27·UI 反馈 toast (构思中·已铺好 N 场景 / 叙事成文 N 字)。",
+          "why": "原 sc27 审 prose 是「后置 rewrite」，重复 rewrite 浪费 token；改成 outline 审查能在 outline 层拦截 anachronism (检出 +30%)、name_error (+50%)，且 prose 一次写好。三段总 ~7.5K tokens vs 旧 13K，-$0.04/turn。"
+        },
+        {
+          "what": "【回合推演·Phase 6】OpenAI json_schema strict (opt-in P.ai.openaiStrict=true)：4 个 schema builder (sc1/sc1b/sc1c/sc1q) + 11 个扩展 builder (sc1d/sc15/sc15n/sc16/sc17/sc18/sc2/sc25/sc25c/sc27/sc28)·strict mode 走 logit-mask 级 schema 约束·失败自动 fallback to json_object + _sc1StrictFallback 诊断标·web/schemas/sc1.schema.json 单独 JSON Schema 文件·derive-sc-schema-from-prompt.js CI 校验脚本。",
+          "why": "OpenAI 用户 SC1 JSON 失败率 ~10%；strict 模式在 logit 层强制 JSON 形，失败率 → ~1%；自动 fallback 保证非 OpenAI 用户和不支持 strict 的模型不破坏。"
+        },
+        {
+          "what": "【回合推演·Phase 7+7.5】UX 收口 + 设置面板 6 决定：4 区成本面板 (区1 智能档位 / 区2 推演深度细调 / 区3 性能成本控制 / 区4 诊断 debug)·TM.ai.showCostPanel() + 设置面板按钮入口·TokenUsageTracker 加 byId 拆分 + successCount/totalTokens·subcall errors 按 category (parse/timeout/http/network/validate/other)·9 toggle UI 暴露 (stream_sc1/openaiStrict/sc1OwnedBySc1b/sc1c/sc17Skip/sc16Lite/sc18Lite/sc25cEnabled/sc15nEnabled/sc2Pipeline)·aiCallDepth 三档重定义 18/14/10·导出 AI 日志按钮 + localStorage 200 条历史·migration framework SAVE_SCHEMA_VERSION=1.3.0-ai-upgrade·consolidationEnabled→memorySynthesisEnabled rename + migrate·删 showRelation zombie toggle。",
+          "why": "原诊断散落控制台，user 提 bug 没附数据；4 区面板让 user 一眼看到当前回合成本、subcall 拆分、错误日志；按 category 分类让 user 知道是 parse 错还是 timeout；9 toggle UI 让 user 不用 console 就能逐个翻 opt-in flag；migration framework 让 1.2.3 老存档自动升级到 1.2.4 字段集。"
+        },
+        {
+          "what": "【常朝·Slice 9 Tier 2】累积参考 + 皇帝意图 cue：当 alliesPiledOn ≥ 3 (3 个同党 NPC 已附议)·后续同党 NPC 转「一字千钧」风格 (短而有力·避免堆叠重复)；玩家 admonish/praise/doubt 跨议题影响下议题 NPC 发言 (皇帝 cue 让 NPC 知道君主当下情绪)。",
+          "why": "原朝议 NPC 自发议论是「群聊」，3-5 个同党堆叠重复词；累积参考让后续 NPC 转风格避免冗余；皇帝 cue 让 NPC 看到玩家上议题的态度，调整下议题发言。"
+        },
+        {
+          "what": "【version bumps】tm-faction-npc-settings.js·tm-faction-npc-llm-decision.js·tm-faction-action-engine.js·tm-three-systems-ui.js·tm-endturn-followup.js·tm-chaoyi-changchao.js·tm-endturn-ai.js·tm-endturn-apply.js·tm-ai-infra.js·tm-endturn-prompt.js·tm-endturn-record.js·tm-ai-schema.js·tm-ai-output-validator.js·tm-save-lifecycle.js·tm-prompt-composer.js·tm-patches.js·tm-player-settings.js·tm-post-turn-jobs.js·共 18 文件 version bump 强刷 cache。",
+          "why": "本版改动覆盖 18 个核心 JS 文件，CDN 静态资源缓存可能拖到 24h+，强制 version bump 让 user 客户端刷新到最新逻辑。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-22",
       "module": "常朝大改·v3.1 prompt 强约束 polish",
       "title": "把 NPC 应答模式的 prompt 从弱约束（候选词池 + 抽象规则）升级为强约束（必含词 + 禁词 + few-shot example + 自检 + JSON mode 回执）",
       "items": [

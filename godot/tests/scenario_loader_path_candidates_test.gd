@@ -12,13 +12,9 @@ func _ready() -> void:
 		return
 
 	var candidates: PackedStringArray = loader.call("_scenario_dir_candidates")
-	var original_dir: String = ProjectSettings.globalize_path("res://../scenarios")
-	var copied_dir: String = ProjectSettings.globalize_path("res://../../scenarios")
-	if not candidates.has(original_dir):
-		_fail("ScenarioLoader candidates omitted original Godot sibling scenarios path")
-		return
-	if not candidates.has(copied_dir):
-		_fail("ScenarioLoader candidates omitted copied web/godot scenarios fallback path")
+	var copied_dir: String = ProjectSettings.globalize_path("res://data/scenarios")
+	if candidates.is_empty() or candidates[0] != copied_dir:
+		_fail("ScenarioLoader candidates do not prioritize the copied project scenarios path")
 		return
 
 	var root: String = ProjectSettings.globalize_path("user://scenario_loader_path_candidates")

@@ -103,7 +103,7 @@ func _update_candidates(offices: Array, characters: Array, assignments: Dictiona
 		if character_id.is_empty() or character_id == str(assignments.get(selected_office_id, "")):
 			continue
 		var button: Button = Button.new()
-		button.text = "%s  忠%d 政%d 军%d 智%d\n%s" % [
+		var candidate_text: String = "%s  忠%d 政%d 军%d 智%d\n%s" % [
 			str(character.get("name", "")),
 			int(_num(character.get("loyalty", 0))),
 			int(_num(character.get("administration", 0))),
@@ -113,6 +113,7 @@ func _update_candidates(offices: Array, characters: Array, assignments: Dictiona
 		]
 		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_apply_candidate_button_content(button, character, candidate_text)
 		button.disabled = action_points <= 0
 		button.pressed.connect(func() -> void:
 			emit_signal("appointment_requested", character_id, selected_office_id)
@@ -133,6 +134,50 @@ func _candidate_score(character: Dictionary, domain: String) -> float:
 	else:
 		score += _num(character.get("administration", 0)) * 0.45 + _num(character.get("management", 0)) * 0.10
 	return score
+
+func _apply_candidate_button_content(button: Button, character: Dictionary, candidate_text: String) -> void:
+	var texture: Texture2D = _load_portrait_texture(str(character.get("portrait_path", "")))
+	if texture == null:
+		button.text = candidate_text
+		return
+	button.text = ""
+	button.custom_minimum_size.y = 92
+	button.tooltip_text = "%s\n%s" % [
+		str(character.get("name", "")),
+		str(character.get("official_title", character.get("title", "")))
+	]
+	var row: HBoxContainer = HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", 8)
+	row.set_anchors_preset(Control.PRESET_FULL_RECT)
+	row.offset_left = 8
+	row.offset_top = 6
+	row.offset_right = -8
+	row.offset_bottom = -6
+	button.add_child(row)
+
+	var portrait_rect: TextureRect = TextureRect.new()
+	portrait_rect.texture = texture
+	portrait_rect.custom_minimum_size = Vector2(54, 72)
+	portrait_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	portrait_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(portrait_rect)
+
+	var text_label: Label = _make_label(candidate_text, 13, Color(0.88, 0.84, 0.74))
+	text_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	text_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(text_label)
+
+func _load_portrait_texture(path: String) -> Texture2D:
+	if path.is_empty() or not FileAccess.file_exists(path):
+		return null
+	var image: Image = Image.new()
+	var err: Error = image.load(path)
+	if err != OK:
+		push_warning("Failed to load appointment candidate portrait %s error=%d" % [path, err])
+		return null
+	return ImageTexture.create_from_image(image)
 
 func _office_by_id(offices: Array, office_id: String) -> Dictionary:
 	for raw in offices:

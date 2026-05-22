@@ -231,6 +231,53 @@ function buildAiPersonaText(char, options) {
     return parts.filter(function(p) { return p; }).join('\n');
   }
 
+  /**
+   * Phase 7·Wall-clock 优化·共享 prompt prefix (角色名单·近期史记·时代信息)
+   * 19 子调用都需要的"客观参考"·抽到 sysP 末尾·走 cache·prompt 删重复段
+   */
+  function buildSharedPromptPrefix(GMRef, opts) {
+    opts = opts || {};
+    if (!GMRef) return '';
+    var parts = [];
+    // 在世角色名单 (sc1/sc1b/sc1c/sc15/sc15n/sc27 都要)·~250 字限
+    try {
+      var chars = (GMRef.chars || []).filter(function(c){ return c && c.alive !== false; }).slice(0, 30);
+      if (chars.length) {
+        parts.push('【在世角色】' + chars.map(function(c){
+          return c.name + (c.officialTitle ? '·' + c.officialTitle : '');
+        }).join('、'));
+      }
+    } catch(_){}
+    // 时代信息 (sc1/sc1d/sc2/sc27 都要)
+    try {
+      if (GMRef.turn) parts.push('【本回合】T' + GMRef.turn);
+    } catch(_){}
+    // 主要势力快照 (sc1c/sc15/sc16/sc28 都要)
+    try {
+      var facs = (GMRef.facs || []).filter(function(f){ return f && !f.player; }).slice(0, 10);
+      if (facs.length) {
+        parts.push('【非玩家势力】' + facs.map(function(f){ return f.name + '(兵' + (f.militaryStrength||0) + ')'; }).join('、'));
+      }
+    } catch(_){}
+    return parts.length ? '\n\n=== 客观参考 (共享·全管线 cache 命中) ===\n' + parts.join('\n') + '\n=== 参考结束 ===' : '';
+  }
+
+  /**
+   * Phase 2 Slice 1·硬约束块 (静态部分)·全管线共享·放 sysP 走 cache
+   * 不含·死亡名单/诈死名单 (每回合变·留 user prompt)·见 tm-endturn-ai.js _hardConstraints 动态段
+   * 适用·sc1/sc1b/sc1c/sc1d/sc15/sc16/sc17/sc18/sc2/sc27 等所有 endturn 子调用
+   */
+  function buildHardConstraints() {
+    return '\n═══【全管线硬约束·违反将被校验器标记并自动补录·影响 AI 评级】═══\n'
+      + '① 金额一致性：shilu_text/shizhengji/events 中出现的任何"拨/赐/赈/征/抄/缴/赔/贡 N两/石/匹"等具体金额动作，必须在 fiscal_adjustments 中有对应条目（target/kind/resource/amount 一一对应）。缺失将被自动校验器补录标记。\n'
+      + '② 死亡禁动：本回合 user prompt 中列出的"已死"角色不得有任何行动/对话/奏折/任命（出现在 personnel_changes / npc_actions / char_updates 等字段均为违规）。\n'
+      + '③ 死亡→墓志铭：若本回合新增 character_deaths·必须在 reason 中写清死因(病/诛/战/自尽/意外/诈死)·type:fake则系统会走holding不归档。\n'
+      + '④ 数据与叙事不得互悖：宁可不写不可写而不改。所有"实际变化"必须落到对应结构化字段。\n'
+      + '⑤ 忠诚语义：每个角色的 loyalty 是"对自己所属势力/首领"的忠诚，不是"对玩家"的忠诚。皇太极忠于后金·不忠于明廷皇帝；岳飞忠于宋廷·不忠于金国皇帝。敌对势力角色 loyalty 再高也不会为玩家效力。\n'
+      + '⑥ 角色归属铁律：c.faction 决定角色阵营——非玩家势力角色（敌对/附属/外邦）不得作为本朝官员任命（如不能让皇太极当明朝主考官/宰相/将军）。只有投降/归顺（先改 faction·再任命）才能跨势力任官。任命 office_assignments/任命类 changes 必须先检查 faction 与玩家同·否则视为荒唐诏令按字面执行+剧烈混乱+皇威暴跌。\n'
+      + '═════════════════════════════════════════════\n';
+  }
+
   TM.PromptComposer = {
     buildBase: buildBase,
     buildPersonaExtra: buildPersonaExtra,
@@ -243,7 +290,9 @@ function buildAiPersonaText(char, options) {
     buildRecognitionState: buildRecognitionState,
     buildSystemPrefix: buildSystemPrefix,
     buildCommon: buildCommon,
-    _version: 'v7'
+    buildHardConstraints: buildHardConstraints,
+    buildSharedPromptPrefix: buildSharedPromptPrefix,
+    _version: 'v9'
   };
 
   if (typeof module !== 'undefined' && module.exports) {

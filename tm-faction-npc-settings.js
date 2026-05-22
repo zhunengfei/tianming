@@ -20,14 +20,14 @@
   var DEFAULTS = {
     npcAiPrecision: true,              // 主开关
     npcAiPrecisionMaxPerTurn: 2,       // 限流·过回合时最多 LLM call 次数；重活交给回合后后台队列
-    npcAiPrecisionPriority: 'overall', // 'overall' | 'random' — 优先 enrich 哪些 fac
-    npcAiPrecisionMaxPerTurn: 2,
+    npcAiPrecisionPriority: 'overall', // F0 2026-05-22·历史字段·无消费者 (ranking 走 FactionActionEngine.scoreFactionCandidate)·保留避免破坏存档迁移
     npcAiCosmeticEnrich: true,         // separate text-polish switch: cosmetic only
     npcAiPrecisionMode: 'eager',       // master switch ON means endturn batch + in-turn extra LLM can both run
     npcAiPrecisionConcurrency: 2,
     npcAiPrecisionRetryAttempts: 2,
     npcAiPrecisionTimeoutMs: 30000,
-    npcAiPrecisionMaxTokens: 6000
+    npcAiPrecisionMaxTokens: 6000,
+    npcEagerDelayMs: 300               // F0 2026-05-22·dispatcher 读·补上与 dispatcher DEFAULTS 一致
   };
 
   function _migrateCadence(conf) {

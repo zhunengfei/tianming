@@ -68,6 +68,10 @@ function _ensureGMDefaults() {
   if (!GM._factionUndercurrents) GM._factionUndercurrents = [];
   if (!GM._factionUndercurrentsHistory) GM._factionUndercurrentsHistory = [];
   if (!GM._courtRecords) GM._courtRecords = [];
+  // Phase 4 基建·sc28 world_snapshot 跨回合 mirror·sc1 prep 注入需要
+  if (!GM._lastSc28Snapshot) GM._lastSc28Snapshot = null;
+  // Phase 7 准备·成本面板 history·最近 20 回合
+  if (!Array.isArray(GM._costHistory)) GM._costHistory = [];
   if (!GM.activeSchemes) GM.activeSchemes = [];
   // 方案新增字段
   if (!GM._edictTracker) GM._edictTracker = [];
@@ -112,6 +116,50 @@ function _ensureGMDefaults() {
 }
 
 // 确保 P 所有字段存在默认值
+// ════════════════════════════════════════════════════════════════════════
+// §6.5 R3·真 Migration Framework (2026-05-22)
+// 版本号 + deprecation pipeline + 日志·让存档/conf 升级有迹可循
+// ════════════════════════════════════════════════════════════════════════
+var SAVE_SCHEMA_VERSION = '1.3.0-ai-upgrade';
+var _MIGRATIONS = [
+  // 每条·{ from: '1.2.0', to: '1.3.0-ai-upgrade', migrate: function(P, GM) {...}, desc: '...' }
+  { from: '*', to: '1.3.0-ai-upgrade', desc: 'Phase 0-7.5·rename consolidationEnabled→memorySynthesisEnabled', migrate: function(Pref, GMref) {
+    if (Pref && Pref.conf && typeof Pref.conf.consolidationEnabled === 'boolean' && typeof Pref.conf.memorySynthesisEnabled !== 'boolean') {
+      Pref.conf.memorySynthesisEnabled = Pref.conf.consolidationEnabled;
+      try { delete Pref.conf.consolidationEnabled; } catch(_){}
+      return ['rename·consolidationEnabled → memorySynthesisEnabled'];
+    }
+    return [];
+  } }
+];
+function runMigrations() {
+  if (typeof P === 'undefined' || !P) return [];
+  if (!P.conf) P.conf = {};
+  var fromVer = P.conf._saveSchemaVersion || '1.2.0';
+  if (fromVer === SAVE_SCHEMA_VERSION) return [];
+  var log = [];
+  _MIGRATIONS.forEach(function(m) {
+    if (m.from === '*' || m.from === fromVer) {
+      try {
+        var diff = m.migrate(P, (typeof GM !== 'undefined') ? GM : null);
+        if (Array.isArray(diff) && diff.length) log = log.concat(diff.map(function(x){ return m.from+'→'+m.to+': '+x; }));
+      } catch(e) {
+        log.push('migration ' + m.from + '→' + m.to + ' fail: ' + (e && e.message));
+      }
+    }
+  });
+  P.conf._saveSchemaVersion = SAVE_SCHEMA_VERSION;
+  if (log.length > 0) {
+    try {
+      if (!Array.isArray(P.conf._migrationLog)) P.conf._migrationLog = [];
+      P.conf._migrationLog.push({ at: Date.now(), version: SAVE_SCHEMA_VERSION, entries: log.slice(0, 20) });
+      if (P.conf._migrationLog.length > 10) P.conf._migrationLog = P.conf._migrationLog.slice(-10);
+      if (typeof console !== 'undefined') console.log('[migration] applied ' + log.length + ' rules·now ' + SAVE_SCHEMA_VERSION);
+    } catch(_){}
+  }
+  return log;
+}
+
 function _ensurePDefaults() {
   if (!P.ai) P.ai = {};
   if (!P.classes) P.classes = [];
@@ -136,6 +184,22 @@ function _ensurePDefaults() {
   if (!P._varFormulas) P._varFormulas = [];
   if (!P.conf) P.conf = {};
   if (!P.conf.verbosity) P.conf.verbosity = 'standard';
+  // Phase 7.5·6 决定 defaults·user 可在设置面板调
+  if (typeof P.conf.dialogueRecallTurns !== 'number') P.conf.dialogueRecallTurns = 3;
+  if (typeof P.conf.costAlertThreshold !== 'number') P.conf.costAlertThreshold = 0.5;
+  if (typeof P.conf.strictSchemaEnabled !== 'boolean') P.conf.strictSchemaEnabled = false;
+  // Phase 7.5 B·rename·consolidationEnabled → memorySynthesisEnabled (sc25c 接管 sc_consolidate 后语义已变)
+  // 老存档 mirror·若有旧字段·赋值新字段·再删旧
+  if (typeof P.conf.memorySynthesisEnabled !== 'boolean') {
+    if (typeof P.conf.consolidationEnabled === 'boolean') {
+      P.conf.memorySynthesisEnabled = P.conf.consolidationEnabled;
+      try { delete P.conf.consolidationEnabled; } catch(_){}
+    } else {
+      P.conf.memorySynthesisEnabled = true;  // 默认 ON·与 sc25cEnabled 一致
+    }
+  }
+  // §6.5 R3·调 migration framework·版本检查 + rule apply + log
+  try { runMigrations(); } catch(_migErr) {}
   if (typeof P.conf.npcAiPrecision !== 'boolean') P.conf.npcAiPrecision = true;
   if (typeof P.conf.npcAiCosmeticEnrich !== 'boolean') P.conf.npcAiCosmeticEnrich = true;
   if (!P.conf.npcAiPrecisionMode) P.conf.npcAiPrecisionMode = 'eager';
