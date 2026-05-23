@@ -83,6 +83,14 @@ function walk(dir, out) {
   });
 }
 
+// 2026-05-23·主进程实现热更·把 APP_ROOT/main-impl.js 打到 zip 根·命名 _app_main.js
+// installer 里的 main.js shim 会优先 require hot dir 的 _app_main.js·让 main 实现也能 hot ship
+function walkAppMainImpl() {
+  const APP_MAIN_IMPL = path.join(APP_ROOT, 'main-impl.js');
+  if (!fs.existsSync(APP_MAIN_IMPL)) return [];
+  return [{ abs: APP_MAIN_IMPL, zipPath: '_app_main.js' }];
+}
+
 // 2026-05-22·扫 APP_ROOT/scenarios·把官方剧本 JSON 也打进 zip·路径 bundled-scenarios/<file>
 // 让 hot update 也能 ship scenarios 改动·不必等下个 installer
 function walkBundledScenarios() {
@@ -168,6 +176,19 @@ function main() {
     console.log('[hot-update] bundled scenarios·' + bundledScenarios.length + ' file(s)·' + bundledScenarios.map(e => path.basename(e.abs)).join(', '));
   }
 
+  // 2026-05-23·主进程实现·main-impl.js → _app_main.js·shim 会找
+  const appMains = walkAppMainImpl();
+  appMains.forEach(entry => {
+    const stat = fs.statSync(entry.abs);
+    zip.addLocalFile(entry.abs, '', '_app_main.js');
+    manifestFiles.push({ path: entry.zipPath, sha256: sha256File(entry.abs), size: stat.size });
+  });
+  if (appMains.length) {
+    console.log('[hot-update] app main impl·_app_main.js·' + (fs.statSync(appMains[0].abs).size/1024).toFixed(1) + ' KB');
+  } else {
+    console.warn('[hot-update] WARN·APP_ROOT/main-impl.js 不存在·main shim 将无 hot 实现可加载·只能 fallback bundled');
+  }
+
   const manifest = {
     type: 'tianming-hot-update',
     version,
@@ -181,16 +202,24 @@ function main() {
   zip.writeZip(zipPath);
 
   const zipStat = fs.statSync(zipPath);
+  // 2026-05-23·incremental update 字段·old client 读不到 manifestUrl 自动 fallback 走 packageUrl 全包路径
+  //   manifestUrl·per-version manifest·{path,sha256,size}·客户端 diff 本地 .hot-update-manifest.json
+  //   filesBaseUrl·sha-content-addressable file store·客户端按 `${filesBaseUrl}<sha2>/<sha-rest>/<basename>` 取
   const feed = {
     type: 'tianming-hot-update-feed',
     version,
     packageUrl,
+    manifestUrl: 'manifests/' + version + '.json',
+    filesBaseUrl: 'files/',
     sha256: sha256File(zipPath),
     size: zipStat.size,
     notes,
     generatedAt: manifest.generatedAt
   };
   fs.writeFileSync(path.join(outDir, 'hot-latest.json'), JSON.stringify(feed, null, 2), 'utf-8');
+  // 同步把 manifest 单独写到 outDir·upload-hot.py 直接拾·SCP 到 server hot/manifests/<ver>.json
+  fs.mkdirSync(path.join(outDir, 'manifests'), { recursive: true });
+  fs.writeFileSync(path.join(outDir, 'manifests', version + '.json'), JSON.stringify(manifest, null, 2), 'utf-8');
 
   console.log('[hot-update] package:', zipPath);
   console.log('[hot-update] feed:', path.join(outDir, 'hot-latest.json'));

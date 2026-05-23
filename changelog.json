@@ -3,6 +3,37 @@
   "entries": [
     {
       "date": "2026-05-23",
+      "module": "1.2.6.0/1.2.6.1·incremental hot update 上线 + main.js 可热更新·彻底解 430MB 全包痛点",
+      "title": "三块·(A) Server-side·upload-hot.py 加 sha-content-addressable 文件 store (/files/<sha2>/<sha-rest>/<basename>) + per-version manifest (/manifests/<ver>.json)·跨版本 dedup·91% 文件 (portraits/assets) 永不重复传。(B) Client-side·main.js incremental install path·新增·feed 有 manifestUrl + filesBaseUrl + local 有 manifest → diff·只下变化文件·hardlink 不变文件·sha 逐个验证·失败 fallback 全 zip·sendHotUpdateStatus incremental-plan/progress event 给 UI。典型 ship 1-5 MB → 不再 430 MB·~100-400x 节省。(C) main.js 拆 shim·原内容 → main-impl.js·shim 启动时 prefer hot dir 的 _app_main.js·失败 fallback bundled·**从此 main.js 可走 hot update·不再需要 rebuild .exe**。配套·build-hot-update-package.js 加 _app_main.js 打包 (从 APP_ROOT/main-impl.js)·hot-latest.json schema 加 manifestUrl + filesBaseUrl·installer 1.2.6.0 重打·package.json buildVersion + version + 输出 path E:\\版本\\1.2.6.0·build.files 加 main-impl.js。",
+      "items": [
+        {
+          "what": "[Incremental·S1·skill upload-hot.py] upload_incremental_files(c, zip_local)·extract zip + parse manifest·SSH find /tianming/hot/files -type f 列已存 sha set·只 SFTP put 缺的文件 (in-memory putfo·避免落 tmp 盘)·mkdir -p sha-prefix dirs (一 shell command batch)·manifest 上传到 /manifests/<ver>.json。--no-incremental 跳过 (legacy zip-only mode)。",
+          "why": "实测 1.2.5.3 zip·assets 占 83.5% (407MB)·几乎不变·跨版本 sha dedup 后只需上传真正变的几个文件·首装上传全·之后 ship 秒级。"
+        },
+        {
+          "what": "[Incremental·S2·build-hot-update-package.js] hot-latest.json 加 manifestUrl (相对·manifests/<ver>.json) + filesBaseUrl (相对·files/)·同时把 manifest 单独写到 outDir/manifests/<ver>.json·upload-hot.py 拾起一并 SCP。",
+          "why": "feed schema 加 incremental 字段·老 client 读不到就 fallback packageUrl 全包·向后兼容·零破坏。"
+        },
+        {
+          "what": "[Incremental·S3·main.js] installHotUpdate_incremental(feedInfo, currentState)·fetch new manifest → diff vs local manifest → build staging (hardlink unchanged from currentDir·fallback copy·跨盘场景)·并行 fetch changed (sequential·diagnostic clarity)·sha verify each·写 manifest.json·调 validateHotUpdateBundle + _finalizeStagingInstall (从 installHotUpdateFromBundle 提的复用 helper)·atomic rename·失败 throw → caller fallback 全 zip。installHotUpdateFromFeed 顶部 dispatcher·canIncremental + hasLocalManifest 时优先 incremental·失败 fallback installHotUpdateFromFeed_zipFallback (原 zip 路径独立成函数)。",
+          "why": "client 真 incremental·1.2.5.3 这种 3 文件 ship 只需下 ~1 MB·~400x 节省。hardlink 复用 currentDir 文件·avoid 重复 disk write。"
+        },
+        {
+          "what": "[Main hot·shim] main.js 内容 → main-impl.js (2217 行原封)·main.js 重写为 40 行 shim·_detectHotMain() 读 <userData>/content/hot-updates/hot-update-state.json·找 <currentDir>/_app_main.js·存在 require·失败 fallback ./main-impl.js·同步 catch + 日志清晰·async crash 走 视图→热更新→回滚菜单。package.json·main 仍指 main.js·build.files 加 main-impl.js·两个都打进 installer。",
+          "why": "user 反馈 1.2.5.0 ship 后 'main.js 改动必须 rebuild .exe' 阻塞·痛点。shim 让 main 实现走 hot update path·从此 main.js bug 修 / 新菜单 / IPC handler 全走 hot·一次性 onboarding 后永不再 rebuild。"
+        },
+        {
+          "what": "[Main hot·build] build-hot-update-package.js walkAppMainImpl()·APP_ROOT/main-impl.js → zip 根 _app_main.js·进 manifestFiles。shim 在 hot dir 找的就是这个文件。",
+          "why": "hot 包必带 _app_main.js 才能让 shim 接管·零 _app_main.js 时 shim fallback bundled main-impl.js·安全降级。"
+        },
+        {
+          "what": "[Installer·1.2.6.0] package.json·version 1.2.2 → 1.2.6·buildVersion 1.2.2.0 → 1.2.6.0·artifactName + directories.output 都换到 E:\\版本\\1.2.6.0·build.files 加 main-impl.js。",
+          "why": "main shim + main-impl.js 必须随 installer 出厂·之后 main 改动 hot 替换 _app_main.js·shim 自动加载新版。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-23",
       "module": "1.2.5.3·卡顿二阶修·defer-during-input 叠在 A-1 之上",
       "title": "在 1.2.5.0 已落地的 A-1 selective snapshot (砍 60-70%) 之上·叠加 C·defer-during-input·5s 内有任何 keydown / pointerdown / compositionupdate / input 事件·跳本次 60s autoSave tick·避开打字 / 点击 / 拼音输入窗口·彻底消除打字时的 ~3s freeze。3 分钟兜底·距上次成功保存 >180s 强存·防长打字断档。document level capture listener·所有 input 都计入·streak 日志每 5 次输出一次不刷屏。同时附·邸报 standalone 双文件陷阱永久修 (tm-changelog.js + skill upload-hot.py auto-sync) + dev workflow webRootOverride·见 main.js 视图菜单。",
       "items": [
