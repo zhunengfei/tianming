@@ -3,6 +3,25 @@
   "entries": [
     {
       "date": "2026-05-23",
+      "module": "1.2.5.2·F4c incident hookup·言官清议接 _ty3_phase12_onAccusationApproved",
+      "title": "1.2.5.1 D1 接通后留的最后 stub·_kjCheckYanguanQingyiTriggers 真接弹劾事件·主 hook 走 tm-tinyi-v3.js _ty3_phase12_onAccusationApproved 准奏弹劾尾部直 call _kjSpawnYanguanQingyi(sourceParty, leader, detail)·endTurn 防御扫 GM._chronicle 当 turn impeachment-party 防主路径漏调·_kjQingyiHandled 标记避重·party.splinterFrom 反查源党。开 D1 后·准奏弹劾 → 被劾党 (源党) 言官门生 (alive ≥3·同党 mentor) 集体清议入常朝 source pool·LLM 改写为「都察院 X 等 N 人·清议某党」NPC 上奏·5y/党 cooldown·MAX_SPAWN_PER_TURN=1·MAX_CONSUME=2。新 smoke 18/18·历史 4 smoke 128/128 全 pass。",
+      "items": [
+        {
+          "what": "[F4c·主 hook] tm-tinyi-v3.js _ty3_phase12_onAccusationApproved 尾部 (准奏弹劾 chronicle push 后·return p 前) 加 try-catch·sourceParty + leaderName + verdictGrade 构 qDetail·调 _kjSpawnYanguanQingyi(sourceParty, leaderName, qDetail)·flag gate 在 spawn 内·D1=off 全 no-op。",
+          "why": "原 F4c trigger 是 stub·user 1.2.5.1 ship 后明列剩任务·这是主路径·准奏弹劾 → 立刻 spawn 清议·有上下文 (accuser/charges/verdictGrade) 全。"
+        },
+        {
+          "what": "[F4c·endTurn 防御扫] tm-keju-yanguan-qingyi.js _kjCheckYanguanQingyiTriggers 重写·扫 GM._chronicle 当 turn 的 type==='impeachment-party'·查 partyName 对应 GM.parties 的 splinterFrom 反查源党·调 _kjSpawnYanguanQingyi 补 spawn·entry 标 _kjQingyiHandled 避重·MAX_SPAWN_PER_TURN=1·cooldown failed 也标 handled 防重扫。",
+          "why": "防 race·主路径漏调或迁移时不丢清议·主+防御双轨·cooldown 自然防双 spawn。"
+        },
+        {
+          "what": "[F4c·smoke 新增] scripts/smoke-f4c-incident-hookup.js·18 case·flag gate·空 chronicle·缺 splinterFrom·完整 setup spawn 1·handled 防 re-spawn·cooldown 内 spawn 失败仍标 handled·MAX_SPAWN_PER_TURN=1 限·全 PASS。",
+          "why": "endTurn 防御扫路径独立 smoke·主路径在 tinyi 集成测·小 ship 内 18 + 128 历史 = 146 assertion 0 fail。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-23",
       "module": "1.2.5.1·D1 endTurn hookup + 2 处 audit 修 + F1 双 bug 修",
       "title": "1.2.5.0 ship 后增量·(A) F2/F3/F4c 三个 trigger 函数接 endTurn pipeline (deferred phase5 + render-finalize 2 处)·flag gate by P.conf.useNewKejuD1·关 D1 时全 no-op·开 D1 时门生上书/同年集会/言官清议 spawn 注入常朝 source pool·(B) audit P0·scenario.keju.enabled (boolean) 优先·禁 LLM/preset 覆盖·绍宋建炎元年八月 enabled=false 不再被覆盖·initKejuSystem 3 路径全加 guard·(C) audit P1·D4 寒门/门阀 keyword 扩·commoner 加农/工匠/庶民·aristocrat 加士大夫/士绅/宗室·绍宋寒门状元 event 可触发·(D) F1 _kjGetDiscipleStrength 用 lastInteractionYear 替 turn 推算·避免双 decay·中立/无党/无党派 排除同党+18 bonus·_kjDiscipleGraphEndTurnDecay 不 mutate strength·只 getStrength 即时算·避免 double decay。",
       "items": [

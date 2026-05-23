@@ -12,10 +12,13 @@
  *   - 不发 modal·不发邸报·不动 keyi 800 行
  *   - 走 _cc2_pushAgendaSource·让 LLM 改写为言官 NPC 上奏
  *
+ * 集成点·1.2.5.2·_ty3_phase12_onAccusationApproved 准奏弹劾尾部直 call _kjSpawnYanguanQingyi(sourceParty, leader, detail)
+ * endTurn _kjCheckYanguanQingyiTriggers 保留为防御 backup·扫 GM._chronicle 当 turn 的 impeachment-party 漏 spawn
+ *
  * Public API·
- *   _kjCheckYanguanQingyiTriggers()             — endTurn 调·检测·spawn qingyi (stub·待 incident 集成)
+ *   _kjCheckYanguanQingyiTriggers()             — endTurn 防御扫·补漏 spawn
  *   _kjConsumeYanguanQingyiForAgenda()          — _cc2_collectAgendaSources 调·消费队列
- *   _kjSpawnYanguanQingyi(party, member, evt)   — 手动 spawn·供 incident system 集成
+ *   _kjSpawnYanguanQingyi(party, member, evt)   — 直 call·准奏弹劾时由 tinyi-v3 主调
  *
  * 依赖·
  *   - F4a _kjYanguanResolveAttribution (resolve mentorParty)
@@ -34,17 +37,45 @@
     return P.conf.useNewKejuD1 === true;
   }
 
-  /** 主入口·endTurn 调·检测·spawn qingyi
-   *  trigger·GM._recentPartyAttacks (新加·或 incident system 集成后补)·暂 stub 返 0
-   *  实际触发走 _kjSpawnYanguanQingyi (手动·incident 集成后调) */
+  /** 主入口·endTurn 调·防御扫 GM._chronicle 当 turn 的 impeachment-party 事件补漏 spawn
+   *  主路径走 _kjSpawnYanguanQingyi 直 call (tm-tinyi-v3.js _ty3_phase12_onAccusationApproved 尾部)
+   *  此处作为防御 backup·防 race/迁移导致主路径漏调时不丢清议
+   *  返 spawn 的清议数 */
   function _kjCheckYanguanQingyiTriggers() {
     if (!_isD1Enabled()) return 0;
     if (typeof GM === 'undefined' || !GM) return 0;
     if (!GM._kjYanguanQingyi) GM._kjYanguanQingyi = [];
     if (!GM._kjYanguanQingyiCooldown) GM._kjYanguanQingyiCooldown = {};
-    // TODO·跟现 弹劾/罢免 system 集成 (grep impeach / disgrace / 弹劾)
-    // 当前·stub 返 0·实际 spawn 走 _kjSpawnYanguanQingyi
-    return 0;
+    var chronicle = Array.isArray(GM._chronicle) ? GM._chronicle : [];
+    if (!chronicle.length) return 0;
+    var curTurn = (GM.turn || 0);
+    var spawned = 0;
+    // 扫当 turn 的 impeachment-party 事件·sourceParty 走「被劾新党」的 parentParty
+    // 注·_ty3_partySpawn 后的 chronicle entry partyName=newName (子党)·sourceParty 需查 parties.splinterFrom
+    for (var i = chronicle.length - 1; i >= 0 && i >= chronicle.length - 30; i--) {
+      var e = chronicle[i];
+      if (!e || e.turn !== curTurn) continue;
+      if (e.type !== 'impeachment-party') continue;
+      if (e._kjQingyiHandled) continue;
+      // 查 splinterFrom (源党)·从 newName party 反查
+      var sourceParty = '';
+      try {
+        var newP = (GM.parties || []).find(function(p) { return p && p.name === e.partyName; });
+        if (newP && newP.splinterFrom) sourceParty = newP.splinterFrom;
+      } catch (_) {}
+      if (!sourceParty) continue;
+      var leader = Array.isArray(e.accused) && e.accused.length ? e.accused[0] : '';
+      var detail = (e.text || '').slice(0, 60);
+      if (spawned >= MAX_SPAWN_PER_TURN) break;
+      if (_kjSpawnYanguanQingyi(sourceParty, leader, detail)) {
+        e._kjQingyiHandled = true;
+        spawned++;
+      } else {
+        // cooldown 内·标记 handled 不再扫
+        e._kjQingyiHandled = true;
+      }
+    }
+    return spawned;
   }
 
   /** 供 _cc2_collectAgendaSources 调·消费当前 spawned qingyi (最多 2·防 spam) */

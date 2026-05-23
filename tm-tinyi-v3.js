@@ -5506,6 +5506,15 @@ function _ty3_phase12_onAccusationApproved(topic, accusedNames, accuser, topicMe
       accuser: accuser,
       accused: accusedNames.slice()
     });
+    // v7.1·F4c·D1·言官清议触发·内 try/catch·flag gate 在 _kjSpawnYanguanQingyi
+    try {
+      if (sourceParty && typeof _kjSpawnYanguanQingyi === 'function') {
+        var qDetail = '准奏弹劾·' + (accuser || '言官') + ' 参 ' + accusedNames.join('、') + '·定罪 ' + verdictGrade;
+        _kjSpawnYanguanQingyi(sourceParty, leaderName, qDetail);
+      }
+    } catch (_kjE) {
+      try { window.TM && TM.errors && TM.errors.captureSilent(_kjE, 'kj-yanguan-qingyi-on-impeach'); } catch (__) {}
+    }
   }
   return p;
 }
