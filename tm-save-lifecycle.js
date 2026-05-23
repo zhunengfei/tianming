@@ -1132,9 +1132,22 @@ if(window.tianming&&window.tianming.isDesktop){
 //   · append-only 引用·qijuHistory/jishiRecords/shijiHistory/evtLog/biannianItems/officeChanges/eraStateHistory
 //   · skip·_aiTelemetry 类 debug snapshot (崩溃恢复不需)·_subcallTimings·_aiDispatchStats.errorLog
 //   预期·1500ms → 400-600ms·砍 60-70%·user 报"问对打字卡 3 秒"对应这条
+// C (2026-05-23)·叠在 A-1 之上·5s 内有用户输入则 defer 整个 60s tick·避开打字 / 点击窗口
+//   兜底·距上次成功保存超 3 分钟·强制保存 (避免连续打字 5 分钟没存档)
 var _autoSaveInFlight=false;
 var _autoSaveSkipCount=0;
 var _autoSaveLiteTick=0;
+var _autoSaveLastInputMs=0;   // C·最后一次用户输入时间
+var _autoSaveLastDoneMs=0;     // C·最后一次 autoSave 成功时间
+var _autoSaveDeferStreak=0;    // C·连续 defer 次数·用于日志
+
+// C·document 级监听·任何键盘/指点/IME composition 都算 active input·5s 内 autoSave 跳过
+if (typeof document !== 'undefined'){
+  var _aSBumpInput=function(){ _autoSaveLastInputMs=Date.now(); };
+  ['keydown','pointerdown','compositionupdate','input'].forEach(function(ev){
+    try{ document.addEventListener(ev, _aSBumpInput, { capture:true, passive:true }); }catch(_){}
+  });
+}
 
 // A-1·snapshot helper·浅拷顶 + 选择性深拷·明示 mutable / appendOnly / skip
 // 注·top-level function decl 通过 hoisting 自动 attach 到 window (sloppy mode)·无需占位
@@ -1182,21 +1195,36 @@ if(window.tianming&&window.tianming.isDesktop){
       if(_autoSaveSkipCount===5)console.warn("[autoSave] 连续 5 次被跳·上一次未完成·deepClone/IPC 可能卡住");
       return;
     }
+    // C·defer-during-input·5s 内有用户输入·跳·下次再举·但 3 分钟以上必存
+    var _now=Date.now();
+    var _sinceInput=_now-_autoSaveLastInputMs;
+    var _sinceSave=_now-_autoSaveLastDoneMs;
+    if(_sinceInput<5000 && _sinceSave<180000){
+      _autoSaveDeferStreak++;
+      if(_autoSaveDeferStreak===1 || _autoSaveDeferStreak%5===0){
+        console.log('[autoSave] defer·'+Math.round(_sinceInput/1000)+'s 内有输入·上次保存 '+Math.round(_sinceSave/1000)+'s 前·streak='+_autoSaveDeferStreak);
+      }
+      return;
+    }
+    if(_autoSaveDeferStreak>0){
+      console.log('[autoSave] defer 结束·streak='+_autoSaveDeferStreak+(_sinceInput>=5000?' (闲置)':' (3 分钟强制)'));
+      _autoSaveDeferStreak=0;
+    }
     _autoSaveInFlight=true;
     try{
       _autoSaveSkipCount=0;
       if(GM.running && typeof _awaitPostTurnJobsForSave === 'function') await _awaitPostTurnJobsForSave();
       if(GM.running && typeof _prepareGMForSave === 'function') _prepareGMForSave();
-      // A-1·P 仍全拷 (小)·GM 走 selective snapshot (省 60-70%)
       var saveData=deepClone(P);
       if(GM.running){
         var _t0=Date.now();
         saveData.gameState=_autoSaveSnapshotGM();
         var _gmMs=Date.now()-_t0;
-        if(_gmMs>800)console.warn('[autoSave] GM snapshot slow:'+_gmMs+'ms·考虑 A-2 incremental');
+        if(_gmMs>800)console.warn('[autoSave] GM snapshot slow:'+_gmMs+'ms');
         saveData._saveMeta={turn:GM.turn,scenario:findScenarioById(GM.sid)||{name:''},saveName:GM.saveName,date:new Date().toISOString()};
       }
       await window.tianming.autoSave(saveData);
+      _autoSaveLastDoneMs=Date.now();
       // C3·tm_P_lite 5 分钟刷一次·完整 P 已在 autoSave 里·lite 只是 boot 快速恢复用
       _autoSaveLiteTick++;
       if(_autoSaveLiteTick>=5){

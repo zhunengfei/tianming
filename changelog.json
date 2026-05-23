@@ -3,6 +3,33 @@
   "entries": [
     {
       "date": "2026-05-23",
+      "module": "1.2.5.3·卡顿二阶修·defer-during-input 叠在 A-1 之上",
+      "title": "在 1.2.5.0 已落地的 A-1 selective snapshot (砍 60-70%) 之上·叠加 C·defer-during-input·5s 内有任何 keydown / pointerdown / compositionupdate / input 事件·跳本次 60s autoSave tick·避开打字 / 点击 / 拼音输入窗口·彻底消除打字时的 ~3s freeze。3 分钟兜底·距上次成功保存 >180s 强存·防长打字断档。document level capture listener·所有 input 都计入·streak 日志每 5 次输出一次不刷屏。同时附·邸报 standalone 双文件陷阱永久修 (tm-changelog.js + skill upload-hot.py auto-sync) + dev workflow webRootOverride·见 main.js 视图菜单。",
+      "items": [
+        {
+          "what": "[卡顿·C·tm-save-lifecycle.js] 在 60s autoSave setInterval 顶部加 defer 判断·_autoSaveLastInputMs 记录最后输入时间·_autoSaveLastDoneMs 记录上次成功保存时间·sinceInput<5000 且 sinceSave<180000 直接 return·_autoSaveDeferStreak 计数·每 5 次输出 [autoSave] defer·X s 内有输入·streak=N。成功保存后 _autoSaveLastDoneMs=Date.now()。",
+          "why": "A-1 把单次 snapshot 砍到 400-600ms·但玩家打字时仍能感到 hitch。C 让 autoSave 完全避开 active input 窗口·打字时 0 卡。3 分钟兜底防长打字断档。"
+        },
+        {
+          "what": "[卡顿·C·document listener] _autoSaveLastInputMs 由 4 类事件 bump·keydown / pointerdown / compositionupdate / input·passive + capture·覆盖 IME 拼音 (compositionupdate) + 鼠标按下 + 输入框 input event·document level 一处听全。",
+          "why": "user 报 \"问对打字·拼音不显示\"·拼音由 IME 触发 compositionupdate 不触发 keydown·必须显式听。"
+        },
+        {
+          "what": "[邸报·tm-changelog.js] _load() 改 \"取 entries 多的那份\"·remote stale 时本地兜底·不再单点依赖 server。",
+          "why": "1.2.5.0 ship 后 server /tianming/changelog.json 5 版本前的 stale 暴露·tm-changelog.js 优先远程导致玩家邸报永远落后。"
+        },
+        {
+          "what": "[邸报·SCP 同步] skill scripts/upload-hot.py 加 --changelog auto-detect·从 zip 路径向上 5 层找 <repo>/web/changelog.json·SCP 到 /tianming/changelog.json·解 \"邸报独立文件\"陷阱·下次任何 hot ship 走 upload-hot.py 自动同步。",
+          "why": "邸报独立文件与 hot 包 zip 不在同 dir·历史 skill 漏继承上传·导致 server stale·永久修。"
+        },
+        {
+          "what": "[dev·main.js webRootOverride] getBaseWebRoot() 加 env TIANMING_WEB_OVERRIDE + app_config.webRootOverride 双层覆盖·视图菜单加 选 / 清除 / 显示当前 3 项·让 installer-packaged app 也能读 dev workspace web/。需 rebuild installer 才能用·dev-start.bat 立即可用零编译。",
+          "why": "user 反馈本地源码改动 installed .exe 看不到·必须 ship hot 才生效·影响 dev iteration loop。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-23",
       "module": "1.2.5.2·F4c incident hookup·言官清议接 _ty3_phase12_onAccusationApproved",
       "title": "1.2.5.1 D1 接通后留的最后 stub·_kjCheckYanguanQingyiTriggers 真接弹劾事件·主 hook 走 tm-tinyi-v3.js _ty3_phase12_onAccusationApproved 准奏弹劾尾部直 call _kjSpawnYanguanQingyi(sourceParty, leader, detail)·endTurn 防御扫 GM._chronicle 当 turn impeachment-party 防主路径漏调·_kjQingyiHandled 标记避重·party.splinterFrom 反查源党。开 D1 后·准奏弹劾 → 被劾党 (源党) 言官门生 (alive ≥3·同党 mentor) 集体清议入常朝 source pool·LLM 改写为「都察院 X 等 N 人·清议某党」NPC 上奏·5y/党 cooldown·MAX_SPAWN_PER_TURN=1·MAX_CONSUME=2。新 smoke 18/18·历史 4 smoke 128/128 全 pass。",
       "items": [
