@@ -82,12 +82,32 @@ async function initKejuSystem(scenario) {
   // ═══ v5·跨场历史名臣去重池（运行时累积·new game 重置）═══
   if (!P.keju._historicalFiguresUsed) P.keju._historicalFiguresUsed = [];
 
+  // v7.1\u00B7B2\u00B7preset fallback\u00B7\u82E5 scenario.keju \u7F3A\u00B7\u6309\u671D\u4EE3 default
+  var preset = null;
+  try { preset = (typeof _kjGetPresetByEra === 'function') ? _kjGetPresetByEra(era) : null; } catch(_) {}
+  if (preset) {
+    if (preset.specialExamCalendar && !P.keju.specialExamCalendar) P.keju.specialExamCalendar = preset.specialExamCalendar;
+    if (preset.schoolNetworkInit && !P.keju.schoolNetworkInit) P.keju.schoolNetworkInit = preset.schoolNetworkInit;
+    if (preset.eunuchInterferenceInit && !P.keju.eunuchInterferenceInit) P.keju.eunuchInterferenceInit = preset.eunuchInterferenceInit;
+    if (preset.discipleGraphSeed && !P.keju.discipleGraphSeed) P.keju.discipleGraphSeed = preset.discipleGraphSeed;
+  }
+
+  // v7.1·audit P0·剧本明示 enabled (boolean) → 尊重·禁 LLM/preset 覆盖 (绍宋建炎元年八月案)
+  var _scenarioEnabledExplicit = (scenario.keju && typeof scenario.keju.enabled === 'boolean');
+
   if (!P.ai.key) {
-    P.keju.enabled = isKejuEra(era);
+    P.keju.enabled = _scenarioEnabledExplicit ? scenario.keju.enabled : (preset ? preset.enabled : isKejuEra(era));
     if (P.keju.enabled) {
-      P.keju.examIntervalNote = '\u672C\u671D\u4E09\u5E74\u4E00\u79D1';
-      P.keju.tiers = _getDefaultTiers(era);
+      P.keju.examIntervalNote = preset ? (preset.examIntervalNote || '\u672C\u671D\u4E09\u5E74\u4E00\u79D1') : '\u672C\u671D\u4E09\u5E74\u4E00\u79D1';
+      P.keju.tiers = (preset && preset.tiers && preset.tiers.length) ? preset.tiers : _getDefaultTiers(era);
     }
+    // v7.1\u00B7B1\u00B7tier \u5168\u5B57\u6BB5\u8865\u9F50 + \u6D3E\u751F stageDurationDays
+    _kjFinalizeTiersAndDict(P.keju, scenario);
+    // v7.1\u00B7C2\u00B7\u6D3E\u7CFB\u7D27\u5F20\u5EA6 namespace init
+    if (typeof _kjInitFactionTension === 'function') _kjInitFactionTension();
+    // v7.1\u00B7E1\u00B7mentor \u53CD\u5411\u7D22\u5F15 namespace init
+    if (typeof _kjInitMentorIndex === 'function') _kjInitMentorIndex();
+    if (typeof _kjInitDiscipleGraph === 'function') _kjInitDiscipleGraph();
     return;
   }
 
@@ -116,20 +136,66 @@ async function initKejuSystem(scenario) {
     var result = await callAISmart(prompt, 800, {maxRetries: 2});
     var data = JSON.parse(result.replace(/```json|```/g, '').trim());
 
-    P.keju.enabled = data.enabled || false;
-    P.keju.examIntervalNote = data.intervalNote || '';
+    // v7.1·audit P0·剧本明示 enabled (boolean) → 优先 (LLM 不可覆盖)
+    P.keju.enabled = _scenarioEnabledExplicit ? scenario.keju.enabled : (data.enabled || false);
+    P.keju.examIntervalNote = data.intervalNote || (scenario.keju && scenario.keju.examIntervalNote) || '';
     P.keju.alternativeSystem = data.alternativeSystem || '';
     if (data.tiers && Array.isArray(data.tiers)) P.keju.tiers = data.tiers;
     else P.keju.tiers = _getDefaultTiers(era);
     if (data.subjects && !P.keju.examSubjects) P.keju.examSubjects = data.subjects;
     if (data.features && !P.keju.specialRules) P.keju.specialRules = data.features;
 
+    // v7.1\u00B7B1\u00B7tier \u5168\u5B57\u6BB5\u8865\u9F50 + \u6D3E\u751F stageDurationDays
+    _kjFinalizeTiersAndDict(P.keju, scenario);
+    // v7.1\u00B7C2\u00B7\u6D3E\u7CFB\u7D27\u5F20\u5EA6 namespace init
+    if (typeof _kjInitFactionTension === 'function') _kjInitFactionTension();
+    // v7.1\u00B7E1\u00B7mentor \u53CD\u5411\u7D22\u5F15 namespace init
+    if (typeof _kjInitMentorIndex === 'function') _kjInitMentorIndex();
+    if (typeof _kjInitDiscipleGraph === 'function') _kjInitDiscipleGraph();
+
     _dbg('[\u79D1\u4E3E\u5236\u5EA6] \u521D\u59CB\u5316:', data.enabled ? '\u5DF2\u542F\u7528' : '\u672A\u542F\u7528', data.reason);
     if (data.enabled) toast('\uD83D\uDCDC \u79D1\u4E3E\u5236\u5EA6\u5DF2\u542F\u7528\uFF1A' + data.intervalNote + ' ' + (P.keju.tiers.length) + '\u5C42\u8003\u8BD5');
   } catch(e) {
     console.error('[\u79D1\u4E3E] \u521D\u59CB\u5316\u5931\u8D25:', e);
-    P.keju.enabled = isKejuEra(era);
-    P.keju.tiers = _getDefaultTiers(era);
+    // v7.1\u00B7B2\u00B7LLM \u5931\u8D25\u00B7fallback \u4F18\u5148\u8D70 preset (\u4F46\u5267\u672C enabled \u4ECD\u4F18\u5148)
+    if (preset) {
+      P.keju.enabled = _scenarioEnabledExplicit ? scenario.keju.enabled : preset.enabled;
+      P.keju.examIntervalNote = preset.examIntervalNote || (scenario.keju && scenario.keju.examIntervalNote) || '';
+      if (preset.alternativeSystem) P.keju.alternativeSystem = preset.alternativeSystem;
+      P.keju.tiers = (preset.tiers && preset.tiers.length) ? preset.tiers : _getDefaultTiers(era);
+      if (preset.features && !P.keju.specialRules) P.keju.specialRules = preset.features;
+    } else {
+      P.keju.enabled = _scenarioEnabledExplicit ? scenario.keju.enabled : isKejuEra(era);
+      P.keju.tiers = _getDefaultTiers(era);
+    }
+    _kjFinalizeTiersAndDict(P.keju, scenario);
+    if (typeof _kjInitFactionTension === 'function') _kjInitFactionTension();
+    // v7.1·E1·mentor 反向索引 namespace init
+    if (typeof _kjInitMentorIndex === 'function') _kjInitMentorIndex();
+    if (typeof _kjInitDiscipleGraph === 'function') _kjInitDiscipleGraph();
+  }
+}
+
+/**
+ * v7.1\u00B7B1\u00B7tier \u5199\u5165\u540E\u7684\u7EDF\u4E00\u6536\u53E3\u00B7
+ *  (1) \u628A"\u534A tier" (LLM \u8FD4 / \u8001 default) \u8DD1\u8FC7 _kjUpgradeTier \u8865\u9F50 schema
+ *  (2) \u4ECE tier.daysCost \u6D3E\u751F stageDurationDays dict (\u4FDD\u7559\u5267\u672C override\u00B7\u8865 tier \u6D3E\u751F\u503C)
+ *  (3) \u5931\u8D25 try-catch \u4E0D\u7834\u574F P
+ */
+function _kjFinalizeTiersAndDict(kejuRoot, scenario) {
+  if (!kejuRoot) return;
+  try {
+    if (typeof _kjUpgradeTiers === 'function' && Array.isArray(kejuRoot.tiers)) {
+      kejuRoot.tiers = _kjUpgradeTiers(kejuRoot.tiers);
+    }
+    if (typeof _kjDeriveStageDurationDict === 'function') {
+      var scenarioDict = (scenario && scenario.keju && scenario.keju.stageDurationDays) || null;
+      var seed = scenarioDict ? Object.assign({}, kejuRoot.stageDurationDays, scenarioDict)
+                              : kejuRoot.stageDurationDays;
+      kejuRoot.stageDurationDays = _kjDeriveStageDurationDict(kejuRoot.tiers, seed);
+    }
+  } catch (e) {
+    try { console.warn('[\u79D1\u4E3E\u00B7B1] _kjFinalizeTiersAndDict failed\u00B7err=', e && e.message); } catch(_){}
   }
 }
 
@@ -208,8 +274,29 @@ async function checkKejuTrigger() {
     var data = JSON.parse(result.replace(/```json|```/g, '').trim());
 
     if (data.shouldTrigger) {
-      _dbg('[科举制度] 触发科举考试:', data.reason);
-      startKejuExam();
+      // v7.1·B3·改路径·不再直接 startKejuExam·改 spawn 邸报头条·让议政走 keyi
+      // 路径 B·LLM 自动判到期 → spawn 头条 → 玩家点头条走路径 A (proposeKejuPreparation)
+      _dbg('[科举制度·B3] LLM 判到期·spawn 头条·reason:', data.reason);
+      if (!P.keju._pendingAutoOpen) {
+        P.keju._pendingAutoOpen = {
+          reason: data.reason,
+          source: 'autoTrigger',
+          topicType: 'kaike',
+          spawnedTurn: GM.turn,
+          spawnedYear: currentDate.year,
+          spawnedMonth: currentDate.month
+        };
+        if (typeof addEB === 'function') addEB('科举', '礼部奏·' + data.reason + '·待陛下议');
+        if (typeof toast === 'function') toast('📜 礼部奏·' + data.reason + '·点科举面板议筹办');
+        if (GM.qijuHistory) {
+          var dateStr = (typeof getTSText === 'function') ? getTSText(GM.turn) : '';
+          GM.qijuHistory.unshift({
+            turn: GM.turn, date: dateStr,
+            content: '【科举·自动判到期】礼部 AI 奏·' + data.reason + '·待陛下亲议。'
+          });
+        }
+      }
+      // **绝不直接 startKejuExam**·议政必走 keyi (red line·v7.1 design rule 15)
     }
   } catch(e) {
     console.error('[科举制度] 检查触发失败:', e);
@@ -348,6 +435,11 @@ function renderKejuStage() {
     renderDianshiStage(body);
   } else if (stage === 'finished') {
     renderFinishedStage(body);
+  }
+  // v7.1·C4·所有 stage 顶部 prepend 经费行
+  if (typeof _kjRenderBudgetRow === 'function' && exam) {
+    try { body.innerHTML = _kjRenderBudgetRow(exam) + body.innerHTML; }
+    catch(e) { console.warn('[C4] budget row 失败', e); }
   }
 }
 
@@ -749,14 +841,22 @@ function renderHuishiStage(container) {
   html += '\u8D21\u9662\u9501\u9662\uFF0C' + era + '\u5404\u5730\u4E3E\u5B50\u4E91\u96C6\u4EAC\u5E08\u3002';
   if (exam && exam.chiefExaminer) html += '\u4E3B\u8003\u5B98<strong style="color:var(--gold);">' + escHtml(exam.chiefExaminer) + '</strong>\u5DF2\u5165\u8D21\u9662\u4E3B\u6301\u3002';
   html += '</p></div>';
+  // v7.1·C3·主考偏好 hint bar (顶部·只要选了主考即显)
+  if (exam && exam.chiefExaminer && typeof _kjRenderExaminerHintBar === 'function') {
+    var hintCh = typeof findCharByName === 'function' ? findCharByName(exam.chiefExaminer) : null;
+    if (hintCh) html += _kjRenderExaminerHintBar(hintCh);
+  }
   // 考官出题
   html += '<div style="background:linear-gradient(135deg,var(--bg-2),rgba(138,109,27,0.04));padding:1rem;border-radius:8px;border:1px solid var(--gold-d);margin-bottom:1rem;">';
   html += '<h4 style="color:var(--gold);margin-bottom:0.5rem;">\uD83D\uDCDC ' + escHtml(tierName) + '\u8BD5\u9898</h4>';
   html += '<p style="color:var(--txt-d);font-size:0.82rem;margin-bottom:0.5rem;">\u4E3B\u8003\u5B98\u62DF\u9898\u5448\u62A5\u5FA1\u89C8\u3002\u966D\u4E0B\u53EF\u4FEE\u6539\u6216\u53E6\u62DF\uFF0C\u4EA6\u53EF\u51C6\u5949\u3002</p>';
-  html += '<textarea id="huishi-topic" rows="4" style="width:100%;padding:0.6rem;background:var(--bg-1);border:1px solid var(--bdr);border-radius:4px;color:var(--txt);font-family:inherit;line-height:1.7;font-size:0.92rem;" placeholder="\u8BF7\u7B49\u5F85\u8003\u5B98\u62DF\u9898\uFF0C\u6216\u76F4\u63A5\u8F93\u5165...">' + escHtml(exam && exam.huishiTopic ? exam.huishiTopic : '') + '</textarea>';
-  html += '<div style="display:flex;gap:0.5rem;margin-top:0.5rem;">';
-  html += '<button class="bt bp" onclick="examinerProposeTopic()" style="flex:1;">\uD83D\uDC68\u200D\u2696\uFE0F \u8003\u5B98\u62DF\u9898\u5448\u62A5</button>';
-  html += '<button class="bt bs" onclick="document.getElementById(\'huishi-topic\').value=\'\'" style="flex:0.5;">\u6E05\u7A7A</button>';
+  html += '<textarea id="huishi-topic" rows="4" oninput="if(typeof _kjUpdateAlignmentUI===\'function\')_kjUpdateAlignmentUI();" style="width:100%;padding:0.6rem;background:var(--bg-1);border:1px solid var(--bdr);border-radius:4px;color:var(--txt);font-family:inherit;line-height:1.7;font-size:0.92rem;" placeholder="\u8BF7\u7B49\u5F85\u8003\u5B98\u62DF\u9898\uFF0C\u6216\u76F4\u63A5\u8F93\u5165...">' + escHtml(exam && exam.huishiTopic ? exam.huishiTopic : '') + '</textarea>';
+  // v7.1\u00B7C3\u00B7alignment warning div (oninput \u66F4\u65B0)
+  html += '<div id="kj-alignment-warn"></div>';
+  html += '<div style="display:flex;gap:0.5rem;margin-top:0.5rem;flex-wrap:wrap;">';
+  html += '<button class="bt bp" onclick="examinerProposeTopic()" style="flex:1;min-width:120px;">\uD83D\uDC68\u200D\u2696\uFE0F \u8003\u5B98\u62DF\u9898\u5448\u62A5</button>';
+  html += '<button class="bt" onclick="if(typeof _kjOpenLibuKeyi===\'function\')_kjOpenLibuKeyi();" style="flex:0.8;min-width:100px;color:var(--gold);">\uD83D\uDCDC \u53EC\u793C\u90E8\u5546\u8BAE</button>';
+  html += '<button class="bt bs" onclick="document.getElementById(\'huishi-topic\').value=\'\';if(typeof _kjUpdateAlignmentUI===\'function\')_kjUpdateAlignmentUI();" style="flex:0.4;">\u6E05\u7A7A</button>';
   html += '</div></div>';
   // 考试信息
   html += '<div style="background:var(--bg-2);padding:0.8rem;border-radius:8px;margin-bottom:1rem;">';
@@ -894,6 +994,15 @@ async function generateHuishiResults() {
     exam.dianshiCandidates = exam.huishiPassed.slice(0, dianshiCount);
     exam.stage = 'dianshi';
 
+    // v7.1·C3·alignment event·开榜后若题目错配主考偏好·spawn warning + tension/affinity
+    if (typeof _kjApplyAlignmentEvent === 'function' && exam.chiefExaminer) {
+      var alignCh = (typeof findCharByName === 'function') ? findCharByName(exam.chiefExaminer) : null;
+      if (alignCh) {
+        try { _kjApplyAlignmentEvent(exam, alignCh); }
+        catch(e) { console.warn('[C3] alignment event 失败', e); }
+      }
+    }
+
     // 会试录取者分配到地方→影响吏治（轻量机制）
     if (GM.eraState) {
       var _qualBonus = data.quality === '\u4F18\u79C0' ? 0.03 : data.quality === '\u826F\u597D' ? 0.02 : data.quality === '\u4E00\u822C' ? 0.01 : 0;
@@ -998,13 +1107,22 @@ function renderDianshiStage(container) {
     '<div style="background:linear-gradient(135deg,var(--bg-2),rgba(138,109,27,0.06));padding:1.2rem;border-radius:8px;border:1px solid var(--gold-d);">' +
     '<h4 style="color:var(--gold);font-size:1rem;margin-bottom:0.8rem;">\uD83D\uDCDC \u5929\u5B50\u7B56\u95EE</h4>' +
     '<p style="color:var(--txt-d);font-size:0.85rem;margin-bottom:0.6rem;">\u8BF7\u62DF\u5B9A\u6BBE\u8BD5\u7B56\u95EE\u9898\u76EE\u2014\u2014\u8003\u5BDF\u8003\u751F\u5BF9\u65F6\u5C40\u7684\u89C1\u89E3\u3001\u6CBB\u56FD\u7684\u65B9\u7565</p>' +
-    '<textarea id="dianshi-question" rows="6" style="width:100%;padding:0.8rem;background:var(--bg-1);border:1px solid var(--bdr);border-radius:4px;color:var(--txt);font-family:inherit;resize:vertical;line-height:1.8;font-size:0.95rem;" placeholder="\u4F8B\uFF1A\u671D\u5EF7\u79EF\u5F0A\u65E5\u6DF1\uFF0C\u5916\u60A3\u672A\u5DF2\u3002\u6614\u7BA1\u4EF2\u76F8\u9F50\uFF0C\u5C0A\u738B\u653D\u5937\uFF0C\u4E5D\u5408\u8BF8\u4FAF...\u4F55\u4EE5\u6559\u8054\uFF1F">' + escHtml(exam.playerQuestion || '') + '</textarea>' +
+    '<textarea id="dianshi-question" rows="6" oninput="if(typeof _kjUpdateAlignmentUI===\'function\')_kjUpdateAlignmentUI();" style="width:100%;padding:0.8rem;background:var(--bg-1);border:1px solid var(--bdr);border-radius:4px;color:var(--txt);font-family:inherit;resize:vertical;line-height:1.8;font-size:0.95rem;" placeholder="\u4F8B\uFF1A\u671D\u5EF7\u79EF\u5F0A\u65E5\u6DF1\uFF0C\u5916\u60A3\u672A\u5DF2\u3002\u6614\u7BA1\u4EF2\u76F8\u9F50\uFF0C\u5C0A\u738B\u653D\u5937\uFF0C\u4E5D\u5408\u8BF8\u4FAF...\u4F55\u4EE5\u6559\u8054\uFF1F">' + escHtml(exam.playerQuestion || '') + '</textarea>' +
+    '<div id="kj-alignment-warn"></div>' +
     '<div style="display:flex;gap:0.5rem;margin-top:0.6rem;">' +
     '<button class="bt bp" onclick="generateDianshiQuestion()" style="flex:1;">\uD83E\uDD16 AI\u4EE3\u62DF\u7B56\u95EE</button>' +
+    '<button class="bt" onclick="if(typeof _kjOpenLibuKeyi===\'function\')_kjOpenLibuKeyi();" style="flex:0.8;color:var(--gold);">\uD83D\uDCDC \u53EC\u793C\u90E8\u5546\u8BAE</button>' +
     '<button class="bt bp" onclick="startDianshi()" style="flex:1;background:var(--gold-d);font-weight:700;">\uD83D\uDCDC \u5F00\u59CB\u6BBE\u8BD5</button>' +
     '</div>' +
     '</div>' +
     '</div>';
+  // v7.1\u00B7D2\u00B7prepend \u4E3B\u8003\u504F\u597D hint bar (\u590D\u7528 C3\u00B7\u53EA\u8981\u9009\u4E86\u4E3B\u8003\u5373\u663E)
+  if (exam && exam.chiefExaminer && typeof _kjRenderExaminerHintBar === 'function') {
+    var hintChD = (typeof findCharByName === 'function') ? findCharByName(exam.chiefExaminer) : null;
+    if (hintChD) container.innerHTML = _kjRenderExaminerHintBar(hintChD) + container.innerHTML;
+  }
+  // v7.1\u00B7D2\u00B7\u6E32\u67D3\u540E\u89E6\u53D1 alignment \u56DE\u6D41 (textarea \u5DF2\u6709 playerQuestion \u65F6)
+  setTimeout(function(){ if (typeof _kjUpdateAlignmentUI === 'function') _kjUpdateAlignmentUI(); }, 50);
 }
 
 /**
@@ -1041,6 +1159,23 @@ async function generateDianshiQuestion() {
 
     var question = await callAISmart(prompt, 500, {minLength: 80, maxRetries: 2});
     document.getElementById('dianshi-question').value = question;
+    // v7.1·D2·AI 代拟后·写 playerQuestion + 算 alignment·错配 toast warning
+    var exam = P.keju.currentExam;
+    if (exam) {
+      exam.playerQuestion = question;
+      if (exam.chiefExaminer && typeof _kjCalcTopicAlignment === 'function' && typeof _kejuExaminerView === 'function') {
+        var ch = (typeof findCharByName === 'function') ? findCharByName(exam.chiefExaminer) : null;
+        if (ch) {
+          var view = _kejuExaminerView(ch);
+          var alignment = _kjCalcTopicAlignment(question, view);
+          exam._topicAlignment = alignment;
+          if (alignment < 40 && typeof toast === 'function') {
+            toast('⚠ AI 代拟与主考偏好略错配·可亲笔修改');
+          }
+        }
+      }
+      if (typeof _kjUpdateAlignmentUI === 'function') _kjUpdateAlignmentUI();
+    }
     hideLoading();
     toast('✅ 题目已生成');
   } catch(e) {
@@ -1099,6 +1234,16 @@ async function startDianshi() {
   }
 
   exam.playerQuestion = question;
+  // v7.1·D3·确保 alignment 持久化 (textarea 未触发 oninput 时 fallback 派生)
+  if (exam.chiefExaminer && typeof _kjCalcTopicAlignment === 'function' && typeof _kejuExaminerView === 'function') {
+    try {
+      var _sdCh = (typeof findCharByName === 'function') ? findCharByName(exam.chiefExaminer) : null;
+      if (_sdCh) {
+        var _sdView = _kejuExaminerView(_sdCh);
+        if (_sdView) exam._topicAlignment = _kjCalcTopicAlignment(question, _sdView);
+      }
+    } catch(_){}
+  }
   _kejuOpenDianshiProgress();
 
   var maxRetries = 3;
@@ -1163,10 +1308,33 @@ async function generateDianshiResults() {
     return c && c.alive !== false && (c.officialTitle || c.title || c.spouse || c.isPlayer);
   }).map(function(c){ return c.name; });
 
+  // v7.1·D3·主考偏好 + 策问契合度 context (注入 prompt·影响考生质量倾向)
+  var _examinerCtx = '';
+  if (exam.chiefExaminer && typeof _kejuExaminerView === 'function') {
+    try {
+      var _exCh = (typeof findCharByName === 'function') ? findCharByName(exam.chiefExaminer) : null;
+      if (_exCh) {
+        var _exView = _kejuExaminerView(_exCh);
+        if (_exView) {
+          _examinerCtx = '【主考偏好】' + (_exView._summary || exam.chiefExaminer) + '\n'
+            + '· 偏好内容·' + (_exView.preferContent || '未知') + '\n'
+            + '· 偏好籍贯·' + (_exView.preferRegion || '无') + '\n'
+            + '· 严格度·' + Math.round(_exView.strictness) + '/100\n'
+            + '· 派系偏向·' + _exView.factionBias.toFixed(2) + '\n';
+        }
+      }
+    } catch(_){}
+  }
+  var _alignmentScore = exam._topicAlignment || 50;
+  var _alignmentCtx = '【策问契合度】' + _alignmentScore + '/100\n'
+    + '· 契合 >70 时·考生答卷质量整体加成 (理解策问深·应答契合)\n'
+    + '· 错配 <40 时·主考评价倾向负面 (士林侧目·答卷不解题旨)\n';
+
   var _ctxHeader =
     '\u3010\u786C\u89C4\u5219\u3011\u8003\u751F\u5FC5\u987B\u662F\u5E03\u8863/\u76D1\u751F/\u4E3E\u4EBA/\u672A\u51FA\u4ED5\u7684\u4E66\u751F\u00B7\u7EDD\u4E0D\u53EF\u4E3A\u5DF2\u4EFB\u5B98\u8005\u3002\n'
     + (_officialNames.length ? '\u3010\u7981\u6B62\u59D3\u540D\u3011' + _officialNames.slice(0, 60).join('\u3001') + (_officialNames.length>60?'\u7B49':'') + '\n' : '')
     + '\u3010\u6BBE\u8BD5\u9898\u76EE\u3011' + (exam.playerQuestion || '(\u7A7A)') + '\n'
+    + _examinerCtx + _alignmentCtx
     + (_subjects ? '\u3010\u8003\u8BD5\u79D1\u76EE\u3011' + _subjects + '\n' : '')
     + (_rules ? '\u3010\u8003\u8BD5\u89C4\u5219\u3011' + _rules + '\n' : '')
     + '\u3010\u5386\u53F2\u540D\u81E3\u79CD\u5B50\u3011' + histNamesStr + '\n'
@@ -1497,6 +1665,12 @@ function confirmFinalRanking() {
   // 与考官意见对比·若违背多数·党争扰动
   _kejuJudgeRankingControversy(exam);
 
+  // v7.1·D4·跑党争 + 寒门 + 失败 UX events (剧本无关化·读 GM.parties + GM.classes 动态)
+  if (typeof _kjConfirmRankingEffects === 'function') {
+    try { _kjConfirmRankingEffects(exam.finalRanking, exam); }
+    catch(e) { console.warn('[D4] confirm ranking effects 失败', e); }
+  }
+
   // v5·纪事 + 三甲 NPC 记忆
   if (typeof _kejuWriteJishi === 'function') {
     _kejuWriteJishi('\u6BBE\u8BD5\u94A6\u5B9A\u4E09\u7532', pr.zhuangyuan + '/' + pr.bangyan + '/' + pr.tanhua, '\u9661\u4E0B\u4EB2\u5B9A\u72B6\u5143\u3001\u699C\u773C\u3001\u63A2\u82B1');
@@ -1561,9 +1735,26 @@ if (typeof window !== 'undefined') {
 var KEYI_STATE = null;  // { attendees, speakers, round, phase:'discuss'|'vote'|'decide', speeches, stances, support, abort }
 
 /** 入口：打开科议（v2·自动邀请·无选人页） */
-function openKeyiSession() {
+function openKeyiSession(opts) {
+  // v7.1·B3·接参化·支持 9 议题路由·不传 opts 时 fallback 走 kaike (向后兼容)
+  opts = opts || {};
+  var topicType = opts.topicType || 'kaike';
+  var topicData = opts.topicData || {};
+  var resolved = (typeof _kjResolveTopic === 'function')
+    ? _kjResolveTopic(topicType, topicData)
+    : { topicType: 'kaike', title: '筹办科举', shortLabel: '科议·筹办', threshold: 0.5, callback: null, callbackName: 'startKejuByMethod', sliceOwner: 'B3' };
+
   if (!GM.keju) GM.keju = {};
-  if (!GM.keju._pendingProposal) GM.keju._pendingProposal = { topic:'筹办科举', proposedTurn: GM.turn, resolved:false };
+  if (!GM.keju._pendingProposal) GM.keju._pendingProposal = {
+    topic: resolved.title,
+    topicType: resolved.topicType,
+    topicData: topicData,
+    threshold: resolved.threshold,
+    callbackName: resolved.callbackName,
+    sliceOwner: resolved.sliceOwner,
+    proposedTurn: GM.turn,
+    resolved: false
+  };
 
   // 筛全体在京官员（像常朝那样·含文武·排除后妃/太后/公主/太监·玩家除外）
   var attendees = (GM.chars || []).filter(function(c){
@@ -1640,7 +1831,7 @@ function _renderKeyiModal() {
   modal.innerHTML =
     '<div style="background:var(--bg-1);border:1px solid var(--gold-d);border-radius:12px;width:90%;max-width:880px;max-height:86vh;display:flex;flex-direction:column;overflow:hidden;">'+
       '<div style="padding:0.7rem 1.2rem;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;">'+
-        '<div style="font-size:1.05rem;font-weight:700;color:var(--gold);letter-spacing:0.08em;">\u3014 \u79D1 \u8BAE \u3015\u00B7\u7B79\u529E\u79D1\u4E3E\u516C\u8BAE</div>'+
+        '<div style="font-size:1.05rem;font-weight:700;color:var(--gold);letter-spacing:0.08em;">\u3014 \u79D1 \u8BAE \u3015\u00B7' + (((GM.keju && GM.keju._pendingProposal && GM.keju._pendingProposal.topic) || '\u7B79\u529E\u79D1\u4E3E\u516C\u8BAE').replace(/^\u8BAE\u00B7?/, '')) + '</div>'+
         '<button class="bt bs bsm" onclick="closeKeyi()">\u2715</button>'+
       '</div>'+
       '<div id="keyi-body" style="flex:1;overflow-y:auto;padding:1rem 1.2rem;"></div>'+
@@ -2193,7 +2384,7 @@ function _keyiRenderDecide(body, footer) {
   KEYI_STATE._opposingParties = opArr;
 }
 
-/** 确认启动科举 */
+/** 确认启动科举 (v7.1·B3·改 callback 走 topicType 路由) */
 function _keyiConfirmStart(method) {
   if (!KEYI_STATE) return;
   // v5·将科议结果写入 GM._courtRecords·让 AI 推演知晓
@@ -2201,10 +2392,38 @@ function _keyiConfirmStart(method) {
   // NPC 记忆+人际影响
   _keyiMemoryEffects(method);
 
-  startKejuByMethod(method, {
-    opposingMinisters: KEYI_STATE._opposingMinisters || [],
-    opposingParties: KEYI_STATE._opposingParties || []
-  });
+  // v7.1·B3·按 topicType 调对应 callback (kaike 仍走 startKejuByMethod 现 paradigm)
+  var pending = GM.keju && GM.keju._pendingProposal;
+  var topicType = (pending && pending.topicType) || 'kaike';
+  var callbackName = (pending && pending.callbackName) || 'startKejuByMethod';
+
+  if (topicType === 'kaike') {
+    // 现 paradigm·向后兼容·完全不变
+    startKejuByMethod(method, {
+      opposingMinisters: KEYI_STATE._opposingMinisters || [],
+      opposingParties: KEYI_STATE._opposingParties || []
+    });
+  } else {
+    // v7.1 新议题·调对应 callback (stub 时 log warn 不阻塞)
+    try {
+      var fn = (typeof window !== 'undefined') ? window[callbackName] : null;
+      if (typeof fn === 'function') {
+        fn(method, {
+          topicType: topicType,
+          topicData: pending && pending.topicData,
+          opposingMinisters: KEYI_STATE._opposingMinisters || [],
+          opposingParties: KEYI_STATE._opposingParties || [],
+          breakdown: KEYI_STATE._breakdown,
+          support: KEYI_STATE.support,
+          passed: KEYI_STATE._passed
+        });
+      } else {
+        console.warn('[keyi·B3] callback', callbackName, '未定义 (topicType=' + topicType + '·slice 未实现)·议政结果已持久化·不阻塞');
+      }
+    } catch(e) {
+      console.error('[keyi·B3] callback 执行失败·topicType=' + topicType, e);
+    }
+  }
   closeKeyi();
 }
 
@@ -2235,11 +2454,22 @@ function _keyiPersistToCourtRecords(method) {
     stance: 'support'
   }] : [];
 
+  // v7.1\u00B7B3\u00B7topic \u5B57\u6BB5\u6D3E\u751F\u00B7\u5411\u540E\u517C\u5BB9 (kaike \u65F6\u4ECD\u8D70"\u79D1\u8BAE\u00B7\u7B79\u529E..." paradigm)
+  var pendingForTopic = GM.keju && GM.keju._pendingProposal;
+  var topicTypeForRec = (pendingForTopic && pendingForTopic.topicType) || 'kaike';
+  var topicLabel;
+  if (topicTypeForRec === 'kaike') {
+    topicLabel = '\u79D1\u8BAE\u00B7\u7B79\u529E' + ((P.keju.currentExam && P.keju.currentExam.type === 'enke') ? '\u6069\u79D1' : '\u79D1\u4E3E');
+  } else {
+    topicLabel = (pendingForTopic && pendingForTopic.topic) || '\u79D1\u8BAE\u00B7' + topicTypeForRec;
+  }
+
   var record = {
     turn: GM.turn,
     targetTurn: GM.turn,
     phase: 'in-turn',
-    topic: '\u79D1\u8BAE\u00B7\u7B79\u529E' + ((P.keju.currentExam && P.keju.currentExam.type === 'enke') ? '\u6069\u79D1' : '\u79D1\u4E3E'),
+    topic: topicLabel,
+    topicType: topicTypeForRec,
     mode: 'keyi',
     participants: KEYI_STATE.attendees.filter(function(a){return !a._excluded;}).map(function(a){return a.name;}),
     stances: stances,
@@ -2530,6 +2760,24 @@ function showAnswerModal(candidate) {
   html += '<div style="background:var(--bg-2);padding:1.5rem;border-radius:8px;line-height:2;white-space:pre-wrap;font-size:0.92rem;">'
     + escHtml(candidate.fullAnswer || '\uFF08\u65E0\u6587\uFF09')
     + '</div>';
+  // v7.1·D4·主考评分预测 hint (派生·非LLM·展在答卷下方)
+  if (exam.chiefExaminer && typeof _kejuExaminerView === 'function') {
+    var examinerCh = (typeof findCharByName === 'function') ? findCharByName(exam.chiefExaminer) : null;
+    if (examinerCh) {
+      try {
+        var _exView = _kejuExaminerView(examinerCh);
+        if (_exView) {
+          var _cbp = candidate.birthplace || candidate.origin || '';
+          var _bias = (_cbp && _exView.preferRegion && _cbp.indexOf(_exView.preferRegion) >= 0) ? +3 : -3;
+          var _estScore = Math.max(0, Math.min(100, (candidate.score || 80) + _bias));
+          html += '<div style="margin-top:0.8rem;padding:0.6rem 0.9rem;background:rgba(184,154,83,0.06);border-left:2px solid var(--gold-d);border-radius:4px;font-size:0.78rem;color:var(--txt-s);line-height:1.7;">'
+            + '<strong style="color:var(--gold);">主考评分预测·</strong>' + escHtml(exam.chiefExaminer) + '（' + escHtml(_exView._summary || '') + '）·此卷估 ' + _estScore + ' 分'
+            + '<br><span style="color:var(--txt-d);">理由·</span>' + (_bias > 0 ? '籍贯契合 (+3)' : '籍贯非偏好 (-3)')
+            + '</div>';
+        }
+      } catch(e) { console.warn('[D4] examiner hint 失败', e); }
+    }
+  }
   // 史料（若历史人物）
   if (candidate.isHistorical && candidate.shiliao) {
     html += '<details style="background:var(--bg-2);padding:0.6rem 1rem;border-radius:4px;margin-top:1rem;">'
@@ -2850,7 +3098,7 @@ function _kejuFinalize(exam) {
     });
   });
 
-  // 2. 4-20 名入 gradPool 并填缺
+  // v7.1·D5·4-20 名也 eager 入 GM.chars (删 lazy 分支·原 _crystallized 不再用)
   var unPlaced = results.slice(3).map(function(c){
     return {
       name: c.name, age: c.age, origin: c.origin, class: c.class, party: c.party,
@@ -2860,11 +3108,23 @@ function _kejuFinalize(exam) {
       shiliao: c.shiliao || '',
       isHistorical: !!c.isHistorical,
       allocatedOffice: null,
-      _crystallized: false,
+      _crystallized: true,  // v7.1·D5·eager 已生成·lazy 函数不再触发
       _examId: exam.id
     };
   });
   exam.gradPool = unPlaced;
+
+  // v7.1·D5·eager 4-20 名·后台异步生成完整 char (不阻塞 UI)
+  unPlaced.forEach(function(g) {
+    var existing = (GM.chars||[]).find(function(c){ return c && c.name === g.name; });
+    if (existing) return;
+    var rankKey = (g.rank && g.rank <= 20) ? 'erjia' : 'sanjia';
+    _aiGenerateFullCharacter(g, rankKey).catch(function(e){
+      console.warn('[科举·D5] 4-20 名 eager 生成失败·fallback basic·name=' + g.name, e && e.message);
+      _kejuBasicRecruit(g, '进士');
+    });
+  });
+
   _kejuAllocateGradsToOffices(unPlaced);
 
   // 3. 阶层+党派+吏治影响·全员算
@@ -2882,6 +3142,13 @@ function _kejuFinalize(exam) {
   if (typeof addEB === 'function') {
     var fr2 = exam.finalRanking || {};
     addEB('\u79D1\u4E3E', '\u91D1\u699C\u00B7\u72B6\u5143' + (fr2.zhuangyuan||'?') + '\u00B7\u699C\u773C' + (fr2.bangyan||'?') + '\u00B7\u63A2\u82B1' + (fr2.tanhua||'?'));
+  }
+
+  // v7.1\u00B7E1\u00B7mentor \u53CD\u5411\u7D22\u5F15\u00B7D5 eager \u5F02\u6B65\u00B7\u5EF6\u8FDF 3s \u5168\u91CF rebuild\u00B7\u8986\u76D6\u6240\u6709\u65B0\u8FDB\u58EB _mentorRef/_cohortYear
+  if (typeof _kjBuildMentorIndex === 'function') {
+    setTimeout(function(){
+      try { _kjBuildMentorIndex(); } catch(e) { console.warn('[\u79D1\u4E3E\u00B7E1] _kjBuildMentorIndex \u5931\u8D25', e && e.message); }
+    }, 3000);
   }
 }
 
@@ -2909,11 +3176,23 @@ function _kejuBasicRecruit(candidate, rankTitle) {
     alive: true,
     source: '\u79D1\u4E3E',
     recruitTurn: GM.turn,
-    isHistorical: !!candidate.isHistorical
+    isHistorical: !!candidate.isHistorical,
+    // v7.1\u00B7E2\u00B7fallback \u6A21\u677F\u4EA6 100% \u5199 party\u00B7candidate.party \u4F18\u5148\u00B7examiner.party fallback\u00B7\u4E2D\u7ACB fallback
+    party: candidate.party || (function(){
+      if (!P.keju || !P.keju.currentExam || !P.keju.currentExam.chiefExaminer) return '\u4E2D\u7ACB';
+      var ex = (typeof findCharByName === 'function') ? findCharByName(P.keju.currentExam.chiefExaminer) : null;
+      if (!ex || !ex.party || ex.party === '\u4E2D\u7ACB' || ex.party === '\u65E0\u515A' || ex.party === '\u65E0\u515A\u6D3E') return '\u4E2D\u7ACB';
+      return ex.party;
+    })(),
+    // v7.1\u00B7D5\u00B74 \u7EF4\u5EA6\u5B57\u6BB5\u00B7fallback \u6A21\u677F\u4EA6\u4FDD
+    _mentorRef: (P.keju && P.keju.currentExam && P.keju.currentExam.chiefExaminer) || null,
+    _cohortYear: GM.year || (P.time && P.time.year) || 1600,
+    _specialExamType: (P.keju && P.keju.currentExam && P.keju.currentExam.type === 'enke') ? 'enke' : null,
+    _schoolAffiliation: null
   });
 }
 
-/** G2·AI 全字段生成（含生平/外貌/家谱/史料出处段） */
+/** v7.1·D5·AI 全字段生成 (eager·含生平/外貌/家谱/史料出处段 + examiner 4 属性 hint + 4 维度) */
 async function _aiGenerateFullCharacter(candidate, rankKey) {
   if (!P.ai || !P.ai.key) { _kejuBasicRecruit(candidate, rankKey === 'zhuangyuan' ? '\u72B6\u5143' : rankKey === 'bangyan' ? '\u699C\u773C' : rankKey === 'tanhua' ? '\u63A2\u82B1' : '\u8FDB\u58EB'); return; }
 
@@ -2922,7 +3201,25 @@ async function _aiGenerateFullCharacter(candidate, rankKey) {
   var year = GM.year || (P.time && P.time.year) || 1600;
   var rankLbl = rankKey === 'zhuangyuan' ? '\u72B6\u5143' : rankKey === 'bangyan' ? '\u699C\u773C' : rankKey === 'tanhua' ? '\u63A2\u82B1' : '\u8FDB\u58EB';
 
+  // v7.1\u00B7D5\u00B7examiner 4 \u5C5E\u6027 hint (\u6D3E\u751F\u00B7\u975E\u65B0\u5B57\u6BB5\u00B7\u8BA9 LLM \u987A\u4E3B\u8003\u503E\u5411\u00B7\u5F71\u54CD wuchang / personality)
+  var _examinerHint = '';
+  if (exam && exam.chiefExaminer && typeof _kejuExaminerView === 'function') {
+    try {
+      var _exCh = (typeof findCharByName === 'function') ? findCharByName(exam.chiefExaminer) : null;
+      if (_exCh) {
+        var _exView = _kejuExaminerView(_exCh);
+        if (_exView) {
+          _examinerHint = '\u3010\u4E3B\u8003\u504F\u597D\u3011' + (_exView._summary || exam.chiefExaminer) + '\n'
+            + '\u00B7 \u4E3B\u8003\u504F\u597D\u5185\u5BB9\u00B7' + (_exView.preferContent || '\u672A\u77E5') + '\u00B7\u8FDB\u58EB\u4EF7\u503C\u89C2\u53EF\u987A\u4E3B\u8003\u503E\u5411 (\u4F46\u4E0D\u5F3A\u5236)\n'
+            + '\u00B7 \u4E3B\u8003\u504F\u597D\u7C4D\u8D2F\u00B7' + (_exView.preferRegion || '\u65E0') + '\n'
+            + '\u00B7 \u4E3B\u8003\u4E25\u683C\u5EA6\u00B7' + Math.round(_exView.strictness) + '/100\u00B7\u5F71\u54CD\u57FA\u7840\u5C5E\u6027\u6863\u6B21\n';
+        }
+      }
+    } catch(_){}
+  }
+
   var prompt = '\u4F60\u662F' + era + '\u79D1\u4E3E\u8FDB\u58EB\u6863\u6848 AI\u3002\u4E3A\u4EE5\u4E0B\u8003\u751F\u751F\u6210\u5B8C\u6574\u4EBA\u7269\u5361\u3002\n\n' +
+    _examinerHint +
     '\u3010\u57FA\u672C\u3011' + JSON.stringify({
       name: candidate.name, age: candidate.age, origin: candidate.origin,
       class: candidate.class, party: candidate.party,
@@ -2980,8 +3277,11 @@ async function _aiGenerateFullCharacter(candidate, rankKey) {
       var bonusKey = rankKey || 'erjia';
       var b = bonus[bonusKey] || { fame: 15, virtue: 8 };
 
+      // v7.1·D5·GM._runId 防撞 seed (重启游戏不重名)
+      if (!GM._runId) GM._runId = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+
       var newChar = {
-        id: 'keju_' + Date.now() + '_' + candidate.rank,
+        id: 'keju_' + GM._runId + '_' + (exam ? exam.id : 'noexam') + '_' + candidate.rank + '_' + (candidate.name || 'anon'),
         name: candidate.name,
         age: candidate.age || 25,
         gender: '\u7537',
@@ -3015,6 +3315,13 @@ async function _aiGenerateFullCharacter(candidate, rankKey) {
         // 立场/爱好
         stance: data.stance || '',
         partyLean: exam && exam.chiefExaminer ? ((findCharByName(exam.chiefExaminer)||{}).party || '') : '',
+        // v7.1·E2·进士 ch.party 100% 写入·candidate.party 优先 (历史 hit)·examiner.party fallback·中立 fallback
+        party: candidate.party || (function(){
+          if (!exam || !exam.chiefExaminer) return '中立';
+          var ex = (typeof findCharByName === 'function') ? findCharByName(exam.chiefExaminer) : null;
+          if (!ex || !ex.party || ex.party === '中立' || ex.party === '无党' || ex.party === '无党派') return '中立';
+          return ex.party;
+        })(),
         hobbies: Array.isArray(data.hobbies) ? data.hobbies : [],
         // 资源+属性加成
         resources: {
@@ -3026,6 +3333,11 @@ async function _aiGenerateFullCharacter(candidate, rankKey) {
         },
         // 异常标签
         _timeAnomaly: !!(data.timeAnomaly || candidate._timeAnomaly),
+        // v7.1·D5·4 维度字段
+        _mentorRef: (exam && exam.chiefExaminer) ? exam.chiefExaminer : null,
+        _cohortYear: year,
+        _specialExamType: (exam && exam.type === 'enke') ? 'enke' : null,
+        _schoolAffiliation: null,
         // 元数据
         alive: true,
         source: '\u79D1\u4E3E',
@@ -3110,7 +3422,9 @@ function _kejuAggregateGradsEffect(allGrads, exam) {
   if (exam && exam.chiefExaminer && GM.parties) {
     var examiner = findCharByName(exam.chiefExaminer);
     if (examiner && examiner.party && examiner.party !== '\u65E0\u515A\u6D3E' && examiner.party !== '\u65E0\u515A') {
-      var absorbed = Math.floor(total * 0.20);
+      // v7.1\u00B7E2\u00B7\u8FDB\u58EB ch.party \u5DF2 100% \u5199\u5165 (\u5728 _aiGenerateFullCharacter / _kejuBasicRecruit \u65F6 examiner.party fallback)
+      // \u6B64\u5904 GM.parties.influence \u4ECD\u6309 20% \u7B97\u00B7\u907F\u514D\u515A\u6D3E\u5931\u8861 (red line\u00B7\u4FDD\u6301\u539F\u7B97\u6CD5\u4E0D\u53D8)
+      var absorbed = Math.floor(total * 0.20);  // red line\u00B7\u4FDD\u6301 20%\u00B7avoid \u515A unbalanced
       var targetParty = GM.parties.find(function(p){ return p.name === examiner.party; });
       if (targetParty) {
         targetParty.influence = Math.min(100, (targetParty.influence||0) + Math.round(absorbed * 0.5));
@@ -3127,9 +3441,13 @@ function _kejuAggregateGradsEffect(allGrads, exam) {
   }
 }
 
-/** G2·懒加载具象化（玩家打开该职位详情时调用） */
+/** v7.1·D5·deprecated·eager 已在 _kejuFinalize 全跑·此 fn 保 backwards-compat (老存档 / 外部 caller) */
 async function crystallizeKejuGrad(postRef) {
   if (!postRef || !postRef._kejuRank || postRef._crystallized) return;
+  if (!crystallizeKejuGrad._warned) {
+    console.info('[科举·D5] crystallizeKejuGrad deprecated·v7.1 eager 已在 _kejuFinalize 全跑·本次为 backwards-compat fallback');
+    crystallizeKejuGrad._warned = true;
+  }
   // 在 history 中找对应科举记录的 gradPool
   var gradEntry = null;
   (P.keju.history || []).forEach(function(h){

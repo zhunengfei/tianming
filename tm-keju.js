@@ -203,14 +203,21 @@ function openKejuPanel(){
 
 /**
  * 提议筹办科举
+ * v7.1·B3·扩 topicType 参数·向后兼容·无参时 fallback kaike
+ *
+ * @param {string} topicType - 'kaike' (默认) / 'examiner_pick' / 'question_review' / 'scandal' / 'reform' / 'allocation' / 'school_ban' / 'eunuch_check' / 'activation'
+ * @param {object} topicData - 议题数据·跟 callback 走
  */
-function proposeKejuPreparation(){
-  // 关闭科举面板
+function proposeKejuPreparation(topicType, topicData){
+  // 关闭科举面板 (若打开)
   var panel=document.getElementById('keju-panel-modal');
   if(panel)panel.remove();
 
-  // v5·直接打开〔科议〕专属会议
-  openKeyiSession();
+  // v7.1·B3·走 9 议题路由·无参时默 kaike (向后兼容现 button)
+  openKeyiSession({
+    topicType: topicType || 'kaike',
+    topicData: topicData || {}
+  });
 }
 
 /**
@@ -656,7 +663,7 @@ function openDianshiDelegatePicker() {
   document.body.appendChild(bg);
 }
 
-/** 分类代主身份 */
+/** 分类代主身份·v7.1 D1 + D4 第 7 类 (司礼监·明清专有 gate)·6 身份 paradigm 100% 保留 (red line #6) */
 function _kejuClassifyDelegate(c) {
   var t = c.officialTitle || c.title || '';
   var role = c.role || '';
@@ -666,6 +673,13 @@ function _kejuClassifyDelegate(c) {
   if (c.familyTier === 'royal' || role.indexOf('王') >= 0) return { label:'\u5B97\u5BA4', color:'var(--amber-400)' };
   if ((c.party||'').indexOf('\u9609') >= 0 || role.indexOf('\u6743\u81E3') >= 0) return { label:'\u6743\u81E3', color:'var(--vermillion-400)' };
   if (/\u5C06\u519B|\u603B\u5175|\u5927\u5C06/.test(t)) return { label:'\u6B66\u5C06', color:'var(--red)' };
+  // v7.1\u00B7D4 \u7B2C 7 \u7C7B\u00B7\u53F8\u793C\u76D1\u00B7\u660E\u6E05\u4E13\u6709 gate (\u6C49/\u5510/\u5B8B\u7B49\u573A\u666F fallback \u6587\u81E3)
+  var __scn = (typeof P !== 'undefined' && P && P.scenarios)
+    ? P.scenarios.find(function(s){ return s && s.id === GM.sid; }) : null;
+  var __era = __scn ? (__scn.era || __scn.dynasty || '') : '';
+  if ((__era === '\u660E' || __era === '\u6E05') && t.indexOf('\u53F8\u793C\u76D1') >= 0) {
+    return { label:'\u53F8\u793C\u76D1', color:'var(--vermillion-300)', isEunuch: true };
+  }
   return { label:'\u6587\u81E3', color:'var(--ink-300)' };
 }
 
@@ -686,16 +700,47 @@ function _pickDianshiDelegate(name) {
   var c = findCharByName(name);
   if (!c) return;
   exam.dianshiDelegate = { name: name, officialTitle: c.officialTitle || c.title, classification: _kejuClassifyDelegate(c).label };
-  // 身份副作用
+  // v7.1·D1·7 身份副作用 (6 原 + 第 7 类司礼监预留·red line #6 守)
   var lbl = exam.dianshiDelegate.classification;
-  if (lbl === '\u6743\u81E3') _adjustHuangwei(-3, '\u4EE3\u4E3B\u6743\u81E3\u00B7\u79C1\u76F8\u6388\u53D7');
-  else if (lbl === '\u6B66\u5C06') {
-    _adjustMinxin(-2, '\u6B66\u5C06\u4EE3\u4E3B\u6BBE\u8BD5\u00B7\u793C\u90E8\u6297\u8BAE');
-    if (typeof addEB === 'function') addEB('\u79D1\u4E3E', '\u793C\u90E8\u5927\u81E3\u6297\u8BAE\u6B66\u5C06\u4E3B\u6BBE\u8BD5');
-  } else if (lbl === '\u5B97\u5BA4') {
-    // 宗室满意+10
-    var zs = (GM.classes||[]).find(function(cl){ return cl.name === '\u5B97\u5BA4'; });
+  if (lbl === '太子') {
+    // 太子代主·国本得固·皇威+8·event "储位+3"
+    if (typeof _adjustHuangwei === 'function') _adjustHuangwei(+8, '太子代主·国本得固');
+    if (typeof addEB === 'function') addEB('科举', '太子代主·国本得固·储位+3');
+  } else if (lbl === '首辅') {
+    // 首辅代主·皇威+5·若有党·该党 tension+2
+    if (typeof _adjustHuangwei === 'function') _adjustHuangwei(+5, '首辅代主');
+    if (c.party && typeof _kjUpdateFactionTension === 'function') {
+      _kjUpdateFactionTension({ party: c.party, delta: +2, reason: '首辅党代主·权重' });
+    }
+  } else if (lbl === '礼部') {
+    // 礼部代主·礼制本职·礼部/士林满意+5
+    if (typeof _bumpKejuSatisfaction === 'function') _bumpKejuSatisfaction('礼制', +5, '礼部代主·本职');
+  } else if (lbl === '宗室') {
+    // 宗室满意+10·100% 保留 v5 paradigm
+    var zs = (GM.classes||[]).find(function(cl){ return cl.name === '宗室'; });
     if (zs) zs.satisfaction = Math.min(100, (zs.satisfaction||50) + 10);
+  } else if (lbl === '权臣') {
+    // 权臣代主·皇威-3·若有党·tension+5
+    if (typeof _adjustHuangwei === 'function') _adjustHuangwei(-3, '代主权臣·私相授受');
+    if (c.party && typeof _kjUpdateFactionTension === 'function') {
+      _kjUpdateFactionTension({ party: c.party, delta: +5, reason: '权臣代主·政争升级' });
+    }
+  } else if (lbl === '武将') {
+    // 武将代主·皇威-2 (D1 加强)·民心-2·礼部抗议
+    if (typeof _adjustHuangwei === 'function') _adjustHuangwei(-2, '武将代主');
+    _adjustMinxin(-2, '武将代主殾试·礼部抗议');
+    if (typeof addEB === 'function') addEB('科举', '礼部大臣抗议武将主殾试');
+  } else if (lbl === '司礼监') {
+    // v7.1·D4 第 7 类·司礼监代主·明清专有·宦党擅权
+    // TODO·I1 GM._eunuchInterference 实现后接·宦党 prestige+10·反宦联盟 enmity+15
+    if (typeof _adjustHuangwei === 'function') _adjustHuangwei(-5, '司礼监代主·宦党擅权');
+    if (typeof addEB === 'function') addEB('科举', '司礼监代主·宦党 prestige+10·反宦联盟 enmity+15 (待 I1 接)');
+  }
+  // v7.1·D1·跟 C1 联动·若代主 = 主考·tension+3·议政忌惮
+  if (exam.chiefExaminer && name === exam.chiefExaminer && c.party
+      && typeof _kjUpdateFactionTension === 'function') {
+    _kjUpdateFactionTension({ party: c.party, delta: +3, reason: '代主=主考·权位重叠' });
+    if (typeof toast === 'function') toast('⚠ 代主即主考·议政忌惮');
   }
   toast('\u5DF2\u4EFB '+name+' \u4E3A\u6BBE\u8BD5\u4EE3\u4E3B');
   // v5·纪事 + NPC 记忆
@@ -707,6 +752,30 @@ function _pickDianshiDelegate(name) {
     AffinityMap.add(name, (P.playerInfo && P.playerInfo.characterName) || '\u9661\u4E0B', 4, '\u7687\u5E1D\u6388\u6BBE\u8BD5\u4EE3\u4E3B\u4E4B\u8363');
   }
   var pp = document.getElementById('dianshi-delegate-picker'); if (pp) pp.remove();
+}
+
+/**
+ * v7.1·D1·helper·礼部/士林 fallback satisfaction bump
+ *   prefer === '礼制' → 试 ['礼部','士林','文士'] 命中即停
+ *   其他 prefer → 当 class name 直查
+ */
+function _bumpKejuSatisfaction(prefer, delta, reason) {
+  if (!GM.classes || !Array.isArray(GM.classes)) return;
+  var keywords = (prefer === '礼制') ? ['礼部', '士林', '文士'] : [prefer];
+  for (var i = 0; i < GM.classes.length; i++) {
+    var nm = GM.classes[i].name || '';
+    for (var j = 0; j < keywords.length; j++) {
+      if (nm.indexOf(keywords[j]) >= 0) {
+        var cur = GM.classes[i].satisfaction || 50;
+        GM.classes[i].satisfaction = Math.max(0, Math.min(100, cur + delta));
+        if (typeof addEB === 'function') {
+          var sign = delta >= 0 ? '+' : '';
+          addEB('阶层', nm + sign + delta + '·' + (reason || ''));
+        }
+        return;
+      }
+    }
+  }
 }
 
 /** 考官自动选（玩家未选时由 AI 代选·皇威已在 B2 扣分） */
@@ -919,6 +988,9 @@ if (typeof window !== 'undefined') {
   window.openDianshiDelegatePicker = openDianshiDelegatePicker;
   window._pickDianshiDelegate = _pickDianshiDelegate;
   window._filterDelegateList = _filterDelegateList;
+  // v7.1·D1·暴露 classify / bumpSatisfaction·供 smoke 测试 + 其他模块
+  window._kejuClassifyDelegate = _kejuClassifyDelegate;
+  window._bumpKejuSatisfaction = _bumpKejuSatisfaction;
 }
 
 /** D2·中央经费（考官仪仗+会试+殿试）·不足问玩家内帑补贴 */
@@ -944,8 +1016,10 @@ function _kejuSettleCentralCost(exam, stage) {
     // 默认自动内帑补贴（避免阻塞时间线·可改为弹窗确认）
     GM.neitang.money = Math.max(0, neitangMoney - amount);
     exam.costsPaid.central = (exam.costsPaid.central || 0) + amount;
-    if (typeof addEB === 'function') addEB('\u79D1\u4E3E\u7ECF\u8D39', '\u5185\u5E11\u8865\u8D34 ' + amount + ' \u4E24\u00B7' + stage);
-    _adjustHuangwei(2, '\u53D1\u5185\u5E11\u6D4E\u79D1\u4E3E\u00B7\u58EB\u6797\u611F\u9891');
+    // C4\u00B7toast/EB \u6587\u6848\u00B7\u965B\u4E0B\u6177\u6168\u00B7\u5185\u5E11\u8865\u8D34 X \u4E24\u00B7\u58EB\u6797\u611F\u5FF5 (paradigm 0 \u6539\u00B7huangwei+2 \u4E0D\u52A8)
+    if (typeof addEB === 'function') addEB('\u79D1\u4E3E\u7ECF\u8D39', '\u965B\u4E0B\u6177\u6168\u00B7\u5185\u5E11\u8865\u8D34 ' + amount + ' \u4E24\u00B7\u58EB\u6797\u611F\u5FF5\u00B7' + stage);
+    if (typeof toast === 'function') toast('\uD83D\uDCDC \u965B\u4E0B\u6177\u6168\u00B7\u5185\u5E11\u8865\u8D34 ' + amount + ' \u4E24\u00B7\u58EB\u6797\u611F\u5FF5', 'info');
+    _adjustHuangwei(2, '\u53D1\u5185\u5E11\u6D4E\u79D1\u4E3E\u00B7\u58EB\u6797\u611F\u5FF5');
     return { paid: amount, source: 'neitang' };
   }
   // 完全断粮·流产
@@ -960,117 +1034,48 @@ function _kejuSettleCentralCost(exam, stage) {
 
 /**
  * 请求启用科举（隋唐后朝代）
+ * v7.1·Slice A1·thin wrapper 转发到 _kjActivateRun (tm-keju-activation.js)·5 档 sc0
  */
 async function requestEnableKeju(){
+  if (typeof window !== 'undefined' && typeof window._kjActivateRun === 'function') {
+    return window._kjActivateRun({ mode: 'enable' });
+  }
+  // fallback·activation 模块未载入 (不应发生)·走旧二元
+  console.warn('[科举] _kjActivateRun 未载·fallback 旧二元');
   if(!P.ai.key){
     P.keju.enabled=true;
     P.keju.examIntervalNote='三年一科';
     toast('✅ 科举制度已启用');
-    document.getElementById('keju-panel-modal').remove();
+    var panel=document.getElementById('keju-panel-modal'); if(panel) panel.remove();
     return;
   }
-
-  showLoading('请求启用科举...',50);
-
-  try{
-    var prompt='你是朝廷大臣AI。玩家请求启用科举制度。\n\n'+
-      '【当前状况】\n'+
-      '国库：'+(GM.vars['国库']?GM.vars['国库'].value:'未知')+'\n'+
-      '民心：'+(GM.vars['民心']?GM.vars['民心'].value:'未知')+'\n'+
-      '局势：'+(GM.situation||'正常')+'\n\n'+
-      '【判断要求】\n'+
-      '1. 判断是否可以启用科举（考虑财政、时局等）\n'+
-      '2. 如果可以，说明考试间隔\n'+
-      '3. 如果不可以，说明原因和需要满足的条件\n\n'+
-      '返回JSON：{"canEnable":true/false,"reason":"","intervalNote":"三年一科"}\n\n'+
-      '只输出JSON。';
-
-    var result=await callAISmart(prompt,500,{maxRetries:2});
-    var data=JSON.parse(result.replace(/```json|```/g,'').trim());
-
-    hideLoading();
-
-    if(data.canEnable){
-      P.keju.enabled=true;
-      P.keju.examIntervalNote=data.intervalNote||'三年一科';
-      toast('✅ '+data.reason);
-      document.getElementById('keju-panel-modal').remove();
-    }else{
-      toast('❌ '+data.reason);
-    }
-  }catch(e){
-    console.error('[科举] 请求启用失败:',e);
-    hideLoading();
-    toast('❌ 请求失败');
-  }
+  P.keju.enabled=true;
+  P.keju.examIntervalNote='三年一科';
+  toast('✅ 科举制度已启用 (legacy fallback)');
+  var panel=document.getElementById('keju-panel-modal'); if(panel) panel.remove();
 }
 
 /**
  * 发起科举改革（隋唐前朝代）
+ * v7.1·Slice A1·thin wrapper 转发到 _kjActivateRun (tm-keju-activation.js)·5 档 sc0
  */
 async function startKejuReform(){
+  if (typeof window !== 'undefined' && typeof window._kjActivateRun === 'function') {
+    return window._kjActivateRun({ mode: 'reform' });
+  }
+  // fallback·activation 模块未载入
+  console.warn('[科举] _kjActivateRun 未载·fallback 旧二元');
   if(!P.ai.key){
     P.keju.enabled=true;
     P.keju.reformed=true;
     P.keju.examIntervalNote='三年一科';
-    toast('✅ 科举改革成功');
-    document.getElementById('keju-panel-modal').remove();
+    toast('✅ 科举改革成功 (legacy fallback)');
+    var panel=document.getElementById('keju-panel-modal'); if(panel) panel.remove();
     return;
   }
-
-  showLoading('改革进行中...',30);
-
-  try{
-    var prompt='你是历史推演AI。玩家在隋唐之前的朝代发起科举制度改革。\n\n'+
-      '【当前状况】\n'+
-      '国库：'+(GM.vars['国库']?GM.vars['国库'].value:'未知')+'\n'+
-      '民心：'+(GM.vars['民心']?GM.vars['民心'].value:'未知')+'\n'+
-      '集权度：'+(GM.vars['集权度']?GM.vars['集权度'].value:'未知')+'\n\n'+
-      '【改革要求】\n'+
-      '1. 科举改革会遭遇世家大族强烈反对\n'+
-      '2. 需要足够的集权度才能推行\n'+
-      '3. 改革可能引发政治动荡、叛乱等\n'+
-      '4. 成功后会削弱世家势力，增强中央集权\n\n'+
-      '请推演改革结果，返回JSON：{"success":true/false,"reason":"","consequences":"改革后果描述200字","variableChanges":{"集权度":+15}}\n\n'+
-      '只输出JSON。';
-
-    var result=await callAISmart(prompt,1000,{maxRetries:2});
-    var data=JSON.parse(result.replace(/```json|```/g,'').trim());
-
-    hideLoading();
-
-    // 应用变量变化
-    if(data.variableChanges){
-      Object.keys(data.variableChanges).forEach(function(varName){
-        if(GM.vars[varName]){
-          GM.vars[varName].value+=data.variableChanges[varName];
-        }
-      });
-    }
-
-    if(data.success){
-      P.keju.enabled=true;
-      P.keju.reformed=true;
-      P.keju.examIntervalNote='三年一科';
-
-      // 显示改革结果
-      var resultModal=document.createElement('div');
-      resultModal.className='modal-bg show';
-      resultModal.innerHTML='<div style="background:var(--bg-1);border:1px solid var(--gold-d);border-radius:12px;width:90%;max-width:600px;padding:1.5rem;">'+
-        '<h3 style="color:var(--gold);margin-bottom:1rem;">🎉 科举改革成功</h3>'+
-        '<p style="line-height:1.8;margin-bottom:1rem;">'+data.consequences+'</p>'+
-        '<div style="text-align:center;">'+
-        '<button class="bt bp" onclick="this.closest(\'.modal-bg\').remove();document.getElementById(\'keju-panel-modal\').remove();">确定</button>'+
-        '</div></div>';
-      document.body.appendChild(resultModal);
-
-      renderGameState();
-    }else{
-      toast('❌ 改革失败：'+data.reason);
-    }
-  }catch(e){
-    console.error('[科举] 改革失败:',e);
-    hideLoading();
-    toast('❌ 改革失败');
-  }
+  P.keju.enabled=true;
+  P.keju.reformed=true;
+  P.keju.examIntervalNote='三年一科';
+  toast('✅ 科举改革成功 (legacy fallback)');
+  var panel=document.getElementById('keju-panel-modal'); if(panel) panel.remove();
 }
