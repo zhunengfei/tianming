@@ -31,7 +31,14 @@
       _fetchJson(remoteUrl + '?v=' + cacheV, { cache: 'no-store' }),
       _fetchJson('changelog.json?v=' + cacheV)
     ]).then(function(list) {
-        _changelogData = _validData(list[0]) || _validData(list[1]) || { entries: [] };
+        // 取 entries 多的那份·避免 server 端 standalone changelog.json 漏同步时玩家永远看旧
+        var remote = _validData(list[0]);
+        var local = _validData(list[1]);
+        if (remote && local) {
+          _changelogData = (local.entries.length > remote.entries.length) ? local : remote;
+        } else {
+          _changelogData = remote || local || { entries: [] };
+        }
         return _changelogData;
       })
       .catch(function() { _changelogData = { entries: [] }; return _changelogData; });
