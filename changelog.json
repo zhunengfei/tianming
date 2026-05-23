@@ -2,6 +2,33 @@
   "_comment": "天命·更新日志——新条目 unshift 到数组最前（由近及远）。格式：{date, module, title, items[]}；items 元素可为字符串或 {what, why}。",
   "entries": [
     {
+      "date": "2026-05-23",
+      "module": "1.2.4.4·常朝 augment-mode 塌缩 bug 修·NPC 不再套'诸臣所议皆有理'",
+      "title": "tm-chaoyi-changchao.js 5 patch·1) augment template 扩 opens 3→15 / example 1→5 + forbidden 高频套话 + selfCheck 强 2) pivot template 同治·opens 3→10 / forbidden 套话 / example 1→5 3) _cc3_baseMode default 'augment' → 'pivot'·中立 50/50 → 40/30/30 分发 4) Guards 1+2+3 解吸盘·augment 自身加 cap·Guard 2 改分流 map 避自循环·debate2 lead 默认 second 替代 augment 5) _cc3_buildModeInstruction 兼容 example string|array",
+      "items": [
+        {
+          "what": "augment template (L2174-2218)·opens 从 3 句 (含'前文已多有陈说·臣补一议'/'诸臣所议皆有理·臣窃见'/'诸公论已尽·臣略陈一隅') 扩到 15 句轮替·删 2 个高频套话仅留 1 个变体·closes 2→4·example 1→5 按 topic 分发 (辽东兵粮 / 袁崇焕催饷 / 米价民变 / 弹劾魏珰 / 东南漕运)·structure 加 '必含 1+ 具体名词 (兵 / 粮 / 钱 / 边镇名 / 人名 / 数字)'·forbidden +5 高频套话 ('诸臣所议皆有理' / '前文已多有陈说' / '诸臣所议皆当' / '臣所议皆有理' / '诸公所议皆有理')·selfCheck +1 '是否避开高频套话'。",
+          "why": "用户截图报常朝多 NPC (郭允厚 / 王体乾 / 方正化 / 张瑞图 / 李国普) 全套'诸臣所议皆有理·臣补一议'同款开场。根因·augment template opens 只有 3 句固定·LLM 学 example 'X·然臣窃见尚有一隅未及·Y' 范式·配合 baseMode default + Guards 全把 NPC 推到 augment·结果开场词塌缩到 3 选 1。扩 opens + example + forbidden 三管齐下·LLM 不再 reference 2 句套话·NPC 应说具体内容。"
+        },
+        {
+          "what": "_cc3_baseMode (L1945-1976)·default 兜底 'augment' 改 'pivot'·中立态度从 50/50 pivot/augment 改 40/30/30 second/pivot/augment·默认 (非对立非同党非中立) 从 100% augment 改 40/30/30 second/pivot/augment 分发。三处共同让 augment 不再是无脑兜底 mode。",
+          "why": "原 L1969 default = 'augment'·所有走到默认分支的 NPC 都走 augment·**augment 成吸盘**·配合 Guards 进一步汇集。改为 3 mode 均分·base 层就避免单 mode 兜底·解决 70%+ 塌缩的根源。"
+        },
+        {
+          "what": "Guards 1+2+3 (L2246-2270)·Guard 1·second≥3 → 'soften' (原 'augment')·augment≥3 → 'pivot' (新加 cap)。Guard 2·40% 换 mode 时·改分流 map (rebut→soften / second→pivot|augment 50/50 / pivot→augment / augment→pivot / soften→pivot|rebut 50/50)·augment 不再自循环。Guard 3·debate2 lead → 'second' (原 'augment')。",
+          "why": "原 Guard 2 注释明写 'augment 自身不 cap'·导致 augment 是唯一吃进不吐出的 mode·其他 mode 重复 3 次时全转 augment·进一步加深塌缩。新版加 augment 自 cap + 分流 map·5 mode 流量均衡。debate2 lead 转 second 更合理 (二轮 lead 是同党附议)。"
+        },
+        {
+          "what": "pivot template (L2133-2160)·同治·opens 3→10·删 '诸臣所议皆当' 套话·closes 加 '伏祈陛下察议'·example 1→5 (御营兵粮 / 辽东三镇催饷 / 九边粮草 / 各部欠饷 / 锦衣卫按察)·forbidden +3 套话·structure 加 '必含具体部门名 + 具体待勘事项'·selfCheck +1。",
+          "why": "截图中来宗道/阮大铖 (折中态度·走 pivot) 也套 '诸臣所议·...·然臣窃见尚有一端未及' 范式·跟 augment 同病。同样的扩 opens + forbidden + example 处理。"
+        },
+        {
+          "what": "_cc3_buildModeInstruction (L2244-2249)·example 字段兼容 string | array·原代码假设 string 调 .replace 会 TypeError 崩 prompt 生成·数组时随机挑 1 句·避全 LLM 学同 1 个。index.html tm-chaoyi-changchao.js ?v= cache-bust → 2026052301。",
+          "why": "本次 augment / pivot template 改 example 为 array (5 句轮替)·_cc3_buildModeInstruction 不改会立刻崩。兼容写法支持后续渐进扩到全 6 mode 都改 array example。"
+        }
+      ]
+    },
+    {
       "date": "2026-05-22",
       "module": "1.2.4.3·桌面端卡顿 + 输入框光标缺失修 (B+C 两轨)",
       "title": "B 轨 — 输入框光标缺失·原 mousedown setTimeout(10ms) focus workaround 在面板 innerHTML 重建时会给孤儿节点·加 isConnected guard。C 轨 — 桌面 60s autoSave 5 秒级卡顿·三处优化·atomic async writeFile + in-flight 锁 + tm_P_lite 降频。",

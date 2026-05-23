@@ -1943,7 +1943,9 @@ function _cc3_analyzeDebate(item, speakerName, gmCh) {
  * 注意·persona modulation 在 Slice 5 的 _cc3_modulateModeByPersona 内做·此处只产 base
  */
 function _cc3_baseMode(state, gmCh, item) {
-  if (!state || !gmCh) return 'augment';
+  // 2026-05-23 fix·原 default = 'augment' 导致 augment 成吸盘·全场塌缩
+  // 改 default 为 'pivot' (pivot 也补充·不锁开场词)·中立分发 3 mode·avoid 单 mode 兜底
+  if (!state || !gmCh) return 'pivot';
 
   // 自辩短路·议题点名你·必 rebut (借模式自辩)
   if (item && item.target === gmCh.name) return 'rebut';
@@ -1960,12 +1962,19 @@ function _cc3_baseMode(state, gmCh, item) {
   // 同党异立场 → soften (婉言劝)
   if (state.lastSamePartyAsMe && state.lastStance !== state.myStance) return 'soften';
 
-  // 中立态度·非首发 → pivot 或 augment (随机·确定性 seed 可日后加)
+  // 中立态度·非首发 → 3 mode 均分 (原 50/50 pivot/augment 改 40/30/30 second/pivot/augment)
   if (state.myStance === 'neutral') {
-    return Math.random() < 0.5 ? 'pivot' : 'augment';
+    const r = Math.random();
+    if (r < 0.40) return 'second';   // 中立倾向跟随 (新加)
+    if (r < 0.70) return 'pivot';
+    return 'augment';
   }
 
-  // 默认 (非对立·非同党·非中立)·补充新角度
+  // 默认·非对立 / 非同党 / 非中立·3 mode 均分 (原 100% augment 改)
+  // 历史上"补充新角度"既可 augment·也可 second·也可 pivot
+  const r = Math.random();
+  if (r < 0.40) return 'second';
+  if (r < 0.70) return 'pivot';
   return 'augment';
 }
 
@@ -2122,23 +2131,90 @@ const _CC3_PHRASE_POOLS = {
     selfCheck: ['是否先肯定 X 动机/忠诚 1 句', '是否含"忠悃/拳拳/公心/此心"之一', '是否含转折"惟/然"', '是否给出己见', '结句是否含"兼听/并察/兼采"'],
   },
   pivot: {
-    opens: ['"诸臣所议皆当·然臣窃见..."', '"此议尚有一端未及..."', '"事关 X·或可交 Y 部详议..."'],
-    closes: ['"俟有定论·再呈陛下"', '"伏乞陛下命有司详议"'],
-    structure: '提议题未被讨论的侧面·或建议交某部 / 三法司 / 都察院 / 户部 再议·避免直接表态',
-    requireEither: ['尚有', '未及', '另有', '交.{0,3}部', '交有司', '详议', '勘报'],
-    requireClose: ['有司', '俟有定论', '详议', '勘报'],
-    forbidden: ['臣以为应', '臣坚决主张'],  // pivot 禁鲜明立场表态
-    example: '诸臣所议·或战或和·皆有道理。然臣窃见尚有一端未及·御营兵粮可支几日尚未勘明。请陛下命兵部户部详议·俟有定论·再呈陛下。',
-    selfCheck: ['是否含"尚有/未及/另有"提新侧面', '是否建议交某部/有司详议', '是否避免直接战和表态', '结句是否含"详议/勘报/俟定论"'],
+    // 2026-05-23 fix·扩 opens 10 句·删 "诸臣所议皆当" 高频套话
+    opens: [
+      '"此议尚有一端未及..."',
+      '"事关 X·或可交 Y 部详议..."',
+      '"臣窃以为·此事宜先交有司勘明..."',
+      '"前议甚详·然有一节·宜专议..."',
+      '"臣观此议·建议先交户部 / 兵部 / 礼部勘报..."',
+      '"案此·尚有一节未明·宜专责一员..."',
+      '"陛下·臣以为·此事须先勘报·再议..."',
+      '"臣愚以为·此议宜分两节·先...后..."',
+      '"前议未及之处·臣略陈宜专责..."',
+      '"案此·宜先勘明 X·再议 Y..."'
+    ],
+    closes: ['"俟有定论·再呈陛下"', '"伏乞陛下命有司详议"', '"伏祈陛下察议"'],
+    structure: '提议题未被讨论的侧面·或建议交某部 / 三法司 / 都察院 / 户部 再议·避免直接表态·**必含具体部门名 + 具体待勘事项**',
+    requireEither: ['尚有', '未及', '另有', '交.{0,3}部', '交有司', '详议', '勘报', '专议', '专责'],
+    requireClose: ['有司', '俟有定论', '详议', '勘报', '察议'],
+    forbidden: [
+      '臣以为应',         // pivot 禁鲜明立场
+      '臣坚决主张',
+      '诸臣所议皆当',     // 高频套话·禁
+      '诸臣所议皆有理',
+      '前文已多有陈说'
+    ],
+    // 5 example 分发
+    example: [
+      '此议尚有一端未及·御营兵粮可支几日尚未勘明。请陛下命兵部户部详议·俟有定论·再呈陛下。',
+      '案此·尚有一节未明·辽东三镇近月催饷三次·宜专责户部勘报·再议。',
+      '事关九边·或可交兵部 + 户部会议·勘明各镇粮草余存·再定优先次序。伏乞陛下命有司详议。',
+      '臣愚以为·此议宜分两节·先勘明各部欠饷数·再议如何补给。伏祈陛下察议。',
+      '前议甚详·然有一节·宜专责锦衣卫先按察江南漕运实情·再议海运是否可行。俟有定论·再呈陛下。'
+    ],
+    selfCheck: [
+      '是否含 "尚有 / 未及 / 另有 / 专议 / 专责" 提新侧面',
+      '是否建议交某部 / 有司详议 (必含具体部门名)',
+      '是否避免直接战和表态',
+      '是否避开 "诸臣所议皆当" / "诸臣所议皆有理" 等高频套话',
+      '结句是否含 "详议 / 勘报 / 俟定论 / 察议"'
+    ],
   },
   augment: {
-    opens: ['"前文已多有陈说·臣补一议..."', '"诸臣所议皆有理·臣窃见..."', '"诸公论已尽·臣略陈一隅..."'],
-    closes: ['"伏惟陛下察焉"', '"愿与诸臣共商"'],
-    structure: '补充一个未被前文提及的视角 / 案例 / 数据·不重复·不附和',
-    requireEither: ['前文', '诸臣', '诸公', '尚有', '补一议', '略陈'],
-    requireClose: ['察焉', '共商', '俯察'],
-    example: '诸臣所议皆有理。臣窃见尚有一隅未及·江南漕运若被金人切断·南宋亦难支撑。臣愿补此一议。伏惟陛下察焉。',
-    selfCheck: ['是否含"前文/诸臣/补一议"等承接词', '是否提供 1 条新视角 (前文未提)', '是否避免全文重复前位发言', '结句是否含"察焉/共商/俯察"'],
+    // 2026-05-23 fix·删 "诸臣所议皆有理" / "前文已多有陈说" 高频套话·扩 15 句轮替
+    opens: [
+      '"案此事·尚有一隅未及..."',
+      '"臣窃见前议·缺一关键..."',
+      '"臣略备一议·与诸公参..."',
+      '"臣观此议·尚有数事可补..."',
+      '"前议未及者·臣谨陈..."',
+      '"诸公所论·臣略附数语..."',
+      '"陛下·臣有数事·恐前议未及..."',
+      '"臣案此事·有一隅·诸公或未察..."',
+      '"臣窃以为·尚需补一议..."',
+      '"案前文·有一未明处·臣略言之..."',
+      '"臣略备一议·非敢与诸公争..."',
+      '"前议甚详·然臣仍有一议..."',
+      '"臣观此议·有一节·宜进一步勘明..."',
+      '"案此·尚需一议..."',
+      '"诸公论已尽·臣略陈一隅..."'  // 原 3 旧句保留 1 句作变体
+    ],
+    closes: ['"伏惟陛下察焉"', '"愿与诸臣共商"', '"伏祈陛下俯察"', '"伏请陛下圣裁"'],
+    structure: '补充一个未被前文提及的【具体视角】·**必须含 1+ 具体名词 (兵名 / 粮草数 / 边镇名 / 人名 / 数字 / 日期 / 部门)**·禁纯虚词附议·禁全文重复前位',
+    requireEither: ['尚有', '补一议', '略陈', '一议', '未及', '尚需', '一节', '一隅'],
+    requireClose: ['察焉', '共商', '俯察', '圣裁'],
+    forbidden: [
+      '诸臣所议皆有理',       // 高频套话·禁
+      '前文已多有陈说',       // 高频套话·禁
+      '诸臣所议皆当',         // pivot 套话漏到此·禁
+      '臣所议皆有理',         // 变体·禁
+      '诸公所议皆有理'        // 变体·禁
+    ],
+    // 5 example 按 topic 分发·避全 LLM 学同 1 个
+    example: [
+      '臣窃见·辽东兵粮可支三月·然山海关粮仓近罄·若延误半月·军心必乱。臣略陈此一议。伏惟陛下察焉。',
+      '前议甚详·然臣仍有一议·袁崇焕本月内三次催饷·若不应·恐将士寒心。伏惟陛下察焉。',
+      '诸公论已尽·臣略陈一隅·北京城内米价已涨三倍·宫廷开支若不收缩·恐生民变。伏惟陛下察焉。',
+      '案此事·尚有一隅未及·言官张瑞图近日所上「诛戮魏珰」疏·与本议有关·宜并审之。伏祈陛下俯察。',
+      '臣略备一议·与诸公参·东南漕运近来缺船·若海运不通·三月内江南粮不能至京。伏请陛下圣裁。'
+    ],
+    selfCheck: [
+      '是否提供 1+ 具体名词 (兵 / 粮 / 钱 / 边镇名 / 人名 / 数字)·非纯虚词',
+      '是否避开 "诸臣所议皆有理" / "臣前文已多有陈说" / "诸臣所议皆当" 等高频套话',
+      '是否避免全文重复前位发言',
+      '结句是否含 "察焉 / 共商 / 俯察 / 圣裁"'
+    ],
   },
 };
 
@@ -2165,7 +2241,14 @@ function _cc3_buildModeInstruction(modeResult, tone, state, gmCh) {
   const lastName = state && state.lastSpeaker ? state.lastSpeaker : '前位';
   const opens = pool.opens.map(s => s.replace(/X/g, lastName)).join(' / ');
   const closes = pool.closes.map(s => s.replace(/X/g, lastName)).join(' / ');
-  const example = (pool.example || '').replace(/X/g, lastName);
+  // 2026-05-23 fix·example 支持 string | string[]·数组时随机挑 1·避全 LLM 学同 1 个 (augment / pivot 已改 array)
+  let example;
+  if (Array.isArray(pool.example)) {
+    const pick = pool.example[Math.floor(Math.random() * pool.example.length)];
+    example = String(pick || '').replace(/X/g, lastName);
+  } else {
+    example = (pool.example || '').replace(/X/g, lastName);
+  }
 
   let p = '\n── 你的应答策略·必须严格遵守 ──\n';
   p += '【模式·' + mode + '·rebut=驳斥 / second=附议 / soften=缓和 / pivot=转移 / augment=补充 / lead=首发】\n';
@@ -2242,23 +2325,35 @@ function _cc3_applyModeGuards(mode, item, role, lastMode) {
   const counts = {};
   modesSoFar.forEach(m => { counts[m] = (counts[m] || 0) + 1; });
 
-  // Guard 1·同 mode ≥ 3·改其他相容 mode
+  // 2026-05-23 fix·Guards 解吸盘·augment 不再吸所有 mode·分流到 pivot / soften
+  // Guard 1·同 mode ≥ 3·改其他相容 mode (分流·非全转 augment)
   if (counts[mode] >= 3) {
-    if (mode === 'rebut')  return 'soften';
-    if (mode === 'second') return 'augment';
-    if (mode === 'pivot')  return 'augment';
-    // lead 只可能首位·不会触发·rebut/second/pivot 在此降级
+    if (mode === 'rebut')   return 'soften';
+    if (mode === 'second')  return 'soften';   // 改·原 augment
+    if (mode === 'pivot')   return 'augment';  // 保留·pivot→augment 是合理 (都补充类)
+    if (mode === 'augment') return 'pivot';    // 新加·augment 自身也 cap·避全场塌缩
+    // lead 只可能首位·不会触发
   }
 
-  // Guard 2·避免连续同 mode·40% 概率换 augment (augment 自身不 cap)
-  if (mode === lastMode && mode !== 'augment') {
-    if (Math.random() < 0.4) return 'augment';
+  // Guard 2·避免连续同 mode·40% 换非 augment 同价 mode (分流·避吸盘)
+  if (mode === lastMode) {
+    if (Math.random() < 0.4) {
+      // 分流 map·augment 不再是统一兜底
+      const altMap = {
+        rebut:   'soften',
+        second:  Math.random() < 0.5 ? 'pivot' : 'augment',  // 50/50 分流
+        pivot:   'augment',
+        augment: 'pivot',   // 改·augment 改换 pivot·非自循环
+        soften:  Math.random() < 0.5 ? 'pivot' : 'rebut'     // 加 soften 分流
+      };
+      return altMap[mode] || mode;
+    }
   }
 
-  // Guard 3·debate2 第二轮·rebut → soften (50%)·lead → augment (强制)
+  // Guard 3·debate2 第二轮·rebut → soften (50%)·lead → second (改·原 augment)
   if (role === 'debate2') {
     if (mode === 'rebut' && Math.random() < 0.5) return 'soften';
-    if (mode === 'lead') return 'augment';
+    if (mode === 'lead') return 'second';  // 改·原 augment·让第二轮 lead 真附议同党
   }
 
   return mode;
