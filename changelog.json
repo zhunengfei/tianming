@@ -3,6 +3,25 @@
   "entries": [
     {
       "date": "2026-05-23",
+      "module": "1.2.6.3·2 个 critical bug 修·B1 hot-update-reload 完整重启 + 上传 mkdir race 修",
+      "title": "audit 发现两个 critical bug·(B1) main-impl.js:hot-update-reload 只 mainWindow.loadFile()·main 进程 module cache 锁死·改 _app_main/_app_preload 后必须 app.relaunch 才生效·user 以为更新成实际半生效·改 app.relaunch(); app.exit(0); setTimeout 100ms 让 IPC ack 先发回。(B2) skill upload-hot.py:exec_command + sleep(0.5) 非阻塞·980 个 mkdir 远未完·SFTP put 全失败 'No such file'·实测 1.2.6.1+1.2.6.2 incremental upload server /files/ 全空 (但 zip / hot-latest / changelog SCP 直接 PARENT 已存在·这部分成了·client 走 zip fallback 不致命)·加 _ssh_run_blocking helper 改阻塞·mkdir 改一行 args 列表更快。",
+      "items": [
+        {
+          "what": "[B1·main-impl.js hot-update-reload] mainWindow.loadFile → app.relaunch(); app.exit(0)·setTimeout 100ms 让 IPC return 先发完。",
+          "why": "main + preload 自 1.2.6.0 起也热更·loadFile 只换 renderer 内容·main process 已启动 module cache 锁·_app_main.js / _app_preload.js 改了不生效。必须完整重启 app。游戏 state 在 disk·重启不丢。"
+        },
+        {
+          "what": "[B2·skill upload-hot.py] 加 _ssh_run_blocking helper·读 stdout/stderr 至 EOF + recv_exit_status·改 mkdir 改 manifest mv 都用 blocking。mkdir 改一行 'mkdir -p A B C D ...' 比 N 个分行调用快。",
+          "why": "exec_command 是 fire-and-forget·sleep(0.5) 远不够 980 个 mkdir 完成·SFTP 立即 putfo race fail。实测 1.2.6.1+1.2.6.2 server /files/ count=0。修后 mkdir 阻塞·putfo 一定成功。"
+        },
+        {
+          "what": "[audit] 同时识别 4 个 minor bug·B3 hot main throw 后状态没 auto-disable·B4 旧 hot dir 不清理·B5 changelog 无限增长·B2-old incremental 重 sha hardlinked 浪费。后置不修。",
+          "why": "聚焦 critical·minor 留 backlog。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-23",
       "module": "1.2.6.2·preload 也可热更新·installer 内只剩 2 个 40-行 shim 永不动",
       "title": "在 1.2.6.0/1.2.6.1 (main.js 可热更 + incremental update) 之上·补 preload.js shim·让 preload 实现 (preload-impl.js → _app_preload.js) 也走热更路径。installer 重打 1.2.6.0·从此 installer 里只有 2 个 shim 文件 (main.js·preload.js·共 ~80 行) + 一份 bundled fallback (main-impl.js + preload-impl.js)·**所有业务逻辑都可热更**。webPreferences 加 sandbox: false (让 preload shim 能 require 外部文件)·contextIsolation 仍 true 保 renderer/preload 隔离。additionalArguments 透传 --hot-preload=<path> 给 preload·preload shim 读 process.argv 找 hot 实现。",
       "items": [
