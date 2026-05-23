@@ -152,6 +152,11 @@ async function initKejuSystem(scenario) {
     // v7.1\u00B7E1\u00B7mentor \u53CD\u5411\u7D22\u5F15 namespace init
     if (typeof _kjInitMentorIndex === 'function') _kjInitMentorIndex();
     if (typeof _kjInitDiscipleGraph === 'function') _kjInitDiscipleGraph();
+    // Stage 2\u00B7L1\u00B7KejuParadigm \u5730\u57FA init
+    if (typeof _kjpInitParadigm === 'function') {
+      try { _kjpInitParadigm({ initBy: 'init' }); }
+      catch(e) { try { console.warn('[L1] paradigm init failed', e); } catch(_){} }
+    }
 
     _dbg('[\u79D1\u4E3E\u5236\u5EA6] \u521D\u59CB\u5316:', data.enabled ? '\u5DF2\u542F\u7528' : '\u672A\u542F\u7528', data.reason);
     if (data.enabled) toast('\uD83D\uDCDC \u79D1\u4E3E\u5236\u5EA6\u5DF2\u542F\u7528\uFF1A' + data.intervalNote + ' ' + (P.keju.tiers.length) + '\u5C42\u8003\u8BD5');

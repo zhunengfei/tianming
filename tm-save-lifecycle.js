@@ -810,6 +810,12 @@ function fullLoadGame(data){
 
     // 恢复所有_saved*字段
     _restoreSavedFields();
+    // Stage 2·L1·KejuParadigm migrate·旧存档自动 init paradigm·version-aware
+    try {
+      if (typeof _kjpMigrate === 'function') _kjpMigrate();
+    } catch (_kjpME) {
+      try { window.TM && TM.errors && TM.errors.captureSilent(_kjpME, 'fullLoadGame·kjpMigrate'); } catch(_) {}
+    }
     try {
       if (window.TMPhase8FormalBridge && typeof window.TMPhase8FormalBridge.restoreDraftsFromGM === 'function') {
         window.TMPhase8FormalBridge.restoreDraftsFromGM(true);
