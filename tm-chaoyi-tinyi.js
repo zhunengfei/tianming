@@ -272,12 +272,52 @@ async function _ty2_phaseInitialRound() {
       var nm = CY._ty2.attendees[i];
       var res = await _ty2_genOneSpeech(nm, _rd, _prevSpeeches);
       if (res) {
+        // v2.6 Slice 7·confront mode auto trigger·若 NPC reason 含 "点名 X"·启 chain
+        try {
+          if (res.line && typeof _ty3_startConfrontChain === 'function' && !(CY._ty3 && CY._ty3._confrontChain && CY._ty3._confrontChain.active)) {
+            // 简单 heuristic·若 line 含 "X 公此论" / "X 公方才" / "敢请 X 公" 等 confront 模板 opens·启 chain
+            var confrontMatch = res.line.match(/([一-龥]{2,4})\s*公\s*(此论|方才|此说|此言|此议|论)/);
+            if (confrontMatch) {
+              var targetName = confrontMatch[1];
+              if (CY._ty2.attendees.indexOf(targetName) >= 0 && targetName !== nm) {
+                _ty3_startConfrontChain(nm, targetName, { maxRound: 2, triggeredBy: 'auto-line-match' });
+              }
+            }
+          }
+        } catch (_confrontE) {}
+        // v2.6 polish·Round 4·affinity 双向累加·rebut -3 / second +3 / soften +1 (跟常朝 paradigm 对齐)
+        try {
+          if (typeof _ty3_addAffinity === 'function' && _prevSpeeches.length > 0) {
+            var _prev = _prevSpeeches[_prevSpeeches.length - 1];
+            if (_prev && _prev.name && _prev.name !== nm) {
+              var _myS = res.stance || '';
+              var _otherS = _prev.stance || '';
+              var _bothSupport = /支持/.test(_myS) && /支持/.test(_otherS);
+              var _bothOppose = /反对/.test(_myS) && /反对/.test(_otherS);
+              var _sameDir = _bothSupport || _bothOppose;
+              var _oppDir = (/支持/.test(_myS) && /反对/.test(_otherS)) || (/反对/.test(_myS) && /支持/.test(_otherS));
+              if (_sameDir) _ty3_addAffinity(nm, _prev.name, +3);     // second·同附议
+              else if (_oppDir) _ty3_addAffinity(nm, _prev.name, -3); // rebut·相左
+              // soften·中立 + 弱反·+1 (softening 缓和)
+              else if (/中立/.test(_myS) && (/反对/.test(_otherS) || /支持/.test(_otherS))) _ty3_addAffinity(nm, _prev.name, +1);
+            }
+          }
+        } catch (_affE) {}
         _prevSpeeches.push({ name: nm, stance: res.stance, line: res.line });
         // 镜像收集到 CY._ty2._allSpeeches·后续 phase14 取用
         CY._ty2._allSpeeches.push({ round: _rd, name: nm, stance: res.stance, line: (res.line || '').slice(0, 80) });
-        if (_rd === 1 && res.stance) CY._ty2.stances[nm].initial = res.stance;
-        if (res.stance) CY._ty2.stances[nm].current = res.stance;
-        if (res.confidence != null) CY._ty2.stances[nm].confidence = res.confidence;
+        var _stEntry = CY._ty2.stances[nm] || (CY._ty2.stances[nm] = {});
+        // v2.6 Slice 3·hybrid stance·initial 锁 (dims-initial 时不 overwrite)·current 可变
+        var _hybridLocked = _stEntry.source === 'dims-initial';
+        if (_rd === 1 && res.stance && !_hybridLocked) _stEntry.initial = res.stance;  // v2 paradigm·LLM 锚 initial
+        if (res.stance) _stEntry.current = res.stance;
+        if (res.confidence != null) _stEntry.confidence = res.confidence;
+        // v2.6 history audit (hybrid 时·若 current != initial·必含 reason)
+        _stEntry.history = _stEntry.history || [];
+        _stEntry.history.push({ round: _rd, stance: res.stance, reason: res.reason || '', t: Date.now() });
+        if (_hybridLocked && res.stance && res.stance !== _stEntry.initial) {
+          _stEntry.source = 'llm-adjusted';
+        }
       }
       _ty2_render();
     }
@@ -301,15 +341,41 @@ async function _ty2_genOneSpeech(name, roundNum, prevSpeeches) {
   prompt += '议题：' + CY._ty2.topic + '\n';
   if (CY._ty2.topicCustom) prompt += '说明：' + CY._ty2.topicCustom + '\n';
   prompt += '你扮演' + name + '（' + (ch && ch.officialTitle || '') + '，' + (ch && _cyGetRank(ch) || '') + '）：\n';
-  prompt += '  性格：' + (ch && ch.personality || '') + '\n';
+  // v2.6 Slice 4·Section A·复用 PromptComposer.buildAiPersonaText·若无 aiPersonaText 字段·fallback personality
+  var _pcExists = (typeof window !== 'undefined' && window.TM && TM.PromptComposer);
+  if (_pcExists && ch && ch.aiPersonaText && typeof TM.PromptComposer.buildAiPersonaText === 'function') {
+    prompt += TM.PromptComposer.buildAiPersonaText(ch, { maxLen: 200 });  // 内省段
+  } else {
+    prompt += '  性格：' + (ch && ch.personality || '') + '\n';
+  }
   prompt += '  党派：' + (ch && ch.party || '无') + '｜势力：' + (ch && ch.faction || '?') + '｜家族：' + (ch && ch.family || '?') + '\n';
   prompt += '  数值：忠' + ((ch && ch.loyalty)||50) + '｜野' + ((ch && ch.ambition)||40) + '｜名望' + ((ch && ch.prestige)||50) + '｜恩眷' + ((ch && ch.favor)||0) + '\n';
-  prompt += '  学识：' + (ch && ch.learning || '') + '\n';
+  prompt += '  学识：' + (ch && ch.learning || '') + '\n';  // Section D learning·v2 已注入
+  // v2.6 Slice 4·Section C·新加·皇威 / 皇权·NPC 看见 hq<30 → confront/martyr 倾向
+  if (typeof GM !== 'undefined') {
+    var _hw = (GM.huangwei && typeof GM.huangwei.index === 'number') ? GM.huangwei.index : 50;
+    var _hq = (GM.huangquan && typeof GM.huangquan.index === 'number') ? GM.huangquan.index : 50;
+    prompt += '  当前皇威：' + Math.round(_hw) + '·皇权：' + Math.round(_hq);
+    if (_hq < 30) prompt += '（皇权弱·谏言可肆）';
+    else if (_hq > 70) prompt += '（皇权盛·宜谨言）';
+    prompt += '\n';
+  }
   // 出身/经历(背景信息)
   if (ch && ch.background) prompt += '  生平：' + String(ch.background).slice(0, 120) + '\n';
   // 情节弧·若有当前 arc
   if (ch && ch.arc && ch.arc.title) prompt += '  当下处境：' + ch.arc.title + (ch.arc.stage ? '·阶段「' + ch.arc.stage + '」' : '') + '\n';
-  // 近期记忆(扩到 5 条)
+  // v2.6 Slice 4·Section B·recognitionState·若有则用 PromptComposer.buildRecognitionState
+  if (_pcExists && ch && ch.recognitionState && typeof TM.PromptComposer.buildRecognitionState === 'function') {
+    prompt += TM.PromptComposer.buildRecognitionState(ch);
+  }
+  // v7.1·F4b·言官 attribution 注入·若 ch 是言官·补 mentor/cohort/strength prompt 块
+  if (typeof _kjYanguanPromptHint === 'function' && ch) {
+    try {
+      var _yh = _kjYanguanPromptHint(ch);
+      if (_yh) prompt += _yh + '\n';
+    } catch(_yhE) {}
+  }
+  // 近期记忆(扩到 5 条·fallback 若无 recognitionState)
   var _memList = (ch && ch._memory || []).slice(-5).map(function(m){return (m.event||'').slice(0,40);});
   prompt += '  近期记忆：' + (_memList.join('；') || '无') + '\n';
   // 党派立场+焦点争议·让 NPC 发言契合其党派纲领
@@ -344,6 +410,83 @@ async function _ty2_genOneSpeech(name, roundNum, prevSpeeches) {
   if (otherStances) prompt += '\n他官立场：' + otherStances + '\n';
   if (prevSpeeches && prevSpeeches.length) {
     prompt += '\n本轮已发言：\n' + prevSpeeches.slice(-3).map(function(s){return '  '+s.name+'('+s.stance+')：'+s.line.slice(0,60);}).join('\n') + '\n';
+  }
+  // v2.6 Slice 3·hybrid stance·prompt 按 roundNum 分·initial (Round 1 dims 锚) 不变·current (Round 2+ LLM 可调)
+  var _hybridSt = CY._ty2 && CY._ty2.stances && CY._ty2.stances[name];
+  var _myInitial = _hybridSt && _hybridSt.initial;
+  var _myCurrent = _hybridSt && (_hybridSt.current || _hybridSt.initial);
+  if (_myInitial) {
+    if (roundNum === 1) {
+      prompt += '\n你的 initial 立场（按性格 8D 算）：' + _myInitial;
+      prompt += '\n第一轮发言·尽量遵循 initial·若强反对·reason 必含原因';
+    } else {
+      prompt += '\n你的 initial 立场 (Round 1 dims 锚定·不可变)：' + _myInitial;
+      prompt += '\n当前 current：' + (_myCurrent || _myInitial);
+      prompt += '\n本轮可保 current·或看前发言/cue/党争 调·若调 reason 必含';
+    }
+    // v2.6 Slice 6 接入·_ty3_modulateModeByPersona·RULES + trait bias 决定 mode·prompt 注入 mode template hint
+    try {
+      if (typeof _ty3_modulateModeByPersona === 'function' && typeof _ty3_getDims === 'function') {
+        var _modeDims = _ty3_getDims(ch);
+        var _modeTags = (typeof _ty3_inferTopicTags === 'function')
+          ? _ty3_inferTopicTags(CY._ty2 && CY._ty2.topicType, CY._ty2 && CY._ty2.topic)
+          : [];
+        var _baseMode = roundNum === 1 ? 'lead' : (prevSpeeches && prevSpeeches.length ? 'second' : 'lead');
+        // v2.6 polish·真填 sameModeCount + sameStanceCount + npcInDominantCamp·让 4 anti-塌缩 都 active
+        var _sameMode = 0, _sameStance = 0, _myCurrent = (_hybridSt && _hybridSt.current) || 'neutral';
+        var _stanceTally = { support: 0, oppose: 0, neutral: 0 };
+        try {
+          (prevSpeeches || []).forEach(function(sp) {
+            if (sp.mode && sp.mode === (_hybridSt && _hybridSt._lastMode)) _sameMode++;
+          });
+          Object.keys((CY._ty2 && CY._ty2.stances) || {}).forEach(function(_nn) {
+            var _ns = CY._ty2.stances[_nn] && CY._ty2.stances[_nn].current;
+            if (!_ns) return;
+            if (/支持/.test(_ns)) _stanceTally.support++;
+            else if (/反对/.test(_ns)) _stanceTally.oppose++;
+            else _stanceTally.neutral++;
+          });
+          var _myCamp = /支持/.test(_myCurrent) ? 'support' : /反对/.test(_myCurrent) ? 'oppose' : 'neutral';
+          _sameStance = _stanceTally[_myCamp] || 0;
+        } catch (_tallyE) {}
+        var _dominantCamp = (_stanceTally.support > _stanceTally.oppose) ? 'support'
+                          : (_stanceTally.oppose > _stanceTally.support) ? 'oppose' : 'neutral';
+        var _ctx = {
+          sameModeCount: _sameMode,
+          sameStanceCount: _sameStance,
+          npcInDominantCamp: (
+            (_dominantCamp === 'support' && /支持/.test(_myCurrent)) ||
+            (_dominantCamp === 'oppose' && /反对/.test(_myCurrent))
+          ),
+          confrontJustUsed: !!(CY._ty3 && CY._ty3._confrontChain && CY._ty3._confrontChain.active),
+          martyrUsedThisTopic: !!(CY._ty3 && CY._ty3._martyrUsedThisTopic)
+        };
+        var _finalMode = _ty3_modulateModeByPersona(ch, _modeDims, _modeTags, _baseMode, _ctx);
+        if (_finalMode) prompt += '\n你的发言 mode：' + _finalMode + '·按廷议特化口吻 (见 MODES_TEMPLATE)';
+        // mark martyr 用过·1 议题 1 次
+        if (_finalMode === 'martyr' && CY._ty3) CY._ty3._martyrUsedThisTopic = true;
+        // v2.6 polish·记 _lastMode·让下轮 sameModeCount 真累计
+        if (_finalMode && _hybridSt) _hybridSt._lastMode = _finalMode;
+      }
+      // v2.6 Slice 6 tone hint·5 class × tone·prompt 段注入
+      if (typeof _ty3_buildToneHint === 'function') {
+        var _tone = _ty3_buildToneHint(ch);
+        if (_tone) prompt += _tone;
+      }
+      // v2.6 Slice 10b clientelism check·若有 mentor 关系·调 _ty3_clientelismCheck
+      if (typeof _ty3_clientelismCheck === 'function' && ch && ch.mentor && CY._ty2.stances) {
+        var _mentorSt = CY._ty2.stances[ch.mentor];
+        var _mySt = _hybridSt && _hybridSt.current;
+        if (_mentorSt && _mentorSt.current && _mySt) {
+          var _client = _ty3_clientelismCheck(ch, _mentorSt.current, _mySt);
+          if (_client && _client.source === 'mentor-same-dir') {
+            prompt += '\n师承提示·先师 ' + ch.mentor + ' 立场 ' + _mentorSt.current + '·你倾向附议师';
+          } else if (_client && _client.source === 'mentor-cancel') {
+            prompt += '\n师承提示·先师 ' + ch.mentor + ' 立场 ' + _mentorSt.current + '·跟你 dims 相反·宜沉默 / 折中';
+          }
+        }
+      }
+    } catch (_modulateE) {}
   }
   prompt += '\n请根据以上推断你对本议题的立场（不给预设选项，自行判断），写发言（文言/半文言，符合身份）。' + (typeof _aiDialogueWordHint === 'function' ? _aiDialogueWordHint() : '') + '\n';
   prompt += '返回 JSON：{"stance":"极力支持/支持/倾向支持/中立/倾向反对/反对/极力反对/折中/另提议","confidence":0-100,"line":"发言内容","reason":"内在动机"}';
@@ -707,6 +850,62 @@ async function _ty2_decide(mode) {
       minorityDissent: mode === 'override' ? _ty2_groupByStance()[counts.support > counts.oppose ? 'oppose' : 'support'].map(function(g){return g.name;}) : []
     });
   }
+
+  // v2.6 Slice 0.0b·v2 path 后处理集成·跟 v3 phase14 parity
+  // Patch 1·ChronicleTracker 桥接·写"廷议待落实"卡 (v3 phase14 L3648 已有同等调用)
+  try {
+    if (typeof ChronicleTracker !== 'undefined' && typeof ChronicleTracker.upsert === 'function' && mode !== 'defer') {
+      var _tyChrTrackId = JSON.stringify(['tinyi2', GM.turn || 0, String(CY._ty2.topic || ''), String(actualDirection || '')]);
+      ChronicleTracker.upsert({
+        type: 'tingyi_pending',         // v2.7 注·tingyi (廷议)·非 chaoyi (朝议)
+        sourceType: 'tingyi_pending',
+        sourceId: _tyChrTrackId,
+        title: String(CY._ty2.topic || '').slice(0, 60),
+        actor: '',
+        stakeholders: (CY._ty2.attendees || []).slice(0, 8),
+        currentStage: '裁决',  // 裁决
+        progress: 50,
+        narrative: ('廷议「' + CY._ty2.topic + '」裁决：' + actualDirection).slice(0, 160),
+        startTurn: GM.turn || 0,
+        expectedEndTurn: (GM.turn || 0) + 6,
+        hidden: false,
+        priority: mode === 'override' ? 'high' : 'medium',
+        status: 'active',
+        sealStatus: actualDirection,
+        shortTermBalance: '廷议新决·待落实',
+        longTermBalance: CY._ty2.topic
+      });
+    }
+  } catch (_chrE) { try { window.TM && TM.errors && TM.errors.captureSilent(_chrE, 'v2-tinyi-chronicle'); } catch (_) {} }
+
+  // Patch 2·ClassEngine 集成·class 层传播 (v3 phase6_recordSeal L2818 同等调用)
+  try {
+    if (typeof TM !== 'undefined' && TM.ClassEngine && typeof TM.ClassEngine.applyPartyOutcomeToClasses === 'function' && mode !== 'defer') {
+      // v2 没有 proposerParty 字段·从 attendees 第 1 个推断·或留 null
+      var _v2Proposer = (CY._ty2.attendees || [])[0];
+      var _v2ProposerCh = _v2Proposer ? findCharByName(_v2Proposer) : null;
+      var _v2ProposerParty = _v2ProposerCh ? (_v2ProposerCh.party || '') : '';
+      var _v2OutcomeMap = { 'majority':'fulfilled', 'override':'contested', 'mediation':'partial', 'defer':'pending' };
+      var _v2Outcome = _v2OutcomeMap[mode] || 'partial';
+      TM.ClassEngine.applyPartyOutcomeToClasses(GM, {
+        sealStatus: actualDirection,
+        outcome: _v2Outcome,
+        grade: mode === 'majority' ? 'B' : (mode === 'override' ? 'D' : 'C'),  // v2 无 archon grade·按 mode 推
+        sourceParty: _v2ProposerParty,
+        opposingParties: [],
+        blockerParty: ''
+      }, { turn: GM.turn || 0, source: 'tinyi2-decide' });
+    }
+  } catch (_clsE) { try { window.TM && TM.errors && TM.errors.captureSilent(_clsE, 'v2-tinyi-classengine'); } catch (_) {} }
+
+  // Patch 3·partyStrife update·v3 phase7 同等
+  try {
+    if (mode !== 'defer' && typeof GM.partyStrife === 'number') {
+      // v2 outcome → partyStrife delta (按 v3 paradigm·majority -1·override +2·mediation +1)
+      var _strifeDelta = { 'majority': -1, 'override': +2, 'mediation': +1 }[mode] || 0;
+      GM.partyStrife = Math.max(0, Math.min(100, GM.partyStrife + _strifeDelta));
+    }
+  } catch (_strE) { try { window.TM && TM.errors && TM.errors.captureSilent(_strE, 'v2-tinyi-strife'); } catch (_) {} }
 
   // 结束
   setTimeout(function() {

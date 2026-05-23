@@ -2216,6 +2216,127 @@ const _CC3_PHRASE_POOLS = {
       '结句是否含 "察焉 / 共商 / 俯察 / 圣裁"'
     ],
   },
+
+  // ═══════════════ v2.6 Slice 5·廷议特化 4 mode (confront / cite_classic / clientelism / martyr) ═══════════════
+  // 按常朝 8 字段 paradigm·跟上 6 mode 一致 (opens / closes / structure / requireEither / requireClose / forbidden / example / selfCheck)
+  // 复用前提·廷议跟常朝共用 _cc3_buildModeInstruction·因此可放在同 MODES_TEMPLATE 内
+  confront: {
+    opens: [
+      '"X 公此论·恕臣不能附"',
+      '"X 公方才所言"',
+      '"愿与 X 公辩之"',
+      '"X 公适才之论·臣有数处不能附"',
+      '"X 公此说·恐未尽是·臣略辩一二"',
+      '"X 公方才所陈·与臣所见相左"',
+      '"窃以为 X 公之论·尚有商榷之处"',
+      '"X 公之议·虽出公心·然臣不能默"',
+      '"敢请 X 公·容臣一辩"',
+      '"X 公此言·恐失之偏"',
+      '"X 公论锐·然臣有 X 处不能附"',
+      '"臣以为 X 公此议·失之 X (操切/迂腐/...)·略陈一二"'
+    ],
+    closes: ['"伏请陛下察"', '"伏惟圣鉴"', '"惟陛下裁断"', '"敢请陛下听臣此辩"'],
+    structure: '直接点名 {targetName}·正面驳其论·**必含 1+ 具体论点反驳** (数 / 例 / 古今对照 / 后果分析)·禁空泛附议·禁不指名',
+    requireEither: ['具体论点反驳', '历史先例对比', '数据 / 后果分析'],
+    requireClose: ['察', '圣鉴', '裁断', '听臣此辩'],
+    forbidden: ['空泛附议', '不指名', '我亦如是', '诸臣所议皆有理'],
+    example: [
+      '许显纯方才言重狱有功·然臣按律考之·东厂三月狱中有 12 人无供而毙·此非"有功"·乃失驭。伏请陛下察。',
+      '袁公方才论应据守锦州·然臣观舆图·锦州孤悬·若无后军接应·恐重蹈萨尔浒之覆辙。伏惟圣鉴。',
+      '黄潜善公议主和·然臣观金主之意·非和也·乃缓我备战。绍兴元年金兵已三次南下·岂可再信。惟陛下裁断。',
+      '韩公方才言宜宽魏珰旧党·然魏当政时·东林死狱者凡 6 人·此仇未报·何谈宽宥。伏请陛下察。',
+      '李公此议虽出公心·然臣以为不可·辽东每月饷银 12 万·若再加调·京师月入仅 18 万·恐有断粮之危。敢请陛下听臣此辩。'
+    ],
+    selfCheck: ['是否真点名对方', '是否含 1+ 具体论点反驳 (数 / 例 / 后果)', '是否避空泛附议', '是否非"我亦如是"套话']
+  },
+
+  cite_classic: {
+    opens: [
+      '"《尚书》云"',
+      '"《大学衍义》载"',
+      '"昔者..."',
+      '"《通鉴》载..."',
+      '"《左传》有云..."',
+      '"《孟子》尝言..."',
+      '"按《周礼》..."',
+      '"《史记》载..."',
+      '"洪范九畴·有曰..."',
+      '"昔太祖立国之初..."',
+      '"昔魏徵之于太宗·有言..."',
+      '"昔诸葛武侯出师·尝陈..."'
+    ],
+    closes: ['"伏祈陛下鉴此古训"', '"愿陛下取法古人"', '"伏请陛下追述"', '"以古为鉴"'],
+    structure: '援经引典·**必含书名** (《尚书》《大学衍义》《通鉴》《左传》《孟子》等)·1 经 + 1 史·禁现代词汇·禁无出处',
+    requireEither: ['书名', '"昔者" / "古人"'],
+    requireClose: ['鉴此', '取法', '追述', '为鉴'],
+    forbidden: ['现代词汇', '无书名', '无出处', '空白引经'],
+    example: [
+      '《尚书·洪范》云：唯辟作福·唯辟作威。陛下若委此权于厂臣·乃辟权下移·非治道也。伏祈陛下鉴此古训。',
+      '昔诸葛武侯出师·誓诛奸佞·正风纪。今魏珰之罪·甚于司马师·岂可不诛。愿陛下取法古人。',
+      '《孟子》尝言：民为贵·社稷次之·君为轻。今河南大旱·百姓菜色·若再加征赋·恐失民心。伏请陛下追述。',
+      '昔魏徵之于太宗·有言：兼听则明·偏信则暗。今独委权一党·有偏信之嫌。以古为鉴。',
+      '《通鉴》载汉宣帝中兴·先举贤良·后行变法。今宜先选官·勿急于改制。伏祈陛下鉴此古训。'
+    ],
+    selfCheck: ['是否含书名', '是否 1 经 1 史', '是否避现代词汇', '出处是否真 (非杜撰)']
+  },
+
+  clientelism: {
+    opens: [
+      '"先师 {mentorName} 之论"',
+      '"门生不敢异于先师"',
+      '"门人但奉先师所授"',
+      '"先师 {mentorName} 议已尽·门人不敢异"',
+      '"门生既受先师 {mentorName} 之教·岂敢违"',
+      '"先师 {mentorName} 之言·门生服膺"',
+      '"先师所示·门人未敢有他"',
+      '"门生此议·实先师 {mentorName} 旧训"',
+      '"门生奉先师之教·所论与先师同"',
+      '"先师论此已周·门生附议"'
+    ],
+    closes: ['"门生再拜"', '"惟陛下察先师之心"', '"门人不敢有他议"', '"伏请陛下听门生此附"'],
+    structure: '附议师·**必含 mentor 名**·"先师 X 论已尽·门人不敢异"·禁直接反驳师·禁立独议',
+    requireEither: ['mentor 名', '"门生" / "门人"'],
+    requireClose: ['再拜', '察先师', '有他议', '听门生'],
+    forbidden: ['直接反驳师', '"先师此议恐未尽" 之类否定', '立独议'],
+    example: [
+      '先师赵南星论东林之党议·门生不敢异。今诛魏珰·先师所未及·然以先师风骨·必应主严办。门生再拜。',
+      '先师韩爌方才所陈钱粮事·门人但奉所授·略附数语·辽东兵饷今急·宜按先师议先调七万。惟陛下察先师之心。',
+      '先师宗泽北望中原·门生岂敢与异。今金人南下·必战不可和·门生奉师议。门人不敢有他议。',
+      '先师叶向高之论考成法·门生服膺·今宜复其旧·以察吏治。门生再拜。',
+      '门生既受先师李纲之教·岂敢违·主战之议·实先师旧训·门人附议而已。伏请陛下听门生此附。'
+    ],
+    selfCheck: ['是否含 mentor 名 (替换 {mentorName})', '是否含 "门生" 或 "门人"', '是否避直接反驳师', '结句是否含 "再拜" / "察先师" 之类']
+  },
+
+  martyr: {
+    opens: [
+      '"臣愿伏阙"',
+      '"臣冒死直谏"',
+      '"以死谏陛下"',
+      '"臣不惧斧钺·愿一言之"',
+      '"臣虽万死·不敢欺陛下"',
+      '"陛下若不听·臣愿撞死阶下"',
+      '"臣以血书此疏·伏请陛下察"',
+      '"臣身之所悬·惟天与陛下"',
+      '"臣闻直臣不避死·愿冒万死一谏"',
+      '"臣此言出·必触怒陛下·然臣不敢不言"',
+      '"宁可碎首·不肯顺非"',
+      '"臣愿以颈血·溅此朝堂"'
+    ],
+    closes: ['"虽千万人吾往矣"', '"臣不惧斧钺"', '"惟陛下取臣首"', '"臣以此万死·乞陛下察"'],
+    structure: '言官冒死直谏·**尖锐 + 不留余地**·必含 honor-driven 言辞·必含死字 / 诛字 / 斧钺·直陈陛下错',
+    requireEither: ['"死" / "诛" / "斧钺" / "万死"', '"陛下" + 直陈错 (如 "陛下纵奸" / "陛下偏听")'],
+    requireClose: ['吾往矣', '不惧斧钺', '取臣首', '万死'],
+    forbidden: ['含糊', '迂回', '"伏惟陛下察焉" 等温和套话', '空骂无据'],
+    example: [
+      '臣愿伏阙·陛下用魏阉乱政·必致天下倾覆。若不诛魏珰·则天下士心尽失·宁可碎首·不肯顺非·虽千万人吾往矣。',
+      '臣冒死直谏·陛下偏听阉党·已三月不见东林。臣此言出·必触陛下怒·然不言则负士林。宁可碎首·惟陛下取臣首。',
+      '臣以血书此疏·辽东之败·非将不效命·乃饷不及时·责在户部。陛下若再迟·边军必反·臣不惧斧钺·乞陛下察。',
+      '陛下若不听臣此谏·愿撞死阶下。今魏珰党羽布满六部·岂可再容。臣以此万死·乞陛下察。',
+      '臣闻直臣不避死·愿冒万死一谏。和议必失中原·绍兴之耻·遗千载之恨·虽千万人吾往矣。'
+    ],
+    selfCheck: ['是否含死字 / 诛字 / 万死 / 斧钺', '是否直陈陛下错 (非含糊)', '是否避温和套话 (察焉 / 共商)', 'cooldown·1 议题 1 次 (Slice 6 RULES 强制)']
+  }
 };
 
 const _CC3_TONE_HINTS = {
@@ -2239,25 +2360,29 @@ function _cc3_buildModeInstruction(modeResult, tone, state, gmCh) {
 
   // mode-specific opener·若 state 含 lastSpeaker·替换 X
   const lastName = state && state.lastSpeaker ? state.lastSpeaker : '前位';
-  const opens = pool.opens.map(s => s.replace(/X/g, lastName)).join(' / ');
-  const closes = pool.closes.map(s => s.replace(/X/g, lastName)).join(' / ');
+  // v2.6 polish·Round 5·clientelism mode·{mentorName} 真替换·非 literal text 留 prompt
+  const mentorName = (gmCh && gmCh.mentor) || (state && state.mentorName) || '先师';
+  const _swap = function(s) { return String(s || '').replace(/X/g, lastName).replace(/\{mentorName\}/g, mentorName); };
+  const opens = pool.opens.map(_swap).join(' / ');
+  const closes = pool.closes.map(_swap).join(' / ');
   // 2026-05-23 fix·example 支持 string | string[]·数组时随机挑 1·避全 LLM 学同 1 个 (augment / pivot 已改 array)
   let example;
   if (Array.isArray(pool.example)) {
     const pick = pool.example[Math.floor(Math.random() * pool.example.length)];
-    example = String(pick || '').replace(/X/g, lastName);
+    example = _swap(pick);
   } else {
-    example = (pool.example || '').replace(/X/g, lastName);
+    example = _swap(pool.example);
   }
 
   let p = '\n── 你的应答策略·必须严格遵守 ──\n';
-  p += '【模式·' + mode + '·rebut=驳斥 / second=附议 / soften=缓和 / pivot=转移 / augment=补充 / lead=首发】\n';
-  p += '内容范式·' + pool.structure.replace(/X/g, lastName) + '\n';
+  p += '【模式·' + mode + '·rebut=驳斥 / second=附议 / soften=缓和 / pivot=转移 / augment=补充 / lead=首发 / confront=对质 / cite_classic=援典 / clientelism=门生附师 / martyr=死谏】\n';
+  // v2.6 polish·Round 5·structure 也 {mentorName} 替换 (clientelism mode)
+  p += '内容范式·' + _swap(pool.structure) + '\n';
   p += '【语气】' + toneHint + '\n';
 
   // ── 必含词约束 ──
   if (Array.isArray(pool.requireEither) && pool.requireEither.length) {
-    const reqList = pool.requireEither.map(w => '"' + w.replace(/X/g, lastName) + '"').join(' / ');
+    const reqList = pool.requireEither.map(w => '"' + _swap(w) + '"').join(' / ');
     p += '【必含·开题转折】回应中至少含以下之一·' + reqList + '\n';
   }
   if (Array.isArray(pool.requireClose) && pool.requireClose.length) {
@@ -2695,6 +2820,13 @@ function buildNpcPrompt(name, item, playerText, stance, intent, isMentioned) {
       if (_aiP) p += _aiP;
       const _rec = TM.PromptComposer.buildRecognitionState(gmCh);
       if (_rec) p += _rec;
+    } catch(_) {}
+  }
+  // v7.1·F4b·言官 attribution 注入·若 ch 是言官·补 mentor/cohort/strength prompt 块
+  if (typeof _kjYanguanPromptHint === 'function' && gmCh) {
+    try {
+      const _yh = _kjYanguanPromptHint(gmCh);
+      if (_yh) p += _yh + '\n';
     } catch(_) {}
   }
   p += '\n今日早朝·正议题「' + item.title + '」（' + (item.dept || '') + '上奏）。\n';

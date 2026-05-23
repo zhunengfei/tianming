@@ -59,6 +59,2332 @@
 })();
 
 // ═══════════════════════════════════════════════════════════════════════
+//  §0.5·议题 27 tag (v2.6 Slice 2 新加·Slice 6 RULES + Slice 2.5 AI 推荐 用)
+// ═══════════════════════════════════════════════════════════════════════
+var TINYI_TOPIC_TAGS = [
+  // 财政 5
+  'finance', 'reward', 'land-tax', 'currency', 'canal-transport',
+  // 军事 5
+  'military-command', 'border-affairs', 'coastal-defense', 'northern-defense', 'regicide-pursuit',
+  // 人事 4 (v2.6 polish·补 impeachment-process·让 impeachment topicType 有专 tag·26→27)
+  'personnel', 'official-selection', 'inspection', 'impeachment-process',
+  // 法律 3
+  'execution', 'penal-harsh', 'law-reform',
+  // 礼制 5
+  'succession', 'ritual', 'ritual-major', 'etiquette', 'imperial-lecture',
+  // 天文 2
+  'prophecy', 'calendar',
+  // 工程 1
+  'river-works',
+  // 外交 / 灾赈 2
+  'foreign-policy', 'relief'
+];
+
+// topicType (v3 已有·impeachment / appointment / other / etc.) → tag 默认映射
+var TYPE_TO_TAG = {
+  'impeachment':  ['impeachment-process', 'execution', 'inspection'],
+  'appointment':  ['personnel', 'official-selection'],
+  'war':          ['military-command', 'border-affairs'],
+  'succession':   ['succession', 'ritual-major'],
+  'reform':       ['law-reform', 'finance'],
+  'judgment':     ['execution', 'penal-harsh'],
+  'finance':      ['finance', 'land-tax'],
+  'relief':       ['relief', 'finance'],
+  'ritual':       ['ritual'],
+  'other':        []
+};
+
+function _ty3_inferTopicTags(topicType, topicText) {
+  var tags = {};  // use object as Set (compat)
+  // 1·按 topicType 默认 tag
+  var typeT = TYPE_TO_TAG[topicType] || [];
+  typeT.forEach(function(t) { tags[t] = true; });
+  // 2·按 topicText keyword 扩 (v1.4 扩 27 tag)
+  var t = String(topicText || '');
+  if (/盐|税|赋|关税|榷|商/.test(t))    tags['finance'] = true;
+  if (/赏|奖|加封|爵/.test(t))          tags['reward'] = true;
+  if (/田|清丈|纳粮/.test(t))           tags['land-tax'] = true;
+  if (/钞|银|铜|铸钱|宝泉/.test(t))     tags['currency'] = true;
+  if (/漕|船|粮运|海运/.test(t))        tags['canal-transport'] = true;
+  if (/兵|将|师|战/.test(t))            tags['military-command'] = true;
+  if (/边|九边|塞|关/.test(t))          tags['border-affairs'] = true;
+  if (/海防|倭|海寇|水师/.test(t))      tags['coastal-defense'] = true;
+  if (/北防|蒙|虏|马匪/.test(t))        tags['northern-defense'] = true;
+  if (/诛|斩|赦免|逮/.test(t))          tags['execution'] = true;
+  if (/魏珰|阉党|奸|戮/.test(t))        tags['regicide-pursuit'] = true;
+  if (/吏|选|铨|官/.test(t))            tags['personnel'] = true;
+  if (/选官|廷推|铨选/.test(t))         tags['official-selection'] = true;
+  if (/察|按察|巡按/.test(t))           tags['inspection'] = true;
+  if (/劾|参|纠|论劾|疏纠/.test(t))     tags['impeachment-process'] = true;  // v2.6 polish·补 impeachment-process
+  if (/罪|刑|罚|株/.test(t))            tags['penal-harsh'] = true;
+  if (/法|律|典/.test(t))               tags['law-reform'] = true;
+  if (/储|嗣|太子/.test(t))             tags['succession'] = true;
+  if (/礼|仪|祠|大祀/.test(t))          tags['ritual'] = true;
+  if (/朔|历|大礼/.test(t))             tags['ritual-major'] = true;
+  if (/拜|揖|趋/.test(t))               tags['etiquette'] = true;
+  if (/经筵|讲读|进讲/.test(t))         tags['imperial-lecture'] = true;
+  if (/谶|纬|妖言|天象/.test(t))        tags['prophecy'] = true;
+  if (/历|时宪|交食|星象/.test(t))      tags['calendar'] = true;
+  if (/河|水利|堤|渠|湖|江工/.test(t))  tags['river-works'] = true;
+  if (/夷|使|和亲|互市/.test(t))        tags['foreign-policy'] = true;
+  if (/灾|疫|旱|涝|蝗|饥/.test(t))      tags['relief'] = true;
+  return Object.keys(tags);
+}
+
+// expose (Slice 0.5 expose 块外暴露·跟其他 helper 一致)
+if (typeof window !== 'undefined') {
+  window.TINYI_TOPIC_TAGS = TINYI_TOPIC_TAGS;
+  window._ty3_inferTopicTags = _ty3_inferTopicTags;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  §0.7·mentor 反向索引 (v2.6 Slice 10a 新加·Slice 2.5 mentor 联动 + Slice 10b clientelism 用)
+// ═══════════════════════════════════════════════════════════════════════
+function _ty3_buildMentorIndex(chars) {
+  var idx = { mentor: {}, mentee: {} };
+  if (!Array.isArray(chars)) return idx;
+  chars.forEach(function(ch) {
+    if (!ch || !ch.name) return;
+    if (Array.isArray(ch.mentees) && ch.mentees.length > 0) {
+      idx.mentor[ch.name] = ch.mentees.slice();
+      ch.mentees.forEach(function(m) {
+        if (typeof m === 'string' && m) {
+          idx.mentee[m] = ch.name;  // 一 mentee 只一 mentor·后者覆盖前者
+        }
+      });
+    }
+  });
+  return idx;
+}
+
+// 启动 / 剧本加载时调·缓存到 GM._mentorIndex
+function _ty3_rebuildMentorIndexFromGM() {
+  if (typeof GM === 'undefined' || !GM) return;
+  GM._mentorIndex = _ty3_buildMentorIndex(GM.chars || []);
+}
+
+if (typeof window !== 'undefined') {
+  window._ty3_buildMentorIndex = _ty3_buildMentorIndex;
+  window._ty3_rebuildMentorIndexFromGM = _ty3_rebuildMentorIndexFromGM;
+}
+
+// 自动 rebuild·剧本加载时 hook (defer 到 document ready·避 GM 未 init)
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  var _ty3_rebuildOnce = function() {
+    try {
+      if (typeof GM !== 'undefined' && GM && Array.isArray(GM.chars)) {
+        if (!GM._mentorIndex) _ty3_rebuildMentorIndexFromGM();
+      }
+    } catch (_e) {}
+  };
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(_ty3_rebuildOnce, 100);
+  } else {
+    document.addEventListener('DOMContentLoaded', function() { setTimeout(_ty3_rebuildOnce, 100); });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  §0.8·召集制 helpers (v2.6 Slice 2.5·6 资格 + 5 后果 + 民意度 + 言官离心 + decay)
+// ═══════════════════════════════════════════════════════════════════════
+
+// 朝代 + period 民意度 init·v2.9 §5.4.7
+var DYNASTY_POPULATION_CONFIDENCE_INIT = {
+  '明': 0, '宋': 0, '唐': 0, '元': -10, '清': -5,
+  '太祖建国':  +20, '盛世': +10, '中兴': 0, '末世': -20, '危亡': -40
+};
+
+// hardcoded 明朝模板 fallback·若 scenario.tinyi.convening 缺
+var HARDCODED_MING_CONVENING = {
+  requiredCallList: ['首辅', '次辅', '吏部尚书', '户部尚书', '礼部尚书', '兵部尚书', '刑部尚书', '工部尚书', '都察院左都御史'],
+  topicSpecificRequired: {},
+  topicSpecificForbidden: {},
+  maxAttendees: 30,
+  minAttendees: 5,
+  maxFrequencyPerMonth: 2
+};
+
+function _ty3_getConveningConfig(scenario) {
+  if (scenario && scenario.tinyi && scenario.tinyi.convening) return scenario.tinyi.convening;
+  return HARDCODED_MING_CONVENING;
+}
+
+// ─── 2.5.1·6 资格层·3 态 priority cascade (v2.9 §5.4.2) ───
+
+function _cyRankLevelOfSafe(rank) {
+  return (typeof _cyRankLevelOf === 'function') ? _cyRankLevelOf(rank) : 8;
+}
+function _cyGetRankSafe(ch) {
+  return (typeof _cyGetRank === 'function') ? _cyGetRank(ch) : (ch && ch.rank);
+}
+
+function _ty3_calcEligibilityByRank(ch) {
+  var lv = _cyRankLevelOfSafe(_cyGetRankSafe(ch));
+  if (lv <= 4)  return { category: '必召', layer: 1 };
+  if (lv <= 8)  return { category: '可召', layer: 1 };
+  if (lv <= 12) return { category: '可召', layer: 1 };
+  if (lv <= 14) return { category: '罕召', layer: 1 };
+  return { category: '不召', layer: 1 };
+}
+
+function _ty3_calcEligibilityByLocation(ch) {
+  // 复用 v2 _isAtCapital
+  if (typeof _isAtCapital === 'function' && !_isAtCapital(ch)) {
+    return { category: '不召', layer: 2 };
+  }
+  return null;
+}
+
+function _ty3_calcEligibilityByStatus(ch) {
+  if (!ch) return { category: '不召', layer: 3 };
+  if (ch.alive === false)                    return { category: '不召', layer: 3 };
+  if (ch._imprisoned)                         return { category: '不召', layer: 3 };  // v2.6 修·非 _inPrison
+  if (ch._exiled)                             return { category: '不召', layer: 3 };
+  if (ch._dingyou)                            return { category: '不召', layer: 3 };  // v2.6 新建
+  if (ch._sick && (ch.health <= 10))          return { category: '不召', layer: 3 };
+  if (ch._retired)                            return { category: '不召', layer: 3 };
+  if (ch._fled)                               return { category: '不召', layer: 3 };
+  if (ch._missing)                            return { category: '不召', layer: 3 };
+  return null;
+}
+
+function _ty3_calcEligibilityByDynasty(ch, scenario, topic) {
+  // 朝代规矩·topicSpecificForbidden (e.g. succession 议 外戚回避)
+  if (!scenario || !scenario.tinyi || !scenario.tinyi.convening) return null;
+  var conv = scenario.tinyi.convening;
+  var forbidden = (conv.topicSpecificForbidden || {})[topic];
+  if (Array.isArray(forbidden) && ch) {
+    for (var i = 0; i < forbidden.length; i++) {
+      var fbTag = forbidden[i];
+      if (ch.party === fbTag || (ch.class === 'waixi' && fbTag === '外戚') || (ch.class === 'neimon' && fbTag === '内监')) {
+        return { category: '不召', layer: 4 };
+      }
+    }
+  }
+  return null;
+}
+
+function _ty3_calcEligibilityByPartyTaboo(ch, topic) {
+  // 党派回避·议题敏感时同党不入 (本期 stub·留待 Slice 6 RULES 扩)
+  return null;
+}
+
+function _ty3_calcEligibilityByPrestige(ch) {
+  // v1.4 加·composite = (prestige + influence) / 2
+  var composite = (((ch && ch.prestige) || 50) + ((ch && ch.influence) || 50)) / 2;
+  var rankLevel = _cyRankLevelOfSafe(_cyGetRankSafe(ch));
+  if (composite >= 90)                       return { category: '必召', layer: 6 };
+  if (composite >= 75 && rankLevel <= 8)     return { category: '必召', layer: 6 };
+  if (composite >= 80 && rankLevel <= 14)    return { category: '必召', layer: 6 };  // 言官清流
+  if (composite <= 30 && rankLevel >= 12)    return { category: '不召', layer: 6 };
+  return null;
+}
+
+function _ty3_calcEligibility(ch, topic, scenario) {
+  var layers = [
+    _ty3_calcEligibilityByRank(ch),
+    _ty3_calcEligibilityByLocation(ch),
+    _ty3_calcEligibilityByStatus(ch),
+    _ty3_calcEligibilityByDynasty(ch, scenario, topic),
+    _ty3_calcEligibilityByPartyTaboo(ch, topic),
+    _ty3_calcEligibilityByPrestige(ch)
+  ].filter(Boolean);
+  // 3 态 priority cascade (v2.6 措辞修)·不召 cancel·必召 elevate·其他取严
+  var bujao = layers.find(function(l) { return l.category === '不召'; });
+  if (bujao) return { category: '不召', layer: bujao.layer, eligible: false };
+  var bijao = layers.find(function(l) { return l.category === '必召'; });
+  if (bijao) return { category: '必召', layer: bijao.layer, eligible: true };
+  var order = ['可召', '罕召'];
+  var max = '可召';
+  layers.forEach(function(l) {
+    if (order.indexOf(l.category) > order.indexOf(max)) max = l.category;
+  });
+  return { category: max, layer: 0, eligible: max !== '罕召' };
+}
+
+// ─── 2.5.4·5 后果·_ty3_calcConveningPolitics + 5 v15 helper (v2.9 §5.4.3) ───
+
+function _ty3_v15_countByParty(attendees) {
+  var m = new Map();
+  attendees.forEach(function(name) {
+    var ch = (typeof findCharByName === 'function') ? findCharByName(name) : null;
+    var party = (ch && ch.party) || '中立';
+    m.set(party, (m.get(party) || 0) + 1);
+  });
+  return m;
+}
+
+function _ty3_v15_findMissedRequired(attendees, topic, scenario) {
+  var conv = _ty3_getConveningConfig(scenario);
+  var required = (conv.requiredCallList || []).slice();
+  var topicSpecific = (conv.topicSpecificRequired || {})[topic] || [];
+  var fullRequired = Array.from(new Set(required.concat(topicSpecific)));
+  return fullRequired
+    .map(function(role) {
+      // 找 attendees 外的·officialTitle 含 role 的 char (rough match)
+      var chs = (typeof GM !== 'undefined' && Array.isArray(GM.chars)) ? GM.chars : [];
+      return chs.find(function(c) {
+        return c && c.alive !== false && !attendees.includes(c.name)
+            && c.officialTitle && c.officialTitle.indexOf(role) >= 0;
+      });
+    })
+    .filter(Boolean);
+}
+
+function _ty3_v15_addSickLeaveEvent(ch, expireTurn) {
+  if (typeof GM === 'undefined') return;
+  GM._pendingSickLeaveEvents = GM._pendingSickLeaveEvents || [];
+  GM._pendingSickLeaveEvents.push({ name: ch.name, fromTurn: GM.turn || 0, expireTurn: expireTurn });
+  ch._sick = true;
+}
+
+function _ty3_v15_addResignMemorial(ch, expireTurn) {
+  if (typeof GM === 'undefined') return;
+  GM._pendingResignMemorials = GM._pendingResignMemorials || [];
+  GM._pendingResignMemorials.push({ name: ch.name, fromTurn: GM.turn || 0, expireTurn: expireTurn, reason: '漏召累计 4 次' });
+}
+
+function _ty3_v15_pushClearOpinionEvent(opposingParties, triggerTurn) {
+  if (typeof GM === 'undefined') return;
+  GM._pendingClearOpinionEvents = GM._pendingClearOpinionEvents || [];
+  (opposingParties || []).forEach(function(p) {
+    GM._pendingClearOpinionEvents.push({
+      party: p.name || p, fromTurn: GM.turn || 0, triggerTurn: triggerTurn,
+      effect: '该党联名清议·prestige 集体 +2·tension +5'
+    });
+  });
+}
+
+function _ty3_calcConveningPolitics(attendees, proposerParty, topic, scenario) {
+  var opposing = (typeof _ty3_getOpposingParties === 'function') ? _ty3_getOpposingParties(proposerParty) : [];
+
+  // crossPartyRatio·v2.7 bug 修·counts.size===1 时 走 oneParty·非 'balanced'
+  var counts = _ty3_v15_countByParty(attendees);
+  var crossPartyRatio = 0;
+  var tilt = 'balanced';
+  if (counts.size === 0) {
+    tilt = 'balanced';
+  } else if (counts.size === 1) {
+    tilt = attendees.length >= 8 ? 'fullOneParty' :
+           attendees.length >= 5 ? 'oneParty'     : 'balanced';
+  } else {
+    var values = Array.from(counts.values());
+    crossPartyRatio = Math.min.apply(null, values) / Math.max.apply(null, values);
+    if (crossPartyRatio > 0.6) tilt = 'balanced';
+    else if (crossPartyRatio < 0.2 && attendees.length >= 5) {
+      tilt = 'oneParty';
+      if (opposing[0]) opposing[0].tension = (opposing[0].tension || 0) + 3;
+    }
+    if (crossPartyRatio === 0 && attendees.length >= 8) {
+      tilt = 'fullOneParty';
+    }
+  }
+  if (attendees.length >= 20) {
+    tilt = 'megaCeremony';
+    if (typeof CY !== 'undefined' && CY._ty3) CY._ty3._personaDamp = 0.8;
+  }
+
+  if (tilt === 'fullOneParty') _ty3_v15_pushClearOpinionEvent(opposing, (GM.turn || 0) + 3);
+
+  // 后果 1·漏召大臣 (prestige 加权·affinity 单值 v2.6 修)
+  var missedRequired = _ty3_v15_findMissedRequired(attendees, topic, scenario);
+  missedRequired.forEach(function(ch) {
+    var mult = ch.prestige >= 80 ? 2.0 : ch.prestige >= 60 ? 1.5 : ch.prestige >= 40 ? 1.0 : 0.5;
+    ch.loyalty = Math.max(0, (ch.loyalty || 50) - 3 * mult);
+    ch.affinity = Math.max(0, (ch.affinity || 50) - 3 * mult * 0.6);  // number 单值
+    ch._missedCallsCount = (ch._missedCallsCount || 0) + 1;
+    if (ch._missedCallsCount >= 2) _ty3_v15_addSickLeaveEvent(ch, (GM.turn || 0) + 2);
+    if (ch._missedCallsCount >= 4) _ty3_v15_addResignMemorial(ch, (GM.turn || 0) + 3);
+  });
+
+  return {
+    tilt: tilt,
+    crossPartyRatio: crossPartyRatio,
+    missedHighRank: missedRequired.map(function(c) { return c.name; }),
+    attendeeCount: attendees.length,
+    turn: (typeof GM !== 'undefined' ? GM.turn : 0) || 0
+  };
+}
+
+// ─── 2.5.6/7·民意度 + 言官离心 init + decay (v2.9 §5.4.7/8/9) ───
+
+function _ty3_initConveningCounters(scenario) {
+  if (typeof GM === 'undefined') return;
+  if (GM._convening_民意度 == null) {
+    var dynasty = (scenario && scenario.dynasty) || (GM.scenario && GM.scenario.dynasty) || '明';
+    var period = (scenario && (scenario.dynastyPhaseHint || scenario.period)) || '中兴';
+    var dynastyInit = DYNASTY_POPULATION_CONFIDENCE_INIT[dynasty] || 0;
+    var periodInit = DYNASTY_POPULATION_CONFIDENCE_INIT[period] || 0;
+    var customInit = (scenario && scenario.tinyi && scenario.tinyi.populationConfidenceInit) || 0;
+    GM._convening_民意度 = Math.max(-100, Math.min(100, dynastyInit + periodInit + customInit));
+  }
+  if (GM._convening_言官离心 == null) GM._convening_言官离心 = 0;
+}
+
+function _ty3_v15_decayConveningCounters() {
+  if (typeof GM === 'undefined' || !GM) return;
+  // v2.6 polish·decay 调时若 counters 还 null·先 lazy init·避永远 0
+  if (GM._convening_民意度 == null || GM._convening_言官离心 == null) {
+    try { _ty3_initConveningCounters(GM.scenario); } catch (_) {}
+  }
+  // v2.6 polish·Round 4·process + 限 _pendingMartyrEvents·此前 push 无人消费·无限累
+  if (Array.isArray(GM._pendingMartyrEvents) && GM._pendingMartyrEvents.length > 0) {
+    var _now = GM.turn || 0;
+    // 1·过期 (>5 turn) 的 martyr event·dispatch 到 EB + NpcMemory + drop
+    var _toProcess = GM._pendingMartyrEvents.filter(function(e) { return e && (_now - (e.turn || 0)) >= 1; });
+    _toProcess.forEach(function(e) {
+      try {
+        if (typeof addEB === 'function') addEB('Court Debate', '〔 ' + e.npc + '·议《' + (e.topic || '').slice(0, 20) + '》失利·愤而上书 〕');
+        if (typeof NpcMemorySystem !== 'undefined' && typeof NpcMemorySystem.remember === 'function') {
+          NpcMemorySystem.remember(e.npc, '议《' + (e.topic || '').slice(0, 24) + '》裁决违心·愤而以死谏', '恨', 9, '廷议');
+        }
+      } catch (_emE) {}
+    });
+    // 2·限 30 entry cap·防超长游戏累积
+    GM._pendingMartyrEvents = GM._pendingMartyrEvents.filter(function(e) { return (_now - (e.turn || 0)) < 1; });
+    if (GM._pendingMartyrEvents.length > 30) GM._pendingMartyrEvents = GM._pendingMartyrEvents.slice(-30);
+  }
+  // v2.6 polish·Round 5·process + 限 _pendingTinyiActions (Slice 7.5 action 落地·此前 push 无人消费)
+  if (Array.isArray(GM._pendingTinyiActions) && GM._pendingTinyiActions.length > 0) {
+    var _nowA = GM.turn || 0;
+    // 1·dispatch 1+ turn 之前的 action 到 newslog / EB·标 processed
+    var _actEmoji = { flogging: '🔨', strip: '❌', dismiss: '👋', toPart: '📑', reopen: '📜', revoke: '⚰️' };
+    var _actLabel = { flogging: '廷杖', strip: '削籍', dismiss: '退殿', toPart: '转部议', reopen: '更议', revoke: '革职' };
+    GM._pendingTinyiActions.forEach(function(a) {
+      if (a._processed || (_nowA - (a.turn || 0)) < 1) return;
+      try {
+        var emo = _actEmoji[a.type] || '·';
+        var lbl = _actLabel[a.type] || a.type;
+        var tgt = (a.payload && (a.payload.target || a.payload.part || a.payload.topic)) || '';
+        if (typeof addEB === 'function') addEB('廷议·行动落实', emo + ' ' + lbl + (tgt ? '·' + tgt : ''));
+        a._processed = true;
+      } catch (_paE) {}
+    });
+    // 2·清 processed·限 50 entry cap
+    GM._pendingTinyiActions = GM._pendingTinyiActions.filter(function(a) { return !a._processed; });
+    if (GM._pendingTinyiActions.length > 50) GM._pendingTinyiActions = GM._pendingTinyiActions.slice(-50);
+  }
+  var monthsPerTurn = (typeof _getDaysPerTurn === 'function' ? _getDaysPerTurn() : 30) / 30.4375;
+  // 1·民意度 decay·按 dynasty
+  if (typeof GM._convening_民意度 === 'number') {
+    var dynasty = (GM.scenario && GM.scenario.dynasty) || '明';
+    var baseRate = { '明':0.88, '宋':0.94, '唐':0.91, '元':0.85, '清':0.90 }[dynasty] || 0.90;
+    GM._convening_民意度 *= Math.pow(baseRate, monthsPerTurn);
+    GM._convening_民意度 = Math.max(-100, Math.min(100, GM._convening_民意度));
+  }
+  // 2·言官离心 decay·5%/月
+  if (typeof GM._convening_言官离心 === 'number') {
+    GM._convening_言官离心 *= Math.pow(0.95, monthsPerTurn);
+    GM._convening_言官离心 = Math.max(0, Math.min(100, GM._convening_言官离心));
+  }
+  // 3·conveningPolitics 7-turn 后 reset
+  if (typeof CY !== 'undefined' && CY._ty3 && CY._ty3.conveningPolitics) {
+    var ctP = CY._ty3.conveningPolitics;
+    if (ctP.turn != null && (GM.turn - ctP.turn) >= 7) {
+      CY._ty3.conveningPolitics = null;
+    }
+  }
+  // 4·pending events 按 expireTurn 清理
+  ['_pendingSickLeaveEvents', '_pendingResignMemorials', '_pendingClearOpinionEvents'].forEach(function(key) {
+    if (!Array.isArray(GM[key])) return;
+    GM[key] = GM[key].filter(function(e) { return !e.expireTurn || e.expireTurn > GM.turn; });
+  });
+}
+
+// ─── 2.5.6 民意度 5 档·get hint (供 Slice 4 prompt 注入) ───
+
+function _ty3_getPopulationConfidenceTier() {
+  if (typeof GM === 'undefined' || GM._convening_民意度 == null) return 'unknown';
+  var v = GM._convening_民意度;
+  if (v >= 80) return '极公允';
+  if (v >= 40) return '公允';
+  if (v >= -40) return '兼听';
+  if (v >= -80) return '偏私';
+  return '独断';
+}
+
+// expose 全
+if (typeof window !== 'undefined') {
+  window._ty3_getConveningConfig = _ty3_getConveningConfig;
+  window._ty3_calcEligibility = _ty3_calcEligibility;
+  window._ty3_calcConveningPolitics = _ty3_calcConveningPolitics;
+  window._ty3_v15_countByParty = _ty3_v15_countByParty;
+  window._ty3_v15_findMissedRequired = _ty3_v15_findMissedRequired;
+  window._ty3_v15_addSickLeaveEvent = _ty3_v15_addSickLeaveEvent;
+  window._ty3_v15_addResignMemorial = _ty3_v15_addResignMemorial;
+  window._ty3_v15_pushClearOpinionEvent = _ty3_v15_pushClearOpinionEvent;
+  window._ty3_initConveningCounters = _ty3_initConveningCounters;
+  window._ty3_v15_decayConveningCounters = _ty3_v15_decayConveningCounters;
+  window._ty3_getPopulationConfidenceTier = _ty3_getPopulationConfidenceTier;
+}
+
+// v2.6 Slice 9·cumulative + emperor cue·复用 _cc3_* (alias)·retry 直到 _cc3_* load
+(function _ty3_aliasCc3Helpers() {
+  if (typeof window === 'undefined') return;
+  var attempts = 0;
+  function tryAlias() {
+    if (attempts++ > 30) return;
+    var changed = false;
+    if (typeof _cc3_cumulativeHint === 'function' && !window._ty3_cumulativeHint) {
+      window._ty3_cumulativeHint = _cc3_cumulativeHint;
+      changed = true;
+    }
+    if (typeof _cc3_emperorCueHint === 'function' && !window._ty3_emperorCueHint) {
+      window._ty3_emperorCueHint = _cc3_emperorCueHint;
+      changed = true;
+    }
+    if (!window._ty3_cumulativeHint || !window._ty3_emperorCueHint) {
+      setTimeout(tryAlias, 200);
+    }
+  }
+  tryAlias();
+})();
+
+// ═══════════════════════════════════════════════════════════════════════
+//  §0.9·Slice 3·hybrid stance paradigm (v2.6·user 选 C·dims helpers + RULES)
+// ═══════════════════════════════════════════════════════════════════════
+
+// 4 helper·v2.8 §5.5.2 ~54 trait BIAS·按 runtime fill-shaosong-traits.js SI naming
+var TRAIT_TO_DIMS_BIAS = {
+  // personality 36
+  brave:        { honor: +0.1, boldness: +0.3 },
+  craven:       { boldness: -0.3, cunning: +0.1 },
+  calm:         { rationality: +0.2, cunning: +0.1 },
+  wrathful:     { boldness: +0.2, honor: +0.1 },
+  chaste:       { honor: +0.2, confucianism: +0.2 },
+  lustful:      { honor: -0.2 },
+  content:      { greed: -0.2 },
+  ambitious:    { greed: +0.2, cunning: +0.1 },
+  diligent:     { rationality: +0.2 },
+  lazy:         { greed: +0.1 },
+  honest:       { honor: +0.3, cunning: -0.2 },
+  deceitful:    { honor: -0.3, cunning: +0.3 },
+  generous:     { compassion: +0.2 },
+  greedy:       { greed: +0.3 },
+  gregarious:   { cunning: +0.1, loyalty: +0.1 },
+  shy:          { cunning: -0.1 },
+  humble:       { honor: +0.1, confucianism: +0.1 },
+  arrogant:     { boldness: +0.2, honor: -0.1 },
+  just:         { honor: +0.3, compassion: +0.1 },
+  arbitrary:    { rationality: -0.2, boldness: +0.2 },
+  patient:      { rationality: +0.1 },
+  impatient:    { boldness: +0.2 },
+  temperate:    { greed: -0.2, confucianism: +0.1 },
+  gluttonous:   { greed: +0.2 },
+  trusting:     { loyalty: +0.2 },
+  paranoid:     { cunning: +0.2, loyalty: -0.1 },
+  zealous:      { honor: +0.2, boldness: +0.3 },
+  cynical:      { compassion: -0.2 },
+  forgiving:    { compassion: +0.3 },
+  vengeful:     { boldness: +0.2, honor: -0.1 },
+  compassionate:{ compassion: +0.3 },
+  callous:      { compassion: -0.3 },
+  sadistic:     { compassion: -0.4, boldness: +0.2 },
+  stubborn:     { boldness: +0.2, rationality: -0.1 },
+  fickle:       { cunning: +0.2, loyalty: -0.1 },
+  eccentric:    { rationality: -0.1, cunning: +0.1 },
+  // lifestyle / role 9
+  scholar:           { confucianism: +0.4, rationality: +0.2 },
+  theologian:        { confucianism: +0.3 },
+  schemer:           { cunning: +0.3, honor: -0.1 },
+  diplomat_ls:       { rationality: +0.2, cunning: +0.1 },
+  administrator_ls:  { rationality: +0.2 },
+  strategist:        { rationality: +0.2, boldness: +0.1 },
+  family_first:      { loyalty: +0.2 },
+  gallant:           { honor: +0.2, boldness: +0.2 },
+  august:            { honor: +0.2, confucianism: +0.1 },
+  // commander 7
+  aggressive_attacker: { boldness: +0.3 },
+  unyielding_defender: { boldness: +0.2, rationality: +0.1 },
+  cautious_leader:     { rationality: +0.2, boldness: -0.1 },
+  reckless:            { boldness: +0.3, rationality: -0.2 },
+  flexible_leader:     { cunning: +0.2 },
+  organizer:           { rationality: +0.2 },
+  holy_warrior:        { honor: +0.3, boldness: +0.2, confucianism: +0.2 },
+  // 健康 / 特殊 2
+  scarred:    { boldness: +0.1 },
+  depressed:  { boldness: -0.2 }
+};
+
+function _ty3_dimsFromTraits(traitIds) {
+  var dims = { honor: 0.5, compassion: 0.5, boldness: 0.5, rationality: 0.5,
+               greed: 0.5, cunning: 0.5, loyalty: 0.5, confucianism: 0.5 };
+  if (!Array.isArray(traitIds)) return dims;
+  traitIds.forEach(function(t) {
+    var b = TRAIT_TO_DIMS_BIAS[t]; if (!b) return;
+    Object.keys(b).forEach(function(k) {
+      dims[k] = Math.max(0, Math.min(1, dims[k] + b[k]));
+    });
+  });
+  return dims;
+}
+
+// fallback B·keyword regex (v2.9 §5.5.6·~30 keyword)
+// v2.6 polish·补 fallback C·若 personality/bio 全空·按 class / officialTitle / faction 派生
+// 让 67 chars 无 traitId 且无 bio 时仍有 nontrivial dims·非 0.5 全中
+function _ty3_dimsFromKeywords(ch) {
+  var text = ((ch && ch.personality) || '') + ((ch && ch.desc) || '') + ((ch && ch.bio) || '') + ((ch && ch.background) || '');
+  var dims = { honor: 0.5, compassion: 0.5, boldness: 0.5, rationality: 0.5,
+               greed: 0.5, cunning: 0.5, loyalty: 0.5, confucianism: 0.5 };
+  // fallback C·按 class·5 class × dims·若 text 空也跑·让 67 无 bio 的 chars 有差异
+  if (ch && ch.class) {
+    var classBias = {
+      kdao:    { honor: +0.25, boldness: +0.2, cunning: -0.15 },    // 言官·正直勇敢
+      geechen: { rationality: +0.2, confucianism: +0.2, cunning: +0.1 },  // 阁臣·理性儒臣
+      wujiang: { boldness: +0.25, rationality: -0.1, confucianism: -0.15 },  // 武将·勇而不文
+      xunqi:   { loyalty: +0.2, greed: -0.1, boldness: -0.1 },      // 勋戚·忠而稳
+      waixi:   { loyalty: +0.15, cunning: +0.15, honor: -0.05 }     // 外戚·亲忠而曲
+    }[ch.class];
+    if (classBias) Object.keys(classBias).forEach(function(k) { dims[k] += classBias[k]; });
+  }
+  // fallback D·按 officialTitle·首辅 / 御史 / 总督 等加 cue
+  if (ch && ch.officialTitle) {
+    if (/首辅/.test(ch.officialTitle))      { dims.rationality += 0.1; dims.cunning += 0.1; }
+    if (/御史|科道|言官/.test(ch.officialTitle)) { dims.honor += 0.15; dims.boldness += 0.1; }
+    if (/总督|总兵|提督/.test(ch.officialTitle)) { dims.boldness += 0.1; dims.confucianism -= 0.05; }
+    if (/侍郎|主事|郎中/.test(ch.officialTitle)) { dims.rationality += 0.05; }
+  }
+  if (!text) {
+    // 走 fallback C/D 后 clamp 返
+    Object.keys(dims).forEach(function(k) { dims[k] = Math.max(0, Math.min(1, dims[k])); });
+    return dims;
+  }
+  if (/正直|忠贞|清廉|耿介|公正|秉公|刚正/.test(text)) dims.honor += 0.3;
+  if (/贪|私|曲|阿|奸/.test(text))                    dims.honor -= 0.3;
+  if (/仁慈|爱民|宽厚|怜悯|仁善/.test(text))         dims.compassion += 0.3;
+  if (/严苛|苛察|残忍|冷酷|嗜杀/.test(text))         dims.compassion -= 0.3;
+  if (/敢|勇|刚|果|胆|无畏/.test(text))               dims.boldness += 0.3;
+  if (/谨|怯|畏|柔|惜身/.test(text))                  dims.boldness -= 0.3;
+  if (/智|谋|策|权|理|沉稳|审慎/.test(text))          dims.rationality += 0.3;
+  if (/愚|憨|直|急躁/.test(text))                     dims.rationality -= 0.2;
+  if (/贪|嗜利|奢|纵欲/.test(text))                   dims.greed += 0.3;
+  if (/廉|俭|淡泊|寡欲/.test(text))                   dims.greed -= 0.3;
+  if (/阴|险|狡|诈|心机/.test(text))                  dims.cunning += 0.3;
+  if (/朴|实|讷|纯|诚厚/.test(text))                  dims.cunning -= 0.2;
+  if (/忠|顺|敬|誓死/.test(text))                     dims.loyalty += 0.2;
+  if (/叛|背|怀异|二心/.test(text))                   dims.loyalty -= 0.3;
+  if (/儒|经|学|博|读书/.test(text))                  dims.confucianism += 0.3;
+  if (/武|武勇|战|兵略/.test(text))                   dims.confucianism -= 0.1;
+  // clamp 0-1
+  Object.keys(dims).forEach(function(k) { dims[k] = Math.max(0, Math.min(1, dims[k])); });
+  return dims;
+}
+
+function _ty3_getDims(ch) {
+  if (!ch) return _ty3_dimsFromKeywords(null);
+  if (ch.aggregateDims && Object.keys(ch.aggregateDims).some(function(k) { return ch.aggregateDims[k] !== 0 && ch.aggregateDims[k] !== 0.5; }))
+    return ch.aggregateDims;
+  if (Array.isArray(ch.traitIds) && ch.traitIds.length > 0)
+    return _ty3_dimsFromTraits(ch.traitIds);
+  return _ty3_dimsFromKeywords(ch);
+}
+
+// initial stance·按 RULES·v2.9 §5.5.1 25 条核心 + class 加成
+function _ty3_initialStanceFromDims(ch, topic, tags) {
+  var dims = _ty3_getDims(ch);
+  tags = tags || [];
+  var tagsSet = {};
+  tags.forEach(function(t) { tagsSet[t] = true; });
+  var has = function(t) { return tagsSet[t]; };
+
+  // 高 honor·廷议特化 (oppose 倾向)
+  if (dims.honor >= 0.7 && has('regicide-pursuit')) return { stance: 'oppose', intensity: 0.9 };
+  if (dims.honor >= 0.7 && has('penal-harsh'))      return { stance: 'oppose', intensity: 0.7 };
+  // 高 compassion·缓冲
+  if (dims.compassion >= 0.7 && has('penal-harsh'))    return { stance: 'oppose', intensity: 0.8 };
+  if (dims.compassion >= 0.7 && has('relief'))         return { stance: 'support', intensity: 0.8 };
+  // 高 boldness·激进
+  if (dims.boldness >= 0.7 && has('regicide-pursuit')) return { stance: 'support', intensity: 0.9 };
+  if (dims.boldness >= 0.7 && has('military-command')) return { stance: 'support', intensity: 0.7 };
+  // 高 rationality·数据流
+  if (dims.rationality >= 0.7 && has('finance'))       return { stance: 'neutral', intensity: 0.5 };
+  if (dims.rationality >= 0.7 && has('reward'))        return { stance: 'oppose', intensity: 0.6 };
+  // 高 greed·随大流·偏 support reward
+  if (dims.greed >= 0.7 && has('reward'))              return { stance: 'support', intensity: 0.7 };
+  if (dims.greed >= 0.7 && has('land-tax'))            return { stance: 'oppose', intensity: 0.7 };
+  // 高 cunning·灵活 (pivot)
+  if (dims.cunning >= 0.7 && has('succession'))        return { stance: 'neutral', intensity: 0.5 };
+  // 高 loyalty·主君近·support
+  if (dims.loyalty >= 0.8)                             return { stance: 'support', intensity: 0.7 };
+  // 高 confucianism·经典派
+  if (dims.confucianism >= 0.7 && has('ritual'))       return { stance: 'support', intensity: 0.7 };
+  if (dims.confucianism >= 0.7 && has('imperial-lecture')) return { stance: 'support', intensity: 0.8 };
+  // class 加成·言官特化 (kdao class)
+  if (ch && ch.class === 'kdao' && has('regicide-pursuit')) return { stance: 'support', intensity: 0.9 };
+  if (ch && ch.class === 'kdao' && dims.honor >= 0.6)      return { stance: 'support', intensity: 0.7 };
+  // class 加成·阉党
+  if (ch && ch.party === '阉党' && has('regicide-pursuit')) return { stance: 'oppose', intensity: 0.9 };
+  // 中立 / 折中党
+  if (ch && ch.party === '中立')                        return { stance: 'neutral', intensity: 0.5 };
+
+  // fallback·按 dims dominant 算
+  var honorWeight = dims.honor + dims.compassion;
+  var ambitionWeight = dims.greed + dims.cunning;
+  if (honorWeight > ambitionWeight + 0.4) return { stance: 'oppose', intensity: 0.6 };
+  if (ambitionWeight > honorWeight + 0.4) return { stance: 'support', intensity: 0.6 };
+  return { stance: 'neutral', intensity: 0.4 };
+}
+
+// expose
+if (typeof window !== 'undefined') {
+  window.TRAIT_TO_DIMS_BIAS = TRAIT_TO_DIMS_BIAS;
+  window._ty3_dimsFromTraits = _ty3_dimsFromTraits;
+  window._ty3_dimsFromKeywords = _ty3_dimsFromKeywords;
+  window._ty3_getDims = _ty3_getDims;
+  window._ty3_initialStanceFromDims = _ty3_initialStanceFromDims;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  §0.95·Slice 6·mode rule engine (v2.6·25 RULES + ~54 trait bias + emperor + tone)
+// ═══════════════════════════════════════════════════════════════════════
+
+// ─── §5.5.1·25 RULES (8D dims × topic-tag → mode) ───
+var TINYI_MODE_RULES = [
+  // 高 honor·廷议特化
+  { id: 'honor_etiquette',      if: function(d, t)    { return d.honor >= 0.7 && t.includes('etiquette'); },           then: 'rebut',        force: true },
+  { id: 'honor_regicide',       if: function(d, t)    { return d.honor >= 0.7 && t.includes('regicide-pursuit'); },    then: 'confront',     force: true },
+  // 高 compassion·缓冲
+  { id: 'compass_penal_soften', if: function(d, t, c) { return d.compassion >= 0.7 && t.includes('penal-harsh'); },    then: 'soften',       force: true },
+  { id: 'compass_rebut_soften', if: function(d, t, c, m) { return d.compassion >= 0.7 && m === 'rebut'; },             then: 'soften' },
+  // 高 boldness·激进
+  { id: 'bold_regicide',        if: function(d, t)    { return d.boldness >= 0.7 && t.includes('regicide-pursuit'); }, then: 'martyr',       force: true },
+  { id: 'bold_soften_rebut',    if: function(d, t, c, m) { return d.boldness >= 0.7 && m === 'soften'; },              then: 'rebut',        force: true },
+  // 高 rationality·数据流
+  { id: 'rat_finance',          if: function(d, t)    { return d.rationality >= 0.7 && t.includes('finance'); },       then: 'augment' },
+  { id: 'rat_military',         if: function(d, t)    { return d.rationality >= 0.7 && t.includes('military-command'); }, then: 'cite_classic' },
+  // 高 greed·随大流
+  { id: 'greed_reward_second',  if: function(d, t)    { return d.greed >= 0.7 && t.includes('reward'); },              then: 'second' },
+  { id: 'greed_partyhigh_second', if: function(d, t, c){ return d.greed >= 0.7 && c && c.party && c.party !== '中立'; }, then: 'second' },
+  // 高 cunning·灵活
+  { id: 'cun_lead_pivot',       if: function(d, t, c, m) { return d.cunning >= 0.7 && m === 'lead'; },                 then: 'pivot' },
+  { id: 'cun_succ_pivot',       if: function(d, t)    { return d.cunning >= 0.7 && t.includes('succession'); },        then: 'pivot',        force: true },
+  // 高 loyalty·门生附议 (clientelism 兜底)
+  { id: 'loy_mentor_client',    if: function(d, t, c) { return d.loyalty >= 0.8 && c && c._mentorInAttendees; },        then: 'clientelism',  force: true },
+  // 高 confucianism·经典派
+  { id: 'conf_ritual',          if: function(d, t)    { return d.confucianism >= 0.7 && t.includes('ritual'); },       then: 'cite_classic' },
+  { id: 'conf_lecture',         if: function(d, t)    { return d.confucianism >= 0.7 && t.includes('imperial-lecture'); }, then: 'cite_classic', force: true },
+  // 低 honor + 高 cunning·阴险
+  { id: 'low_honor_cunning',    if: function(d)       { return d.honor <= 0.3 && d.cunning >= 0.6; },                  then: 'soften' },
+  // 言官特化
+  { id: 'kdao_regicide',        if: function(d, t, c) { return c && c.class === 'kdao' && t.includes('regicide-pursuit'); }, then: 'martyr', force: true },
+  { id: 'kdao_honor',           if: function(d, t, c) { return c && c.class === 'kdao' && d.honor >= 0.6; },           then: 'martyr' },
+  // 阉党特化
+  { id: 'yandang_regicide',     if: function(d, t, c) { return c && c.party === '阉党' && t.includes('regicide-pursuit'); }, then: 'rebut', force: true },
+  { id: 'yandang_lead_cite',    if: function(d, t, c, m) { return c && c.party === '阉党' && m === 'lead'; },          then: 'cite_classic' },
+  // 内阁阁臣特化
+  { id: 'fushou_succ_pivot',    if: function(d, t, c) { return c && c.officialTitle && /首辅|次辅/.test(c.officialTitle) && t.includes('succession'); }, then: 'pivot', force: true },
+  { id: 'fushou_rebut_soften',  if: function(d, t, c, m) { return c && c.officialTitle && /首辅/.test(c.officialTitle) && m === 'rebut'; }, then: 'soften' },
+  // 中立 / 折中党
+  { id: 'neutral_tension_pivot',if: function(d, t, c) { return c && c.party === '中立'; },                              then: 'pivot' },
+  { id: 'neutral_confront_soften', if: function(d, t, c, m) { return c && c.party === '中立' && m === 'confront'; },   then: 'soften',       force: true },
+  // anti-塌缩 guard (Slice 6 4 项之一·全员同 mode 时换)
+  { id: 'anti_sameMode_3plus',  if: function(d, t, c, m, ctx) { return ctx && ctx.sameModeCount >= 3 && m === 'rebut'; }, then: 'augment' }
+];
+
+// ─── §5.5.2·~54 trait → mode bias (v2.8 全写·跟 fill-shaosong-traits.js naming) ───
+var TRAIT_TO_MODE_BIAS = {
+  // personality 36
+  brave: { mode: 'confront', weight: 0.4 }, craven: { mode: 'soften', weight: 0.3 },
+  calm: { mode: 'cite_classic', weight: 0.3 }, wrathful: { mode: 'confront', weight: 0.4 },
+  chaste: { mode: 'cite_classic', weight: 0.3 }, lustful: { mode: 'pivot', weight: 0.2 },
+  content: { mode: 'second', weight: 0.3 }, ambitious: { mode: 'lead', weight: 0.4 },
+  diligent: { mode: 'augment', weight: 0.3 }, lazy: { mode: 'second', weight: 0.3 },
+  honest: { mode: 'martyr', weight: 0.4 }, deceitful: { mode: 'pivot', weight: 0.4 },
+  generous: { mode: 'soften', weight: 0.2 }, greedy: { mode: 'second', weight: 0.4 },
+  gregarious: { mode: 'clientelism', weight: 0.3 }, shy: { mode: 'pivot', weight: 0.2 },
+  humble: { mode: 'soften', weight: 0.3 }, arrogant: { mode: 'rebut', weight: 0.4 },
+  just: { mode: 'martyr', weight: 0.5 }, arbitrary: { mode: 'rebut', weight: 0.3 },
+  patient: { mode: 'cite_classic', weight: 0.2 }, impatient: { mode: 'confront', weight: 0.3 },
+  temperate: { mode: 'cite_classic', weight: 0.2 }, gluttonous: { mode: 'second', weight: 0.2 },
+  trusting: { mode: 'second', weight: 0.3 }, paranoid: { mode: 'rebut', weight: 0.4 },
+  zealous: { mode: 'martyr', weight: 0.5 }, cynical: { mode: 'soften', weight: 0.2 },
+  forgiving: { mode: 'soften', weight: 0.3 }, vengeful: { mode: 'confront', weight: 0.4 },
+  compassionate: { mode: 'soften', weight: 0.4 }, callous: { mode: 'rebut', weight: 0.3 },
+  sadistic: { mode: 'rebut', weight: 0.4 },
+  stubborn: { mode: 'rebut', weight: 0.3 }, fickle: { mode: 'pivot', weight: 0.5 },
+  eccentric: { mode: 'pivot', weight: 0.3 },
+  // lifestyle / role 9
+  scholar: { mode: 'cite_classic', weight: 0.5 }, theologian: { mode: 'cite_classic', weight: 0.4 },
+  schemer: { mode: 'pivot', weight: 0.4 }, diplomat_ls: { mode: 'soften', weight: 0.3 },
+  administrator_ls: { mode: 'augment', weight: 0.3 }, strategist: { mode: 'augment', weight: 0.3 },
+  family_first: { mode: 'clientelism', weight: 0.4 }, gallant: { mode: 'confront', weight: 0.4 },
+  august: { mode: 'lead', weight: 0.4 },
+  // commander 7
+  aggressive_attacker: { mode: 'confront', weight: 0.4 }, unyielding_defender: { mode: 'rebut', weight: 0.3 },
+  cautious_leader: { mode: 'soften', weight: 0.3 }, reckless: { mode: 'confront', weight: 0.3 },
+  flexible_leader: { mode: 'pivot', weight: 0.3 }, organizer: { mode: 'augment', weight: 0.3 },
+  holy_warrior: { mode: 'martyr', weight: 0.5 },
+  // 健康 / 特殊 2
+  scarred: { mode: 'martyr', weight: 0.2 }, depressed: { mode: 'soften', weight: 0.2 }
+};
+
+// ─── §5.5.3·emperor 发言 mode bias (Slice 9 emperor cue +) ───
+var EMPEROR_INTENT_BIAS = {
+  punish:   { martyr: +0.3 },
+  praise:   { second: +0.4 },
+  doubt:    { soften: +0.3 },
+  arbitrate:{ pivot:  +0.2 },
+  dispatch: {}
+};
+
+// ─── §5.5.5·tone modulation·5 class × tone hint·prompt 段注入 (Slice 6 DoD #4) ───
+function _ty3_buildToneHint(ch) {
+  if (!ch) return '';
+  var cls = ch.class || '';
+  var hint = {
+    geechen:  '庄重·官式书面·四字格 / 排比',
+    kdao:     '激切·短促·感叹号多·"伏望陛下察焉"',
+    wujiang:  '直白·口语化·避典故',
+    xunqi:    '谨慎·回避 politically charged·"臣不敢妄议"',
+    waixi:    '柔曲·避嫌·"臣外戚·所言难免有亲"'
+  }[cls];
+  return hint ? '\n  语气提示·' + hint : '';
+}
+
+// ─── Main·_ty3_modulateModeByPersona(ch, dims, tags, currentMode, ctx) ───
+function _ty3_modulateModeByPersona(ch, dims, topicTags, currentMode, ctx) {
+  ctx = ctx || {};
+  var tags = topicTags || [];
+
+  // 1·先跑 force RULES (force: true 优先·按 RULES 顺序)
+  for (var i = 0; i < TINYI_MODE_RULES.length; i++) {
+    var rule = TINYI_MODE_RULES[i];
+    if (rule.force && rule.if(dims, tags, ch, currentMode, ctx)) return rule.then;
+  }
+
+  // 2·trait bias·按 weight 累加·选 weight max 的 mode
+  var scores = {};
+  scores[currentMode] = 1.0;  // base
+  if (ch && Array.isArray(ch.traitIds)) {
+    ch.traitIds.forEach(function(t) {
+      var b = TRAIT_TO_MODE_BIAS[t]; if (!b) return;
+      scores[b.mode] = (scores[b.mode] || 0) + b.weight;
+    });
+  }
+
+  // 3·emperor cue bias (Slice 9·_lastEmperorIntent)
+  var emperorIntent = (typeof CY !== 'undefined' && CY._ty3 && CY._ty3._lastEmperorIntent) || null;
+  if (emperorIntent && EMPEROR_INTENT_BIAS[emperorIntent]) {
+    Object.keys(EMPEROR_INTENT_BIAS[emperorIntent]).forEach(function(m) {
+      scores[m] = (scores[m] || 0) + EMPEROR_INTENT_BIAS[emperorIntent][m];
+    });
+  }
+
+  // 4·non-force RULES·hit 加 0.3 weight
+  for (var j = 0; j < TINYI_MODE_RULES.length; j++) {
+    var r2 = TINYI_MODE_RULES[j];
+    if (!r2.force && r2.if(dims, tags, ch, currentMode, ctx)) {
+      scores[r2.then] = (scores[r2.then] || 0) + 0.3;
+    }
+  }
+
+  // 5·anti-塌缩 guard (§5.5.4·4 项)
+  // a·同 mode ≥3 → switch
+  if (ctx.sameModeCount >= 3) scores[currentMode] = 0;
+  // b·confront cooldown
+  if (ctx.confrontJustUsed) scores['confront'] = 0;
+  // c·martyr 1 议题最多 1 次
+  if (ctx.martyrUsedThisTopic) scores['martyr'] = 0;
+  // d·全员同 stance ≥4 → 强 oppose 风暴·v2.6 polish·真 mode 层 push pivot/rebut 破单边
+  // 若 NPC 跟主流方一致·把其 mode 推 pivot (摇摆显示独立)·避免全员同 stance 鼓掌僵局
+  if (ctx.sameStanceCount >= 4 && ctx.npcInDominantCamp) {
+    scores['pivot'] = (scores['pivot'] || 0) + 0.5;
+    scores['rebut'] = (scores['rebut'] || 0) + 0.3;
+    scores['second'] = 0;  // 不许再附议·避免雪上加霜
+  }
+
+  // 6·pick mode by max score
+  var maxMode = currentMode;
+  var maxScore = -1;
+  Object.keys(scores).forEach(function(m) {
+    if (scores[m] > maxScore) { maxScore = scores[m]; maxMode = m; }
+  });
+  return maxMode;
+}
+
+// expose
+if (typeof window !== 'undefined') {
+  window.TINYI_MODE_RULES = TINYI_MODE_RULES;
+  window.TRAIT_TO_MODE_BIAS = TRAIT_TO_MODE_BIAS;
+  window.EMPEROR_INTENT_BIAS = EMPEROR_INTENT_BIAS;
+  window._ty3_modulateModeByPersona = _ty3_modulateModeByPersona;
+  window._ty3_buildToneHint = _ty3_buildToneHint;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  §0.97·Slice 7·confront 链 + GM._affinityMap (v2.6·NPC-NPC 对质 + 关系图)
+// ═══════════════════════════════════════════════════════════════════════
+
+// ─── §5.4 GM._affinityMap·NPC-NPC nested map·default 50 中立 ───
+function _ty3_getAffinity(nameA, nameB) {
+  if (typeof GM === 'undefined' || !GM._affinityMap) return 50;
+  var row = GM._affinityMap[nameA];
+  if (!row) return 50;
+  return (row[nameB] != null) ? row[nameB] : 50;
+}
+
+function _ty3_addAffinity(nameA, nameB, delta) {
+  if (typeof GM === 'undefined' || !nameA || !nameB || nameA === nameB) return;
+  GM._affinityMap = GM._affinityMap || {};
+  GM._affinityMap[nameA] = GM._affinityMap[nameA] || {};
+  GM._affinityMap[nameB] = GM._affinityMap[nameB] || {};
+  var cur1 = (GM._affinityMap[nameA][nameB] != null) ? GM._affinityMap[nameA][nameB] : 50;
+  var cur2 = (GM._affinityMap[nameB][nameA] != null) ? GM._affinityMap[nameB][nameA] : 50;
+  GM._affinityMap[nameA][nameB] = Math.max(0, Math.min(100, cur1 + delta));
+  GM._affinityMap[nameB][nameA] = Math.max(0, Math.min(100, cur2 + delta));  // 对称·敌意相互
+}
+
+// ─── confront 链 logic·maxRound=2 backforth ───
+
+function _ty3_startConfrontChain(A, B, opts) {
+  opts = opts || {};
+  if (typeof CY === 'undefined' || !CY._ty3) return;
+  CY._ty3._confrontChain = {
+    active: true,
+    everActive: true,  // v2.6 polish·sticky flag·baselineRecord 用·非 active 仍标"本议曾触发"
+    A: A, B: B,
+    currentRound: 0,
+    maxRound: opts.maxRound || 2,
+    unresolved: false,
+    allowOneMoreRound: false,
+    suspendedAt: null,
+    startedAt: (GM && GM.turn) || 0,
+    history: []  // [{round, speaker, line, mode}, ...]
+  };
+  if (typeof CY._ty3 === 'object') CY._ty3.currentPhase = 'confront';  // v2.7 phase update (Slice 4.5 8 处之一)
+  if (typeof addCYBubble === 'function') addCYBubble('内侍', '〔 ' + A + ' 与 ' + B + ' 当朝对质 〕', true);
+}
+
+function _ty3_advanceConfrontChain(speaker, otherName, line, mode) {
+  var chain = CY._ty3 && CY._ty3._confrontChain;
+  if (!chain || !chain.active) return null;
+  chain.currentRound++;
+  chain.history.push({ round: chain.currentRound, speaker: speaker, other: otherName, line: line, mode: mode });
+  if (chain.currentRound >= chain.maxRound) {
+    _ty3_endConfrontChain('maxRound');
+    return 'ended';
+  }
+  return 'continue';
+}
+
+function _ty3_endConfrontChain(reason) {
+  var chain = CY._ty3 && CY._ty3._confrontChain;
+  if (!chain) return;
+  // affinity 双向 -10
+  if (chain.A && chain.B) _ty3_addAffinity(chain.A, chain.B, -10);
+  chain.active = false;
+  chain.endedReason = reason || 'natural';
+  if (typeof addCYBubble === 'function' && reason === 'maxRound') {
+    addCYBubble('内侍', '〔 二回合已尽·此辩暂止 〕', true);
+  }
+  if (typeof CY._ty3 === 'object') CY._ty3.currentPhase = 'debate';  // 回 debate
+}
+
+function _ty3_truncateConfrontChain() {
+  var chain = CY._ty3 && CY._ty3._confrontChain;
+  if (!chain) return;
+  chain.unresolved = true;
+  chain.active = false;
+  chain.endedReason = 'truncated';
+}
+
+// ─── chain 跨阶段 3 路径 (v2.9 §5.1.7) ───
+function _ty3_handleConfrontChainOnPhaseTransition(fromPhase, toPhase) {
+  var chain = CY._ty3 && CY._ty3._confrontChain;
+  if (!chain || !chain.active) return;
+  var remaining = chain.maxRound - chain.currentRound;
+  if (remaining <= 0) { _ty3_endConfrontChain('phase-transition-natural'); return; }
+  if (toPhase === 'archon' || toPhase === 'draft' || toPhase === 'seal') {
+    // truncate·钦定/草诏/用印 阶段强制结束
+    if (typeof addCYBubble === 'function') addCYBubble('内侍', '（陛下钦定·诸卿且止辩。）', true);
+    _ty3_truncateConfrontChain();
+  } else if (toPhase === 'vote') {
+    // 保留 + 再 1 round (廷推时)
+    chain.allowOneMoreRound = true;
+    chain.suspendedAt = 'vote';
+  } else {
+    // 默认·phase 2 重启 1 round (回 debate 续)
+    chain.currentRound = Math.max(0, chain.currentRound - 1);
+    if (typeof addCYBubble === 'function') addCYBubble('内侍', '（' + (chain.A || 'X') + ' 公 ' + (chain.B || 'Y') + ' 公复争·容再议一回合。）', true);
+  }
+}
+
+// ─── 玩家 "助 A / 助 B / 敕停" footer + [/] hotkey ───
+function _ty3_renderConfrontFooter() {
+  var chain = CY._ty3 && CY._ty3._confrontChain;
+  if (!chain || !chain.active) return '';
+  return '<div class="ty3-confront-footer" style="padding:0.4rem;border-top:1px solid var(--bdr);text-align:center;">' +
+    '<span style="color:#888;margin-right:0.5rem;">对质·' + (chain.A || '') + ' vs ' + (chain.B || '') + ' (R' + chain.currentRound + '/' + chain.maxRound + ')</span>' +
+    '<button class="bt bsm" onclick="_ty3_assistConfront(\'A\')" style="margin:0 0.2rem;">[ 助 ' + (chain.A || 'A') + '</button>' +
+    '<button class="bt bsm" onclick="_ty3_assistConfront(\'B\')" style="margin:0 0.2rem;">助 ' + (chain.B || 'B') + ' ]</button>' +
+    '<button class="bt bsm" onclick="_ty3_endConfrontChain(\'imperial-arbitrate\')" style="margin-left:0.5rem;background:var(--vermillion-300);">⚡ 敕停</button>' +
+    '</div>';
+}
+
+function _ty3_assistConfront(side) {
+  var chain = CY._ty3 && CY._ty3._confrontChain;
+  if (!chain || !chain.active) return;
+  // assist·该侧 NPC mode=force-rebut·对方 mode=force-soften
+  var helper = side === 'A' ? chain.A : chain.B;
+  var opponent = side === 'A' ? chain.B : chain.A;
+  if (typeof addCYBubble === 'function') {
+    addCYBubble('皇帝', '朕助 ' + helper + '·' + opponent + ' 卿且听。', false);
+  }
+  // 标 force·下次 NPC 发言时·Slice 6 RULES anti-塌缩 guard 看到
+  CY._ty3._confrontAssist = { helper: helper, opponent: opponent, turn: (GM && GM.turn) || 0 };
+}
+
+// hotkey·[ 助 A·] 助 B·Slice 8.5 集成
+function _ty3_handleConfrontHotkey(key) {
+  var chain = CY._ty3 && CY._ty3._confrontChain;
+  if (!chain || !chain.active) return false;
+  if (key === '[') { _ty3_assistConfront('A'); return true; }
+  if (key === ']') { _ty3_assistConfront('B'); return true; }
+  return false;
+}
+
+// expose
+if (typeof window !== 'undefined') {
+  window._ty3_getAffinity = _ty3_getAffinity;
+  window._ty3_addAffinity = _ty3_addAffinity;
+  window._ty3_startConfrontChain = _ty3_startConfrontChain;
+  window._ty3_advanceConfrontChain = _ty3_advanceConfrontChain;
+  window._ty3_endConfrontChain = _ty3_endConfrontChain;
+  window._ty3_truncateConfrontChain = _ty3_truncateConfrontChain;
+  window._ty3_handleConfrontChainOnPhaseTransition = _ty3_handleConfrontChainOnPhaseTransition;
+  window._ty3_renderConfrontFooter = _ty3_renderConfrontFooter;
+  window._ty3_assistConfront = _ty3_assistConfront;
+  window._ty3_handleConfrontHotkey = _ty3_handleConfrontHotkey;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  §0.98·Slice 7.5·6 廷议特化动作 + 5 联动 ceremony (v2.6·prison + atmosphere)
+// ═══════════════════════════════════════════════════════════════════════
+// 6 动作·廷杖 / 削籍 / 摘除 / 转部议 / 更议 / 革职
+// 5 ceremony·廷杖 / 削籍 / 摘除 / 革职 / 更议 (转部议 跳 phase 无 ceremony)
+// CSS class·.ty3-cer-flog / .strip / .dismiss / .revoke / .reopen·CSS 见 web/index.html (注·实施时按 §5.2.4 加)
+
+function _ty3_runCeremony(cerClass, label, durationMs) {
+  if (typeof document === 'undefined') return;
+  var mult = (typeof P !== 'undefined' && P.conf && P.conf.tinyiCeremonyDuration) || 1.0;
+  var actualMs = Math.round(durationMs * mult);
+  var bg = document.createElement('div');
+  bg.className = 'ty3-cer-overlay ' + cerClass;
+  bg.style.cssText = 'position:fixed;inset:0;z-index:1500;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.75);color:#fff;font-size:2rem;letter-spacing:0.5rem;animation:ty3-cer-fade ' + (actualMs / 1000) + 's ease-in-out forwards;';
+  bg.textContent = label;
+  document.body.appendChild(bg);
+  setTimeout(function() { if (bg.parentNode) bg.parentNode.removeChild(bg); }, actualMs);
+}
+
+// 6 action·调用方传 ch (target) + opts·后处理 (state apply + pendingEvents 入队 + ceremony)
+function _ty3_actionFlogging(ch, opts) {
+  if (!ch) return;
+  ch.loyalty = Math.max(0, (ch.loyalty || 50) - 10);
+  ch.prestige = Math.max(0, (ch.prestige || 50) - 5);
+  ch.health = Math.max(0, (ch.health || 100) - 8);
+  // 廷杖入诏狱可能 +20%·prison 集成 (verified runtime field _imprisoned·非 _inPrison)
+  if (Math.random() < 0.20) {
+    ch._imprisoned = true;
+    ch._imprisonReason = (opts && opts.reason) || '廷杖致重伤';
+    ch._imprisonedTurn = (GM && GM.turn) || 0;
+    if (typeof addEB === 'function') addEB('廷议', '廷杖入诏狱：' + ch.name);
+  }
+  _ty3_runCeremony('ty3-cer-flog', '🔨 廷杖 ' + ch.name + ' 二十', 5000);
+  _ty3_pendingEventPush('flogging', { target: ch.name, prestige: -5, health: -8 });
+}
+
+function _ty3_actionStrip(ch, opts) {
+  if (!ch) return;
+  ch.loyalty = 0;  // 革除·loyalty 归零
+  ch.officialTitle = '';
+  // 从 attendees 移除
+  if (typeof CY !== 'undefined' && CY._ty3 && Array.isArray(CY._ty3.attendees)) {
+    var idx = CY._ty3.attendees.indexOf(ch.name);
+    if (idx >= 0) CY._ty3.attendees.splice(idx, 1);
+  }
+  // atmosphere 全场 cautious
+  if (typeof CY !== 'undefined' && CY._ty3) CY._ty3._atmosphereOverride = 'cautious';
+  _ty3_runCeremony('ty3-cer-strip', '❌ 削籍 ' + ch.name, 4000);
+  _ty3_pendingEventPush('strip', { target: ch.name });
+}
+
+function _ty3_actionDismiss(ch, opts) {
+  if (!ch) return;
+  ch.favor = Math.max(-100, (ch.favor || 0) - 3);
+  if (typeof CY !== 'undefined' && CY._ty3 && Array.isArray(CY._ty3.attendees)) {
+    var idx2 = CY._ty3.attendees.indexOf(ch.name);
+    if (idx2 >= 0) CY._ty3.attendees.splice(idx2, 1);
+  }
+  _ty3_runCeremony('ty3-cer-dismiss', '👋 ' + ch.name + ' 退殿', 2000);
+  _ty3_pendingEventPush('dismiss', { target: ch.name });
+}
+
+function _ty3_actionToPart(topic, partName, opts) {
+  // 议题转部·廷议结束·议题 push 到部 pending
+  if (typeof GM !== 'undefined') {
+    GM._pendingPartTopics = GM._pendingPartTopics || [];
+    GM._pendingPartTopics.push({ topic: topic, part: partName, turn: GM.turn });
+  }
+  if (typeof addCYBubble === 'function') addCYBubble('内侍', '〔 议转 ' + partName + '·议 ' + topic + ' 〕', true);
+  _ty3_pendingEventPush('toPart', { topic: topic, part: partName });
+  // 无 ceremony·直接 jump phase
+}
+
+function _ty3_actionReopen(opts) {
+  // 重启本议题·attendees 重发
+  if (typeof CY !== 'undefined' && CY._ty3) {
+    CY._ty3.reopened = (CY._ty3.reopened || 0) + 1;
+  }
+  _ty3_runCeremony('ty3-cer-reopen', '📜 敕令更议', 3000);
+  _ty3_pendingEventPush('reopen', {});
+}
+
+function _ty3_actionRevoke(ch, opts) {
+  if (!ch) return;
+  ch.alive = false;  // 永久革除·从 attendees 移除
+  if (typeof GM !== 'undefined' && Array.isArray(GM.chars)) {
+    // 不真 splice·留尸·alive=false 即可
+  }
+  _ty3_runCeremony('ty3-cer-revoke', '⚰️ 革职 ' + ch.name, 6000);
+  _ty3_pendingEventPush('revoke', { target: ch.name });
+}
+
+function _ty3_pendingEventPush(type, payload) {
+  if (typeof GM === 'undefined') return;
+  GM._pendingTinyiActions = GM._pendingTinyiActions || [];
+  GM._pendingTinyiActions.push({
+    type: type, payload: payload, turn: GM.turn || 0, source: 'tinyi-7.5'
+  });
+}
+
+// expose
+if (typeof window !== 'undefined') {
+  window._ty3_runCeremony = _ty3_runCeremony;
+  window._ty3_actionFlogging = _ty3_actionFlogging;
+  window._ty3_actionStrip = _ty3_actionStrip;
+  window._ty3_actionDismiss = _ty3_actionDismiss;
+  window._ty3_actionToPart = _ty3_actionToPart;
+  window._ty3_actionReopen = _ty3_actionReopen;
+  window._ty3_actionRevoke = _ty3_actionRevoke;
+  window._ty3_pendingEventPush = _ty3_pendingEventPush;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  §0.99·Slice 8·裁决反弹·IIFE hook _ty3_phase6_recordSeal (v2.6·v3 三集成共存)
+// ═══════════════════════════════════════════════════════════════════════
+// hook target·_ty3_phase6_recordSeal (Slice 0.5 已 expose window)
+// 时序·phase6 effects (cohesion/prestige/favor·ClassEngine) 已应用·phase7 (N=6 turn) 尚未触发
+// 集成·NpcMemorySystem.remember + conveningPolitics tilt 二次 + dims helper + affinity 单值
+
+(function _ty3_installV15ReboundHook() {
+  if (typeof window === 'undefined') return;
+  var attempts = 0;
+  function tryHook() {
+    if (attempts++ > 20) return;
+    if (typeof window._ty3_phase6_recordSeal !== 'function') {
+      setTimeout(tryHook, 200);
+      return;
+    }
+    if (window._ty3_phase6_recordSeal._v15Hooked) return;
+    var orig = window._ty3_phase6_recordSeal;
+    window._ty3_phase6_recordSeal = function(status, ctx, detail) {
+      var seal = orig.apply(this, arguments);  // v3 effects 先跑·全保留
+      try {
+        _ty3_v15_appendMinorityRebound(seal, ctx, detail);
+      } catch (e) {
+        try { window.TM && TM.errors && TM.errors.captureSilent(e, 'tinyi-rebound-hook'); } catch (_) {}
+      }
+      return seal;
+    };
+    window._ty3_phase6_recordSeal._v15Hooked = true;
+  }
+  tryHook();
+})();
+
+function _ty3_v15_findMinorityNPCs(seal) {
+  // 找 minority·若 sealStatus = 'issued' (S/A/B 档)·minority = 反对方·反之 = 支持方
+  if (typeof CY === 'undefined' || !CY._ty2 || !CY._ty2.stances) return [];
+  var status = (seal && seal.sealStatus) || 'issued';
+  var targetStance = (status === 'blocked') ? 'support' : 'oppose';  // blocked 时·支持方是 minority (失败方)
+  var minority = [];
+  Object.keys(CY._ty2.stances).forEach(function(name) {
+    var st = CY._ty2.stances[name];
+    if (!st || !st.current) return;
+    var s = String(st.current);
+    var isOppose = /反对|极力反对|倾向反对/.test(s);
+    var isSupport = /支持|极力支持|倾向支持/.test(s);
+    if (targetStance === 'oppose' && isOppose) {
+      var ch = (typeof findCharByName === 'function') ? findCharByName(name) : null;
+      if (ch) minority.push(ch);
+    } else if (targetStance === 'support' && isSupport) {
+      var ch2 = (typeof findCharByName === 'function') ? findCharByName(name) : null;
+      if (ch2) minority.push(ch2);
+    }
+  });
+  return minority;
+}
+
+function _ty3_v15_calcRebound(npc, seal) {
+  // base rebound·按 stance 强度 + grade
+  var st = CY._ty2.stances[npc.name];
+  var intensity = (st && st.confidence) ? (st.confidence / 100) : 0.5;
+  var grade = (seal && seal.grade) || 'C';
+  var gradeMult = { 'S': 2.0, 'A': 1.5, 'B': 1.0, 'C': 0.7, 'D': 0.3 }[grade] || 1.0;
+  return Math.round(3 * intensity * gradeMult);  // 1-6
+}
+
+function _ty3_v15_alreadyAppliedToNPC(npc, seal) {
+  // v2.6 polish·按 seal.grade 取 v3 phase6 实际已扣的 prestige (非硬编 1)
+  // S 档·minority 全员 -prestige 4·A=3·B=2·C=1·D=0 (D 是裁决失败·v3 不扣 minority)
+  var grade = (seal && seal.grade) || 'C';
+  var gradeDelta = { S: 4, A: 3, B: 2, C: 1, D: 0 }[grade];
+  return (gradeDelta != null) ? gradeDelta : 1;
+}
+
+function _ty3_v15_appendMinorityRebound(seal, ctx, detail) {
+  // 1·minority NPC·affinity 单值 (v2.6 修)·dims helper (Slice 3)
+  var minority = _ty3_v15_findMinorityNPCs(seal);
+  minority.forEach(function(npc) {
+    var baseRebound = _ty3_v15_calcRebound(npc, seal);
+    var v3PrestigeDelta = _ty3_v15_alreadyAppliedToNPC(npc, seal);
+    var finalRebound = Math.max(0, baseRebound - v3PrestigeDelta * 0.4);  // 折扣·避 2x
+    npc.loyalty = Math.max(0, (npc.loyalty || 50) - finalRebound);
+    npc.affinity = Math.max(0, (npc.affinity || 50) - finalRebound * 0.6);  // number 单值
+    npc._reboundFrom = (npc._reboundFrom || []).concat([{ turn: (GM && GM.turn) || 0, topic: (seal && seal.topic) || '', delta: finalRebound }]);
+  });
+
+  // 2·conveningPolitics tilt 二次惩罚
+  var multiplier = 1.0;
+  var ctP = CY._ty3 && CY._ty3.conveningPolitics;
+  if (ctP && ctP.tilt === 'oneParty')     multiplier = 1.3;
+  if (ctP && ctP.tilt === 'fullOneParty') multiplier = 1.5;
+  if (ctP && ctP.tilt === 'megaCeremony') multiplier = 0.8;
+  if (multiplier !== 1.0) {
+    minority.forEach(function(npc) { npc.loyalty = Math.max(0, (npc.loyalty || 50) * multiplier); });
+  }
+
+  // 3·民意度极低·额外 loyalty -2
+  if (typeof GM !== 'undefined' && GM._convening_民意度 <= -50) {
+    minority.forEach(function(npc) { npc.loyalty = Math.max(0, (npc.loyalty || 50) - 2); });
+  }
+
+  // 4·martyr 触发·dims helper (Slice 3·非裸 n.dims·v2.6 修)
+  var martyrCandidates = minority.filter(function(n) {
+    var d = (typeof _ty3_getDims === 'function') ? _ty3_getDims(n) : (n.aggregateDims || {});
+    return (d.honor || 0) >= 0.7 && (d.boldness || 0) >= 0.7;
+  });
+  if (martyrCandidates.length > 0) {
+    GM._pendingMartyrEvents = GM._pendingMartyrEvents || [];
+    martyrCandidates.forEach(function(n) {
+      GM._pendingMartyrEvents.push({ npc: n.name, turn: (GM && GM.turn) || 0, reason: 'minority-rebound', topic: (seal && seal.topic) || '' });
+    });
+  }
+
+  // 5·NpcMemorySystem 集成 (§14.B·v2.1 新)
+  if (typeof NpcMemorySystem !== 'undefined' && NpcMemorySystem.remember) {
+    minority.forEach(function(n) {
+      var d = (typeof _ty3_getDims === 'function') ? _ty3_getDims(n) : {};
+      var emoIntense = (d.honor >= 0.7) ? 8 : (d.honor >= 0.5) ? 6 : 5;
+      try {
+        NpcMemorySystem.remember(
+          n.name,
+          '议「' + ((seal && seal.topic) || '') + '」裁决·loyalty -' + Math.round(_ty3_v15_calcRebound(n, seal)),
+          '恨',
+          emoIntense,
+          '廷议'
+        );
+      } catch (_memE) {}
+    });
+  }
+
+  // 6·ClassEngine 不重调 (v3 phase6/7 已调过·Slice 8 DoD #8)
+  // 7·decay 跨 turn 走 endturn pipeline (tinyi-decay-contract.md·非 hook 内调)
+}
+
+if (typeof window !== 'undefined') {
+  window._ty3_v15_findMinorityNPCs = _ty3_v15_findMinorityNPCs;
+  window._ty3_v15_calcRebound = _ty3_v15_calcRebound;
+  window._ty3_v15_appendMinorityRebound = _ty3_v15_appendMinorityRebound;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  §0.992·Slice 10b·clientelism + dims priority (v2.6·§5.4.10 v2.2 优先级)
+// ═══════════════════════════════════════════════════════════════════════
+// 决策路径·
+// 1. dims.loyalty > 80 + 主君直接表态 → 跟主君 (绝对优先)
+// 2. dims.boldness > 0.8 + dims.honor > 0.7 → 独立站位 (拒附议)
+// 3. mentor 极支/极反 + NPC dims 同向 → 70% 附议 mentor (clientelism mode)
+// 4. mentor 极支/极反 + dims 反向 → 沉默 (mode pivot / soften·不反转 stance)
+// 5. 否则·按 dims 自己算 stance
+
+function _ty3_clientelismCheck(ch, mentorStanceCurrent, npcOwnStance) {
+  if (!ch || !mentorStanceCurrent || !npcOwnStance) return null;
+  var d = (typeof _ty3_getDims === 'function') ? _ty3_getDims(ch) : (ch.aggregateDims || {});
+
+  // 1·dims.loyalty > 80 + 主君表态 (rulerStance) → 跟主君·此处 stub·待 ruler stance 接入
+  if (d.loyalty > 0.8 && typeof CY !== 'undefined' && CY._ty3 && CY._ty3._rulerStance) {
+    return { mode: 'second', stance: CY._ty3._rulerStance, source: 'loyalty-to-ruler' };
+  }
+
+  // 2·dims.boldness > 0.8 + dims.honor > 0.7 → 独立·拒附议
+  if (d.boldness > 0.8 && d.honor > 0.7) {
+    return { mode: null, stance: npcOwnStance, source: 'independent' };  // null mode = NPC 自决
+  }
+
+  var isMentorExtreme = /极力支持|极力反对/.test(mentorStanceCurrent);
+  if (!isMentorExtreme) return null;
+
+  var mentorSupports = /支持/.test(mentorStanceCurrent);
+  var npcSupports = /支持/.test(npcOwnStance);
+  var sameDir = (mentorSupports === npcSupports);
+
+  // 3·mentor 极 + dims 同向 → 70% clientelism
+  if (sameDir && Math.random() < 0.7) {
+    return { mode: 'clientelism', stance: npcOwnStance, source: 'mentor-same-dir' };
+  }
+
+  // 4·mentor 极 + dims 反向 → 沉默 (pivot / soften)
+  if (!sameDir) {
+    return { mode: Math.random() < 0.5 ? 'pivot' : 'soften', stance: 'neutral', source: 'mentor-cancel' };
+  }
+
+  return null;
+}
+
+// UI helper·召集 modal 内显 mentor 建议同召
+function _ty3_renderMentorSuggestionList(attendees) {
+  if (typeof GM === 'undefined' || !GM._mentorIndex) return '';
+  var html = '';
+  attendees.forEach(function(name) {
+    var mentees = GM._mentorIndex.mentor && GM._mentorIndex.mentor[name];
+    if (!Array.isArray(mentees) || mentees.length === 0) return;
+    var unCalled = mentees.filter(function(m) { return !attendees.includes(m); });
+    if (unCalled.length === 0) return;
+    html += '<div class="ty3-mentor-row" style="padding:0.3rem 0.5rem;background:rgba(100,100,200,0.05);border-left:2px solid #aaaaff;margin:0.2rem 0;">' +
+      '<span style="font-weight:600;">' + name + '</span> → 建议同召·' +
+      unCalled.join(' / ') +
+      '<button class="bt bsm" onclick="_ty3_addMenteesToAttendees(\'' + name + '\')" style="margin-left:0.5rem;">+ 一并召门生</button>' +
+      '</div>';
+  });
+  return html;
+}
+
+function _ty3_addMenteesToAttendees(mentorName) {
+  if (typeof GM === 'undefined' || !GM._mentorIndex) return;
+  var mentees = GM._mentorIndex.mentor && GM._mentorIndex.mentor[mentorName];
+  if (!Array.isArray(mentees)) return;
+  if (typeof CY === 'undefined' || !CY._ty3 || !Array.isArray(CY._ty3.attendees)) return;
+  mentees.forEach(function(m) {
+    if (CY._ty3.attendees.indexOf(m) < 0) {
+      CY._ty3.attendees.push(m);
+      // 加召的 mentee·不入"漏召"统计
+      var ch = (typeof findCharByName === 'function') ? findCharByName(m) : null;
+      if (ch) ch._mentorAddedThisCall = true;
+    }
+  });
+  if (typeof addCYBubble === 'function') addCYBubble('内侍', '〔 加召 ' + mentorName + ' 之门生 ' + mentees.length + ' 人 〕', true);
+}
+
+if (typeof window !== 'undefined') {
+  window._ty3_clientelismCheck = _ty3_clientelismCheck;
+  window._ty3_renderMentorSuggestionList = _ty3_renderMentorSuggestionList;
+  window._ty3_addMenteesToAttendees = _ty3_addMenteesToAttendees;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  §0.994·Slice 2.5.2·AI 召集推荐·TAG_TO_RECOMMEND + 4 步 (v2.9 §5.4.5·26 tag)
+// ═══════════════════════════════════════════════════════════════════════
+var TAG_TO_RECOMMEND = {
+  finance:           ['户部尚书', '户部左侍郎', '兵部尚书'],
+  reward:            ['吏部尚书', '户部尚书', '都察院'],
+  'land-tax':        ['户部尚书', '户部各司', '布政使', '都察院'],
+  currency:          ['户部尚书', '工部尚书', '通政使', '宝泉局'],
+  'canal-transport': ['户部尚书', '工部尚书', '漕运总督', '巡漕御史'],
+  'military-command':['兵部尚书', '兵部左侍郎', '督师', '边帅', '戎政尚书'],
+  'border-affairs':  ['兵部尚书', '通政使', '边镇巡抚', '兵部右侍郎'],
+  'coastal-defense': ['兵部尚书', '水师提督', '沿海巡抚', '通政使'],
+  'northern-defense':['兵部尚书', '督师', '兵备道', '北直巡抚'],
+  'regicide-pursuit':['都察院都御史', '刑部尚书', '大理寺卿', '锦衣卫指挥', '北镇抚司'],
+  personnel:         ['吏部尚书', '吏部左侍郎', '首辅', '吏部考功郎'],
+  'official-selection':['吏部尚书', '都察院', '阁臣', '吏部考功郎'],
+  inspection:        ['都察院', '巡按御史', '六科给事中', '通政使'],
+  execution:         ['都察院都御史', '刑部尚书', '大理寺卿'],
+  'penal-harsh':     ['刑部尚书', '大理寺卿', '都察院'],
+  'law-reform':      ['刑部尚书', '大理寺卿', '都察院左都御史', '刑科给事中'],
+  succession:        ['首辅', '次辅', '礼部尚书', '宗人府宗令', '太常寺卿'],
+  ritual:            ['礼部尚书', '太常寺卿', '钦天监'],
+  'ritual-major':    ['礼部尚书', '太常寺卿', '宗人府宗令', '首辅', '翰林学士'],
+  etiquette:         ['礼部尚书', '太常寺卿', '通政使'],
+  'imperial-lecture':['翰林学士', '礼部尚书', '大学士', '国子监祭酒'],
+  prophecy:          ['礼部尚书', '钦天监', '太医院', '翰林学士'],
+  calendar:          ['礼部尚书', '钦天监', '翰林学士', '司天监'],
+  'river-works':     ['工部尚书', '户部尚书', '河道总督', '都水监'],
+  'foreign-policy':  ['礼部尚书', '兵部尚书', '通政使', '理藩院', '会同馆'],
+  relief:            ['户部尚书', '工部尚书', '都察院', '巡抚', '布政使']
+};
+
+function _ty3_findByRole(roleName) {
+  if (typeof GM === 'undefined' || !Array.isArray(GM.chars)) return [];
+  return GM.chars.filter(function(c) {
+    if (!c || c.alive === false) return false;
+    return c.officialTitle && c.officialTitle.indexOf(roleName) >= 0;
+  });
+}
+
+function _ty3_recommendAttendees(topic, tags, scenario) {
+  var recommended = {};  // use as set
+  // 第 1 步·必召 (阁臣 + 朝代 requiredCallList)
+  var conv = (typeof _ty3_getConveningConfig === 'function') ? _ty3_getConveningConfig(scenario) : { requiredCallList: [] };
+  (conv.requiredCallList || []).forEach(function(role) {
+    var chs = _ty3_findByRole(role);
+    if (chs[0]) recommended[chs[0].name] = true;
+  });
+  // 第 2 步·按 tag 推荐
+  (tags || []).forEach(function(tag) {
+    (TAG_TO_RECOMMEND[tag] || []).forEach(function(role) {
+      _ty3_findByRole(role).forEach(function(c) { recommended[c.name] = true; });
+    });
+  });
+  // 第 3 步·党派均衡 (各党至少 1 leader)
+  if (typeof GM !== 'undefined' && Array.isArray(GM.parties)) {
+    GM.parties.forEach(function(p) {
+      if (!p || !p.leader) return;
+      var inAny = Object.keys(recommended).some(function(n) {
+        var c = (typeof findCharByName === 'function') ? findCharByName(n) : null;
+        return c && c.party === p.name;
+      });
+      if (!inAny && p.leader) recommended[p.leader] = true;
+    });
+  }
+  // 第 4 步·prestige 补全到 8+
+  var all = (typeof GM !== 'undefined' && Array.isArray(GM.chars)) ? GM.chars.slice() : [];
+  all.sort(function(a, b) { return ((b && b.prestige) || 50) - ((a && a.prestige) || 50); });
+  for (var i = 0; i < all.length && Object.keys(recommended).length < 8; i++) {
+    var c = all[i];
+    if (c && c.alive !== false && !recommended[c.name]) recommended[c.name] = true;
+  }
+  return Object.keys(recommended);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  §0.995·Slice 2.5.9·NPC 主动发议题·urgency + path push (v2.9 §5.4.12-14)
+// ═══════════════════════════════════════════════════════════════════════
+function _ty3_calcUrgency(proposer, type) {
+  if (!proposer) return 0;
+  var urgency = 5;
+  var dims = (typeof _ty3_getDims === 'function') ? _ty3_getDims(proposer) : (proposer.aggregateDims || {});
+  if (type === 'request_tinyi_yanguan') urgency += 2;
+  if (type === 'request_tinyi_party')   urgency += 3;
+  if (type === 'request_tinyi_inge')    urgency += 4;
+  if ((dims.honor || 0) >= 0.7)         urgency += 1;
+  if ((dims.boldness || 0) >= 0.7)      urgency += 1;
+  if (proposer.prestige >= 80)          urgency += 1;
+  if (proposer.loyalty < 30)            urgency -= 2;
+  if (typeof GM !== 'undefined' && GM._convening_言官离心 > 30) urgency += 2;
+  if (typeof GM !== 'undefined' && GM._convening_民意度 < -50)  urgency += 2;
+  if (typeof GM !== 'undefined' && GM._urgentBorderAffairs)     urgency += 3;
+  var retry = proposer._tinyiRetry || 0;
+  if (retry > 0) urgency += retry;
+  return Math.max(0, Math.min(15, urgency));
+}
+
+// endturn hook·扫 NPC·按条件 push pending topic
+function _ty3_npcProposeTinyiTopicsTick() {
+  if (typeof GM === 'undefined' || !Array.isArray(GM.chars)) return;
+  GM._pendingTinyiTopics = GM._pendingTinyiTopics || [];
+  GM.chars.forEach(function(ch) {
+    if (!ch || ch.alive === false || ch.isPlayer) return;
+    // 触发条件·言官 / 阁臣 / 党魁·按 class / officialTitle
+    var type = null;
+    if (ch.class === 'kdao' && GM._convening_言官离心 > 10) type = 'request_tinyi_yanguan';
+    else if (ch.officialTitle && /阁臣|大学士|首辅|次辅/.test(ch.officialTitle)) type = 'request_tinyi_inge';
+    else if (ch.party && typeof GM !== 'undefined' && Array.isArray(GM.parties)) {
+      var p = GM.parties.find(function(x) { return x && x.name === ch.party; });
+      if (p && p.leader === ch.name) type = 'request_tinyi_party';
+    }
+    if (!type) return;
+    var urgency = _ty3_calcUrgency(ch, type);
+    if (urgency < 4) return;  // 阈值
+    // push topic·实际 topic 文本由 LLM 生成 (此处 stub)·entry 入队
+    var existing = GM._pendingTinyiTopics.some(function(t) { return t.proposer === ch.name && (GM.turn - t.turn) < 3; });
+    if (existing) return;
+    GM._pendingTinyiTopics.push({
+      topic: '【' + ch.name + ' 上书】关于 ' + ((type === 'request_tinyi_yanguan') ? '言路 / 弹劾' : (type === 'request_tinyi_inge') ? '阁议 / 时政' : '党议 / 政策') + '·urgency ' + urgency,
+      proposer: ch.name,
+      type: type,
+      urgency: urgency,
+      turn: GM.turn || 0,
+      expiresAt: (GM.turn || 0) + 5
+    });
+    // memorial.type 'request_tinyi'·若 GM.memorials 存
+    if (Array.isArray(GM.memorials)) {
+      GM.memorials.push({
+        type: 'request_tinyi', from: ch.name, urgency: urgency, turn: GM.turn || 0, requestType: type
+      });
+    }
+  });
+}
+
+function _ty3_checkExpiredTopics() {
+  if (typeof GM === 'undefined' || !Array.isArray(GM._pendingTinyiTopics)) return;
+  for (var i = GM._pendingTinyiTopics.length - 1; i >= 0; i--) {
+    var t = GM._pendingTinyiTopics[i];
+    if (!t.expiresAt || GM.turn < t.expiresAt) continue;
+    var proposer = (typeof findCharByName === 'function') ? findCharByName(t.proposer) : null;
+    var traits = (proposer && proposer.traitIds) || [];
+    if (traits.indexOf('honest') >= 0 || traits.indexOf('just') >= 0 || traits.indexOf('zealous') >= 0) {
+      // 直谏 / 秉公 / 狂热·再提
+      GM._pendingTinyiTopics.push(Object.assign({}, t, {
+        urgency: Math.min(15, (t.urgency || 5) + 2),
+        retry: (t.retry || 0) + 1,
+        expiresAt: (GM.turn || 0) + 5
+      }));
+    } else if (traits.indexOf('fickle') >= 0 || traits.indexOf('craven') >= 0 || traits.indexOf('deceitful') >= 0) {
+      // 善变 / 怯懦·撤回
+      if (proposer) proposer.loyalty = Math.max(0, (proposer.loyalty || 50) - 1);
+    } else {
+      // 默认·留中
+      if (Array.isArray(GM.qijuHistory)) {
+        GM.qijuHistory.push({ turn: GM.turn || 0, content: '【NPC 议题留中】' + (t.topic || '') });
+      }
+    }
+    GM._pendingTinyiTopics.splice(i, 1);
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.TAG_TO_RECOMMEND = TAG_TO_RECOMMEND;
+  window._ty3_findByRole = _ty3_findByRole;
+  window._ty3_recommendAttendees = _ty3_recommendAttendees;
+  window._ty3_calcUrgency = _ty3_calcUrgency;
+  window._ty3_npcProposeTinyiTopicsTick = _ty3_npcProposeTinyiTopicsTick;
+  window._ty3_checkExpiredTopics = _ty3_checkExpiredTopics;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  §0.996·Slice 4.5·玩家发言 paradigm·_ty3_onPlayerSpeak + 8 phase handler (v2.9 §5.1)
+// ═══════════════════════════════════════════════════════════════════════
+// 替换 v3 浮按钮 (SLICE_4_5_DELETE)·改底部 input + 按 currentPhase 分发到 8 handler
+// + 13 keyword regex + 11 intent map + 6+4 priority 抢答 (复用常朝)
+
+// ─── §5.1.4·13 keyword regex (常朝 5 + 廷议 8) ───
+function _ty3_parseDetailKeyword(text) {
+  if (!text) return null;
+  var t = String(text).replace(/[。·，。，！？\s]/g, '');
+  // 常朝继承 5
+  if (/^准奏$|^准$|^可$|准了|可办|从之|奏可/.test(t))   return 'approve';
+  if (/^驳$|^驳奏$|不准|不可|否|不行|不允/.test(t))     return 'reject';
+  if (/留中|从长计议|容朕|缓议|且听/.test(t))           return 'hold';
+  if (/下廷议|集议|付廷议/.test(t))                     return 'escalate';
+  if (/部议|发部|交部/.test(t))                         return 'toPart';
+  // 廷议特化 8
+  if (/敕停|且止|休再争|止争/.test(t))                  return 'haltConfront';
+  if (/钦点|朕意定/.test(t))                            return 'imperialPick';
+  if (/仗下|廷杖|杖之/.test(t))                         return 'flogging';
+  if (/削籍|革其官|革其籍/.test(t))                     return 'strip';
+  if (/摘除|退殿|出殿/.test(t))                         return 'dismiss';
+  if (/转(户|兵|礼|工|吏|刑)部/.test(t))                return 'toPartSpecific';
+  if (/更议|重议|再议之/.test(t))                       return 'reopen';
+  if (/革职|罢职|罢其官/.test(t))                       return 'revoke';
+  return null;
+}
+
+// ─── §5.1.5·11 intent map (常朝 8 + 廷议 3) ───
+function _ty3_parseDetailIntent(text) {
+  if (!text) return 'neutral';
+  var t = String(text).replace(/[。·，。，！？\s]/g, '');
+  // 常朝 8
+  if (/严办|严惩|严办|斩|诛/.test(t))                    return 'punish';
+  if (/[!！]{2,}/.test(t) || /必须|即办|速行|不容/.test(t)) return 'aggressive';
+  if (/民苦|忧|痛|哀|怜|惜民|百姓苦/.test(t))           return 'sympathetic';
+  if (/善|嘉许|勤勉|可嘉|有功|忠勇|赏之/.test(t))       return 'praise';
+  if (/恐有|未必|疑|或非|姑妄|存疑|不可不察/.test(t))   return 'doubt';
+  if (/两全|折中|分发|分批|可缓|商榷|或可/.test(t))     return 'mediate';
+  if (/何如|如何|可乎|几何|详言|细言|奈何/.test(t))     return 'inquire';
+  if (/让.*起对|让.*党首言之|卿且退下|另有要事/.test(t)) return 'v3-legacy';
+  // 廷议特化 3
+  if (/朕亲断|且止|二位且止|朕意已决/.test(t))          return 'arbitrate';
+  if (/退下|入殿|召|起对|休奏/.test(t))                 return 'dispatch';
+  if (/鸣鞭|退朝|跪安|殿仪/.test(t))                    return 'ceremonial';
+  return 'neutral';
+}
+
+// ─── §5.1.6·抢答队列·6 priority + 4 廷议加成 ───
+function _ty3_pickPlayerSpeakRespondents(playerText, intent) {
+  if (typeof CY === 'undefined' || !CY._ty3 || !Array.isArray(CY._ty3.attendees)) return [];
+  var attendees = CY._ty3.attendees.slice();
+  var picked = [];
+  var seen = {};
+  function add(name, priority, reason) {
+    if (!name || seen[name]) return;
+    seen[name] = true;
+    picked.push({ name: name, priority: priority, reason: reason });
+  }
+  // 0·代词识别·refsLastSpeaker
+  if (/你说|讲来|续言|说说|继续/.test(playerText) && CY._ty3._lastSpeaker) {
+    add(CY._ty3._lastSpeaker, 0, '代词');
+  }
+  // 1·点名识别
+  attendees.forEach(function(n) { if (playerText.indexOf(n) >= 0) add(n, 1, '点名'); });
+  // 2·intent 特殊抢答
+  if (intent === 'punish') {
+    // 被批者·从 picked (priority 1) 已含·加言官响应
+    attendees.forEach(function(n) {
+      var ch = (typeof findCharByName === 'function') ? findCharByName(n) : null;
+      if (ch && ch.class === 'kdao') add(n, 2, '言官·punish 响应');
+    });
+  }
+  if (intent === 'mediate' || intent === 'doubt') {
+    // 首辅出来调和
+    attendees.forEach(function(n) {
+      var ch = (typeof findCharByName === 'function') ? findCharByName(n) : null;
+      if (ch && ch.officialTitle && /首辅/.test(ch.officialTitle)) add(n, 2, '首辅·调和');
+    });
+  }
+  // 3·主奏者
+  if (CY._ty3.proposer) add(CY._ty3.proposer, 3, '主奏者');
+  // 6·confront 链中·助 X·force-rebut / force-soften
+  var chain = CY._ty3._confrontChain;
+  if (chain && chain.active) {
+    var assist = CY._ty3._confrontAssist;
+    if (assist) {
+      add(assist.helper, 6, 'confront-助');
+      add(assist.opponent, 6, 'confront-对');
+    } else {
+      add(chain.A, 6, 'confront-A');
+      add(chain.B, 6, 'confront-B');
+    }
+  }
+  // 7·arbitrate intent·confront 链立即结束·跳 phase 5
+  if (intent === 'arbitrate' && chain && chain.active && typeof _ty3_endConfrontChain === 'function') {
+    _ty3_endConfrontChain('imperial-arbitrate');
+  }
+  // 8·dispatch intent·召集 / 摘除
+  if (intent === 'dispatch') {
+    // pattern·"召 X 入殿" → attendees += X·"X 退下" → attendees -= X
+    var summonMatch = playerText.match(/召\s*([一-龥]{2,4})\s*入殿/);
+    if (summonMatch) {
+      var sumName = summonMatch[1];
+      if (CY._ty3.attendees.indexOf(sumName) < 0) CY._ty3.attendees.push(sumName);
+      add(sumName, 8, 'dispatch-召');
+    }
+    var dismissMatch = playerText.match(/([一-龥]{2,4})\s*退下/);
+    if (dismissMatch) {
+      var dimName = dismissMatch[1];
+      var idx = CY._ty3.attendees.indexOf(dimName);
+      if (idx >= 0) CY._ty3.attendees.splice(idx, 1);
+      // favor-3
+      var ch = (typeof findCharByName === 'function') ? findCharByName(dimName) : null;
+      if (ch) ch.favor = Math.max(-100, (ch.favor || 0) - 3);
+    }
+  }
+  // 9·mentee 抢答·punish X·v2.9 §5.1.6 #9·lazy guard mentor index
+  if (intent === 'punish' && typeof GM !== 'undefined' && GM._mentorIndex) {
+    attendees.forEach(function(n) {
+      if (playerText.indexOf(n) < 0) return;
+      var mentees = GM._mentorIndex.mentor && GM._mentorIndex.mentor[n];
+      if (!Array.isArray(mentees)) return;
+      mentees.forEach(function(m) {
+        if (!attendees.includes(m)) return;
+        var mch = (typeof findCharByName === 'function') ? findCharByName(m) : null;
+        if (!mch) return;
+        var d = (typeof _ty3_getDims === 'function') ? _ty3_getDims(mch) : (mch.aggregateDims || {});
+        // honor>=0.5 护师 (force rebut)·<0.5 背师 (force second)
+        var honor = (d.honor != null) ? d.honor : 0.5;
+        add(m, 9, honor >= 0.5 ? 'mentee-护师' : 'mentee-背师');
+      });
+    });
+  }
+  // 4·debate / selfReact 已有立场者
+  Object.keys(CY._ty2 && CY._ty2.stances || {}).forEach(function(n) {
+    var s = CY._ty2.stances[n];
+    if (s && s.current && s.current !== 'neutral') add(n, 4, 'debate-立场');
+  });
+  // 5·闲人兜底·首辅 + 言官头领
+  attendees.forEach(function(n) {
+    var ch = (typeof findCharByName === 'function') ? findCharByName(n) : null;
+    if (ch && ch.officialTitle && /首辅/.test(ch.officialTitle)) add(n, 5, '首辅·兜底');
+    if (ch && ch.class === 'kdao') add(n, 5, '言官·兜底');
+  });
+  // 限 5 NPC 并发抢答 (v2.3 LLM cost cap·DoD #10)
+  picked.sort(function(a, b) { return a.priority - b.priority; });
+  return picked.slice(0, 5);
+}
+
+// ─── §5.1.3·_ty3_onPlayerSpeak 主入口·按 phase 分发 ───
+async function _ty3_onPlayerSpeak(text) {
+  if (!text || !text.trim()) return;
+  var trimmed = text.trim();
+  if (typeof addCYBubble === 'function') addCYBubble('皇帝', trimmed, false);
+
+  if (CY._ty3 && CY._ty3.done) {
+    if (typeof addCYBubble === 'function') addCYBubble('内侍', '（朝会已散·陛下回乾清宫。）', true);
+    return;
+  }
+
+  var keyword = _ty3_parseDetailKeyword(trimmed);
+  var intent = _ty3_parseDetailIntent(trimmed);
+
+  // 按 currentPhase 分发 8 handler (v2.6 Slice 4.5)
+  var phase = (CY._ty3 && CY._ty3.currentPhase) || 'debate';
+  switch (phase) {
+    case 'preAudit':  return _ty3_onSpeakPreAudit(trimmed, keyword, intent);
+    case 'seating':   return _ty3_onSpeakSeating(trimmed, keyword, intent);
+    case 'debate':    return _ty3_onSpeakDebate(trimmed, keyword, intent);
+    case 'confront':  return _ty3_onSpeakConfront(trimmed, keyword, intent);
+    case 'vote':      return _ty3_onSpeakVote(trimmed, keyword, intent);
+    case 'archon':    return _ty3_onSpeakArchon(trimmed, keyword, intent);
+    case 'draft':     return _ty3_onSpeakDraft(trimmed, keyword, intent);
+    case 'seal':      return _ty3_onSpeakSeal(trimmed, keyword, intent);
+    default:          return _ty3_onSpeakDebate(trimmed, keyword, intent);
+  }
+}
+
+// ─── 8 phase handler ───
+function _ty3_onSpeakPreAudit(text, keyword) {
+  // 识别 "留中/私决/下议/明发"
+  if (/留中/.test(text)) { if (typeof toast === 'function') toast('议题留中'); return; }
+  if (/私决/.test(text)) { if (typeof toast === 'function') toast('私决处置'); return; }
+  if (/下议|集议/.test(text)) { if (typeof toast === 'function') toast('五人闭门'); return; }
+  if (/明发|廷议/.test(text)) { if (typeof toast === 'function') toast('明发廷议'); return; }
+  if (typeof addCYBubble === 'function') addCYBubble('内侍', '（请明示·留中/私决/下议/明发）', true);
+}
+
+function _ty3_onSpeakSeating(text, keyword) {
+  if (/开议/.test(text) && typeof _ty3_phase1_startDebate === 'function') { _ty3_phase1_startDebate(); return; }
+  if (/改班/.test(text)) { if (typeof toast === 'function') toast('三班调整'); return; }
+  // 摘 X 出殿
+  var mDismiss = text.match(/摘\s*([一-龥]{2,4})\s*出殿/);
+  if (mDismiss) {
+    var ch = (typeof findCharByName === 'function') ? findCharByName(mDismiss[1]) : null;
+    if (ch && typeof _ty3_actionDismiss === 'function') _ty3_actionDismiss(ch);
+    return;
+  }
+  // 其他·跳进辩议
+  if (typeof _ty3_phase1_startDebate === 'function') _ty3_phase1_startDebate();
+}
+
+async function _ty3_onSpeakDebate(text, keyword, intent) {
+  // 核心 phase·跑 keyword/intent/代词/点名/抢答
+  // 若 keyword 命中 6 廷议 action·调对应 _ty3_action*
+  if (keyword === 'flogging' || keyword === 'strip' || keyword === 'dismiss' || keyword === 'revoke') {
+    // 找 target
+    var m = text.match(/(?:仗下|廷杖|削籍|摘除|革职)\s*([一-龥]{2,4})/);
+    if (m) {
+      var ch = (typeof findCharByName === 'function') ? findCharByName(m[1]) : null;
+      if (ch) {
+        if (keyword === 'flogging' && typeof _ty3_actionFlogging === 'function') _ty3_actionFlogging(ch);
+        else if (keyword === 'strip' && typeof _ty3_actionStrip === 'function') _ty3_actionStrip(ch);
+        else if (keyword === 'dismiss' && typeof _ty3_actionDismiss === 'function') _ty3_actionDismiss(ch);
+        else if (keyword === 'revoke' && typeof _ty3_actionRevoke === 'function') _ty3_actionRevoke(ch);
+      }
+    }
+    return;
+  }
+  if (keyword === 'reopen' && typeof _ty3_actionReopen === 'function') { _ty3_actionReopen(); return; }
+  // 写入 emperor cue·Slice 9 _lastEmperorIntent
+  if (CY._ty3) CY._ty3._lastEmperorIntent = intent;
+  // 触发抢答·5 NPC 并发·_pickPlayerSpeakRespondents
+  var respondents = _ty3_pickPlayerSpeakRespondents(text, intent);
+  if (typeof addCYBubble === 'function' && respondents.length > 0) {
+    addCYBubble('内侍', '〔 ' + respondents.length + ' 员将抢答 〕', true);
+  }
+  // 真 LLM 抢答·调 _ty2_genOneSpeech 并发·留 v2 path (避免我重写流式 LLM)
+  for (var i = 0; i < respondents.length; i++) {
+    var r = respondents[i];
+    if (typeof _ty3_safeGenSpeech === 'function') {
+      try { await _ty3_safeGenSpeech(r.name, (CY._ty2 && CY._ty2.roundNum) || 1, []); } catch (_e) {}
+    }
+  }
+}
+
+function _ty3_onSpeakConfront(text, keyword, intent) {
+  // 助 A / 助 B / 敕停
+  var chain = CY._ty3 && CY._ty3._confrontChain;
+  if (!chain) { _ty3_onSpeakDebate(text, keyword, intent); return; }
+  if (intent === 'arbitrate' || /敕停|且止/.test(text)) {
+    if (typeof _ty3_endConfrontChain === 'function') _ty3_endConfrontChain('player-arbitrate');
+    return;
+  }
+  if (text.indexOf('助') >= 0 && text.indexOf(chain.A) >= 0 && typeof _ty3_assistConfront === 'function') {
+    _ty3_assistConfront('A'); return;
+  }
+  if (text.indexOf('助') >= 0 && text.indexOf(chain.B) >= 0 && typeof _ty3_assistConfront === 'function') {
+    _ty3_assistConfront('B'); return;
+  }
+  // fallback·走 debate
+  return _ty3_onSpeakDebate(text, keyword, intent);
+}
+
+function _ty3_onSpeakVote(text, keyword) {
+  // 钦定 X / 钦点 / 暂阙
+  if (keyword === 'imperialPick') {
+    var m = text.match(/(?:钦点|钦定)\s*([一-龥]{2,4})/);
+    if (m && typeof _ty3_phase3_qinDing === 'function') {
+      _ty3_phase3_qinDing(m[1], '钦定');
+      return;
+    }
+  }
+  if (/暂阙|空缺/.test(text) && typeof _ty3_phase3_skip === 'function') {
+    _ty3_phase3_skip(); return;
+  }
+  if (typeof addCYBubble === 'function') addCYBubble('内侍', '（请明示·钦点 X / 暂阙）', true);
+}
+
+function _ty3_onSpeakArchon(text, keyword) {
+  // 识别 S/A/B/C/D 或自由档位
+  var gradeMatch = text.match(/[SABCD]/i);
+  if (gradeMatch && typeof _ty3_dgPick === 'function') {
+    _ty3_dgPick(gradeMatch[0].toUpperCase()); return;
+  }
+  if (typeof addCYBubble === 'function') addCYBubble('内侍', '（请明示·S / A / B / C / D 档）', true);
+}
+
+function _ty3_onSpeakDraft(text, keyword) {
+  // 翰林 / 钦点 X / 自拟
+  if (/翰林/.test(text) && typeof _ty3_phase5_pickFree === 'function') { _ty3_phase5_pickFree(); return; }
+  var m = text.match(/(?:钦点|拟)\s*([一-龥]{2,4})/);
+  if (m && typeof _ty3_phase5_pick === 'function') { _ty3_phase5_pick(m[1]); return; }
+  if (/自拟|跳过/.test(text) && typeof _ty3_phase5_skip === 'function') { _ty3_phase5_skip(); return; }
+  if (typeof addCYBubble === 'function') addCYBubble('内侍', '（请明示·翰林 / 钦点 X / 自拟）', true);
+}
+
+function _ty3_onSpeakSeal(text, keyword) {
+  if (/用印|准/.test(text) && typeof _ty3_phase6_doSeal === 'function') { _ty3_phase6_doSeal(false); return; }
+  if (/强行/.test(text) && typeof _ty3_phase6_doSeal === 'function') { _ty3_phase6_doSeal(true); return; }
+  if (/退还|留中/.test(text)) {
+    if (typeof addCYBubble === 'function') addCYBubble('内侍', '〔 诏命暂缓·议题留中 〕', true);
+    return;
+  }
+  if (typeof addCYBubble === 'function') addCYBubble('内侍', '（请明示·用印 / 强行 / 退还）', true);
+}
+
+// expose
+if (typeof window !== 'undefined') {
+  window._ty3_parseDetailKeyword = _ty3_parseDetailKeyword;
+  window._ty3_parseDetailIntent = _ty3_parseDetailIntent;
+  window._ty3_pickPlayerSpeakRespondents = _ty3_pickPlayerSpeakRespondents;
+  window._ty3_onPlayerSpeak = _ty3_onPlayerSpeak;
+  window._ty3_onSpeakPreAudit = _ty3_onSpeakPreAudit;
+  window._ty3_onSpeakSeating = _ty3_onSpeakSeating;
+  window._ty3_onSpeakDebate = _ty3_onSpeakDebate;
+  window._ty3_onSpeakConfront = _ty3_onSpeakConfront;
+  window._ty3_onSpeakVote = _ty3_onSpeakVote;
+  window._ty3_onSpeakArchon = _ty3_onSpeakArchon;
+  window._ty3_onSpeakDraft = _ty3_onSpeakDraft;
+  window._ty3_onSpeakSeal = _ty3_onSpeakSeal;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  §0.997·Slice 7.5/2.5.3/8.5·UI 收口·footer / modal / ceremony CSS / hotkey (v2.9 §5.2/5.4)
+// ═══════════════════════════════════════════════════════════════════════
+
+// ─── Slice 7.5·action footer 6 button (廷议 debate phase 显) ───
+function _ty3_renderActionFooter() {
+  if (typeof CY === 'undefined' || !CY._ty3 || CY._ty3.currentPhase !== 'debate') return '';
+  return '<div class="ty3-action-footer" style="padding:0.4rem;border-top:1px dashed var(--bdr);text-align:center;font-size:0.78rem;">' +
+    '<span style="color:#888;margin-right:0.5rem;">廷议特化·</span>' +
+    '<button class="bt bsm" onclick="_ty3_promptAction(\'flogging\')" title="廷杖 X·loyalty -10·入诏狱可能 20%">🔨 仗下</button> ' +
+    '<button class="bt bsm" onclick="_ty3_promptAction(\'strip\')" title="削籍 X·loyalty 归零">❌ 削籍</button> ' +
+    '<button class="bt bsm" onclick="_ty3_promptAction(\'dismiss\')" title="摘除 X·favor -3">👋 摘除</button> ' +
+    '<button class="bt bsm" onclick="_ty3_promptAction(\'toPart\')" title="转部议·廷议结束">📜 转部议</button> ' +
+    '<button class="bt bsm" onclick="_ty3_promptAction(\'reopen\')" title="敕令更议·重启本议题">🔄 更议</button> ' +
+    '<button class="bt bsm" onclick="_ty3_promptAction(\'revoke\')" title="革职·永久革除">⚰️ 革职</button>' +
+    '</div>';
+}
+
+function _ty3_promptAction(actionType) {
+  if (typeof CY === 'undefined' || !CY._ty3) return;
+  // simple prompt·待 Slice 8.5 modal UI 替换
+  var labels = {
+    flogging: '仗下', strip: '削籍', dismiss: '摘除', toPart: '转部议', reopen: '更议', revoke: '革职'
+  };
+  if (actionType === 'reopen') { if (typeof _ty3_actionReopen === 'function') _ty3_actionReopen(); return; }
+  if (actionType === 'toPart') {
+    var partName = prompt('转哪部·(户/兵/礼/工/吏/刑)');
+    if (partName && typeof _ty3_actionToPart === 'function') _ty3_actionToPart(CY._ty3.topic || '', partName + '部');
+    return;
+  }
+  var target = prompt('目标 NPC 名·');
+  if (!target) return;
+  var ch = (typeof findCharByName === 'function') ? findCharByName(target) : null;
+  if (!ch) { if (typeof toast === 'function') toast('未找到·' + target); return; }
+  if (actionType === 'flogging' && typeof _ty3_actionFlogging === 'function') _ty3_actionFlogging(ch);
+  else if (actionType === 'strip' && typeof _ty3_actionStrip === 'function') _ty3_actionStrip(ch);
+  else if (actionType === 'dismiss' && typeof _ty3_actionDismiss === 'function') _ty3_actionDismiss(ch);
+  else if (actionType === 'revoke' && typeof _ty3_actionRevoke === 'function') _ty3_actionRevoke(ch);
+}
+
+// ─── Slice 2.5.3·召集 modal·简化版 (3 视图·standard / by-tag / custom) ───
+function _ty3_openConveningModal(topic, tags, scenario, callback) {
+  if (typeof document === 'undefined') return;
+  var recommended = (typeof _ty3_recommendAttendees === 'function')
+    ? _ty3_recommendAttendees(topic, tags, scenario) : [];
+  var bg = document.createElement('div');
+  bg.id = 'ty3-convening-bg';
+  bg.style.cssText = 'position:fixed;inset:0;z-index:1310;background:rgba(0,0,0,0.78);display:flex;align-items:center;justify-content:center;';
+  var html = '<div style="max-width:680px;background:var(--color-surface);border:1px solid var(--gold);border-radius:6px;padding:1.2rem;">';
+  html += '<div style="font-size:1.1rem;color:var(--gold);margin-bottom:0.6rem;font-weight:600;">⚖ 召集廷议·议题·' + (topic || '').slice(0, 40) + '</div>';
+  // 3 视图 tab
+  html += '<div style="border-bottom:1px solid var(--bdr);margin-bottom:0.6rem;">' +
+    '<button class="bt bsm" id="ty3-cv-tab-std" onclick="_ty3_cvSwitchView(\'standard\')" style="border-bottom:2px solid var(--gold);">⚖️ 标准九卿</button> ' +
+    '<button class="bt bsm" id="ty3-cv-tab-tag" onclick="_ty3_cvSwitchView(\'tag\')">📊 按 tag 推荐</button> ' +
+    '<button class="bt bsm" id="ty3-cv-tab-cus" onclick="_ty3_cvSwitchView(\'custom\')">✏️ 自由组合</button>' +
+    '</div>';
+  // attendees 显示
+  html += '<div id="ty3-cv-list" style="max-height:280px;overflow-y:auto;padding:0.4rem;background:rgba(0,0,0,0.2);border-radius:4px;">';
+  recommended.forEach(function(n) {
+    var ch = (typeof findCharByName === 'function') ? findCharByName(n) : null;
+    var elig = (typeof _ty3_calcEligibility === 'function') ? _ty3_calcEligibility(ch, topic, scenario) : { category: '可召' };
+    var color = { '必召':'var(--gold)', '可召':'#ddd', '罕召':'#888', '不召':'#666' }[elig.category] || '#ddd';
+    html += '<div style="padding:0.2rem 0.4rem;color:' + color + ';">' +
+      '<span style="display:inline-block;width:80px;">' + escHtml(n) + '</span>' +
+      '<span style="color:#888;font-size:0.75rem;">' + (ch && ch.officialTitle || '') + '·' + elig.category + '</span>' +
+      '</div>';
+  });
+  html += '</div>';
+  // mentor 联动 suggestion (v2.6 Slice 10b)
+  if (typeof _ty3_renderMentorSuggestionList === 'function') {
+    var sug = _ty3_renderMentorSuggestionList(recommended);
+    if (sug) html += '<div style="margin-top:0.6rem;">' + sug + '</div>';
+  }
+  // 民意度 / 言官离心 显示
+  if (typeof GM !== 'undefined') {
+    var pop = GM._convening_民意度 != null ? Math.round(GM._convening_民意度) : 0;
+    var yan = GM._convening_言官离心 != null ? Math.round(GM._convening_言官离心) : 0;
+    var tier = (typeof _ty3_getPopulationConfidenceTier === 'function') ? _ty3_getPopulationConfidenceTier() : '兼听';
+    html += '<div style="margin-top:0.6rem;font-size:0.78rem;color:#aaa;">民意度·' + pop + ' (' + tier + ')·言官离心·' + yan + '</div>';
+  }
+  // footer
+  html += '<div style="margin-top:1rem;text-align:right;">';
+  html += '<button class="bt bp" onclick="_ty3_cvConfirm()">📜 召集 → 明发</button> ';
+  html += '<button class="bt bsm" onclick="_ty3_cvCancel()">取消</button>';
+  html += '</div>';
+  html += '</div>';
+  bg.innerHTML = html;
+  document.body.appendChild(bg);
+  CY._ty3._conveningModal = { topic: topic, tags: tags, scenario: scenario, recommended: recommended, callback: callback };
+}
+
+function _ty3_cvSwitchView(view) {
+  // simple·切 tab 高亮·真实视图切换 stub (留 user UX feedback)
+  ['std', 'tag', 'cus'].forEach(function(v) {
+    var b = document.getElementById('ty3-cv-tab-' + v);
+    if (b) b.style.borderBottom = (v === view.slice(0, 3)) ? '2px solid var(--gold)' : 'none';
+  });
+}
+
+function _ty3_cvConfirm() {
+  var modal = CY._ty3 && CY._ty3._conveningModal;
+  if (!modal) return;
+  var attendees = modal.recommended;
+  // calc 5 后果·conveningPolitics
+  if (typeof _ty3_calcConveningPolitics === 'function') {
+    CY._ty3.conveningPolitics = _ty3_calcConveningPolitics(attendees, '', modal.topic, modal.scenario);
+  }
+  CY._ty3.attendees = attendees;
+  if (modal.callback) modal.callback(attendees);
+  _ty3_cvCancel();  // close modal
+}
+
+function _ty3_cvCancel() {
+  var bg = document.getElementById('ty3-convening-bg');
+  if (bg && bg.parentNode) bg.parentNode.removeChild(bg);
+  if (CY && CY._ty3) CY._ty3._conveningModal = null;
+}
+
+// ─── Slice 8.5·三班双轨 view (V hotkey 切 stance / class) ───
+function _ty3_toggleBenchView() {
+  if (typeof CY === 'undefined' || !CY._ty3) return;
+  CY._ty3._benchView = (CY._ty3._benchView === 'class') ? 'stance' : 'class';
+  if (typeof addCYBubble === 'function') {
+    addCYBubble('内侍', '〔 三班视图切·' + (CY._ty3._benchView === 'class' ? '按 class' : '按 stance') + ' 〕', true);
+  }
+  // v2.6 polish·Round 4·真应 data-view·CSS 选 `.ty3-st-bench[data-view]`·非 toast-only
+  try {
+    var nodes = document.querySelectorAll('.ty3-st-bench');
+    for (var i = 0; i < nodes.length; i++) nodes[i].setAttribute('data-view', CY._ty3._benchView);
+  } catch (_dvE) {}
+  if (typeof _ty2_render === 'function') _ty2_render();
+}
+
+// ─── 9+1 hotkey listener (V/T/[/] / Esc / Ctrl+Enter / H / M / 1-9) ───
+function _ty3_installHotkeyListener() {
+  if (typeof document === 'undefined') return;
+  if (document._ty3HotkeyInstalled) return;
+  document.addEventListener('keydown', function(e) {
+    if (typeof CY === 'undefined' || !CY._ty3 || !CY.open) return;
+    // 跳过 input / textarea focus
+    var tag = e.target && e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (e.key === 'V' || e.key === 'v') { _ty3_toggleBenchView(); e.preventDefault(); return; }
+    if (e.key === 'T' || e.key === 't') { _ty3_openStanceMatrix(); e.preventDefault(); return; }
+    if (e.key === '[' || e.key === ']') {
+      if (typeof _ty3_handleConfrontHotkey === 'function') {
+        if (_ty3_handleConfrontHotkey(e.key)) e.preventDefault();
+      }
+      return;
+    }
+    if (e.key === 'H' || e.key === 'h') { _ty3_openStanceHistory(); e.preventDefault(); return; }
+    if (e.key === 'M' || e.key === 'm') { _ty3_openConveningQuick(); e.preventDefault(); return; }
+    if (e.ctrlKey && e.key === 'Enter') { _ty3_forceDecide(); e.preventDefault(); return; }
+    if (e.key >= '1' && e.key <= '9' && CY._ty3.currentPhase === 'vote') {
+      // 廷推时·选第 N 候选
+      var idx = parseInt(e.key, 10) - 1;
+      if (typeof _ty3_phase3VoteIndex === 'function') _ty3_phase3VoteIndex(idx);
+    }
+  });
+  document._ty3HotkeyInstalled = true;
+}
+
+// v2.6 Slice 8.5 polish·4 modal 真实 UI (T/H/M/Ctrl+Enter hotkey 落地)·非 toast stub
+// 关法·内 ✕ 按钮 / Esc / click backdrop (非 inner) 关
+function _ty3_closeQuickModal(id) {
+  var bg = document.getElementById(id);
+  if (bg && bg.parentNode) bg.parentNode.removeChild(bg);
+}
+
+// 全局 quick modal Esc + backdrop click 监听·一次装·关任何 ty3-quick-* modal
+function _ty3_installQuickModalCloseListeners() {
+  if (typeof document === 'undefined' || document._ty3QuickClosersInstalled) return;
+  document._ty3QuickClosersInstalled = true;
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' || e.key === 'Esc') {
+      ['ty3-quick-matrix-bg','ty3-quick-history-bg','ty3-quick-force-bg'].forEach(_ty3_closeQuickModal);
+    }
+  });
+  document.addEventListener('click', function(e) {
+    var t = e.target;
+    if (!t || !t.id) return;
+    if (t.id === 'ty3-quick-matrix-bg' || t.id === 'ty3-quick-history-bg' || t.id === 'ty3-quick-force-bg') {
+      _ty3_closeQuickModal(t.id);
+    }
+  });
+}
+
+function _ty3_openStanceMatrix() {
+  if (typeof document === 'undefined' || typeof CY === 'undefined' || !CY._ty3) return;
+  _ty3_closeQuickModal('ty3-quick-matrix-bg');
+  var attendees = (CY._ty3.attendees || []).slice();
+  if (!attendees.length) { if (typeof toast === 'function') toast('暂无与议者·无可看立场'); return; }
+  var stances = (CY._ty2 && CY._ty2.stances) || {};
+  var esc = (typeof escHtml === 'function') ? escHtml : function(s){return String(s||'');};
+  var dimsLabel = { honor:'义', compassion:'仁', boldness:'勇', rationality:'智', greed:'欲', cunning:'谲', loyalty:'忠', confucianism:'儒' };
+  var dimKeys = ['honor','compassion','boldness','rationality','greed','cunning','loyalty','confucianism'];
+  var stanceCh = { support:'支', oppose:'反', neutral:'中', '极力支持':'极支', '极力反对':'极反', '倾向支持':'倾支', '倾向反对':'倾反', '中立':'中' };
+  function dimColor(v) {
+    if (v == null) return '#444';
+    if (v >= 0.7) return 'var(--vermillion-400,#c33)';
+    if (v >= 0.55) return 'var(--gold-600,#b80)';
+    if (v >= 0.45) return '#888';
+    if (v >= 0.3) return 'var(--indigo-400,#88c)';
+    return 'var(--celadon-400,#6c9)';
+  }
+  var bg = document.createElement('div');
+  bg.id = 'ty3-quick-matrix-bg';
+  bg.style.cssText = 'position:fixed;inset:0;z-index:1320;background:rgba(0,0,0,0.78);display:flex;align-items:center;justify-content:center;';
+  var html = '<div style="max-width:920px;max-height:82vh;overflow-y:auto;background:var(--color-surface);border:1px solid var(--gold);border-radius:6px;padding:1.2rem;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.6rem;">';
+  html += '<span style="font-size:1.05rem;color:var(--gold);font-weight:600;">▦ 立场矩阵·' + attendees.length + ' 员 × 8 dims + initial/current</span>';
+  html += '<button class="bt bsm" onclick="_ty3_closeQuickModal(\'ty3-quick-matrix-bg\')">✕</button>';
+  html += '</div>';
+  html += '<table style="width:100%;border-collapse:collapse;font-size:0.78rem;">';
+  html += '<thead><tr style="border-bottom:1px solid var(--bdr);color:#aaa;"><th style="text-align:left;padding:0.25rem;">人物</th>';
+  dimKeys.forEach(function(k){ html += '<th style="padding:0.25rem;width:36px;">' + dimsLabel[k] + '</th>'; });
+  html += '<th style="padding:0.25rem;">initial</th><th style="padding:0.25rem;">current</th><th style="padding:0.25rem;">mode</th></tr></thead><tbody>';
+  attendees.forEach(function(name) {
+    var ch = (typeof findCharByName === 'function') ? findCharByName(name) : null;
+    var d = (typeof _ty3_getDims === 'function') ? _ty3_getDims(ch) : {};
+    var st = stances[name] || {};
+    var ini = stanceCh[st.initial] || (st.initial || '?');
+    var cur = stanceCh[st.current] || (st.current || '?');
+    var changed = (st.initial && st.current && st.initial !== st.current);
+    html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">';
+    html += '<td style="padding:0.25rem;color:#ddd;">' + esc(name) + '<span style="color:#666;font-size:0.7rem;"> ' + (ch && ch.class || '') + '</span></td>';
+    dimKeys.forEach(function(k){
+      var v = d[k];
+      var vTxt = (v != null) ? Math.round(v * 100) : '–';
+      html += '<td style="padding:0.25rem;text-align:center;color:' + dimColor(v) + ';">' + vTxt + '</td>';
+    });
+    html += '<td style="padding:0.25rem;text-align:center;color:#888;">' + esc(ini) + '</td>';
+    html += '<td style="padding:0.25rem;text-align:center;color:' + (changed ? 'var(--gold)' : '#aaa') + ';font-weight:' + (changed ? '600' : '400') + ';">' + esc(cur) + (changed ? ' *' : '') + '</td>';
+    html += '<td style="padding:0.25rem;text-align:center;color:#aaa;font-size:0.72rem;">' + esc((st.source || '').replace('dims-initial','锚').replace('llm-adjusted','调')) + '</td>';
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  html += '<div style="margin-top:0.6rem;font-size:0.72rem;color:#888;">数值 0-100·红 ≥70·金 55-70·灰 45-55·蓝 30-45·青 <30·"*" 表 current 跟 initial 不同</div>';
+  html += '</div>';
+  bg.innerHTML = html;
+  document.body.appendChild(bg);
+}
+
+function _ty3_openStanceHistory() {
+  if (typeof document === 'undefined' || typeof CY === 'undefined' || !CY._ty3) return;
+  _ty3_closeQuickModal('ty3-quick-history-bg');
+  var attendees = (CY._ty3.attendees || []).slice();
+  if (!attendees.length) { if (typeof toast === 'function') toast('暂无与议者·无历史可看'); return; }
+  var stances = (CY._ty2 && CY._ty2.stances) || {};
+  var esc = (typeof escHtml === 'function') ? escHtml : function(s){return String(s||'');};
+  var stanceCh = { support:'支', oppose:'反', neutral:'中', '极力支持':'极支', '极力反对':'极反', '倾向支持':'倾支', '倾向反对':'倾反', '中立':'中' };
+  var stanceColor = { support:'var(--celadon-400,#6c9)', oppose:'var(--vermillion-400,#c33)', neutral:'#888' };
+  function chipColor(s) {
+    if (!s) return '#666';
+    if (/支持/.test(s)) return stanceColor.support;
+    if (/反对/.test(s)) return stanceColor.oppose;
+    return stanceColor.neutral;
+  }
+  var bg = document.createElement('div');
+  bg.id = 'ty3-quick-history-bg';
+  bg.style.cssText = 'position:fixed;inset:0;z-index:1320;background:rgba(0,0,0,0.78);display:flex;align-items:center;justify-content:center;';
+  var html = '<div style="max-width:760px;max-height:82vh;overflow-y:auto;background:var(--color-surface);border:1px solid var(--gold);border-radius:6px;padding:1.2rem;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.6rem;">';
+  html += '<span style="font-size:1.05rem;color:var(--gold);font-weight:600;">⌛ 立场历史档案·' + attendees.length + ' 员</span>';
+  html += '<button class="bt bsm" onclick="_ty3_closeQuickModal(\'ty3-quick-history-bg\')">✕</button>';
+  html += '</div>';
+  var emptyCount = 0;
+  attendees.forEach(function(name) {
+    var st = stances[name] || {};
+    var hist = Array.isArray(st.history) ? st.history : [];
+    if (!hist.length) { emptyCount++; return; }
+    html += '<div style="padding:0.4rem 0.5rem;margin:0.3rem 0;background:rgba(0,0,0,0.18);border-left:3px solid ' + chipColor(st.current) + ';border-radius:3px;">';
+    html += '<div style="font-weight:600;color:#ddd;">' + esc(name);
+    html += '<span style="color:#888;font-size:0.72rem;font-weight:400;"> initial·' + esc(stanceCh[st.initial] || st.initial || '?') + '</span>';
+    html += '<span style="float:right;color:' + chipColor(st.current) + ';font-size:0.78rem;">current·' + esc(stanceCh[st.current] || st.current || '?') + '</span>';
+    html += '</div>';
+    html += '<div style="margin-top:0.3rem;display:flex;flex-wrap:wrap;gap:0.3rem;">';
+    hist.forEach(function(h, i) {
+      var col = chipColor(h.stance);
+      html += '<span title="' + esc(h.reason || '') + '" style="padding:0.15rem 0.5rem;background:' + col + ';color:#fff;border-radius:10px;font-size:0.7rem;">R' + (h.round || (i+1)) + '·' + esc(stanceCh[h.stance] || h.stance || '?') + '</span>';
+    });
+    html += '</div>';
+    if (st.source) html += '<div style="margin-top:0.2rem;font-size:0.7rem;color:#888;">source·' + esc(st.source) + '</div>';
+    html += '</div>';
+  });
+  if (emptyCount === attendees.length) {
+    html += '<div style="padding:0.6rem;color:#888;text-align:center;">尚无 round 发言·history 空</div>';
+  } else if (emptyCount > 0) {
+    html += '<div style="margin-top:0.4rem;font-size:0.72rem;color:#666;">· 另 ' + emptyCount + ' 员尚未发言·history 空 ·</div>';
+  }
+  html += '</div>';
+  bg.innerHTML = html;
+  document.body.appendChild(bg);
+}
+
+function _ty3_openConveningQuick() {
+  if (typeof CY === 'undefined' || !CY._ty3) return;
+  if (typeof _ty3_openConveningModal !== 'function') { if (typeof toast === 'function') toast('召集 modal 未加载'); return; }
+  var topic = CY._ty3.topic || (CY._ty2 && CY._ty2.topic) || '';
+  if (!topic) { if (typeof toast === 'function') toast('暂无议题·无可召集'); return; }
+  var scn = (typeof getScenarioOrLegacy === 'function') ? getScenarioOrLegacy() : null;
+  var tags = (typeof _ty3_inferTopicTags === 'function')
+    ? _ty3_inferTopicTags((CY._ty3.meta && CY._ty3.meta.topicType) || (CY._ty2 && CY._ty2.topicType), topic) : [];
+  _ty3_openConveningModal(topic, tags, scn, function(attendees) {
+    if (typeof addCYBubble === 'function') addCYBubble('内侍', '〔 召集快捷·' + (attendees || []).length + ' 员 〕', true);
+    if (typeof _ty2_render === 'function') _ty2_render();
+  });
+}
+
+function _ty3_forceDecide() {
+  if (typeof CY === 'undefined' || !CY._ty3) return;
+  if (typeof document === 'undefined') return;
+  _ty3_closeQuickModal('ty3-quick-force-bg');
+  var phase = CY._ty3.currentPhase || 'unknown';
+  var esc = (typeof escHtml === 'function') ? escHtml : function(s){return String(s||'');};
+  // phase 已到 archon/draft/seal·toast 提示不可重复·debate/confront/seating/preAudit·跳到 archon settle
+  if (phase === 'archon' || phase === 'draft' || phase === 'seal') {
+    if (typeof toast === 'function') toast('当前已 ' + phase + ' 阶段·无可再跳');
+    return;
+  }
+  var bg = document.createElement('div');
+  bg.id = 'ty3-quick-force-bg';
+  bg.style.cssText = 'position:fixed;inset:0;z-index:1320;background:rgba(0,0,0,0.78);display:flex;align-items:center;justify-content:center;';
+  var html = '<div style="max-width:480px;background:var(--color-surface);border:1px solid var(--vermillion-400,#c33);border-radius:6px;padding:1.2rem;">';
+  html += '<div style="font-size:1.05rem;color:var(--vermillion-400,#c33);margin-bottom:0.6rem;font-weight:600;">⚡ 强制裁决·跳剩余阶段</div>';
+  html += '<div style="color:#ccc;font-size:0.82rem;margin-bottom:0.6rem;">当前阶段·' + esc(phase) + '<br>选裁决·按选项跳到 archon (钦定档位) + 后续 draft/seal·</div>';
+  html += '<div style="display:flex;flex-direction:column;gap:0.3rem;">';
+  html += '<button class="bt bp" onclick="_ty3_forceDecideApply(\'approve\')" style="text-align:left;">✓ 准奏·按多数派裁决</button>';
+  html += '<button class="bt bsm" onclick="_ty3_forceDecideApply(\'reject\')" style="text-align:left;">✗ 驳奏·按少数 / 反对派裁决</button>';
+  html += '<button class="bt bsm" onclick="_ty3_forceDecideApply(\'hold\')" style="text-align:left;">⌛ 留中·议而不决·档位降一级</button>';
+  html += '</div>';
+  html += '<div style="margin-top:0.8rem;text-align:right;">';
+  html += '<button class="bt bsm" onclick="_ty3_closeQuickModal(\'ty3-quick-force-bg\')">取消</button>';
+  html += '</div></div>';
+  bg.innerHTML = html;
+  document.body.appendChild(bg);
+}
+
+function _ty3_forceDecideApply(decision) {
+  _ty3_closeQuickModal('ty3-quick-force-bg');
+  if (typeof CY === 'undefined' || !CY._ty3) return;
+  if (typeof addCYBubble === 'function') addCYBubble('内侍', '〔 ⚡ 强制裁决·' + decision + '·跳剩余阶段 〕', true);
+  // 通用·调 _ty3_settleArchonGrade·decision 传 'approve'/'reject'/'hold'
+  if (typeof _ty3_settleArchonGrade === 'function') {
+    try { _ty3_settleArchonGrade(decision, { forced: true, fromHotkey: true }); }
+    catch (e) { try { window.TM && TM.errors && TM.errors.captureSilent(e, 'tinyi-force-decide'); } catch(_) {} }
+  }
+}
+
+// v2.6 polish·hotkey 1-9 真分发到候选名·非 toast stub
+function _ty3_phase3VoteIndex(idx) {
+  if (typeof CY === 'undefined' || !CY._ty3) return;
+  var list = CY._ty3._phase3Candidates;
+  if (!Array.isArray(list) || idx >= list.length || idx < 0) {
+    if (typeof toast === 'function') toast('候选 #' + (idx+1) + ' 不存在 (共 ' + (list ? list.length : 0) + ' 人)');
+    return;
+  }
+  var c = list[idx];
+  if (typeof addCYBubble === 'function') addCYBubble('内侍', '〔 钦点 #' + (idx+1) + '·' + c.name + ' 〕', true);
+  if (typeof _ty3_phase3_qinDing === 'function') _ty3_phase3_qinDing(c.name, c.party);
+}
+
+// v2.6 Slice 0·baseline 自动 record helper·user game UI 跑后 console 调·snapshot to JSON
+function _ty3_baselineRecord(caseId) {
+  if (typeof CY === 'undefined' || !CY._ty3 || !CY._ty2) {
+    console.warn('[baseline] CY._ty3 / CY._ty2 not ready·廷议未开');
+    return null;
+  }
+  var stances = CY._ty2.stances || {};
+  var modeDist = {};
+  var stanceDist = { 极支: 0, 支: 0, 中: 0, 反: 0, 极反: 0 };
+  var extreme = 0, total = 0;
+  var allSpeeches = (CY._ty2 && CY._ty2._allSpeeches) || [];
+  allSpeeches.forEach(function(sp) {
+    if (sp.mode) modeDist[sp.mode] = (modeDist[sp.mode] || 0) + 1;
+  });
+  Object.keys(stances).forEach(function(n) {
+    var st = stances[n];
+    if (!st || !st.current) return;
+    total++;
+    var s = String(st.current);
+    if (/极力支持/.test(s)) { stanceDist['极支']++; extreme++; }
+    else if (/极力反对/.test(s)) { stanceDist['极反']++; extreme++; }
+    else if (/支持/.test(s)) stanceDist['支']++;
+    else if (/反对/.test(s)) stanceDist['反']++;
+    else stanceDist['中']++;
+  });
+  var snapshot = {
+    caseId: caseId || ('case-' + Date.now()),
+    topic: CY._ty3.topic || '',
+    topicType: (CY._ty3.meta && CY._ty3.meta.topicType) || '',
+    promptTokens: null,  // user 从 LLM call inspector 估
+    modeDistribution: modeDist,
+    stanceDistribution: stanceDist,
+    extremeRatio: total > 0 ? Math.round(extreme / total * 100) / 100 : 0,
+    confrontTriggered: !!(CY._ty3._confrontChain && CY._ty3._confrontChain.everActive),
+    clientelismTriggered: Object.keys(modeDist).indexOf('clientelism') >= 0 ? (modeDist['clientelism'] || 0) : 0,
+    martyrUsed: modeDist['martyr'] || 0,
+    v3PostProcess: !!(typeof GM !== 'undefined' && GM._chronicleTracks && GM._chronicleTracks.length > 0)
+  };
+  console.log('[baseline] case ' + snapshot.caseId + '·snapshot ready·拷贝到 _baseline-tinyi-before-prompts.json actual 字段·');
+  console.log(JSON.stringify(snapshot, null, 2));
+  return snapshot;
+}
+
+// v2.6 polish·dump 全 localStorage baseline·一键拷给 user
+function _ty3_baselineDumpAll() {
+  if (typeof localStorage === 'undefined') {
+    console.warn('[baseline] localStorage 不可用');
+    return [];
+  }
+  var arr = [];
+  try { arr = JSON.parse(localStorage.getItem('ty3_baselines') || '[]'); } catch (e) {}
+  console.log('[baseline] 共 ' + arr.length + ' 条 auto-collected snapshot·拷下方 JSON 到 _baseline-tinyi-before-prompts.json _autoSnapshots 段');
+  console.log(JSON.stringify(arr, null, 2));
+  return arr;
+}
+
+function _ty3_baselineClearAll() {
+  if (typeof localStorage !== 'undefined') localStorage.removeItem('ty3_baselines');
+  console.log('[baseline] localStorage cleared');
+}
+
+// ─── Slice 8.5·5 ceremony CSS·写入 document.head ───
+function _ty3_installCeremonyCss() {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById('ty3-ceremony-style')) return;
+  var st = document.createElement('style');
+  st.id = 'ty3-ceremony-style';
+  st.textContent = [
+    '@keyframes ty3-cer-fade { 0% { opacity: 0; } 10% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }',
+    '.ty3-cer-overlay { animation: ty3-cer-fade 1s ease-in-out forwards; }',
+    '.ty3-cer-openrtn { background: rgba(80,30,30,0.85)!important; color: gold!important; }',  // 鸣鞭三响·暗红
+    '.ty3-cer-archon { background: linear-gradient(180deg,#5a4a2a,#3a2a1a)!important; color: gold!important; }',  // 钦定 gold-screen
+    '.ty3-cer-draft { background: rgba(20,20,40,0.85)!important; color: #ddc!important; }',
+    '.ty3-cer-seal { background: rgba(140,20,30,0.88)!important; color: #fff!important; }',  // 朱砂
+    '.ty3-cer-pursue { background: rgba(60,40,30,0.85)!important; color: #fdd!important; }',
+    '.ty3-cer-flog { background: rgba(160,20,20,0.9)!important; color: #fff!important; animation: ty3-cer-fade 0.3s steps(3,end) 5 !important; }',  // 锤击 + 红 flash
+    '.ty3-cer-strip { background: rgba(0,0,0,0.95)!important; color: gold!important; font-size: 3rem!important; }',  // 黑屏 + 大字
+    '.ty3-cer-dismiss { background: rgba(60,60,60,0.75)!important; color: #ccc!important; }',
+    '.ty3-cer-revoke { background: rgba(0,0,0,0.95)!important; color: var(--vermillion-blood,#c33)!important; font-size: 3rem!important; }',
+    '.ty3-cer-reopen { background: rgba(40,60,80,0.85)!important; color: gold!important; }',
+    // v2.6 Slice 8.5·用印 2 sub-flow modal polish (v3 已有 modal·此处加 CSS)
+    '@keyframes ty3-seal-stamp { 0% { transform: scale(2) rotate(-15deg); opacity: 0; } 50% { transform: scale(1.2) rotate(0); opacity: 0.95; } 100% { transform: scale(1) rotate(0); opacity: 1; } }',
+    '.ty3-seal-modal-container { animation: ty3-cer-fade 0.3s ease-out forwards; }',
+    '.ty3-seal-stamp { animation: ty3-seal-stamp 1.2s ease-out forwards; display:inline-block; font-size: 4rem; color: #c33; text-shadow: 0 0 8px rgba(200,50,30,0.6); }',
+    '.ty3-seal-blocked { color: #a52; text-shadow: 0 0 4px rgba(140,40,20,0.5); }',
+    '.ty3-seal-forced { color: #e44; text-shadow: 0 0 12px rgba(255,80,60,0.7); animation: ty3-seal-stamp 1.0s ease-out forwards, ty3-seal-shake 0.15s steps(2,end) 4 1.5s; }',
+    '@keyframes ty3-seal-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }',
+    // 立场板放大版 N×9 矩阵 (T hotkey 触发·留 user UX 完整·此 CSS 占位)
+    '.ty3-stance-matrix { display:grid; grid-template-columns: repeat(9, 1fr); gap: 0.3rem; padding: 1rem; max-height: 70vh; overflow-y: auto; background: var(--color-surface); border: 1px solid var(--gold); border-radius: 6px; }',
+    '.ty3-stance-matrix-cell { padding: 0.4rem; text-align: center; font-size: 0.78rem; border-radius: 3px; }',
+    // 三班双轨 view·V hotkey 切·CSS 弱化
+    // v2.6 polish·Round 4·选 `.ty3-st-bench` 真 DOM class (非 `.ty3-bench`)·_toggleBenchView 调 setAttribute
+    '.ty3-st-bench[data-view="class"] .ty3-bench-stance-color { display: none; }',
+    '.ty3-st-bench[data-view="stance"] .ty3-bench-class-tag { opacity: 0.5; }',
+    // confront 红虚线·Slice 7/8.5 联动
+    '.ty3-confront-line { border: 2px dashed var(--vermillion-400, #c33); margin: 0.5rem 0; padding: 0.3rem; border-radius: 4px; background: rgba(200,50,50,0.05); }',
+    // 10 mode 视觉一眼区分·气泡左侧 icon
+    '.cy-bubble[data-mode="lead"]::before { content: "▶ "; color: #888; }',
+    '.cy-bubble[data-mode="second"]::before { content: "⊕ "; color: var(--celadon-400, #6c9); }',
+    '.cy-bubble[data-mode="rebut"]::before { content: "← "; color: var(--vermillion-400, #c44); }',
+    '.cy-bubble[data-mode="soften"]::before { content: "～ "; color: gold; }',
+    '.cy-bubble[data-mode="pivot"]::before { content: "⇌ "; color: var(--indigo-400, #88c); }',
+    '.cy-bubble[data-mode="augment"]::before { content: "➕ "; color: var(--celadon-300, #ae8); }',
+    '.cy-bubble[data-mode="confront"]::before { content: "❗ "; color: var(--vermillion-600, #a22); }',
+    '.cy-bubble[data-mode="cite_classic"]::before { content: "📜 "; color: var(--gold-600, #b80); }',
+    '.cy-bubble[data-mode="clientelism"]::before { content: "🎓 "; color: var(--indigo-600, #66a); }',
+    '.cy-bubble[data-mode="martyr"]::before { content: "❗ "; color: #d22; }',
+    '.cy-bubble[data-mode="martyr"] { border: 2px solid var(--vermillion-700, #911) !important; font-size: 1.05rem !important; }'
+  ].join('\n');
+  document.head.appendChild(st);
+}
+
+// 自动 install·hotkey + ceremony CSS + quick modal Esc/backdrop closer
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(function() { _ty3_installHotkeyListener(); _ty3_installCeremonyCss(); _ty3_installQuickModalCloseListeners(); }, 200);
+  } else {
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(function() { _ty3_installHotkeyListener(); _ty3_installCeremonyCss(); _ty3_installQuickModalCloseListeners(); }, 200);
+    });
+  }
+}
+
+// expose
+if (typeof window !== 'undefined') {
+  window._ty3_renderActionFooter = _ty3_renderActionFooter;
+  window._ty3_promptAction = _ty3_promptAction;
+  window._ty3_openConveningModal = _ty3_openConveningModal;
+  window._ty3_cvSwitchView = _ty3_cvSwitchView;
+  window._ty3_cvConfirm = _ty3_cvConfirm;
+  window._ty3_cvCancel = _ty3_cvCancel;
+  window._ty3_toggleBenchView = _ty3_toggleBenchView;
+  window._ty3_installHotkeyListener = _ty3_installHotkeyListener;
+  window._ty3_installCeremonyCss = _ty3_installCeremonyCss;
+  // v2.6 Slice 8.5 polish·4 modal 真 UI + baseline helper
+  window._ty3_openStanceMatrix = _ty3_openStanceMatrix;
+  window._ty3_openStanceHistory = _ty3_openStanceHistory;
+  window._ty3_openConveningQuick = _ty3_openConveningQuick;
+  window._ty3_forceDecide = _ty3_forceDecide;
+  window._ty3_forceDecideApply = _ty3_forceDecideApply;
+  window._ty3_closeQuickModal = _ty3_closeQuickModal;
+  window._ty3_baselineRecord = _ty3_baselineRecord;
+  window._ty3_installQuickModalCloseListeners = _ty3_installQuickModalCloseListeners;
+  window._ty3_baselineDumpAll = _ty3_baselineDumpAll;
+  window._ty3_baselineClearAll = _ty3_baselineClearAll;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 //  §1·党派访问层
 // ═══════════════════════════════════════════════════════════════════════
 // 设计原则：
@@ -542,145 +2868,6 @@ function _ty3_partyStanceOnTopic(partyName, topicText, topicType) {
 //   - 点「请 Y 党党首论之」 → 党魁名推入 summon·并把议题转给该党首立场表态
 var _ty3_interjectMounted = false;
 
-function _ty3_mountInterjectButton() {
-  if (_ty3_interjectMounted) return;
-  if (typeof document === 'undefined') return;
-  var btn = document.getElementById('ty3-interject-btn');
-  if (btn) { _ty3_interjectMounted = true; return; }
-  btn = document.createElement('div');
-  btn.id = 'ty3-interject-btn';
-  btn.title = '朕欲发言·任意时刻可打断';
-  btn.innerHTML = '<span class="ty3-ij-icon">📜</span><span class="ty3-ij-text">朕意</span>';
-  btn.onclick = _ty3_openInterjectPanel;
-  btn.style.display = 'none';
-  document.body.appendChild(btn);
-  _ty3_interjectMounted = true;
-}
-
-// Show during _ty3_open and hide when Chaoyi closes.
-function _ty3_showInterjectButton() {
-  _ty3_mountInterjectButton();
-  var btn = document.getElementById('ty3-interject-btn');
-  if (btn) btn.style.display = '';
-}
-
-function _ty3_hideInterjectButton() {
-  var btn = document.getElementById('ty3-interject-btn');
-  if (btn) btn.style.display = 'none';
-  var pn = document.getElementById('ty3-interject-panel');
-  if (pn) pn.remove();
-}
-
-function _ty3_openInterjectPanel() {
-  var existing = document.getElementById('ty3-interject-panel');
-  if (existing) { existing.remove(); return; }
-  var pn = document.createElement('div');
-  pn.id = 'ty3-interject-panel';
-  pn.innerHTML =
-    '<div class="ty3-ij-title">〔 朕 欲 发 言 〕</div>'
-    + '<div class="ty3-ij-row" onclick="_ty3_doInterjectTrain()">📜 朕来训示<span class="ty3-ij-hint">直接键入·注入流式生成</span></div>'
-    + '<div class="ty3-ij-row" onclick="_ty3_doInterjectSummon()">👁 朕欲让某人起对<span class="ty3-ij-hint">指定一员立刻发言</span></div>'
-    + '<div class="ty3-ij-row" onclick="_ty3_doInterjectPartyLeader()">🪄 朕请某党党首论之<span class="ty3-ij-hint">让某党党首立刻表态</span></div>'
-    + '<div class="ty3-ij-row" onclick="_ty3_doInterjectSilence()">🔇 卿且退下<span class="ty3-ij-hint">让正在说话者闭嘴·favor-3</span></div>'
-    + '<div class="ty3-ij-row" onclick="_ty3_doInterjectAbort()">⚡ 朕另有要事<span class="ty3-ij-hint">中止本场廷议·议题留中</span></div>'
-    + '<div class="ty3-ij-foot"><button onclick="this.closest(\'div\').remove();">退下</button></div>';
-  document.body.appendChild(pn);
-}
-
-function _ty3_doInterjectTrain() {
-  var pn = document.getElementById('ty3-interject-panel'); if (pn) pn.remove();
-  var q = (typeof prompt === 'function') ? prompt('陛下欲训示何言？') : '';
-  if (!q || !q.trim()) return;
-  q = q.trim();
-  // Reuse the v2 pending-player-line mechanism; the next AI speaker can see it.
-  if (typeof CY !== 'undefined') CY._pendingPlayerLine = q;
-  // 立刻气泡显示
-  if (typeof addCYBubble === 'function') addCYBubble('皇帝', q, false);
-  if (typeof toast === 'function') toast('朕意已注·下一发言者将据此回应');
-}
-
-function _ty3_doInterjectSummon() {
-  var pn = document.getElementById('ty3-interject-panel'); if (pn) pn.remove();
-  // List present speakers who can respond.
-  var pool = [];
-  if (CY._ty2 && Array.isArray(CY._ty2.attendees)) pool = CY._ty2.attendees.slice();
-  else if (CY._ty3 && Array.isArray(CY._ty3.attendees)) pool = CY._ty3.attendees.slice();
-  if (pool.length === 0) { if (typeof toast === 'function') toast('当前无在议名册'); return; }
-  var name = (typeof prompt === 'function') ? prompt('指定何人起对？\n在议名册：' + pool.join('、')) : '';
-  if (!name || !name.trim()) return;
-  name = name.trim();
-  if (pool.indexOf(name) < 0) {
-    if (typeof toast === 'function') toast(name + ' 不在殿中');
-    return;
-  }
-  CY._ty3_pendingSummon = name;
-  if (typeof addCYBubble === 'function') addCYBubble('皇帝', '——着' + name + '起对。', false);
-  if (typeof toast === 'function') toast('召 ' + name + ' 起对');
-}
-
-function _ty3_doInterjectPartyLeader() {
-  var pn = document.getElementById('ty3-interject-panel'); if (pn) pn.remove();
-  var parties = _ty3_getParties();
-  if (parties.length === 0) { if (typeof toast === 'function') toast('当前无党派可召'); return; }
-  var names = parties.map(function(p){ return p.name + '(' + (p.leader||'?') + ')'; }).join(', ');
-  var pn1 = (typeof prompt === 'function') ? prompt('Party? ' + names) : '';
-  if (!pn1 || !pn1.trim()) return;
-  pn1 = pn1.trim();
-  var leader = _ty3_getPartyLeader(pn1);
-  if (!leader) { if (typeof toast === 'function') toast('党魁未在场：' + pn1); return; }
-  CY._ty3_pendingSummon = leader.name;
-  if (typeof addCYBubble === 'function') addCYBubble('皇帝', '令' + leader.name + '为' + pn1 + '发言。', false);
-  if (typeof toast === 'function') toast('召党魁 ' + leader.name);
-}
-
-function _ty3_doInterjectSilence() {
-  var pn = document.getElementById('ty3-interject-panel'); if (pn) pn.remove();
-  // Interrupt current AI output and penalize the current speaker.
-  if (typeof CY !== 'undefined') {
-    if (CY.abortCtrl && typeof CY.abortCtrl.abort === 'function') {
-      try { CY.abortCtrl.abort(); } catch(_){}
-    }
-    // Find the current speaker from the latest cy-bubble.
-    var lastSpeaker = '';
-    try {
-      var bubbles = document.querySelectorAll('#cy-body .cy-bubble');
-      if (bubbles.length > 0) {
-        var last = bubbles[bubbles.length - 1];
-        var head = last.parentElement && last.parentElement.querySelector('div');
-        if (head) lastSpeaker = (head.textContent||'').trim();
-      }
-    } catch(_){}
-    if (lastSpeaker) {
-      var ch = (typeof findCharByName === 'function') ? findCharByName(lastSpeaker) : null;
-      if (ch) {
-        ch.favor = Math.max(-100, (ch.favor||0) - 3);
-        // 该党 cohesion-1(公开下脸)
-        if (ch.party) {
-          var pp = _ty3_getPartyObj(ch.party);
-          if (pp) pp.cohesion = Math.max(0, ((parseInt(pp.cohesion,10)||50) - 1));
-        }
-        if (typeof addCYBubble === 'function') addCYBubble('内侍', '〔 ' + lastSpeaker + ' 缄口·朕命之 〕', true);
-      }
-    }
-    if (typeof addCYBubble === 'function') addCYBubble('皇帝', '——卿且退下。', false);
-  }
-  if (typeof toast === 'function') toast('当前发言者 favor-3');
-}
-
-function _ty3_doInterjectAbort() {
-  var pn = document.getElementById('ty3-interject-panel'); if (pn) pn.remove();
-  if (typeof CY !== 'undefined') CY._abortChaoyi = true;
-  // 议题留中
-  var topic = '';
-  if (CY._ty2 && CY._ty2.topic) topic = CY._ty2.topic;
-  else if (CY._ty3 && CY._ty3.topic) topic = CY._ty3.topic;
-  if (topic) {
-    if (!GM._ccHeldItems) GM._ccHeldItems = [];
-    GM._ccHeldItems.push({ topic: topic, from: '廷议中止', turn: GM.turn });
-    if (typeof addCYBubble === 'function') addCYBubble('皇帝', '朕另有要事·此事留中。', false);
-  }
-  if (typeof toast === 'function') toast('廷议中止·议题入留中册');
-}
 
 // ═══════════════════════════════════════════════════════════════════════
 //  §3·阶段 0·议前预审(留中 / 私决 / 下议 / 明发)
@@ -688,12 +2875,31 @@ function _ty3_doInterjectAbort() {
 // 接 GM._pendingTinyiTopics·让玩家选择四种处置方式·避免直接进廷议无回旋
 
 function _ty3_open(seedTopic) {
-  // Entry point: show controls, then open pre-audit.
-  _ty3_showInterjectButton();
+  // Entry point: show controls, then open pre-audit. (v2.6 Slice 4.5·删浮按钮·改 _cyShowInputRow 永显底部 input)
+  if (typeof _cyShowInputRow === 'function') _cyShowInputRow(true);
+  // v2.6 polish·Round 3·剧本切后 GM.chars 已变·mentor index 必须刷·避 stale 数据 (e.g. 切到绍宋仍读天启 mentor)
+  try {
+    if (typeof GM !== 'undefined' && Array.isArray(GM.chars)) {
+      var sig = GM.chars.length + ':' + (GM.chars[0] && GM.chars[0].name || '');
+      if (GM._mentorIndexSig !== sig && typeof _ty3_rebuildMentorIndexFromGM === 'function') {
+        _ty3_rebuildMentorIndexFromGM();
+        GM._mentorIndexSig = sig;
+      }
+    }
+  } catch (_mE) {}
+  // v2.6 polish·Round 3·convening 民意度 / 言官离心 init·此前 fn 存在但无人调·全 dynamics silently dead
+  try {
+    if (typeof _ty3_initConveningCounters === 'function') {
+      var _scn = (typeof getScenarioOrLegacy === 'function') ? getScenarioOrLegacy() : (typeof GM !== 'undefined' && GM.scenario);
+      _ty3_initConveningCounters(_scn);
+    }
+  } catch (_cE) {}
   _ty3_openPreAudit(seedTopic);
 }
 
 function _ty3_openPreAudit(seedTopic) {
+  // v2.6 Slice 4.5 currentPhase update·六轮 audit hard #1
+  if (typeof CY !== 'undefined' && CY._ty3) CY._ty3.currentPhase = 'preAudit';
   var bg = document.createElement('div');
   bg.id = 'ty3-preaudit-bg';
   bg.style.cssText = 'position:fixed;inset:0;z-index:1300;background:rgba(0,0,0,0.78);display:flex;align-items:center;justify-content:center;';
@@ -778,7 +2984,7 @@ function _ty3_openPreAudit(seedTopic) {
 
   html += '<div class="ty3-pa-opt ty3-pa-public" onclick="_ty3_paChoose(\'public\')">'
     + '<div class="ty3-pa-opt-name">📜 明 发·廷议</div>'
-    + '<div class="ty3-pa-opt-cost">完整七阶段/div>'
+    + '<div class="ty3-pa-opt-cost">完整七阶段</div>'
     + '<div class="ty3-pa-opt-desc">召三品以上百官·四轮辩议·公开裁决</div>'
     + '</div>';
 
@@ -799,7 +3005,8 @@ function _ty3_openPreAudit(seedTopic) {
   _ty3_paUpdateForecast();
   _ty3_paUpdateProposer(topicMeta);
 
-  // Topic handling note.
+  // Topic handling note. (v2.6 polish·真声明 inp·非 bare 引用·避 ReferenceError)
+  var inp = document.getElementById('ty3-pa-topic');
   if (inp) inp.oninput = _ty3_paUpdateForecast;
 
   // 鏆傚瓨 meta
@@ -1099,7 +3306,7 @@ function _ty3_paDoHold(topic, meta) {
   }
   if (typeof toast === 'function') toast(topic.slice(0,16) + ' 留中');
   if (typeof addEB === 'function') addEB('tinyi-preaudit', 'held: ' + topic);
-  _ty3_hideInterjectButton();
+  // v2.6 Slice 4.5·删浮按钮·_cyShowInputRow 由 closeChaoyi 处理
   if (typeof closeChaoyi === 'function') closeChaoyi();
 }
 
@@ -1167,7 +3374,7 @@ function _ty3_paCancel() {
   var bg = document.getElementById('ty3-preaudit-bg');
   if (bg) bg.remove();
   CY._ty3_paMeta = null;
-  _ty3_hideInterjectButton();
+  // v2.6 Slice 4.5·删浮按钮·_cyShowInputRow 由 closeChaoyi 处理
   if (typeof closeChaoyi === 'function') closeChaoyi();
 }
 
@@ -1328,6 +3535,8 @@ function _ty3_dgPick(choice) {
 }
 
 function _ty3_settleArchonGrade(decision, opts) {
+  // v2.6 Slice 4.5 currentPhase update
+  if (typeof CY !== 'undefined' && CY._ty3) CY._ty3.currentPhase = 'archon';
   var info = _ty3_computeArchonGrade();
   var notes = _ty3_applyArchonGrade(info.grade, opts || {});
   CY._ty3_archonGrade = info.grade;
@@ -1544,9 +3753,14 @@ function _ty3_renderRegaliaList() {
     var orig = window._cy_pickMode;
     window._cy_pickMode = function(mode) {
       if (mode === 'tinyi') {
-        if (typeof CY !== 'undefined') CY.mode = mode;
-        _ty3_open();
-        return;
+        // v2.6 Slice 0·v3 gate flag·默认 v3 ON (useTinyiV3 != false)·user 主动设 false 才 fallback v2
+        var v3On = !(window.P && window.P.conf && window.P.conf.useTinyiV3 === false);
+        if (v3On) {
+          if (typeof CY !== 'undefined') CY.mode = mode;
+          _ty3_open();
+          return;
+        }
+        // fallback·走 v2 (orig)·v2 path 已加 ChronicleTracker + ClassEngine + partyStrife 集成 (Slice 0.0b)
       }
       return orig.apply(this, arguments);
     };
@@ -1564,11 +3778,7 @@ if (typeof window !== 'undefined') {
   window._ty3_paChoose = _ty3_paChoose;
   window._ty3_paCancel = _ty3_paCancel;
   window._ty3_paUpdateForecast = _ty3_paUpdateForecast;
-  window._ty3_doInterjectTrain = _ty3_doInterjectTrain;
-  window._ty3_doInterjectSummon = _ty3_doInterjectSummon;
-  window._ty3_doInterjectPartyLeader = _ty3_doInterjectPartyLeader;
-  window._ty3_doInterjectSilence = _ty3_doInterjectSilence;
-  window._ty3_doInterjectAbort = _ty3_doInterjectAbort;
+  // v2.6 Slice 4.5·5 浮按钮 expose 已删·改 _ty3_onPlayerSpeak 主分发
   window._ty3_dgPick = _ty3_dgPick;
   window._ty3_settleArchonGrade = _ty3_settleArchonGrade;
   window._ty3_computeArchonGrade = _ty3_computeArchonGrade;
@@ -1613,6 +3823,8 @@ try {
 
 function _ty3_phase1_openSeating(topic, meta) {
   if (!topic) return;
+  // v2.6 Slice 4.5 currentPhase update
+  if (typeof CY !== 'undefined' && CY._ty3) CY._ty3.currentPhase = 'seating';
   var proposerName = (meta && meta.proposer) || '';
   var proposerCh = proposerName ? (typeof findCharByName === 'function' ? findCharByName(proposerName) : null) : null;
   var proposerParty = proposerCh && proposerCh.party ? proposerCh.party : '';
@@ -1761,7 +3973,7 @@ function _ty3_phase1_cancel() {
   var bg = document.getElementById('ty3-seating-bg');
   if (bg) bg.remove();
   if (typeof CY !== 'undefined') CY._ty3 = null;
-  _ty3_hideInterjectButton();
+  // v2.6 Slice 4.5·删浮按钮·_cyShowInputRow 由 closeChaoyi 处理
   if (typeof closeChaoyi === 'function') closeChaoyi();
 }
 
@@ -1784,7 +3996,8 @@ function _ty3_phase1_startDebate() {
     _reformType: CY._ty3.meta && CY._ty3.meta.reformType,
     _reformId: CY._ty3.meta && CY._ty3.meta.reformId
   };
-  CY._ty3.attendees.forEach(function(n) { CY._ty2.stances[n] = { current: 'neutral', initial: 'neutral', locked: false, confidence: 0 }; });
+  // v2.6 polish·init stance·**必含 source: 'init'** + history·防 Slice 3 hybrid 锁 silently 失效 (源 undefined 时 source === 'dims-initial' 假)
+  CY._ty3.attendees.forEach(function(n) { CY._ty2.stances[n] = { current: 'neutral', initial: 'neutral', locked: false, confidence: 0, source: 'init', history: [] }; });
   CY.phase = 'tinyi3';
   if (typeof showChaoyiSetup === 'function' && !document.getElementById('cy-body')) {
     showChaoyiSetup();
@@ -1841,6 +4054,8 @@ function _ty3_pickFallbackSpeakers(excludeNames, n) {
 
 async function _ty3_phase2_run() {
   if (!CY._ty3 || !CY._ty2) return;
+  // v2.6 Slice 4.5 currentPhase update
+  CY._ty3.currentPhase = 'debate';
   var body = (typeof _$ === 'function') ? _$('cy-body') : document.getElementById('cy-body');
   if (body) body.innerHTML = '';
   var topicEl = (typeof _$ === 'function') ? _$('cy-topic') : document.getElementById('cy-topic');
@@ -1856,6 +4071,28 @@ async function _ty3_phase2_run() {
   CY._ty3_pendingSummon = null;
   if (typeof _cyShowInputRow === 'function') _cyShowInputRow(true);
   if (typeof _ty2_render === 'function') _ty2_render();
+
+  // v2.6 Slice 3·hybrid stance·Round 1 前算所有 attendees initial stance (dims 锚定·不可变)
+  try {
+    if (typeof _ty3_initialStanceFromDims === 'function' && CY._ty3.attendees && CY._ty2.stances) {
+      var tags = (typeof _ty3_inferTopicTags === 'function')
+        ? _ty3_inferTopicTags((CY._ty3.meta && CY._ty3.meta.topicType) || (CY._ty2 && CY._ty2.topicType), CY._ty3.topic)
+        : [];
+      CY._ty3.attendees.forEach(function(name) {
+        var ch = (typeof findCharByName === 'function') ? findCharByName(name) : null;
+        if (!ch) return;
+        var st = CY._ty2.stances[name] || (CY._ty2.stances[name] = {});
+        var init = _ty3_initialStanceFromDims(ch, CY._ty3.topic, tags);
+        st.initial = init.stance;      // 锁·不可变
+        st.current = st.current || init.stance;
+        st.confidence = (st.confidence != null) ? st.confidence : Math.round(init.intensity * 100);
+        st.history = st.history || [];
+        st.source = 'dims-initial';
+      });
+    }
+  } catch (_initStE) {
+    try { window.TM && TM.errors && TM.errors.captureSilent(_initStE, 'tinyi-initial-stance'); } catch (_) {}
+  }
 
   var prevSpeeches = [];
   var alliedSpeakers = _ty3_pickAlliedSpeakers();
@@ -1934,8 +4171,15 @@ async function _ty3_safeGenSpeech(name, roundNum, prevSpeeches) {
   try {
     var r = await _ty2_genOneSpeech(name, roundNum, prevSpeeches);
     if (r && r.stance && CY._ty2 && CY._ty2.stances && CY._ty2.stances[name]) {
-      CY._ty2.stances[name].current = r.stance;
-      if (r.confidence != null) CY._ty2.stances[name].confidence = r.confidence;
+      var _stE = CY._ty2.stances[name];
+      // v2.6 Slice 3·hybrid·initial 锁 (dims-initial 时不 overwrite)·current 可变
+      _stE.current = r.stance;
+      if (r.confidence != null) _stE.confidence = r.confidence;
+      _stE.history = _stE.history || [];
+      _stE.history.push({ round: roundNum, stance: r.stance, reason: r.reason || '', t: Date.now() });
+      if (_stE.source === 'dims-initial' && r.stance !== _stE.initial) {
+        _stE.source = 'llm-adjusted';
+      }
     }
     if (typeof _ty2_render === 'function') _ty2_render();
     return r;
@@ -1949,8 +4193,13 @@ async function _ty3_handlePlayerInterject(prevSpeeches) {
   if (!CY || !CY._pendingPlayerLine) return false;
   var line = CY._pendingPlayerLine;
   CY._pendingPlayerLine = null;
-  if (typeof _ty2_playerTriggeredResponse === 'function') {
-    try { await _ty2_playerTriggeredResponse(line); } catch(_){}
+  // v2.6 Slice 4.5·改调 _ty3_onPlayerSpeak·按 currentPhase 8 handler 分发
+  if (typeof _ty3_onPlayerSpeak === 'function') {
+    try { await _ty3_onPlayerSpeak(line); } catch (_e) {
+      try { window.TM && TM.errors && TM.errors.captureSilent(_e, 'tinyi-onPlayerSpeak'); } catch (_) {}
+    }
+  } else if (typeof _ty2_playerTriggeredResponse === 'function') {
+    try { await _ty2_playerTriggeredResponse(line); } catch (_) {}
   }
   return true;
 }
@@ -2156,6 +4405,8 @@ function _ty3_checkConsensusEvent() {
 // 一般档位按 prestige 筛选·S 档可越级钦点
 
 function _ty3_phase5_openDraftPicker(decision, archonGrade, opts) {
+  // v2.6 Slice 4.5 currentPhase update
+  if (typeof CY !== 'undefined' && CY._ty3) CY._ty3.currentPhase = 'draft';
   if (!opts) opts = {};
   if (!decision || decision.mode === 'defer') return; // 留待再议无草诏
   var topic = (CY._ty2 && CY._ty2.topic) || '';
@@ -2507,8 +4758,19 @@ function _ty3_phase3_buildCandidates(targetOffice, meta) {
 }
 
 function _ty3_phase3_open(targetOffice, callback, meta) {
+  // v2.6 Slice 4.5 currentPhase update
+  if (typeof CY !== 'undefined' && CY._ty3) CY._ty3.currentPhase = 'vote';
   var byParty = _ty3_phase3_buildCandidates(targetOffice, meta);
   var entries = Object.entries(byParty);
+  // v2.6 polish·flatten 候选·让 hotkey 1-9 真能按序拾取 (_ty3_phase3VoteIndex)
+  if (typeof CY !== 'undefined' && CY._ty3) {
+    var flat = [];
+    entries.forEach(function(pair) {
+      var pName = pair[0];
+      (pair[1].candidates || []).forEach(function(c) { flat.push({ name: c.name, party: pName }); });
+    });
+    CY._ty3._phase3Candidates = flat;
+  }
   if (entries.length === 0) {
     if (typeof toast === 'function') toast('无可廷推候选');
     if (typeof callback === 'function') callback(null);
@@ -2914,6 +5176,8 @@ function _ty3_phase6_resolveSeal(force, ctx) {
 }
 
 function _ty3_phase6_open(decision, archonGrade, opts) {
+  // v2.6 Slice 4.5 currentPhase update
+  if (typeof CY !== 'undefined' && CY._ty3) CY._ty3.currentPhase = 'seal';
   if (!decision || decision.mode === 'defer') return;
   if (archonGrade === 'S') {
     if (typeof addCYBubble === 'function') addCYBubble('内侍', '★ S 档·圣旨煌煌·跳过用印阶段·诏命直颁。', true);
@@ -3225,7 +5489,8 @@ function _ty3_phase12_onAccusationApproved(topic, accusedNames, accuser, topicMe
         ch.prestige = Math.max(0, (ch.prestige || 50) - sanction);
         ch.stress = Math.min(100, (ch.stress || 0) + Math.max(12, sanction + 8));
         if (typeof NpcMemorySystem !== 'undefined' && NpcMemorySystem.remember) {
-          NpcMemorySystem.remember(nm, 'Impeachment approved: ' + (topic || ''), 'politics', 8);
+          // v2.6 polish·emo '恨' (非 'politics' 无效值)·event 古文 (非 English)·跟其他 remember 调一致
+          NpcMemorySystem.remember(nm, '准奏弹劾·议《' + ((topic || '').slice(0, 24)) + '》·定罪 -' + sanction + ' 名望', '恨', 8, accuser || '言官');
         }
       }
     });
@@ -3353,6 +5618,8 @@ function _ty3_phase3b_openSpawnDialog() {
 function _ty3_phase3b_doSpawn() { _ty3_phase3b_openSpawnDialog(); }
 
 if (typeof window !== 'undefined') {
+  // v2.6 Slice 0.5·expose _ty3_phase6_recordSeal·Slice 8 hook 必需 (verified 八轮 audit·v3 漏暴露此函数)
+  window._ty3_phase6_recordSeal = _ty3_phase6_recordSeal;
   window._ty3_phase3_open = _ty3_phase3_open;
   window._ty3_phase3_qinDing = _ty3_phase3_qinDing;
   window._ty3_phase3_doPublicVote = _ty3_phase3_doPublicVote;
@@ -3674,6 +5941,26 @@ function _ty3_phase14_recordChaoyiSummary(decision, opts) {
   if (CY._ty2 && typeof CY._ty2 === 'object') CY._ty2.chaoyiTrackId = item.chaoyiTrackId;
   if (GM.recentChaoyi[0]) GM.recentChaoyi[0].chaoyiTrackId = item.chaoyiTrackId;
   if (typeof addEB === 'function') addEB('Court Debate', 'Recorded summary: ' + topic);
+  // v2.6 polish·auto-collect baseline snapshot 到 localStorage·user 跑 game 即累积·无需手填 actual 字段
+  try {
+    if (typeof _ty3_baselineRecord === 'function' && typeof localStorage !== 'undefined') {
+      var snap = _ty3_baselineRecord('auto-' + (GM.turn || 0) + '-' + topic.slice(0, 12));
+      if (snap) {
+        var key = 'ty3_baselines';
+        var arr = [];
+        try { arr = JSON.parse(localStorage.getItem(key) || '[]'); } catch (_pe) {}
+        if (!Array.isArray(arr)) arr = [];
+        arr.push(snap);
+        if (arr.length > 50) arr = arr.slice(-50);  // 限 50·避撑爆 localStorage
+        // v2.6 polish·Round 5·QuotaExceededError guard·若 localStorage 满·尝试缩到 10 + 再写
+        try { localStorage.setItem(key, JSON.stringify(arr)); }
+        catch (_quotaE) {
+          try { localStorage.setItem(key, JSON.stringify(arr.slice(-10))); }
+          catch (_quotaE2) { console.warn('[baseline] localStorage 满·snapshot 丢弃·调 _ty3_baselineClearAll() reset'); }
+        }
+      }
+    }
+  } catch (_blE) {}
   return item;
 }
 
@@ -3687,11 +5974,11 @@ function _ty3_syncChaoyiChronicleTrack(payload) {
   if (!trackId) return null;
   var stakeholders = Array.isArray(payload.stakeholders) ? payload.stakeholders.slice(0, 8) : [];
   ChronicleTracker.upsert({
-    type: 'chaoyi_pending',
-    category: '\u671D\u8BAE\u5F85\u843D\u5B9E',
-    sourceType: 'chaoyi_pending',
+    type: 'tingyi_pending',     // v2.6 Slice 11\u00B7\u6539 tingyi (\u5EF7\u8BAE)\u00B7\u975E chaoyi (\u671D\u8BAE\u00B7\u8BED\u4E49\u9519)\u00B7user "\u5EF7\u8BAE\u5F85\u843D\u5B9E\u5361\u7F3A" \u771F\u539F\u56E0
+    category: '\u5EF7\u8BAE\u5F85\u843D\u5B9E',     // \u5EF7\u8BAE\u5F85\u843D\u5B9E
+    sourceType: 'tingyi_pending',
     sourceId: trackId,
-    title: String(payload.topic || '').slice(0, 60) || '\u671D\u8BAE',
+    title: String(payload.topic || '').slice(0, 60) || '\u5EF7\u8BAE',
     actor: payload.actor || '',
     stakeholders: stakeholders,
     currentStage: payload.currentStage || '\u8BB0\u5F55',
