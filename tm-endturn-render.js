@@ -1266,7 +1266,12 @@ function _endTurn_render(shizhengji, zhengwen, playerStatus, playerInner, edicts
       try {
         if (typeof _awaitPostTurnJobsForSave === 'function') await _awaitPostTurnJobsForSave(['sc25']);
         _prepareGMForSave();
-    var _autoState = { GM: deepClone(GM), P: deepClone(P) };
+    // A-1·端回合自动封存·走 selective snapshot·deepClone(GM) 2-5s 同步 → 400-600ms
+    var _autoT0 = Date.now();
+    var _gmSnap = (typeof _autoSaveSnapshotGM === 'function') ? _autoSaveSnapshotGM() : deepClone(GM);
+    var _autoState = { GM: _gmSnap, P: deepClone(P) };
+    var _autoSnapMs = Date.now() - _autoT0;
+    if (_autoSnapMs > 800) console.warn('[AutoSave] 端回合 snapshot 耗 '+_autoSnapMs+'ms·考虑 A-2');
     var _sc3 = typeof findScenarioById === 'function' ? findScenarioById(GM.sid) : null;
     var _autoMeta = {
       name: '自动封存·' + (typeof getTSText==='function'?getTSText(GM.turn):'T'+GM.turn),
@@ -1336,8 +1341,9 @@ function _endTurn_render(shizhengji, zhengwen, playerStatus, playerInner, edicts
         try{
           if (typeof _awaitPostTurnJobsForSave === 'function') await _awaitPostTurnJobsForSave(['sc25']);
           if (typeof _prepareGMForSave === 'function') _prepareGMForSave();
+          // A-1·N 回合 autoSave 走 selective snapshot
           var _asd=deepClone(P);
-          _asd.gameState=deepClone(GM);
+          _asd.gameState=(typeof _autoSaveSnapshotGM === 'function') ? _autoSaveSnapshotGM() : deepClone(GM);
           _asd._saveMeta={turn:GM.turn,gameMode:(P.conf&&P.conf.gameMode)||'',saveName:GM.saveName};
           window.tianming.autoSave(_asd).catch(function(e){ (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'catch] async:') : console.warn('[catch] async:', e); });
         }catch(e){ console.warn("[catch] \u9759\u9ED8\u5F02\u5E38:", e.message || e); }

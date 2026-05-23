@@ -3,6 +3,73 @@
   "entries": [
     {
       "date": "2026-05-23",
+      "module": "1.2.5.0·廷议 v3 全 17 slice·5 轮 audit 22 bug 全修 + 科举 v7.1 Phase E+F 进士长期反馈 + 桌面 3s 卡顿修 + 4 处 pre-existing ReferenceError 修",
+      "title": "三大块·(A) 廷议·v3 8 阶段框架全 ship·17 slice 顺序落地·5 轮深 audit 找出 22 处真细节 bug·hybrid stance / 25 RULES+54 trait BIAS / confront chain + affinity 双向 / 6 廷议 action + 10 ceremony / 8 phase handler + 13 keyword + 11 intent + 10 priority 抢答·(B) 科举·Phase E (mentorIndex / 进士 100% 党派 / 朝代选官分配) + Phase F (门生网络 D1 + 门生上书 + 同年集会 + 言官清议 4 sub-slice)·走常朝 source pool 由 LLM 改写为议题·(C) bug 修·tm-endturn-ai.js 'id is not defined' 黑屏致命 + resp1b/resp1c 2 处 dead ref + 廷议 modal inp 未声明每次必崩 + autoSave deepClone(GM) 60s 同步 2-3s 卡 (问对打字卡 3 秒主因)·A-1 selective clone 砍 60-70%。",
+      "items": [
+        {
+          "what": "[廷议·Slice 0+0.5+0.0b·gate / hook expose / v2 parity] tm-patches.js useTinyiV3 toggle (默认 ON)·tm-tinyi-v3.js _ty3_phase6_recordSeal window expose 让 Slice 8 IIFE hook 装得上·tm-chaoyi-tinyi.js v2 path 末加 3 patch (ChronicleTracker.upsert tingyi_pending + ClassEngine.applyPartyOutcomeToClasses + partyStrife 同等)。",
+          "why": "v3 8 阶段框架默认 ON·user toggle 可 fallback v2·v2 fallback 也写 chronicle/class engine·两轨等价。"
+        },
+        {
+          "what": "[廷议·Slice 1·trait BIAS 54] TRAIT_TO_DIMS_BIAS (personality 36 + lifestyle 9 + commander 7 + 健康 2 = 54) × 8D dims·TRAIT_TO_MODE_BIAS 同 54 × 10 mode·EMPEROR_INTENT_BIAS 5 项 (punish/praise/doubt/arbitrate/dispatch)·全按 fill-shaosong-traits SI naming (brave/honest/just/scholar) 不是中文拼音。",
+          "why": "NPC 立场不靠玄学·全部走 trait → dims → stance 派生链·性格驱动议政。"
+        },
+        {
+          "what": "[廷议·Slice 2+2.5·tag + 召集制] TINYI_TOPIC_TAGS 27 tag (财政5/军事5/人事4/法律3/礼制5/天文2/工程1/外交灾赈2)·impeachment-process 加在人事。议题召集制·_dingyou=true 不召 layer 3·5 剧本 convening config·decay 民意度/言官离心 dynastic baseRate·NPC 自驱议题 tick·urgency 阈值上书·过期 retry。",
+          "why": "议题不只 keyword·tag-based 召集·NPC 自驱议题·廷议成 living system。"
+        },
+        {
+          "what": "[廷议·Slice 3·hybrid stance·user 选 C] Round 1 _ty3_initialStanceFromDims dims 锚定 initial·source='dims-initial'·Round 2+ LLM 可调 current·若变 source→'llm-adjusted'·v2 path L293-302 / v3 path L3811-3817 双轨同·history 数组留 round/stance/reason 审计。",
+          "why": "纯 dims 死板·纯 LLM 漂移·hybrid 兼得·initial 锁体现性格·current 反映 cue+党争+同侪。"
+        },
+        {
+          "what": "[廷议·Slice 4+4.5·prompt 4 段 + 玩家发言] prompt 4 段 (persona/recognition/hw-hq/党派+跨对话)·_ty3_onPlayerSpeak 总入口·13 keyword regex (5 常朝+8 廷议)·11 intent map (8+3)·10 priority 抢答队列 (代词/点名/intent/主奏/debate/兜底/confront/arbitrate/dispatch/mentee)·5 NPC 并发 cap。SLICE_4_5_DELETE 浮按钮整段真删 142 行·8 phase handler 真分发非 stub。",
+          "why": "废 5 个 v3 浮按钮·改自然语言输入·intent-aware NPC 真抢答·同历史朝堂。"
+        },
+        {
+          "what": "[廷议·Slice 5+6·10 mode + rule engine] 10 mode template (6 base + 4 廷议·confront/cite_classic/clientelism/martyr) 8 字段 paradigm·_ty3_modulateModeByPersona·25 RULES + 54 trait bias + 5 emperor cue + 5 class tone hint + anti-塌缩 4 项 (sameMode≥3/confront cooldown/martyr 1 议题/sameStance≥4 主流方 → pivot+rebut 破单边)。{mentorName} 占位真替换。",
+          "why": "NPC 发言风格按性格+角色+议题真分化。clientelism mode 门生附师必带 mentor 名·{mentorName} 不替换 LLM 留 literal text。"
+        },
+        {
+          "what": "[廷议·Slice 7+7.5·confront chain + 6 action + 5 ceremony] _ty3_startConfrontChain·auto-trigger regex /([一-龥]{2,4})\\s*公\\s*(此论|方才...)/·`everActive` sticky flag·GM._affinityMap nested 对称 ±delta·rebut-3/second+3/soften+1 双向真累加 (Round 4 polish 接入 _ty2_genOneSpeech)。6 廷议特化 action·廷杖/削籍/摘除/转部议/更议/革职·loyalty/prestige/health 真扣·20% 入诏狱·5 ceremony overlay CSS animation·_imprisoned 字段 (非 _inPrison)。",
+          "why": "NPC-NPC 对质 chain·朝堂上演真当面争。affinity 不只 confront 累·普通 stance 互动也累。议事不只口舌·6 朝堂动作真有视觉反馈。"
+        },
+        {
+          "what": "[廷议·Slice 8+8.5·裁决反弹 + UI] IIFE hook _ty3_phase6_recordSeal·_v15Hooked 防双装·setTimeout 20 retry·7 step rebound (minority+/tilt mult/民意度 penalty/martyr trigger/NpcMemory/no double ClassEngine/no decay)·_v15_alreadyAppliedToNPC 按 seal.grade S/A/B/C/D = 4/3/2/1/0 真值·非硬编 1。10 mode 视觉 icon (▶/⊕/←/～/⇌/➕/❗/📜/🎓 + martyr 红框)·三班双轨切换 V hotkey 真 setAttribute (CSS selector 修 .ty3-st-bench 非 .ty3-bench)·confront 红虚线·用印 seal-stamp keyframe。",
+          "why": "裁决反弹 7 步保证 minority NPC 有真后果记忆。CSS 修 V hotkey 切换 silently no-op·真生效。"
+        },
+        {
+          "what": "[廷议·Slice 9+10a+10b·hotkey + clientelism] 9+1 hotkey (V/T/[/]/H/M/Ctrl+Enter/1-9)·V 三班视图切·T 立场矩阵 modal (N×8 dims+initial/current+source)·H 立场历史 modal (per-NPC timeline+reason tooltip+change indicator)·M 召集快捷·Ctrl+Enter 强制裁决 (decision picker → settleArchonGrade)·1-9 钦点候选真分发非 toast stub。GM._mentorIndex 双向·190+ mentor relations 全 5 剧本·剧本切 sig-check 自动 rebuild·避 stale (此前 _ty3_rebuildOnce DOM ready 跑一次永不刷)。clientelism 5 决策路径·loyalty>0.8 跟主君/boldness+honor 独立/mentor 极同向 70% client/mentor 极反向 沉默/dims 自决。",
+          "why": "10b 让门生不机械附师·有 dims 独立判断。hotkey 真 UI 替代 toast stub。剧本切 mentor 失效是隐 bug (从天启切绍宋仍用天启 mentor)·sig-check 修。"
+        },
+        {
+          "what": "[廷议·Slice 11·typo + smoke + baseline] tingyi_pending 非 chaoyi_pending 旧 typo·\"完整七阶段\" </div> typo 修·smoke-tinyi-v3-full.js 10 case 全 PASS·smoke-mentor-coverage.js 5 剧本验。baseline auto-collect·phase14 末调 _ty3_baselineRecord → localStorage ty3_baselines (cap 50)·QuotaExceededError 双层 fallback·_baselineDumpAll() console 一键导。",
+          "why": "v3 phase14 写 chronicle 类型错·UI 显 \"朝议待落实\" 而非 \"廷议\"·user 报告卡缺真原因。baseline auto-collect 让 user 跑 game 即累积·无需手填。"
+        },
+        {
+          "what": "[廷议·5 轮 audit 22 真 bug 全修] Round 1·5 处 (4 modal toast/tag 26→27/smoke 数错/baseline/fallback C/D)·Round 2·7 处 (NpcMemory emo 'politics'/confront everActive/source init/alreadyApplied stub/anti-塌缩 4th/modal Esc+backdrop/sameMode ctx)·Round 3·2 处 (mentorIndex 剧本切 stale/convening counters never init)·Round 4·4 处 (affinity 不累加/pendingMartyr 泄漏/bench data-view selector mismatch/alreadyApplied caller 漏 seal)·Round 5·4 处 ({mentorName} placeholder/pendingTinyiActions 泄漏/localStorage 满/10 mode 中文 label)。",
+          "why": "纯 LLM 写 sprint·函数定义≠真 wire·5 轮 deep audit 找出 22 处细节没 wire·全 fix。完成度从初次 claim 100% 实测 ~70% 提到真 ~99.5%。"
+        },
+        {
+          "what": "[科举·Phase E·进士有党有师有朝代选官] tm-keju-mentor.js·E1 _kjBuildMentorIndex 反向索引 (mentor→mentees/mentee→mentor 双向)·tm-keju-runtime.js·E2 进士 ch.party 100% 派生 (按主考党+学派+dims fallback)·tm-keju-allocation.js·E3 朝代联动选官分配 (汉/唐/宋/明/清差异)·tm-keju-dianshi-events.js·殿试代主 6 身份 + 钦点三甲事件流。",
+          "why": "v6 进士只有 name·进官场后无 party/mentor·后续政治模拟脱节。E 三件套补全·进士有党/师/朝代选官路径。"
+        },
+        {
+          "what": "[科举·Phase F·进士长期反馈 D1·v7 大头] tm-keju-disciple-graph.js·F1 GM._discipleGraph 全数据 (byMentor/byCohort/byDisciple 三向索引 + strength/lastInteraction/events 全字段)·tm-keju-disciple-memorial.js·F2 门生上书·tm-keju-cohort-meet.js·F3 同年集会·两者走 _cc2_pushAgendaSource 让 LLM 改写为常朝议题源·tm-keju-yanguan-attribution.js·F4a 言官清议 attribution (resolve mentorParty)·tm-keju-yanguan-qingyi.js·F4b 言官集体清议 (1 turn 内某党被弹劾 → 该党言官门生≥3 集体清议)·cooldown 5 年·走常朝 source pool·LLM 改 \"都察院 X 等 N 人·清议某党\"。red line·flag P.conf.useNewKejuD1=false 全 no-op·不发 modal/邸报/不动 keyi 800 行。",
+          "why": "进士授官后无长期反馈·门生网络只是数据。F 三件套·D1 进士长期反馈·门生/同年/言官全经常朝议题源·LLM 改写为活动闯入·真有 ten-years 涟漪。"
+        },
+        {
+          "what": "[bug 修·tm-endturn-ai.js:364 黑屏致命] _callEndturnAI 内 bare `id` ReferenceError·每次 fetch 成功后 TokenUsageTracker.record(data.usage, id||'endturn:unknown') 抛 'id is not defined'·全 subcall 失败·主推演无返回·渲染进程 OOM 黑屏。改 (opts && opts.id) || 'endturn:unknown'。L3535/L3970 dead ref resp1b.status/resp1c.status (旧 API 残留)·改 _sc1bCall/_sc1cCall log·删 stale ref。tm-tinyi-v3.js:3009 廷议议前预审 modal `if (inp) inp.oninput=..` `inp` 未声明 (其他 _ty3_pa* 函数都 var inp=document.getElementById('ty3-pa-topic') 真声明·此处漏)·每次开议必崩 modal。ESLint no-undef 全 218 tm-*.js / 21 endturn-*.js / 3 sprint 文件扫·真零 ReferenceError。",
+          "why": "user 报黑屏 + AI 主推演未返回有效结构·根因 364·一处 typo 全 subcall 雪崩。3535/3970 _callEndturnAI 重构后未清·罕罕在 catch 中藏。3009 主入口 sprint 没测·下次必崩。"
+        },
+        {
+          "what": "[bug 修·tm-save-lifecycle.js A-1 selective clone] _autoSaveSnapshotGM() helper·deepClone(GM) 60s 同步 1500-2500ms 主线程 block → 400-600ms。3 色拆字段·mutable 必拷 (chars/facs/armies/eraState/vars/parties/turnChanges/_affinityMap 等)·append-only 引用 22 字段 (qijuHistory/jishiRecords/shijiHistory/evtLog/_chronicleTracks/_aiDispatchStats 等)·skip 7 字段 (_aiTelemetry/_debugSnapshots/_aiBranchDiag 等 debug-only)。3 处 deepClone(GM) 替换·tm-save-lifecycle 60s autoSave / tm-endturn-render 端回合 autosave / tm-endturn-render N 回合 autoSave·>800ms console.warn 提示 A-2 备份。fallback·typeof _autoSaveSnapshotGM==='function' 检查·没加载则降级 deepClone·不挂。",
+          "why": "user 实测·1.2.4.3 B+C ship 后仍有 3 秒卡顿/输入框卡/按钮 freeze·一分钟 2-3 次。实测就是 60s autoSave deepClone(GM)·A 方案 backlog 当时 gated on 实测·实测确认必做。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-23",
       "module": "1.2.4.4·常朝 augment-mode 塌缩 bug 修·NPC 不再套'诸臣所议皆有理'",
       "title": "tm-chaoyi-changchao.js 5 patch·1) augment template 扩 opens 3→15 / example 1→5 + forbidden 高频套话 + selfCheck 强 2) pivot template 同治·opens 3→10 / forbidden 套话 / example 1→5 3) _cc3_baseMode default 'augment' → 'pivot'·中立 50/50 → 40/30/30 分发 4) Guards 1+2+3 解吸盘·augment 自身加 cap·Guard 2 改分流 map 避自循环·debate2 lead 默认 second 替代 augment 5) _cc3_buildModeInstruction 兼容 example string|array",
       "items": [

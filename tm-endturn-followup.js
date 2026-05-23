@@ -3315,6 +3315,22 @@
     ctx.record.personnelChanges = Array.isArray(personnelChanges) ? personnelChanges : [];
     ctx.record.hourenXishuo = hourenXishuo || "";
     ctx.record.suggestions = (ctx.results.sc2 && Array.isArray(ctx.results.sc2.suggestions)) ? ctx.results.sc2.suggestions : (Array.isArray(ctx.record.suggestions) ? ctx.record.suggestions : []);
+    // v2.6 Slice 2.5.10·廷议 decay 接入点·tinyi-decay-contract.md
+    // 民意度 / 言官离心 按 dynasty + monthsPerTurn decay·conveningPolitics 7-turn 后 reset·pending events 按 expireTurn 清理
+    try {
+      if (typeof _ty3_v15_decayConveningCounters === 'function') {
+        _ty3_v15_decayConveningCounters();
+      }
+      // v2.6 Slice 2.5.9·NPC 主动议题 tick·言官 / 阁臣 / 党魁 上书
+      if (typeof _ty3_npcProposeTinyiTopicsTick === 'function') {
+        _ty3_npcProposeTinyiTopicsTick();
+      }
+      if (typeof _ty3_checkExpiredTopics === 'function') {
+        _ty3_checkExpiredTopics();
+      }
+    } catch (_tyDecayE) {
+      try { (typeof window !== 'undefined' && window.TM && TM.errors) && TM.errors.captureSilent(_tyDecayE, 'tinyi-decay'); } catch (_) {}
+    }
     ctx.meta.timing.followup = Date.now() - _followupStart;
     return ctx;
   };

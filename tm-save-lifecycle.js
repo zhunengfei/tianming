@@ -1124,12 +1124,56 @@ if(window.tianming&&window.tianming.isDesktop){
   };
 }
 
-// 6. 自动存档（Electron）·2026-05-22 C2+C3 fix·
+// 6. 自动存档（Electron）·2026-05-22 C2+C3 fix·2026-05-23 A-1 fix·
 // C2·加 _autoSaveInFlight 锁防 60s 重入互踩 (await 过程中 setInterval 可能再触发)
 // C3·tm_P_lite 不必每 60s 写·改成每 5 次 (即 5 分钟) 写一次·节约 100-500ms × 4 次
+// A-1·选择性 clone·deepClone(GM) 全量 500-2000ms 主线程同步·拆 mutable / append-only
+//   · mutable 必拷·chars/facs/armies/eraState/vars/parties/turnChanges/_indices 等
+//   · append-only 引用·qijuHistory/jishiRecords/shijiHistory/evtLog/biannianItems/officeChanges/eraStateHistory
+//   · skip·_aiTelemetry 类 debug snapshot (崩溃恢复不需)·_subcallTimings·_aiDispatchStats.errorLog
+//   预期·1500ms → 400-600ms·砍 60-70%·user 报"问对打字卡 3 秒"对应这条
 var _autoSaveInFlight=false;
 var _autoSaveSkipCount=0;
 var _autoSaveLiteTick=0;
+
+// A-1·snapshot helper·浅拷顶 + 选择性深拷·明示 mutable / appendOnly / skip
+// 注·top-level function decl 通过 hoisting 自动 attach 到 window (sloppy mode)·无需占位
+function _autoSaveSnapshotGM(){
+  if (typeof GM === 'undefined' || !GM) return null;
+  // append-only 字段·上层只 push·不改老元素·直接引用 (无 deepClone 成本)
+  var APPEND_ONLY = {
+    qijuHistory:1, jishiRecords:1, shijiHistory:1, evtLog:1, biannianItems:1,
+    officeChanges:1, eraStateHistory:1, conv:1, _chronicle:1, _chronicleTracks:1,
+    _turnReport:1, _foreshadows:1, allCharacters:1, summarizedTurns:1,
+    recentChaoyi:1, _ccHeldItems:1, _aiDispatchStats:1, _subcallTimings:1,
+    _pendingMartyrEvents:1, _pendingTinyiActions:1, _pendingTinyiTopics:1,
+    triggeredHistoryEvents:1, triggeredOffendEvents:1, rigidTriggers:1
+  };
+  // skip·debug-only·崩溃恢复用不上·清掉省 100-300ms
+  var SKIP = {
+    _aiTelemetry:1, _debugSnapshots:1, _aiBranchDiag:1, _aiDiag:1,
+    _sysCacheMode:1, _sysCacheLen:1, _saveMeta:1
+  };
+  var out = {};
+  for (var k in GM) {
+    if (!GM.hasOwnProperty(k)) continue;
+    if (SKIP[k]) continue;
+    if (APPEND_ONLY[k]) {
+      out[k] = GM[k];  // 引用·不拷
+      continue;
+    }
+    var v = GM[k];
+    // 函数·跳·先于 primitive 检查 (typeof function 不是 'object'·会误入 primitive 分支)
+    if (typeof v === 'function') continue;
+    // 原始 / null·直接赋
+    if (v === null || typeof v !== 'object') { out[k] = v; continue; }
+    // mutable·深拷
+    try { out[k] = deepClone(v); }
+    catch (_cE) { out[k] = v; }  // fallback 引用
+  }
+  return out;
+}
+if (typeof window !== 'undefined') window._autoSaveSnapshotGM = _autoSaveSnapshotGM;
 if(window.tianming&&window.tianming.isDesktop){
   // 每60秒自动存档（始终保存P，游戏运行时附带GM） (timer-leak-ok·文件顶层一次性·桌面端生命周期)
   setInterval(async function(){
@@ -1143,8 +1187,15 @@ if(window.tianming&&window.tianming.isDesktop){
       _autoSaveSkipCount=0;
       if(GM.running && typeof _awaitPostTurnJobsForSave === 'function') await _awaitPostTurnJobsForSave();
       if(GM.running && typeof _prepareGMForSave === 'function') _prepareGMForSave();
+      // A-1·P 仍全拷 (小)·GM 走 selective snapshot (省 60-70%)
       var saveData=deepClone(P);
-      if(GM.running){saveData.gameState=deepClone(GM);saveData._saveMeta={turn:GM.turn,scenario:findScenarioById(GM.sid)||{name:''},saveName:GM.saveName,date:new Date().toISOString()};}
+      if(GM.running){
+        var _t0=Date.now();
+        saveData.gameState=_autoSaveSnapshotGM();
+        var _gmMs=Date.now()-_t0;
+        if(_gmMs>800)console.warn('[autoSave] GM snapshot slow:'+_gmMs+'ms·考虑 A-2 incremental');
+        saveData._saveMeta={turn:GM.turn,scenario:findScenarioById(GM.sid)||{name:''},saveName:GM.saveName,date:new Date().toISOString()};
+      }
       await window.tianming.autoSave(saveData);
       // C3·tm_P_lite 5 分钟刷一次·完整 P 已在 autoSave 里·lite 只是 boot 快速恢复用
       _autoSaveLiteTick++;

@@ -361,7 +361,7 @@
           data = await resp.json();
         }
         _checkTruncated(data, label);
-        if (data && data.usage && typeof TokenUsageTracker !== 'undefined') TokenUsageTracker.record(data.usage, id || 'endturn:unknown');
+        if (data && data.usage && typeof TokenUsageTracker !== 'undefined') TokenUsageTracker.record(data.usage, (opts && opts.id) || 'endturn:unknown');
         // §6.5 R2·标准化 _aiDispatchStats·补 successCount + totalTokens
         try {
           if (GM && GM._aiDispatchStats) {
@@ -3532,7 +3532,8 @@
           }
           GM._subcallTimings.sc1b = Date.now() - _sc1bStart;
         } else {
-          console.warn('[sc1b] HTTP', resp1b.status);
+          // dead-code path·_callEndturnAI 要么 throw 要么 return {data}·此处 fallback log·不读 stale resp1b
+          console.warn('[sc1b] empty call result (unexpected)·_sc1bCall=', _sc1bCall);
         }
       } catch(_sc1bErr) {
         console.warn('[sc1b] \u5931\u8D25\uFF08\u4E0D\u5F71\u54CD\u4E3B\u6D41\u7A0B\uFF09:', _sc1bErr.message || _sc1bErr);
@@ -3966,7 +3967,8 @@
           }
           GM._subcallTimings.sc1c = Date.now() - _sc1cStart;
         } else {
-          console.warn('[sc1c] HTTP', resp1c.status);
+          // dead-code path·_callEndturnAI 要么 throw 要么 return {data}·此处 fallback log·不读 stale resp1c
+          console.warn('[sc1c] empty call result (unexpected)·_sc1cCall=', _sc1cCall);
         }
       } catch(_sc1cErr) {
         console.warn('[sc1c] \u5931\u8D25\uFF08\u4E0D\u5F71\u54CD\u4E3B\u6D41\u7A0B\uFF09:', _sc1cErr.message || _sc1cErr);

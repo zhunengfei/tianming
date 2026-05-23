@@ -111,7 +111,8 @@ if (typeof _togglePConf === 'undefined') {
       consolidationEnabled: { on: '已启用后台记忆固化', off: '已关闭后台记忆固化·sc_consolidate 不再调用' },
       semanticRecallAutoload: { on: '已启用语义检索自动加载', off: '已关闭语义检索自动加载·SC_RECALL 第 5 源失效' },
       npcAiPrecision: { on: '已启用 NPC 势力真决策·会真实改动数据并写入账本', off: '已关闭 NPC 势力真决策·走本地模板 + 人格 hints' },
-      npcAiCosmeticEnrich: { on: '已启用 NPC 文字润色·仅改显示文辞', off: '已关闭 NPC 文字润色·不影响真决策' }
+      npcAiCosmeticEnrich: { on: '已启用 NPC 文字润色·仅改显示文辞', off: '已关闭 NPC 文字润色·不影响真决策' },
+      useTinyiV3: { on: '已启用廷议 v3 (默认·8 阶段·新框架)', off: '已关闭 v3·退回 v2 廷议 (简陋·5 阶段·已加 ChronicleTracker/ClassEngine 集成 fallback)' }
     };
     var l = labels[confKey] || { on: '已启用 ' + confKey, off: '已关闭 ' + confKey };
     if (typeof toast === 'function') toast('✅ ' + (on ? l.on : l.off));
@@ -395,6 +396,17 @@ openSettings=function(){
             '<div style="flex:1;">' +
               '<div style="font-size:0.82rem;color:var(--gold);font-weight:600;">NPC 文字润色（cosmetic·不改数据）</div>' +
               '<div style="font-size:0.7rem;color:var(--txt-d);line-height:1.55;margin-top:0.15rem;">只润色 NPC 已有奏疏/诏令的文辞显示，不新增行动、不改财政军务外交地政；用于和“真决策”区分。</div>' +
+            '</div>' +
+          '</label>';
+        })()+
+        // v2.6 Slice 0·廷议 v3 toggle·默认 ON (useTinyiV3 != false)·user 主动关到 v2 fallback
+        (function(){
+          var _v3On = !(P.conf && P.conf.useTinyiV3 === false);
+          return '<label style="display:flex;align-items:flex-start;gap:0.5rem;padding:0.4rem 0;border-top:1px dotted var(--bdr);cursor:pointer;">' +
+            '<input type="checkbox" id="s-tinyi-v3" ' + (_v3On?'checked ':'') + 'onchange="_togglePConf(\'useTinyiV3\',this.checked)" style="margin-top:0.15rem;flex-shrink:0;">' +
+            '<div style="flex:1;">' +
+              '<div style="font-size:0.82rem;color:var(--gold);font-weight:600;">廷议·新框架 v3 (8 阶段·默认启用)</div>' +
+              '<div style="font-size:0.7rem;color:var(--txt-d);line-height:1.55;margin-top:0.15rem;">默认启用 v3 廷议·8 阶段政治模拟 (议前预审/起议/辩议/廷推/钦定/草诏/用印/追责)。关闭则退回 v2 (简陋 5 阶段·已加 ChronicleTracker/ClassEngine fallback)。sprint 测试期遇 bug 关掉走 v2。</div>' +
             '</div>' +
           '</label>';
         })()+
