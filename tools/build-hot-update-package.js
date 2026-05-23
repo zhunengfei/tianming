@@ -91,6 +91,14 @@ function walkAppMainImpl() {
   return [{ abs: APP_MAIN_IMPL, zipPath: '_app_main.js' }];
 }
 
+// 2026-05-23·preload 也热更·APP_ROOT/preload-impl.js → zip 根 _app_preload.js
+// installer 里的 preload.js shim 通过 process.argv (main 透传) 找 hot _app_preload.js·失败 fallback bundled
+function walkAppPreloadImpl() {
+  const APP_PRELOAD_IMPL = path.join(APP_ROOT, 'preload-impl.js');
+  if (!fs.existsSync(APP_PRELOAD_IMPL)) return [];
+  return [{ abs: APP_PRELOAD_IMPL, zipPath: '_app_preload.js' }];
+}
+
 // 2026-05-22·扫 APP_ROOT/scenarios·把官方剧本 JSON 也打进 zip·路径 bundled-scenarios/<file>
 // 让 hot update 也能 ship scenarios 改动·不必等下个 installer
 function walkBundledScenarios() {
@@ -187,6 +195,19 @@ function main() {
     console.log('[hot-update] app main impl·_app_main.js·' + (fs.statSync(appMains[0].abs).size/1024).toFixed(1) + ' KB');
   } else {
     console.warn('[hot-update] WARN·APP_ROOT/main-impl.js 不存在·main shim 将无 hot 实现可加载·只能 fallback bundled');
+  }
+
+  // 2026-05-23·preload 实现·preload-impl.js → _app_preload.js·shim 会找 (sandbox: false 在 main-impl webPreferences)
+  const appPreloads = walkAppPreloadImpl();
+  appPreloads.forEach(entry => {
+    const stat = fs.statSync(entry.abs);
+    zip.addLocalFile(entry.abs, '', '_app_preload.js');
+    manifestFiles.push({ path: entry.zipPath, sha256: sha256File(entry.abs), size: stat.size });
+  });
+  if (appPreloads.length) {
+    console.log('[hot-update] app preload impl·_app_preload.js·' + (fs.statSync(appPreloads[0].abs).size/1024).toFixed(1) + ' KB');
+  } else {
+    console.warn('[hot-update] WARN·APP_ROOT/preload-impl.js 不存在·preload shim 将无 hot 实现可加载·只能 fallback bundled');
   }
 
   const manifest = {

@@ -3,6 +3,33 @@
   "entries": [
     {
       "date": "2026-05-23",
+      "module": "1.2.6.2·preload 也可热更新·installer 内只剩 2 个 40-行 shim 永不动",
+      "title": "在 1.2.6.0/1.2.6.1 (main.js 可热更 + incremental update) 之上·补 preload.js shim·让 preload 实现 (preload-impl.js → _app_preload.js) 也走热更路径。installer 重打 1.2.6.0·从此 installer 里只有 2 个 shim 文件 (main.js·preload.js·共 ~80 行) + 一份 bundled fallback (main-impl.js + preload-impl.js)·**所有业务逻辑都可热更**。webPreferences 加 sandbox: false (让 preload shim 能 require 外部文件)·contextIsolation 仍 true 保 renderer/preload 隔离。additionalArguments 透传 --hot-preload=<path> 给 preload·preload shim 读 process.argv 找 hot 实现。",
+      "items": [
+        {
+          "what": "[preload·shim] preload.js 拆 shim·原 188 行 → preload-impl.js·shim 30 行·读 process.argv 找 --hot-preload=<path>·存在 require·失败 fallback ./preload-impl.js·同 main shim paradigm。",
+          "why": "preload 在 renderer 进程·无 app 模块·无法自行 getPath('userData')·必须 main 透传 hot path。"
+        },
+        {
+          "what": "[main-impl·webPreferences] BrowserWindow 加 sandbox: false + additionalArguments: ['--hot-preload='+candidate] (有 hot 时)。getHotPreloadCandidate() helper·从 active hot dir 找 _app_preload.js·与 getActiveHotUpdate 一致 gate (enabled + version > buildVersion + index.html exists)。",
+          "why": "sandbox: true (Electron 20+ 默认) 禁 preload require 外部文件·shim 模式必须 sandbox: false。contextIsolation 仍 true·renderer 仍无法访问 preload 全局·安全模型仅 preload 信任域扩。"
+        },
+        {
+          "what": "[build·_app_preload.js] build-hot-update-package.js walkAppPreloadImpl()·APP_ROOT/preload-impl.js → zip 根 _app_preload.js·入 manifestFiles。",
+          "why": "hot 包必带 _app_preload.js 才能让 shim 接管·零 _app_preload.js 时 shim fallback bundled·安全降级。"
+        },
+        {
+          "what": "[installer] package.json build.files 加 preload-impl.js·确保 installer 出厂带 bundled fallback。重打 installer 1.2.6.0 → E:\\版本\\1.2.6.0\\天命-1.2.6.0-x64.exe。",
+          "why": "shim + bundled fallback 必须随 installer 出厂·之后 preload 改动只动 preload-impl.js·hot 替换 _app_preload.js·shim 自动加载新版。"
+        },
+        {
+          "what": "[范围 audit] installer 出厂后·不可热更的只剩·main.js (shim·40 行) + preload.js (shim·30 行) + Electron runtime + node_modules + package.json (read once at boot)。**所有业务代码 / 资源 / 剧本 / web / preload 实现 / main 实现 都可热更**。",
+          "why": "user 要求'新安装包安装的游戏要实现所有内容都能热更新'·此次落地·此后只有 Electron 升级 / 大幅改 shim / 改 node_modules 才需 rebuild installer。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-23",
       "module": "1.2.6.0/1.2.6.1·incremental hot update 上线 + main.js 可热更新·彻底解 430MB 全包痛点",
       "title": "三块·(A) Server-side·upload-hot.py 加 sha-content-addressable 文件 store (/files/<sha2>/<sha-rest>/<basename>) + per-version manifest (/manifests/<ver>.json)·跨版本 dedup·91% 文件 (portraits/assets) 永不重复传。(B) Client-side·main.js incremental install path·新增·feed 有 manifestUrl + filesBaseUrl + local 有 manifest → diff·只下变化文件·hardlink 不变文件·sha 逐个验证·失败 fallback 全 zip·sendHotUpdateStatus incremental-plan/progress event 给 UI。典型 ship 1-5 MB → 不再 430 MB·~100-400x 节省。(C) main.js 拆 shim·原内容 → main-impl.js·shim 启动时 prefer hot dir 的 _app_main.js·失败 fallback bundled·**从此 main.js 可走 hot update·不再需要 rebuild .exe**。配套·build-hot-update-package.js 加 _app_main.js 打包 (从 APP_ROOT/main-impl.js)·hot-latest.json schema 加 manifestUrl + filesBaseUrl·installer 1.2.6.0 重打·package.json buildVersion + version + 输出 path E:\\版本\\1.2.6.0·build.files 加 main-impl.js。",
       "items": [
