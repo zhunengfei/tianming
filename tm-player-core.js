@@ -2147,6 +2147,21 @@ function openCharDetail(charName) {
     h += '</div>';
   }
 
+  // v7.1·F4d·言官出身 3 行·若 ch 是言官 + 有 mentor·显示出身块
+  if (typeof _kjYanguanResolveAttribution === 'function') {
+    try {
+      var _yAttr = _kjYanguanResolveAttribution(ch);
+      if (_yAttr && _yAttr.isYanguan && _yAttr.mentor) {
+        h += '<div class="qp-sec"><div class="qp-sec-title">出 身</div>';
+        h += '<div style="padding:6px 10px;font-size:11px;line-height:1.7;background:rgba(0,0,0,0.22);border-left:2px solid var(--gold-500);border-radius:0 3px 3px 0;">';
+        h += '<div>' + (_yAttr.cohortYear ? _yAttr.cohortYear + '年' : '') + '进士</div>';
+        h += '<div>门生·' + escHtml(_yAttr.mentor) + (_yAttr.mentorAlive ? '' : ' (已逝)') + '·强度 ' + _yAttr.discipleStrength + '</div>';
+        if (_yAttr.mentorParty) h += '<div style="color:var(--gold-400);">清议倾向·' + escHtml(_yAttr.mentorParty) + ' (恩师党)</div>';
+        h += '</div></div>';
+      }
+    } catch(_yAttrE) {}
+  }
+
   // 外貌 / 生平（省略号）
   if (ch.appearance) {
     h += '<div class="qp-sec"><div class="qp-sec-title">外 貌</div>';

@@ -494,6 +494,19 @@
                 try { await checkKejuTrigger(); }
                 catch(e) { try { console.warn('[deferred·phase5] keju trigger', e); } catch(_){} }
               }
+              // v7.1·F2/F3/F4c·D1 长尾 endTurn hooks·flag gate by P.conf.useNewKejuD1
+              if (typeof _kjCheckDiscipleMemorialTriggers === 'function') {
+                try { _kjCheckDiscipleMemorialTriggers(); }
+                catch(e) { try { console.warn('[deferred·phase5] F2 disciple memorial', e); } catch(_){} }
+              }
+              if (typeof _kjCheckCohortMeetTriggers === 'function') {
+                try { _kjCheckCohortMeetTriggers(); }
+                catch(e) { try { console.warn('[deferred·phase5] F3 cohort meet', e); } catch(_){} }
+              }
+              if (typeof _kjCheckYanguanQingyiTriggers === 'function') {
+                try { _kjCheckYanguanQingyiTriggers(); }
+                catch(e) { try { console.warn('[deferred·phase5] F4c yanguan qingyi', e); } catch(_){} }
+              }
             }
           });
           // 兼容 legacy 触发器·把 ctx.deferredSteps 'court-close' 登记的 fn 包装成单 closure (slice 7 时移除)
@@ -583,6 +596,13 @@
         if (P.keju && P.keju.enabled && !P.keju.currentExam && typeof checkKejuTrigger === 'function') {
           await checkKejuTrigger();
         }
+        // v7.1·F2/F3/F4c·D1 长尾 endTurn hooks·flag gate by P.conf.useNewKejuD1
+        try { if (typeof _kjCheckDiscipleMemorialTriggers === 'function') _kjCheckDiscipleMemorialTriggers(); }
+        catch(e) { try { console.warn('[pipeline.render-finalize] F2 disciple memorial', e); } catch(_){} }
+        try { if (typeof _kjCheckCohortMeetTriggers === 'function') _kjCheckCohortMeetTriggers(); }
+        catch(e) { try { console.warn('[pipeline.render-finalize] F3 cohort meet', e); } catch(_){} }
+        try { if (typeof _kjCheckYanguanQingyiTriggers === 'function') _kjCheckYanguanQingyiTriggers(); }
+        catch(e) { try { console.warn('[pipeline.render-finalize] F4c yanguan qingyi', e); } catch(_){} }
 
         // Phase 5.3·AI memory compress·内部自检 P.ai.key·无 key 自动 noop·搬法 IIFE
         // 注：完整逻辑跨 50 行·此处 inline 简化版本·若 P.ai.key 缺则 noop (legacy 也是这逻辑)

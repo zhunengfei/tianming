@@ -3,6 +3,29 @@
   "entries": [
     {
       "date": "2026-05-23",
+      "module": "1.2.5.1·D1 endTurn hookup + 2 处 audit 修 + F1 双 bug 修",
+      "title": "1.2.5.0 ship 后增量·(A) F2/F3/F4c 三个 trigger 函数接 endTurn pipeline (deferred phase5 + render-finalize 2 处)·flag gate by P.conf.useNewKejuD1·关 D1 时全 no-op·开 D1 时门生上书/同年集会/言官清议 spawn 注入常朝 source pool·(B) audit P0·scenario.keju.enabled (boolean) 优先·禁 LLM/preset 覆盖·绍宋建炎元年八月 enabled=false 不再被覆盖·initKejuSystem 3 路径全加 guard·(C) audit P1·D4 寒门/门阀 keyword 扩·commoner 加农/工匠/庶民·aristocrat 加士大夫/士绅/宗室·绍宋寒门状元 event 可触发·(D) F1 _kjGetDiscipleStrength 用 lastInteractionYear 替 turn 推算·避免双 decay·中立/无党/无党派 排除同党+18 bonus·_kjDiscipleGraphEndTurnDecay 不 mutate strength·只 getStrength 即时算·避免 double decay。",
+      "items": [
+        {
+          "what": "[F·endTurn hookup] tm-endturn-pipeline-steps.js 2 处加 try-catch try { _kjCheckDiscipleMemorialTriggers / _kjCheckCohortMeetTriggers / _kjCheckYanguanQingyiTriggers }·deferred·phase5 + render-finalize·flag gate by P.conf.useNewKejuD1·关时 no-op·开时按各 module cooldown spawn trigger 队列。",
+          "why": "F2/F3/F4c 都已写完 trigger 函数但没接 endTurn·1.2.5.0 ship 后 D1 dead code·此 patch 真接通·D1 玩家可玩。"
+        },
+        {
+          "what": "[audit·P0] tm-keju-runtime.js initKejuSystem 3 路径 (preset/LLM 成功/LLM catch) 全加 _scenarioEnabledExplicit guard·剧本明示 enabled (boolean) → P.keju.enabled 尊重剧本·禁 LLM/preset 覆盖·绍宋建炎元年八月 enabled=false 不再被覆盖。",
+          "why": "v7.1 plan §2 player journey Stage 1 说\"剧本可决定 enabled\"·原 logic 跟 plan 冲突·绍宋特殊年份会被默推 enabled=true。"
+        },
+        {
+          "what": "[audit·P1] tm-keju-dianshi-events.js _kjResolveClassName commoner keyword 加 庶民/农/工匠·aristocrat 加 士大夫/士绅/宗室·绍宋 classes (宗室/士大夫/武将/士绅/农/工匠/僧道) 现可命中。",
+          "why": "原 keyword 偏明清·绍宋无寒门/门阀类·D4 钦点寒门状元 event 永不触发·绍宋是测试剧本会缺戏。"
+        },
+        {
+          "what": "[F1·双 bug 修] tm-keju-disciple-graph.js·(1) 改 lastInteractionYear 替 lastInteraction (避免 turn>1000 vs <1000 启发式错·strength 衰减永错·1627 年下衰减 100%) (2) _kjDiscipleGraphEndTurnDecay 不再 mutate strength·只 _kjGetDiscipleStrength 即时算·避免 double decay·(3) 同党 +18 bonus 排除 中立/无党/无党派·避免无党 disciple 也吃 bonus。",
+          "why": "F1 smoke 一开始 7/9 PASS·定位 3 bug·F1 paradigm 真 work·strength 衰减 lifecycle 准。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-23",
       "module": "1.2.5.0·廷议 v3 全 17 slice·5 轮 audit 22 bug 全修 + 科举 v7.1 Phase E+F 进士长期反馈 + 桌面 3s 卡顿修 + 4 处 pre-existing ReferenceError 修",
       "title": "三大块·(A) 廷议·v3 8 阶段框架全 ship·17 slice 顺序落地·5 轮深 audit 找出 22 处真细节 bug·hybrid stance / 25 RULES+54 trait BIAS / confront chain + affinity 双向 / 6 廷议 action + 10 ceremony / 8 phase handler + 13 keyword + 11 intent + 10 priority 抢答·(B) 科举·Phase E (mentorIndex / 进士 100% 党派 / 朝代选官分配) + Phase F (门生网络 D1 + 门生上书 + 同年集会 + 言官清议 4 sub-slice)·走常朝 source pool 由 LLM 改写为议题·(C) bug 修·tm-endturn-ai.js 'id is not defined' 黑屏致命 + resp1b/resp1c 2 处 dead ref + 廷议 modal inp 未声明每次必崩 + autoSave deepClone(GM) 60s 同步 2-3s 卡 (问对打字卡 3 秒主因)·A-1 selective clone 砍 60-70%。",
       "items": [

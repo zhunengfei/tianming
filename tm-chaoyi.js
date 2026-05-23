@@ -473,6 +473,64 @@ function _cc2_collectAgendaSources(opts) {
     });
   }
 
+  // v7.1·F2·门生联名 memorial·走常朝 source pool (flag gate 在 _kjConsumeDiscipleMemorialsForAgenda 内)
+  if (typeof _kjConsumeDiscipleMemorialsForAgenda === 'function') {
+    var _dmList = _kjConsumeDiscipleMemorialsForAgenda();
+    _dmList.forEach(function(m) {
+      var _statusTxt = (m.triggerType === 'mentor_passing') ? '(已逝)'
+                     : (m.triggerType === 'passing') ? '(将逝)'
+                     : (m.triggerType === 'impeach') ? '(被劾)'
+                     : (m.triggerType === 'retire') ? '(致仕)' : '';
+      _cc2_pushAgendaSource(out, seen, {
+        source: '门生联名',
+        title: m.leaderDisciple + '等' + m.cosigners.length + '人联名',
+        dept: '门生',
+        presenter: m.leaderDisciple,
+        detail: '门生为' + m.mentor + _statusTxt + '·联名上书·' + m.detail,
+        agendaType: 'joint_petition',
+        importance: 7,
+        controversial: 5,
+        ref: 'kjDiscipleMemorial:' + m.mentor + ':' + m.spawnedYear
+      });
+    });
+  }
+
+  // v7.1·F3·同年集会·走常朝 source pool·言官 NPC 上奏 (flag gate 在 _kjConsumeCohortMeetsForAgenda 内)
+  if (typeof _kjConsumeCohortMeetsForAgenda === 'function') {
+    var _cmList = _kjConsumeCohortMeetsForAgenda();
+    _cmList.forEach(function(c) {
+      _cc2_pushAgendaSource(out, seen, {
+        source: '京中传闻·同年集会',
+        title: c.cohortYear + '同年集会·' + c.organizer + '召诸同年',
+        dept: '都察院',  // 言官上奏
+        presenter: null,  // 让 LLM 挑当朝言官 NPC
+        detail: c.cohortYear + '年进士 ' + c.attendeeCount + ' 人集会·议时政·疑结党',
+        agendaType: 'warning',
+        importance: 6,
+        controversial: 7,  // 高·涉结党风险
+        ref: 'kjCohortMeet:' + c.cohortYear + ':' + c.spawnedYear
+      });
+    });
+  }
+
+  // v7.1·F4c·言官集体清议·走常朝 source pool (flag gate 在 _kjConsumeYanguanQingyiForAgenda 内)
+  if (typeof _kjConsumeYanguanQingyiForAgenda === 'function') {
+    var _yqList = _kjConsumeYanguanQingyiForAgenda();
+    _yqList.forEach(function(q) {
+      _cc2_pushAgendaSource(out, seen, {
+        source: '言官清议',
+        title: '都察院' + q.yanguanLeader + '等' + q.yanguanCount + '人·清议' + q.party,
+        dept: '都察院',
+        presenter: q.yanguanLeader,
+        detail: q.yanguanCount + '言官集体清议·' + q.party + '党·' + (q.eventDetail || '党争') + (q.attackedMember ? '·涉' + q.attackedMember : ''),
+        agendaType: 'confrontation',
+        importance: 8,
+        controversial: 8,
+        ref: 'kjYanguanQingyi:' + q.party + ':' + q.spawnedYear
+      });
+    });
+  }
+
   _recentRows(g._edictTracker, 6).filter(function(e) {
     return e && _cc2_agendaStatusOpen(e.status || 'pending');
   }).forEach(function(e) {
