@@ -588,7 +588,7 @@ async function _ty2_playerTriggeredResponse(playerText) {
     prompt += '请回应皇帝此言，可能：顺帝意/进谏/转移话题/重申立场' + (typeof _aiDialogueWordHint === 'function' ? _aiDialogueWordHint() : '') + '\n';
     prompt += '返回 JSON：{"newStance":"...(可能因此轮变化)","line":"..."}';
     try {
-      var raw = await callAI(prompt, (typeof _aiDialogueTok==='function'?_aiDialogueTok("cy", 1):400));
+      var raw = await callAI(prompt, (typeof _aiDialogueTok==='function'?_aiDialogueTok("cy", 1):400), null, (typeof _useSecondaryTier === 'function' && _useSecondaryTier()) ? 'secondary' : undefined);  // 廷议走次 API
       var obj = (typeof extractJSON === 'function') ? extractJSON(raw) : null;
       if (obj && obj.line) {
         addCYBubble(responders[i], '〔回言〕' + escHtml(obj.line), false, true);
@@ -655,7 +655,7 @@ async function _ty2_judgeStanceShifts(speechesThisRound) {
   prompt += '\n根据本轮发言的说服力、人物性格（顽固者难变；趋附者易变；deceitful 随风倒）、党派、利害，判断哪些人本轮立场发生变化。\n';
   prompt += '只返回确实变化的。返回 JSON：[{"name":"","newStance":"","confidenceDelta":-20到+20,"reason":"简述"}]';
   try {
-    var raw = await callAI(prompt, 700);
+    var raw = await callAI(prompt, 700, null, (typeof _useSecondaryTier === 'function' && _useSecondaryTier()) ? 'secondary' : undefined);  // 廷议走次 API
     var arr = (typeof extractJSON === 'function') ? extractJSON(raw) : null;
     if (Array.isArray(arr)) {
       arr.forEach(function(sh) {
@@ -692,7 +692,7 @@ async function _ty2_offerMediation() {
   Object.keys(CY._ty2.stances).forEach(function(n){ prompt += '  ' + n + '：' + CY._ty2.stances[n].current + '\n'; });
   prompt += '请提出一个折中方案（文言/半文言）——兼顾各方、可操作。' + (typeof _aiDialogueWordHint === 'function' ? _aiDialogueWordHint() : '') + '\n返回纯文本。';
   try {
-    var raw = await callAI(prompt, (typeof _aiDialogueTok==='function'?_aiDialogueTok("cy", 1):500));
+    var raw = await callAI(prompt, (typeof _aiDialogueTok==='function'?_aiDialogueTok("cy", 1):500), null, (typeof _useSecondaryTier === 'function' && _useSecondaryTier()) ? 'secondary' : undefined);  // 廷议走次 API
     addCYBubble(mediator, '〔折中〕' + escHtml(raw.trim()), false, true);
     _cy_jishiAdd('tinyi', CY._ty2.topic, mediator, raw.trim(), { round: CY._ty2.roundNum, mediation: true });
     CY._ty2._mediation = { author: mediator, content: raw.trim() };
@@ -931,7 +931,7 @@ async function _ty2_afterOverride(groups, direction) {
   prompt += (typeof _aiDialogueWordHint === 'function' ? _aiDialogueWordHint() + '（line 字段遵循此字数）\n' : '');
   prompt += '返回 JSON：[{"name":"","type":"...","line":"该人内心独白或背后之语","consequence":"具体影响(loyalty/stress/ambition)"}]';
   try {
-    var raw = await callAI(prompt, (typeof _aiDialogueTok==='function'?_aiDialogueTok("cy", minority.length):700));
+    var raw = await callAI(prompt, (typeof _aiDialogueTok==='function'?_aiDialogueTok("cy", minority.length):700), null, (typeof _useSecondaryTier === 'function' && _useSecondaryTier()) ? 'secondary' : undefined);  // 廷议走次 API
     var arr = (typeof extractJSON === 'function') ? extractJSON(raw) : null;
     if (Array.isArray(arr)) {
       arr.forEach(function(r) {

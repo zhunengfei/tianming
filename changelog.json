@@ -3,6 +3,41 @@
   "entries": [
     {
       "date": "2026-05-26",
+      "module": "1.2.7.1·正式 UI 科举入口接通 + 科议 4 处 LLM 漏改走次 API + Phase 8 formal-bridge 大文件拆分 Wave 1-2 (records / topbar)",
+      "title": "**正式 UI 三处修复 + 大文件拆分进行中**·(1) 右栏\"文事\"tab 顶端补 📜 科举卡片 (此前 V0→Rich 升级时丢的科举按钮真补回·真调 openKejuPanel) (2) 模块\"科举\"stub 改接真数据 (P.keju + GM._kejuParadigm·制度/当前/进士累计/上次科举/科目/层级/取士额/改革次数) + 醒目跳板大按钮 (3) tm-chaoyi-tinyi.js 4 处直接 callAI() 补 _useSecondaryTier() gate·和 L504 既定 paradigm 对齐·科议/廷议/御前三类朝议全部统一走次 API。**Phase 8 大文件拆分**·phase8-formal-bridge.js 10603 行→9766 行 (Wave 1 records.js ~484 行 + Wave 2 topbar.js ~239 行已迁·剩 Wave 3-6 map/modules/drafts/rightrail 待拆)·paradigm·head alias 块·body 0 改动·跨闭包 helper 走 bridge._xxx (23 helper expose)。全 8 个 formal smoke + 4 个 tinyi smoke PASS·零回归。",
+      "items": [
+        {
+          "what": "[UI Fix 1·正式右栏文事 tab 加 📜 科举入口] web/phase8-formal-bridge.js renderWenRich() 顶端补金边卡片·显示当前科举状态 (未开科 / 进行中 / 进士 N 名) + 当前科目·大按钮 onclick→openKejuPanel()·fallback 到 showKejuModal()·再 fallback 到 toast。",
+          "why": "Task #152 当年加在 V0 renderWen() 的科举按钮·后来 V0 被认作 dead code 清掉·Rich 版 renderWenRich() 从未 port 此按钮·导致玩家从右栏文事 tab 进不去新科举系统·只能从 hongyan-office tab 或 game-loop urgent action 误打误撞进。这次补回真入口。"
+        },
+        {
+          "what": "[UI Fix 2·模块科举 stub 接真数据] web/phase8-formal-bridge.js renderKejuModule() 改写·读 P.keju (制度激活·当前阶段·进士累计·上次科举·examSubjects) + GM._kejuParadigm (subjects[]·tiers[]·quota.total·initEra·reformChronicle[])·moduleShell 三栏 (科场状态 / 当前科目说明 + 醒目大按钮 / 制度范式) + 新 dispatcher action 'open-keju-panel' 统一调 openKejuPanel()。",
+          "why": "renderKejuModule 此前是硬编码 stub (未开科/待录/未定/未核)·不读任何真状态·不调任何真系统·点击进去看到全是占位文本·跟新科举系统 (37 文件·Phase L1-L12+G+H) 完全断开。"
+        },
+        {
+          "what": "[Tier Fix·科议 4 处 LLM 走次 API] web/tm-chaoyi-tinyi.js 4 处直接 callAI() 调用补 tier 参数·callAI(prompt, tok, null, _useSecondaryTier() ? 'secondary' : undefined)·覆盖·L591 NPC 顺帝/进谏回应·L658 立场变化判定·L695 折中方案·L934 反对派后续反应 (resign/sick/plot/leak/accept/confront)。",
+          "why": "L504 主发言流已走 _useSecondaryTier() (注释\"M3·廷议走次 API\")·intent 明确·但 4 处后续 callAI 漏改·导致科议/廷议/御前三类朝议大部分 LLM 调用仍打主 API。次 API 已配且未禁时优先用次 API·未配/被禁时 _getAITier() 自动回退主 API·正符合 user'默认次·没时主'语义。"
+        },
+        {
+          "what": "[Phase 8 大文件拆分·Wave 1·records.js] web/phase8-formal-records.js (~484 行)·从 phase8-formal-bridge.js 迁出 29 函数 (fullRecordText + 17 formal* helper + 11 render* 实录/起居/记事/编年系列)·head alias 块·body 0 改动·跨闭包 helper 通过 bridge._xxx 引 (esc/attr/getTurnText/firstArray/actionBtn/actionChip/renderActionStats/collectRecentEvents)·records 模块 expose 5 渲染函数到 bridge.records。",
+          "why": "phase8-formal-bridge.js 单文件 864KB / 10603 行·V0/Rich 双层 UI·dispatch 杂糅·维护困难。按 surface family 拆 6 module (records/topbar/map/modules/drafts/rightrail)·走 paradigm·head alias / body 0 改动 / 跨闭包 helper expose·借鉴 tm-ai-change-applier 拆模块的 paradigm。Wave 1 是 records 因 surface 内聚最清晰·先验证 paradigm。"
+        },
+        {
+          "what": "[Phase 8 大文件拆分·Wave 2·topbar.js] web/phase8-formal-topbar.js (~239 行)·迁出 5 主函数 (renderPreviewTopbarVars / renderTimePopoverHtml / renderWeatherPopoverHtml / actionTraySpecs winner / renderActionTrayHtml) + 9 helper (readOldVarCards/readRendererVarCards/formatRendererDelta/iconForVar/stockKey/iconClassFor/trendClass/topbarVarTone/topbarTipIndex)·清掉 V0 dead actionTraySpecs (L862·硬编码 hoist override)·bridge.js 加 _textById expose 给 topbar 用·4 处 callsite 改晚绑定 TMPhase8FormalBridge.topbar.X()。",
+          "why": "topbar 是状态显示密集区·变量印石 + 时间/物候 popover + 御案行动盘三块·迁出后 bridge.js 顶栏相关代码全收口到 topbar.js。actionTraySpecs 历来 V0/Rich 双版·hoist 覆盖关系容易出 BUG·一并清死码。"
+        },
+        {
+          "what": "[Phase 8 skeleton·剩 4 模块占位] web/phase8-formal-{map,modules,drafts,rightrail}.js·空 IIFE shell + alias 块 + bridge.{module} 命名空间挂载·等 Wave 3-6 实施 (rightrail ~1100 / drafts ~1200 / modules ~1800 / map ~2000 行)。web/index.html 加 6 script tag·按 bridge → 5 子模块顺序 load。",
+          "why": "先把所有模块壳建好·后续 wave 只动单个模块·风险隔离。各模块的 alias 块体现该 surface 依赖哪些 bridge.* helper·一目了然。"
+        },
+        {
+          "what": "[smoke 跟拆改] web/scripts/smoke-formal-records-fulltext.js·records 函数 grep 源从 bridge.js 改记 records.js (新增 recordsSrc 读 + sliceBetweenRecords helper)·覆盖 renderRecordCard / renderRecordGroup / renderBiannianActiveCard / renderFormalRecordsPanel·共 23 assertion PASS。",
+          "why": "Wave 1 迁出后·原 smoke 在 bridge.js 找不到函数会 fail。跟拆改保持 smoke 同源·避免拆分误报跨过。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-26",
       "module": "1.2.7.0·Stage 2 大里程碑·**Phase G 特科系统 4/5 完工** (G1+G2+G3+G5·G4 翻译科 user 拍删冗余) + **Phase H 私学/书院 mini-system 全 12 维深嵌入** + **G5 v2 全面优化** + **科举 audit 6 fix (UI 真见度 + 跨系统真联动)**",
       "title": "**科举 Stage 2 重大跨越**·G2 恩科 + G3 武举 + G5 童子科 + Phase G 收口 + Phase H 私学/书院 全 ship + 科举 audit 6 fix 真改造 UI 可见性。**G2 恩科**·寿诞/改元/大婚/平大乱/瑞祥 5 自然 trigger·谢恩大典 LLM·恩科党。**G3 武举**·9 朝代 differ·校阅大典·派镇·战功·武勋世家·140+ 字段。**G5 童子科 v2 全面优化**·9-14 岁神童·4 archetype (早卒/大器晚成/奇行隐/才尽辍考)·trigger 扩 4 类·user 钦点 mode·抚摩大典温情·late_bloomer 50 岁真入 G2 enke pool·turned_eccentric 真入 H 山长·历史名臣 5→15 (晏殊/朱虎臣/纪昀/袁枚/钱大昕 等)。**Phase H 私学/书院**·12 维深嵌入·山长真 NPC·东林党/复社真 spawn 进 GM.parties·学说改 paradigm.subjects·5 watershed·F4c 言官清议·反馈循环。**audit 6 fix**·设置面板加 5 toggle (D2/G2/G3/G5/H·此前 user 永远开不了)·hongyan-office 加 G5 问礼部 button·late_bloomer 入会试真改 char.party=帝党 (非装饰 chronicle)·turned_eccentric 真调 _kjpSpawnShanzhang·reset 补 3 字段·人物面板加 _origin 5 类彩色 tag (恩科/武进士/童子/山长/弟子·user 一眼识)。**G4 翻译科 删**·user 拍冗余 (只清朝触发·没意义)·full revert·零残留。**全 735+ smoke PASS·1 preexisting·零回归**·跟 G2/G3/G5/H/L1-L12/F1-F4c 完全兼容。",
       "items": [

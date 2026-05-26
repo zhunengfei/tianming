@@ -8,6 +8,8 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const src = fs.readFileSync(path.join(ROOT, 'phase8-formal-bridge.js'), 'utf8');
+// records render/helper functions split to records.js on 2026-05-26 (Wave 1)
+const recordsSrc = fs.readFileSync(path.join(ROOT, 'phase8-formal-records.js'), 'utf8');
 
 let passed = 0;
 function assert(cond, msg) {
@@ -15,20 +17,26 @@ function assert(cond, msg) {
   passed += 1;
 }
 
-function sliceBetween(startNeedle, endNeedle) {
+function sliceBetweenIn(src, startNeedle, endNeedle) {
   const start = src.indexOf(startNeedle);
   const end = endNeedle ? src.indexOf(endNeedle, start + startNeedle.length) : -1;
   assert(start >= 0, `${startNeedle} missing`);
   return src.slice(start, end >= 0 ? end : undefined);
 }
+function sliceBetween(startNeedle, endNeedle) {
+  return sliceBetweenIn(src, startNeedle, endNeedle);
+}
+function sliceBetweenRecords(startNeedle, endNeedle) {
+  return sliceBetweenIn(recordsSrc, startNeedle, endNeedle);
+}
 
-const card = sliceBetween('function renderRecordCard(row, archiveKind)', 'function renderRecordGroup');
-const biannian = sliceBetween('function renderBiannianActiveCard(row)', 'function renderFormalRecordBiannian');
-const panel = sliceBetween('function renderFormalRecordsPanel()', 'function openZhaoPreviewPanel');
+const card = sliceBetweenRecords('function renderRecordCard(row, archiveKind)', 'function renderRecordGroup');
+const biannian = sliceBetweenRecords('function renderBiannianActiveCard(row)', 'function renderFormalRecordBiannian');
+const panel = sliceBetweenRecords('function renderFormalRecordsPanel()', '// ── public API attach');
 const deskRecord = sliceBetween('function deskRecord(type, title, text, tags)', 'function deskEdictBodyValue');
 const styles = sliceBetween('function installActionPanelExactStyles()', 'function actionShell');
 
-assert(src.includes('function fullRecordText('), 'full records text helper is missing');
+assert(recordsSrc.includes('function fullRecordText('), 'full records text helper is missing (now in records.js)');
 assert(styles.includes('.records-fulltext-v5'), 'records full-text CSS is missing');
 assert(deskRecord.includes('var full ='), 'deskRecord must keep full text before deriving summaries');
 assert(deskRecord.includes('summary:'), 'deskRecord should persist a separate short summary');
