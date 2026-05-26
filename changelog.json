@@ -3,6 +3,37 @@
   "entries": [
     {
       "date": "2026-05-26",
+      "module": "1.2.7.2·**Phase 8 formal-bridge 大文件拆分全收官 (Wave 3-6 一日完工)** + 科举主面板 gate 反转·特科/学派状态条·智能 incremental 友好",
+      "title": "**bridge.js 10603 → 2445 行 (-77%)·拆 6 surface module·438 函数迁出·零回归**。Wave 3 rightrail.js 1696 行 (110 fn·9 dispatch renderer + 6 sub-panel + 全 right* helper + handleRightPanelAction + bindRightPanelActions)·Wave 4 drafts.js 2068 行 (94 fn·desk overlay 基建 + 诏书/奏疏/书信/记录 4 个 Formal panel + 4 个 Preview overlay opener + edict draft 管理)·Wave 5 modules.js 1319 行 (70 fn·12 kind module dispatch + 全 tmfRenwu* 人物图志 + renwu filter UI)·Wave 6 map.js 2689 行 (121 fn·renderFormalMap + region/faction dossier + alerts + basemap + tile rendering·最大一刀)。**paradigm**·头部 alias 块从 bridge._xxx 引·**body 0 改动**·跨闭包 helper 通过 bridge._xxx + late-bound wrapper·index.html 加载顺序 bridge → topbar → map → modules → drafts → records → rightrail 保 helper 就绪。**中文 token diff +4 (噪声内·零翻译)**。**8 formal + 4 tinyi smoke 全 PASS·6 smoke 跟拆改 + 16 个 bridge expose helper 新增**。**科举主面板修复**·(1) ⚖️ 改革范式按钮 gate 反转·从 `useNewKejuL===true` 改 `!==false`·**默认 ENABLED**·L1-L12 全功能直接可用 (2) 新「科举生态」状态条·2×2 grid 显示恩科/武举/童子科/私学 真实状态·读 GM._enkeHistory/_wujuHistory/_tongziHistory/_schoolNetwork。**热更增量友好**·90%+ 文件 sha 不变·incremental fetch 走 server-side unzip·1.5-2 MB 增量 vs 432 MB 全包。",
+      "items": [
+        {
+          "what": "[Wave 3·rightrail.js 拆分] web/phase8-formal-rightrail.js (~1696 行) 从 bridge.js 迁 110 函数·9 dispatch renderer (renderGangRich/renderZheng/renderWenRich/renderPinnedPeopleRich/renderArmy/renderMapPanelRich/renderFinanceRich/renderRumorRich/renderZhiRich) + 6 sub-panel renderer + 全 right* helper (rightIssue*·rightArmy*·rightFinance*·rightWork*·rightAdmin*·rightOffice*·rightChaoyi*·rightWendui*) + handleRightPanelAction + bindRightPanelActions + renderers/titles dispatch table。bridge.js 9766→8216 (-1550 行)。新 16 个 _xxx helper expose (compactText/getMemorials/getIssues/getActiveScenario/getArmies/issueIsResolved/tmfRenwuPortrait/returnFormalHomeSoon/saveFormalDraftsToGM/closeModule/closeDeskOverlay/closeRightDrawer/openOfficeStandalone/openShiluPreviewPanel/openHongyanPreviewPanel)·bridge.js openPanel/refreshActivePanel/closeRightDrawer/closeArmyFlyout 改晚绑定 TMPhase8FormalBridge.rightrail.*。",
+          "why": "right rail 是正式 UI 最复杂 surface (9 panel + 复杂事件分发)·从 bridge 拆出让维护边界清晰·body 0 改动 paradigm 保零回归。"
+        },
+        {
+          "what": "[Wave 4·drafts.js 拆分] web/phase8-formal-drafts.js (~2068 行) 从 bridge.js 迁 94 函数·desk overlay 基建 (installDeskPanelExactStyles/installActionPanelExactStyles/openDeskOverlay/closeDeskOverlay/captureDeskOverlayState/handleDeskAction) + 诏书/奏疏/书信/记录 4 个 Formal panel (renderFormalEdictPanel/renderFormalMemorialPanel/renderFormalLetterPanel + renderMemorialCardV4/renderFormalInboxItem/renderFormalLetterCard/renderFormalMemorialTransit) + 4 个 Preview overlay opener (openZhaoPreviewPanel/openYueZouPreviewPanel/openHongyanPreviewPanel/openShiluPreviewPanel) + edict draft 完整生命周期 (12 个 syncFormal/getFormalEdict/clearFormalEdict/dismissFormalEdict/showFormalEdictAdoptMenu)。bridge.js 8216→6268 (-1948 行)。新 12 个 _xxx helper expose (toast/cssEscape/getLetters/openShizhengPreviewPanel/handleModuleAction/updateRailBadges/renderEventFeed/openChaoyiMode/personNameKey/clearFormalDraftStore/fullHongyanText/restoreFormalDraftsFromGM)·drafts.js 末尾 re-attach 11 个 bridge.X + 6 个 window.* (openZhao/openHongyan 等)·bridge.js 8 处 callsite 改晚绑定。",
+          "why": "drafts surface 是御案/起草/预览的完整 desk overlay 系统·跟 right rail 物理上不重叠·拆分天然清晰·零回归。"
+        },
+        {
+          "what": "[Wave 5·modules.js 拆分] web/phase8-formal-modules.js (~1319 行) 从 bridge.js 迁 70 函数·openModule/closeModule/rerenderModule/handleModuleAction/renderModule/moduleShell 模块 dispatch 基建 + 12 render*Module (Edict/Memorial/Letter/Records/Renwu/Shizheng/Wendui/Chaoyi/Keju/Wenshi/Finance/Office) + 全 tmfRenwu* 人物图志 (~50 个) + renwu* filter UI helpers。bridge.js 6268→5034 (-1234 行)。**wrapper 策略**·bridge.js 留 5 stub 函数 (closeModule/openModule/moduleShell/handleModuleAction/tmfRenwuPortrait) 经 TMPhase8FormalBridge.modules.X 转发·原 bridge.js 17+ 处 openModule() callsite 0 改动·modules.js 末尾覆盖 bridge._xxx 直接绑回真函数·利用 modules.js 加载顺序在 drafts/records/rightrail 之前。",
+          "why": "modules dispatch 是中央内容区的核心·tmfRenwu* 是人物图志细密 UI·两块合一最合适·wrapper 策略避大量 callsite 改动。"
+        },
+        {
+          "what": "[Wave 6·map.js 拆分·最大一刀] web/phase8-formal-map.js (~2689 行) 从 bridge.js 迁 121 函数·renderFormalMap + region/faction dossier (openRegionDossier/openFactionDossier/factionTabDetail/factionPanelRowsV2/closeMapDossier) + map alerts + basemap (resolveBasemap/useGeneratedBasemap/generatedBasemapLayer) + tile rendering (pathForRegion/centerForRegion/pointsForRegion/regionExtent) + faction 索引 (factionsMap/liveFactionList/bestLiveFaction/findFaction/ownerKey/ownerName) + region 数据派生 (regionBundle 220 行·fieldLabel/cleanDisplayValue/ppValue/regionTitle/modeScore/riskClass 等 30+) + 双版本 ppRegionGrid + dossier ppZone/ppTab/ppLedger UI helpers + ensureMapPpop + map alerts + refreshMapFromRuntime + installMapRefreshHooks。bridge.js 5034→2445 (-2589 行·**最大一刀**)。bridge.js 留 15 个 wrapper stub·map.js 末尾覆盖 6 个 _xxx (ownerKey/ownerName/findFaction/getMapData/dossierRows/fmtNum)·这 6 个被其他 surface module alias 块捕获。",
+          "why": "map surface 是最大的内聚块 (110+ 函数·几乎全 region/faction 数据 + 渲染)·拆出后 bridge.js 真正瘦身到 2445 行·剩下都是 chrome/event-feed/legacy-flow 等真核心 orchestration。"
+        },
+        {
+          "what": "[科举主面板·改革按钮 gate 反转] web/tm-keju.js openKejuPanel() L172·从 `P.conf.useNewKejuL === true` 改 `(!P.conf || P.conf.useNewKejuL !== false)`·**默认 ENABLED**·之前 user 报\"改革按钮没显示\"·因 P.conf.useNewKejuL undefined → false → gate 关。Phase L1-L12 系统全 Round 2/3 audit 过·ship 稳定·应默认开启·user 可显式 `P.conf.useNewKejuL=false` 关闭。",
+          "why": "用 `=== true` gate 意味着 user 默认看不到 L1-L12 改革范式入口·全套 paradigm reform 系统 (跨 12 phase·~5000 行代码) 被锁。反转后 user 默认能用改革议政流程。"
+        },
+        {
+          "what": "[科举主面板·特科 + 学派 状态条] web/tm-keju.js openKejuPanel() 历史记录 ↔ 提议筹办按钮之间·新加「科举生态·特科与学派」section·2×2 grid 显示·📜 恩科·已开 N 次 / ⚔️ 武举·已开 N 次 / 🌱 童子科·已选 N 神童 / 🏛️ 私学/书院·N 处·N 学派。读 GM._enkeHistory / _wujuHistory / _tongziHistory / _schoolNetwork (academies+lineages) 真状态·下方小字说明特科按朝廷事件自然 trigger·学派由山长 NPC 自驱讲会·跨系统接口已 wired。",
+          "why": "Phase G2/G3/G5 + Phase H 全 ship 完毕·但用户从科举主面板看不到任何这些子系统的存在·event-driven 不暴露 trigger 按钮·但应显示状态让 user 知道这些系统在跑。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-26",
       "module": "1.2.7.1·正式 UI 科举入口接通 + 科议 4 处 LLM 漏改走次 API + Phase 8 formal-bridge 大文件拆分 Wave 1-2 (records / topbar)",
       "title": "**正式 UI 三处修复 + 大文件拆分进行中**·(1) 右栏\"文事\"tab 顶端补 📜 科举卡片 (此前 V0→Rich 升级时丢的科举按钮真补回·真调 openKejuPanel) (2) 模块\"科举\"stub 改接真数据 (P.keju + GM._kejuParadigm·制度/当前/进士累计/上次科举/科目/层级/取士额/改革次数) + 醒目跳板大按钮 (3) tm-chaoyi-tinyi.js 4 处直接 callAI() 补 _useSecondaryTier() gate·和 L504 既定 paradigm 对齐·科议/廷议/御前三类朝议全部统一走次 API。**Phase 8 大文件拆分**·phase8-formal-bridge.js 10603 行→9766 行 (Wave 1 records.js ~484 行 + Wave 2 topbar.js ~239 行已迁·剩 Wave 3-6 map/modules/drafts/rightrail 待拆)·paradigm·head alias 块·body 0 改动·跨闭包 helper 走 bridge._xxx (23 helper expose)。全 8 个 formal smoke + 4 个 tinyi smoke PASS·零回归。",
       "items": [

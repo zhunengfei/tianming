@@ -159,6 +159,24 @@ function openKejuPanel(){
       content+='</div>';
     }
 
+    // 科举生态·特科 + 学派 (event-driven·只显示状态)
+    var _enkeN = ((typeof GM!=='undefined'&&GM&&GM._enkeHistory)||[]).length;
+    var _wujuN = ((typeof GM!=='undefined'&&GM&&GM._wujuHistory)||[]).length;
+    var _tongziN = ((typeof GM!=='undefined'&&GM&&GM._tongziHistory)||[]).length;
+    var _schoolNet = (typeof GM!=='undefined'&&GM&&GM._schoolNetwork)||{};
+    var _academies = _schoolNet.academies || _schoolNet.schools || [];
+    var _lineages = _schoolNet.lineages || _schoolNet.parties || [];
+    content+='<div style="background:var(--bg-2);padding:0.9rem 1rem;border-radius:8px;margin-bottom:1rem;">'+
+      '<h4 style="color:var(--gold);margin-bottom:0.6rem;">科举生态·特科与学派</h4>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem 1rem;font-size:0.88rem;">'+
+      '<div>📜 <b>恩科</b>·已开 '+_enkeN+' 次</div>'+
+      '<div>⚔️ <b>武举</b>·已开 '+_wujuN+' 次</div>'+
+      '<div>🌱 <b>童子科</b>·已选 '+_tongziN+' 神童</div>'+
+      '<div>🏛️ <b>私学/书院</b>·'+(_academies.length||0)+' 处·'+(_lineages.length||0)+' 学派</div>'+
+      '</div>'+
+      '<p style="color:var(--txt-d);font-size:0.78rem;margin-top:0.5rem;">特科按朝廷事件自然 trigger (寿诞·大乱·瑞祥·战功 等)·学派由山长 NPC 自驱讲会·跨系统接口已 wired</p>'+
+      '</div>';
+
     content+='<div style="text-align:center;">';
 
     // 如果正在筹办，禁用按钮
@@ -168,6 +186,11 @@ function openKejuPanel(){
     } else {
       content+='<button class="bt bp" onclick="proposeKejuPreparation()">📋 提议筹办科举</button>'+
         '<p style="color:var(--txt-d);font-size:0.85rem;margin-top:0.5rem;">科举筹办需要时间，具体进展由推演AI决定</p>';
+      // Stage 2·Phase L·改革科举范式按钮 (默认显示·除非 P.conf.useNewKejuL===false 显式关闭)
+      if ((!P.conf || P.conf.useNewKejuL !== false) && typeof window._kjpOpenReformProposal === 'function') {
+        content+='<div style="margin-top:0.8rem;"><button class="bt" onclick="window._kjpOpenReformProposal()">⚖️ 改革科举范式</button>'+
+          '<p style="color:var(--txt-d);font-size:0.8rem;margin-top:0.3rem;">改 paradigm 字段·走廷议议政·议毕 L7 apply (L1-L12 全功能)</p></div>';
+      }
     }
 
     content+='</div>';

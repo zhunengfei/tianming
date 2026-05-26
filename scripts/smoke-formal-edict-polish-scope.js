@@ -8,7 +8,7 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const hongyan = fs.readFileSync(path.join(ROOT, 'tm-hongyan-office.js'), 'utf8');
-const formal = fs.readFileSync(path.join(ROOT, 'phase8-formal-bridge.js'), 'utf8');
+const formal = fs.readFileSync(path.join(ROOT, 'phase8-formal-bridge.js'), 'utf8') + '\n' + fs.readFileSync(path.join(ROOT, 'phase8-formal-drafts.js'), 'utf8');
 
 let passed = 0;
 function assert(cond, msg) {

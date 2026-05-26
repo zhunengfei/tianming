@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const root = path.resolve(__dirname, '..');
-const code = fs.readFileSync(path.join(root, 'phase8-formal-bridge.js'), 'utf8');
+const code = fs.readFileSync(path.join(root, 'phase8-formal-bridge.js'), 'utf8') + '\n' + fs.readFileSync(path.join(root, 'phase8-formal-drafts.js'), 'utf8');
 const saveLifecycle = fs.readFileSync(path.join(root, 'tm-save-lifecycle.js'), 'utf8');
 const assert = (condition, message) => {
   if (!condition) throw new Error(message);

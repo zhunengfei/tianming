@@ -7,7 +7,8 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const bridge = fs.readFileSync(path.join(ROOT, 'phase8-formal-bridge.js'), 'utf8');
+// desk overlay + edict panel split to phase8-formal-drafts.js on 2026-05-26 (Wave 4)
+const bridge = fs.readFileSync(path.join(ROOT, 'phase8-formal-bridge.js'), 'utf8') + '\n' + fs.readFileSync(path.join(ROOT, 'phase8-formal-drafts.js'), 'utf8');
 
 let passed = 0;
 function assert(cond, msg) {

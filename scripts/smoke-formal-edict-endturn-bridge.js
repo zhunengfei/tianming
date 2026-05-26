@@ -8,7 +8,8 @@ const assert = (condition, message) => {
   if (!condition) throw new Error(message);
 };
 
-const phase8 = read('phase8-formal-bridge.js');
+// phase8 desk overlay + edict panel split to phase8-formal-drafts.js on 2026-05-26 (Wave 4)
+const phase8 = read('phase8-formal-bridge.js') + '\n' + read('phase8-formal-drafts.js');
 const office = read('tm-office-panel.js');
 const prep = read('tm-endturn-prep.js');
 const render = read('tm-endturn-render.js');

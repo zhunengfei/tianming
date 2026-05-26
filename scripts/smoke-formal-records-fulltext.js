@@ -7,7 +7,8 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const src = fs.readFileSync(path.join(ROOT, 'phase8-formal-bridge.js'), 'utf8');
+// desk overlay + deskRecord helpers split to drafts.js on 2026-05-26 (Wave 4)
+const src = fs.readFileSync(path.join(ROOT, 'phase8-formal-bridge.js'), 'utf8') + '\n' + fs.readFileSync(path.join(ROOT, 'phase8-formal-drafts.js'), 'utf8');
 // records render/helper functions split to records.js on 2026-05-26 (Wave 1)
 const recordsSrc = fs.readFileSync(path.join(ROOT, 'phase8-formal-records.js'), 'utf8');
 
