@@ -4,8 +4,8 @@
      不要在这里加入编辑器功能！
 
      剥本编辑功能请修改：
-       editor.html  —  编辑器 UI
-       editor.js    —  编辑器逻辑（权威来源）
+       preview/scenario-editor-reset-preview.html  —  新版剧本工坊 UI
+       editor.html / editor.js                     —  旧版编辑器兼容入口
 
      参见 ARCHITECTURE.md 了解整体戶架构。
      ============================================================ -->
@@ -58,6 +58,7 @@
 })();
 </script>
 <link id="tm-main-css" rel="stylesheet" href="styles.css?v=20260520-launch-official-theme-font-scopes" data-css-base="styles.css?v=20260520-launch-official-theme-font-scopes" data-css-fallback="https://cdn.jsdelivr.net/gh/misfit-user/tianming@main/styles.css?v=20260520-launch-official-theme-font-scopes" onload="window.TM_CSS_LOADED&&window.TM_CSS_LOADED(this)" onerror="window.TM_CSS_RETRY&&window.TM_CSS_RETRY(this)">
+<link rel="stylesheet" href="tm-keju-paradigm-panel.css?v=20260524-L2">
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
 <script src="map-converter.js"></script>
 <script src="map-integration.js"></script>
@@ -104,12 +105,12 @@
           </span>
           <span class="home-card-key" id="_home_meta_load">Ctrl+L</span>
         </button>
-        <button class="home-card c-edit" id="btn-editor" title="打开剧本编辑器（editor.html）：修改剧本结构、人物初始配置、势力关系等。此处开的是外部编辑器；游戏内的临时修改走开局后的设置面板。">
+        <button class="home-card c-edit" id="btn-editor" title="打开新版剧本工坊：制作剧本结构、人物初始配置、势力关系、AI 修复与正式沙盒测试。旧版编辑器仍可从剧本管理卡片进入。">
           <span class="home-card-icon"><span id="_ico_edit">著</span></span>
           <span class="home-card-copy">
             <span class="home-card-cn">著　卷</span>
             <span class="home-card-ti">创 作 新 剧 本</span>
-            <span class="home-card-desc">进入剧本编辑器，撰写时代、人物、势力与规则。</span>
+            <span class="home-card-desc">进入新版剧本工坊，制作时代、人物、势力、规则并启动正式沙盒测试。</span>
           </span>
           <span class="home-card-key">Ctrl+E</span>
         </button>
@@ -626,6 +627,8 @@ console.log('天命游戏脚本开始加载...');
 <script src="tm-keju-presets.js?v=2026052302"></script>
 <script src="tm-keju-paradigm-presets.js?v=20260523-L1"></script>
 <script src="tm-keju-paradigm.js?v=20260523-L1"></script>
+<script src="tm-keju-reform-llm.js?v=20260524-L3"></script>
+<script src="tm-keju-paradigm-panel.js?v=20260524-L3"></script>
 <script src="tm-keju-topic-router.js?v=2026052303"></script>
 <script src="tm-keju-examiner-view.js?v=2026052304"></script>
 <script src="tm-keju-tension.js?v=2026052304"></script>
@@ -638,6 +641,19 @@ console.log('天命游戏脚本开始加载...');
 <script src="tm-keju-cohort-meet.js?v=2026052307"></script>
 <script src="tm-keju-yanguan-attribution.js?v=2026052308"></script>
 <script src="tm-keju-yanguan-qingyi.js?v=20260523-2200"></script>
+<script src="tm-keju-reform-memorial.js?v=20260524-l7a"></script>
+<script src="tm-keju-reform-evolution.js?v=20260525-l9"></script>
+<script src="tm-keju-reform-presets-history.js?v=20260525-l10"></script>
+<script src="tm-keju-special-exams.js?v=20260525-g1"></script>
+<script src="tm-keju-event-hooks.js?v=20260525-g2-step0"></script>
+<script src="tm-keju-enke-player-initiative.js?v=20260525-g2-step0a"></script>
+<script src="tm-keju-enke.js?v=20260525-g2-stepa"></script>
+<script src="tm-keju-wuju.js?v=20260525-g3"></script>
+<script src="tm-keju-tongzi.js?v=20260526-g5"></script>
+<script src="tm-keju-school-network.js?v=20260526-h0h1"></script>
+<script src="tm-keju-reform-rollback.js?v=20260525-l11"></script>
+<script src="tm-keju-reformer-bio.js?v=20260525-l12"></script>
+<script src="tm-keju-reform-apply.js?v=20260524-l7a"></script>
 <script src="tm-keju-allocation.js?v=2026052305"></script>
 <script src="tm-keju-activation.js?v=2026052301"></script>
 <script src="tm-keju.js?v=2026052302"></script>
@@ -745,6 +761,7 @@ console.log('天命游戏脚本开始加载...');
 <script src="tm-content-manager.js?v=20260519-update-apply"></script>
 <script src="preview/img/east-asia-basemap-data.js?v=20260514-formal-map"></script>
 <script src="phase8-formal-bridge.js?v=20260519-phase8-formal-wide-panels"></script>
+<script src="preview/scenario-editor-sandbox-bridge.js?v=20260524-scenario-editor-sandbox"></script>
 
 </body>
 </html>

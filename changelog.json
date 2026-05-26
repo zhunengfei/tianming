@@ -2,6 +2,57 @@
   "_comment": "天命·更新日志——新条目 unshift 到数组最前（由近及远）。格式：{date, module, title, items[]}；items 元素可为字符串或 {what, why}。",
   "entries": [
     {
+      "date": "2026-05-26",
+      "module": "1.2.7.0·Stage 2 大里程碑·**Phase G 特科系统 4/5 完工** (G1+G2+G3+G5·G4 翻译科 user 拍删冗余) + **Phase H 私学/书院 mini-system 全 12 维深嵌入** + **G5 v2 全面优化** + **科举 audit 6 fix (UI 真见度 + 跨系统真联动)**",
+      "title": "**科举 Stage 2 重大跨越**·G2 恩科 + G3 武举 + G5 童子科 + Phase G 收口 + Phase H 私学/书院 全 ship + 科举 audit 6 fix 真改造 UI 可见性。**G2 恩科**·寿诞/改元/大婚/平大乱/瑞祥 5 自然 trigger·谢恩大典 LLM·恩科党。**G3 武举**·9 朝代 differ·校阅大典·派镇·战功·武勋世家·140+ 字段。**G5 童子科 v2 全面优化**·9-14 岁神童·4 archetype (早卒/大器晚成/奇行隐/才尽辍考)·trigger 扩 4 类·user 钦点 mode·抚摩大典温情·late_bloomer 50 岁真入 G2 enke pool·turned_eccentric 真入 H 山长·历史名臣 5→15 (晏殊/朱虎臣/纪昀/袁枚/钱大昕 等)。**Phase H 私学/书院**·12 维深嵌入·山长真 NPC·东林党/复社真 spawn 进 GM.parties·学说改 paradigm.subjects·5 watershed·F4c 言官清议·反馈循环。**audit 6 fix**·设置面板加 5 toggle (D2/G2/G3/G5/H·此前 user 永远开不了)·hongyan-office 加 G5 问礼部 button·late_bloomer 入会试真改 char.party=帝党 (非装饰 chronicle)·turned_eccentric 真调 _kjpSpawnShanzhang·reset 补 3 字段·人物面板加 _origin 5 类彩色 tag (恩科/武进士/童子/山长/弟子·user 一眼识)。**G4 翻译科 删**·user 拍冗余 (只清朝触发·没意义)·full revert·零残留。**全 735+ smoke PASS·1 preexisting·零回归**·跟 G2/G3/G5/H/L1-L12/F1-F4c 完全兼容。",
+      "items": [
+        {
+          "what": "[G2·恩科 mini-keju] web/tm-keju-enke.js (~1230 行) + tm-keju-enke-player-initiative.js (~500 行)·5 自然 trigger·5 路径 (passive/edict/wendui/keyi)·_kjG2OnEnkeApproved 主入口·_kjG2SpawnEnkeJinshiPool spawn 30 进士 (跟真 chars schema 100% 对齐·top-level 11 维 + resources.* 嵌套 + career array)·谢恩大典 LLM resume·恩科党 spawn + tinyi v3 tag·历史档 (宋特奏名/年龄 3 层 fallback)·言官触发 4 档·5 滥开 lever。RAA + RBB·19 fix (含 schema 字段错位修)。smoke 155 PASS / 0 FAIL。",
+          "why": "Phase G·G2 第一刀·建 standalone mini-runner paradigm·后续 G3/G4/G5 复用·进士走真 GM.chars 而非 stub·user 见真进士入面板。"
+        },
+        {
+          "what": "[G3·武举 mini-keju] web/tm-keju-wuju.js (~1700 行)·9 朝代 differ (元无武举·清末 1898 废·preset gate)·校阅大典 LLM·派镇 (GM.officeTree scan)·5 archetype 武人 (brave_brash/tactician/loyalist/coward_clever/mercenary)·历史武状元 pool·战功联动 (war_state + valor + military + era 加权·dynamic prob)·武勋派 spawn + 文武不和 + 兵谏黑天鹅·武勋世家荫袭 (杨家将/岳家军 paradigm)·清末废武举 keyi·EDICT_TYPES.wuju 第 14 类·140+ 字段。RAA + RBB·32 fix (含 BB·BB1-BB4 高 issues·真签名 _kjSpawnYanguanQingyi 3 positional + _ty3_partySpawn opts + paradigm subjects diff shape)。smoke 145 PASS / 0 FAIL。",
+          "why": "Phase G·G3 第二刀·复用 G2 paradigm 80%·新作 20%·跟真军事系统 (war_state + 边镇 NPC + tinyi 党争 + L7 改革) 真 wire·user 见武进士守边镇·真发战功·武勋派真 tinyi 投票。"
+        },
+        {
+          "what": "[Phase G 收口 audit] web/docs/phase-G-finalize-audit.md·7 fix·**F7 CRITICAL·Path B 礼部/兵部 wendui 真上 desk button** (此前 expose 0 callsite·user 进不去) + F3 HIGH·G3 promote queue 双 push dedup + F1/F5/F4/F2/F6 共 7 项跨子相 paradigm 收口 + 字段一致性 (enke jinshi 删 _historicalFigure·跟 G3 M4 对齐)。修后·G1/G2/G3 三子相 12 维 paradigm 100% 对齐。",
+          "why": "Phase G 三子相 ship 前必收口·G2/G3 实施时各自闭环·跨子相 paradigm 检验需要单独一轮·R1 视角发现 Path B wendui 函数 expose 但 0 UI callsite·user 永远进不去·CRITICAL bug。"
+        },
+        {
+          "what": "[Phase H·私学/书院 mini-system] web/tm-keju-school-network.js (~1700 行·22 section·77 函数 expose)·**全 12 维深嵌入**·1) 山长真 char NPC spawn (40+ 字段·走 GM.chars·真上人物面板)·2) chronicle + 邸报 + chaoyi source pool·3) 学说改 paradigm.subjects (Path α 走 _kjReformKeyiCallback / Path β 隐式 weight 漂 ±2 cap ±10)·4) 山长被押 → _kjSpawnYanguanQingyi 真触 F4c·5) 党派走 _ty3_partySpawn 真 spawn 进 GM.parties (东林党 / 复社 / 阉党 / 理学派 / 心学派)·6) 地理 attach prov._bonusInfra.kejuQuota + paradigm.quota.geo·7) corruption ↔ 书院兴 反馈循环 (cooldown + per-turn guard)·8) tinyi v3 NPC 真见党 (走 GM.parties)·9) L7 改革引擎复用·10) G2 enke jinshi → _academyOrigin tag·11) F1 disciple-graph lineage chain (顾宪成 → 高攀龙 + 钱一本·朱熹 → 黄榦·王阳明 → 王畿/王艮)·12) 5 watershed event (1190 朱熹 / 1290 元官化 / 1500 王阳明 / 1604 东林 / 1622 首善禁 / 1625 六君子 / 1629 复社 / 1654 顺治禁讲学 / 1742 乾隆重立)。",
+          "why": "**Phase H 不是新机制 mini-runner·是政治引擎**·user 强调'与游戏内容结合'·H 故意做成反复反馈的政治引擎·非外挂模块·朝廷腐败 → 书院兴 → 党争 → 镇压 → 遗党反弹 → 循环·全真嵌进现 G2/G3/F4c/L7/tinyi v3/chaoyi/GM.chars/GM.parties。"
+        },
+        {
+          "what": "[Phase H·5 路径 user 议政 + UI] EDICT_TYPES.school 第 15 类 (兴学/禁讲学/扶书院/复立·strong keyword `兴学|建学|禁讲|禁书院|立书院|扶书院|官化|复立`) + KEYI_TOPIC_TYPES.school_ban callback _kjSchoolBanKeyiCallback (禁/容/扶 3 路径) + desk template suggestion (5 subtype·ban/restore/found/promote/lecture) + Path B 学政 wendui (朝代差异 label·汉/唐礼部·宋后学政·清督学使) + UI inline '问学政' button (跟 G2 礼部 + G3 兵部 button 同 paradigm)。",
+          "why": "user 在游戏里·真可点 '问学政' 触 cedui mode·真可下诏 '禁讲学' 走 EDICT lifecycle 3 年·真可 keyi 议政走 callback·全 G2/G3 UI paradigm 一致。"
+        },
+        {
+          "what": "[Phase H·5 轮 audit·共修 23 项] R1·三层 5 fix (corruption 真接口 GM.corruption.subDepts 派生·founding 自动 enrich + apply region + impeach hook·讲会 endTurn 自动 trigger 5%/5 年)·R2·跨系统 1 fix (paradigm shift queue 进 chaoyi source pool + keyi promote queue)·R3·与游戏内容结合·11 接口点 verify·全闭环·R4·cross-scenario 1 fix (8 个 H 新 transient 字段进 reset list)·R5·全栈复审·zero new finding。Small audit RAA 修 8 项 (C1 reset list·H1 dead char skip·H2 _origin preserve·H3 fallback chronicle·M1 wrapper guard·M2 YIMIN_SCHOLARS·M3 tier dedupe·M4 LINEAGE keys auto-founder)。",
+          "why": "user 强调'多做审查·尤其注意与游戏内容结合'·按 G3 paradigm RAA+RBB 量级·5 轮 audit (R1-R5) 不同视角·R3 是 user 重点'与游戏结合'专审。"
+        },
+        {
+          "what": "[Phase H·smoke + regression] scripts/smoke-h-school.js (~920 行·21 section·158 case) + 全 keju regression (G2 enke 155 / G3 wuju 145 / G2 event-hooks 26 / G2-pl 75 / G1 51 - 1 preexisting / L1 95 / L4 107 / L7 159 / L11 81 / F1-F4c 共 146 / D + E 共 81+)·共 1280+ PASS / 0 FAIL·零回归。",
+          "why": "user 强调'全部完成后 round 五轮并修复·确认无遗漏'·smoke 必深·跨系统兼容必验·每一刀 audit 后跑·零回归是 ship 必要条件。"
+        },
+        {
+          "what": "[G5·童子科 v1·原始版] web/tm-keju-tongzi.js (~580 行·14 section·25 函数 expose) + scripts/smoke-g5-tongzi.js (~120 行·40 case)·9-14 岁神童 spawn·archetype 派生 (early_genius_died / late_bloomer)·抚摩大典 LLM 温情体 (跟谢恩大典/校阅大典/召见大典完全不同)·神童家族 ≥2 同姓·5 历史名臣 draw (晏殊/朱虎臣/杨慎/李东阳/纪昀)。callback 加入 _kjG2SpecialExamKeyiCallback router·EDICT_TYPES.tongzi 第 16 类·special-exams.js G1 decorator wire·pipeline wire (resume + health tick + cross-scenario reset + edict scan)。",
+          "why": "memory feedback_special_exams_per_type_depth 锁'4 类必须各自 full feature'·Phase G 必须 4/5 完工才算 ship-ready。"
+        },
+        {
+          "what": "[G5 v2·全面优化·6 task] (1) trigger 扩 4 类·reign-change / birthday / amnesty / state-driven·cooldown 10→5 年·prob 5%→8%·节奏中等。(2) Path B 礼部 wendui + desk template 5 类 (recommendation/reign-change/birthday/amnesty/_player_edict)。(3) **4 archetype 扩**·新加 turned_eccentric (15-25 岁奇行入山长·5%/turn) + burned_out (20-30 岁辍考改县学正·8%/turn)·user 钦点 mode (留京/遣乡) 影响 archetype 分布。(4) late_bloomer 50 岁真入会试 hook·50% 中进士·真改 rankLevel/officialTitle/career milestone。(5) chronicle 长尾 _kjG5TongziAnnualTick 每 5 年 1 行 + 历史名臣 5→15 (加唐李泌/刘晏·宋寇准/范仲淹/王禹偁/杨亿·明张居正·清钱大昕/邹一桂/袁枚)·draw 15%→30%。(6) 跨系统 wire·spawn 民心 +3·birthplace 解额 +1 perm·殁触 1% F4c 言官 '天意' event·LLM tone 扩 2→4 archetype。smoke 40→67 PASS / 0 FAIL。",
+          "why": "原 G5 v1 user 玩半个朝代见不到一次·archetype 只有生死·late_bloomer 是空头支票·跟其他 system 0 联动。v2 让神童成游戏世界真有意义的元素·非装饰 chronicle。"
+        },
+        {
+          "what": "[G4·翻译科·完全删除] user 拍'翻译科只能清朝触发·没什么用·冗余'·full revert·删 web/tm-keju-fanyi.js (1024 行) + docs/keju-G4-sprint.md + scripts/smoke-g4-fanyi.js·revert tm-keju-enke.js callback / tm-keju-special-exams.js decorator wire / tm-edict-lifecycle.js EDICT_TYPES.fanyi 第 16 类 / tm-endturn-pipeline-steps.js G4 wires / index.html script tag·G1 _kjCheckFanyiTriggers 改 stub return null·G1 smoke §12 改测 stub check。零残留。Phase G 改 4/5 完工 (G1+G2+G3+G5)。",
+          "why": "G4 设计本身硬限定 era=清·非清剧本永远触不到·user 觉得性价比低·删比修划算。"
+        },
+        {
+          "what": "[科举 audit·6 fix·UI 真见度 + 跨系统真联动] (1) **CRITICAL·settings panel 加 5 toggle**·tm-patches.js 紧跟 useTinyiV3 toggle 后·D2/G2/G3/G5/H 各一行·user 真能 ⚙ 勾选 opt-in (此前 P.conf 默认 off·user 永远开不了·整套 G+H 系统对玩家=死代码)。(2) **CRITICAL·hongyan-office 加 G5 问礼部 button**·跟 G2/G3 paradigm 同·rose color·若 desk suggestion 有 _tongziSubtype 自动显·此前 G5 push desk suggestion 但无 UI button=死链。(3) **HIGH·late_bloomer 真入 G2 enke pool**·_kjG5LateBloomerEnterHuishi passed 时真调 _kjG2EnkeJinshiJoinParty + push GM._enkeHistory + 标 _specialExamType='enke'·非装饰 chronicle·tinyi v3 真识。(4) **HIGH·turned_eccentric 真 _kjpSpawnShanzhang**·若 H active 真调 spawn helper·existing char path mark 为山长 + _academyName/_academyType/_lectureLearning 真 set·进 GM._schoolNetwork.shanzhangByAcademy。(5) **HIGH·cross-scenario reset 补 3 字段**·_tongziLastAnnualY / _tongziUserDecreeMode / _tongziPlatformDisasterFired·跨剧本不残留。(6) **MID·人物面板加 _origin 5 类彩色 tag**·tm-player-core.js renderRwp·🎓 恩科进士 (绿) / ⚔ 武进士 (朱·+archetype) / 👶 童子进士 (玫粉·+archetype) / 🏛 山长 (靛) / 📜 书院弟子 (紫)·user 在 chars panel 一眼识身份。",
+          "why": "audit 跑 6 dim 发现·整套 G+H 系统加起来 ~3000 行 code·user UI 0 可见 / 入口 0 可触 / 跨系统联动多假 (只 chronicle 不真改)。这一刀是 Phase G+H 真的 ship-ready 前提。"
+        }
+      ]
+    },
+    {
       "date": "2026-05-23",
       "module": "1.2.6.4·Stage 2·Phase L·Slice L1·KejuParadigm 地基·11 类 30+ 字段·9 朝代 paradigm preset·migration 框架",
       "title": "Phase L (科举改革系统·50 slice·84-123 d·user 锁'好好做地基不计较时间') 第一刀·**纯打地基·0 game behavior 变化**。新建 `GM._kejuParadigm` 命名空间·11 大类 30+ 字段 (题目/tier/考生/主考/录取/授官/身份/联动/仪轨/惩罚/语言/元 ideology)·9 朝代 paradigm-specific addon (汉/魏晋/隋/唐/北宋/南宋/元/明/清·fallback)·version migration 框架 (v1·后续 L2-L50 加字段自动升级)·export/import·reset·validate·lint stub。新 3 文件 (tm-keju-paradigm.js ~520 行 + tm-keju-paradigm-presets.js ~570 行 + smoke 40 case 95 assertion 全 PASS)·集成 tm-keju-runtime.js (initKejuSystem 尾部) + tm-save-lifecycle.js (post-load _kjpMigrate)·flag gate 无 (因 dormant·0 风险)·**改革效果 L7 才生效·L1 是 baseline**。",

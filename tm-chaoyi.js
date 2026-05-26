@@ -531,6 +531,96 @@ function _cc2_collectAgendaSources(opts) {
     });
   }
 
+  // Phase G·G1·特科 spawn·走常朝 source pool·LLM 改写为礼/兵/理藩院 NPC 上奏 (flag gate 在 _kjConsumeSpecialExamForAgenda 内)
+  if (typeof _kjConsumeSpecialExamForAgenda === 'function') {
+    var _seList = _kjConsumeSpecialExamForAgenda();
+    _seList.forEach(function(se) {
+      var typeLbl = ({ enke:'恩科', wuju:'武举', fanyi:'翻译科', tongzi:'童子科' })[se.type] || se.type;
+      var deptLbl = ({ enke:'礼部', wuju:'兵部', fanyi:'理藩院', tongzi:'礼部' })[se.type] || '礼部';
+      var importance = (se.type === 'wuju' && se.detail && se.detail.subtype === 'war-crisis') ? 8 : 6;
+      _cc2_pushAgendaSource(out, seen, {
+        source: '特科·' + typeLbl,
+        title: typeLbl + '·' + (se.reason || '请开科'),
+        dept: deptLbl,
+        presenter: null,
+        detail: (se.reason || '请开科') + '·' + deptLbl + '请陛下圣裁',
+        agendaType: 'request',
+        importance: importance,
+        controversial: 4,
+        ref: 'kjSpecialExam:' + se.type + ':' + (se.spawnedYear || 0)
+      });
+      // G2·BB8·若 entry 标 _kjPromoteToKeyi·入 G2 keyi promote 队列·让 keyi UI 拉起
+      if (se._kjPromoteToKeyi) {
+        if (typeof GM !== 'undefined' && GM) {
+          if (!GM._kjG2PendingKeyiPromote) GM._kjG2PendingKeyiPromote = [];
+          GM._kjG2PendingKeyiPromote.push({
+            topicType:    se._kjKeyiTopicType || 'special_exam',
+            topicData:    se._kjKeyiTopicData || { examType: se.type },
+            queuedTurn:   (GM.turn || 1),
+            queuedYear:   se.spawnedYear || 0,
+            sourceRef:    'kjSpecialExam:' + se.type + ':' + (se.spawnedYear || 0)
+          });
+        }
+      }
+    });
+  }
+
+  // Phase H·学说升起 paradigm shift·走常朝 source pool·user 议政·走 keyi (flag gate _isHEnabled 内已)
+  if (typeof GM !== 'undefined' && GM && Array.isArray(GM._kjpHPendingParadigmShifts) && GM._kjpHPendingParadigmShifts.length) {
+    GM._kjpHPendingParadigmShifts.forEach(function(ps) {
+      _cc2_pushAgendaSource(out, seen, {
+        source: '书院·学说',
+        title: '学说议·' + (ps.topic || '学派显学化'),
+        dept: '礼部·学政',
+        presenter: null,
+        detail: (ps.topic || '学派显学化') + '·议入科举·礼部请陛下圣裁',
+        agendaType: 'reform',
+        importance: 7,
+        controversial: 6,
+        ref: 'kjpHParadigmShift:' + (ps.academyName || '') + ':' + (ps.enqueuedYear || 0)
+      });
+      // 同时 push 进 keyi promote queue (跟 G2/G3 paradigm)
+      if (!GM._kjG2PendingKeyiPromote) GM._kjG2PendingKeyiPromote = [];
+      GM._kjG2PendingKeyiPromote.push({
+        topicType: 'reform',
+        topicData: {
+          topic: ps.topic,
+          intent: ps.intent || 'reform',
+          paradigmDiff: ps.paradigmDiff,
+          magnitudeParsed: ps.magnitudeParsed,
+          pilotScope: ps.pilotScope,
+          _sourceSchoolH: ps._sourceSchoolH
+        },
+        queuedTurn: (GM.turn || 1),
+        queuedYear: ps.enqueuedYear || 0,
+        sourceRef: 'kjpHParadigmShift:' + (ps.academyName || '') + ':' + (ps.enqueuedYear || 0)
+      });
+    });
+    // consumed·clear
+    GM._kjpHPendingParadigmShifts = [];
+  }
+
+  // Phase L·L7·改革反弹奏疏·走常朝 source pool·LLM 改写为反对派 NPC 上奏 (flag gate 在 _kjConsumeReformMemorialsForAgenda 内)
+  if (typeof _kjConsumeReformMemorialsForAgenda === 'function') {
+    var _rmList = _kjConsumeReformMemorialsForAgenda();
+    _rmList.forEach(function(m) {
+      var _trigLbl = (m.triggerType === 'defy_reform') ? '(逆众强推)'
+                   : (m.triggerType === 'edict_reform') ? '(下诏强推)'
+                   : '(激进改革)';
+      _cc2_pushAgendaSource(out, seen, {
+        source: '反改革联名',
+        title: m.leaderOpposer + '等' + m.cosigners.length + '人·议反改革' + _trigLbl,
+        dept: '言官·礼部·吏部',
+        presenter: m.leaderOpposer,
+        detail: m.leaderOpposer + '等 ' + m.cosigners.length + ' 反改革官联名·' + m.detail,
+        agendaType: 'joint_petition',
+        importance: 7,
+        controversial: 7,
+        ref: 'kjReformMemorial:' + m.reformId + ':' + m.spawnedTurn
+      });
+    });
+  }
+
   _recentRows(g._edictTracker, 6).filter(function(e) {
     return e && _cc2_agendaStatusOpen(e.status || 'pending');
   }).forEach(function(e) {

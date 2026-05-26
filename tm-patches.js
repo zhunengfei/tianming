@@ -410,6 +410,62 @@ openSettings=function(){
             '</div>' +
           '</label>';
         })()+
+        // ─── 科举 5 toggle (Phase G + H)·user audit Fix 1·默认 OFF·user 主动 opt-in ───
+        // D2·特科 spawn 总开关 (gate 所有 G1/G2/G3/G5 trigger)
+        (function(){
+          var _on = !!(P.conf && P.conf.useNewKejuD2 === true);
+          return '<label style="display:flex;align-items:flex-start;gap:0.5rem;padding:0.4rem 0;border-top:1px dotted var(--bdr);cursor:pointer;">' +
+            '<input type="checkbox" id="s-keju-d2" ' + (_on?'checked ':'') + 'onchange="_togglePConf(\'useNewKejuD2\',this.checked)" style="margin-top:0.15rem;flex-shrink:0;">' +
+            '<div style="flex:1;">' +
+              '<div style="font-size:0.82rem;color:var(--gold);font-weight:600;">🎓 科举·特科 spawn 总开关 (G1·default OFF)</div>' +
+              '<div style="font-size:0.7rem;color:var(--txt-d);line-height:1.55;margin-top:0.15rem;">G1 特科 spawn infra·控所有 G2/G3/G5 trigger 来源。开后特科按朝代/事件自然 spawn 进议程·关则无任何特科 event。</div>' +
+            '</div>' +
+          '</label>';
+        })()+
+        // G2·恩科 mini-keju
+        (function(){
+          var _on = !!(P.conf && P.conf.useNewKejuG2 === true);
+          return '<label style="display:flex;align-items:flex-start;gap:0.5rem;padding:0.4rem 0;border-top:1px dotted var(--bdr);cursor:pointer;">' +
+            '<input type="checkbox" id="s-keju-g2" ' + (_on?'checked ':'') + 'onchange="_togglePConf(\'useNewKejuG2\',this.checked)" style="margin-top:0.15rem;flex-shrink:0;">' +
+            '<div style="flex:1;">' +
+              '<div style="font-size:0.82rem;color:var(--gold);font-weight:600;">🎓 科举·G2 恩科 (need D2)</div>' +
+              '<div style="font-size:0.7rem;color:var(--txt-d);line-height:1.55;margin-top:0.15rem;">寿诞/改元/大婚自动 spawn 恩科·3 路径 (议程·问礼部·下诏)·谢恩大典 LLM·恩科党·滥开贬值 5 lever。</div>' +
+            '</div>' +
+          '</label>';
+        })()+
+        // G3·武举 mini-keju
+        (function(){
+          var _on = !!(P.conf && P.conf.useNewKejuG3 === true);
+          return '<label style="display:flex;align-items:flex-start;gap:0.5rem;padding:0.4rem 0;border-top:1px dotted var(--bdr);cursor:pointer;">' +
+            '<input type="checkbox" id="s-keju-g3" ' + (_on?'checked ':'') + 'onchange="_togglePConf(\'useNewKejuG3\',this.checked)" style="margin-top:0.15rem;flex-shrink:0;">' +
+            '<div style="flex:1;">' +
+              '<div style="font-size:0.82rem;color:var(--gold);font-weight:600;">🎓 科举·G3 武举 (need D2)</div>' +
+              '<div style="font-size:0.7rem;color:var(--txt-d);line-height:1.55;margin-top:0.15rem;">war_state ≥60 / 缺将 spawn 武举·校阅大典·派镇·战功·武勋世家·兵谏黑天鹅·1898 清末废武举。</div>' +
+            '</div>' +
+          '</label>';
+        })()+
+        // G5·童子科 mini-keju
+        (function(){
+          var _on = !!(P.conf && P.conf.useNewKejuG5 === true);
+          return '<label style="display:flex;align-items:flex-start;gap:0.5rem;padding:0.4rem 0;border-top:1px dotted var(--bdr);cursor:pointer;">' +
+            '<input type="checkbox" id="s-keju-g5" ' + (_on?'checked ':'') + 'onchange="_togglePConf(\'useNewKejuG5\',this.checked)" style="margin-top:0.15rem;flex-shrink:0;">' +
+            '<div style="flex:1;">' +
+              '<div style="font-size:0.82rem;color:var(--gold);font-weight:600;">🎓 科举·G5 童子科 (need D2)</div>' +
+              '<div style="font-size:0.7rem;color:var(--txt-d);line-height:1.55;margin-top:0.15rem;">9-14 岁神童·4 archetype (早卒/大器晚成/奇行隐/才尽)·抚摩大典·late_bloomer 50 岁真入会试·民心/解额联动。</div>' +
+            '</div>' +
+          '</label>';
+        })()+
+        // H·私学/书院·12 维深嵌入
+        (function(){
+          var _on = !!(P.conf && P.conf.useNewKejuH === true);
+          return '<label style="display:flex;align-items:flex-start;gap:0.5rem;padding:0.4rem 0;border-top:1px dotted var(--bdr);cursor:pointer;">' +
+            '<input type="checkbox" id="s-keju-h" ' + (_on?'checked ':'') + 'onchange="_togglePConf(\'useNewKejuH\',this.checked)" style="margin-top:0.15rem;flex-shrink:0;">' +
+            '<div style="flex:1;">' +
+              '<div style="font-size:0.82rem;color:var(--gold);font-weight:600;">🏛️ 科举·H 私学/书院 (12 维深嵌入·独立)</div>' +
+              '<div style="font-size:0.7rem;color:var(--txt-d);line-height:1.55;margin-top:0.15rem;">东林/复社/朱熹/王阳明书院·山长真 NPC·5 watershed (1190/1290/1500/1604/1654/1742)·学说真改 paradigm·反馈循环。</div>' +
+            '</div>' +
+          '</label>';
+        })()+
       '</div>';
     })()+
 

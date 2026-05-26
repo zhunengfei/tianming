@@ -2280,6 +2280,32 @@ function openCharRenwuPage(charName) {
     h += '<span class="rwp-mini-tag clan">'+escHtml(ch.family)+(ch.familyTier?' · '+(tierMap[ch.familyTier]||ch.familyTier):'')+'</span>';
   }
   if (ch.learning) h += '<span class="rwp-mini-tag origin">'+escHtml(ch.learning)+'</span>';
+  // 科举 audit Fix 6·_origin 出身标签 (G2 enke / G3 wuju / G5 tongzi / H shanzhang/disciple)
+  if (ch._origin) {
+    var _originMap = {
+      enke:      { label: '🎓 恩科进士', color: 'rgba(120,180,140,0.18)', border: '#6a9' },
+      wuju:      { label: '⚔ 武进士',   color: 'rgba(200,120,100,0.18)', border: '#c87' },
+      tongzi:    { label: '👶 童子进士', color: 'rgba(200,120,150,0.18)', border: '#c79' },
+      shanzhang: { label: '🏛 山长',     color: 'rgba(120,140,200,0.18)', border: '#779' },
+      disciple:  { label: '📜 书院弟子', color: 'rgba(160,140,200,0.15)', border: '#a8c' }
+    };
+    var _o = _originMap[ch._origin];
+    if (_o) {
+      var _extra = '';
+      if (ch._tongziArchetype) {
+        var _archMap = { late_bloomer: '·大器晚成', early_genius_died: '·体弱',
+                          turned_eccentric: '·隐士', burned_out: '·辍考' };
+        _extra = _archMap[ch._tongziArchetype] || '';
+      } else if (ch._wuArchetype) {
+        var _wuMap = { brave_brash: '·莽勇', tactician: '·智将',
+                       loyalist: '·忠勇', coward_clever: '·油子', mercenary: '·兵痞' };
+        _extra = _wuMap[ch._wuArchetype] || '';
+      } else if (ch.graduateTitle && /状元|榜眼|探花|第一名/.test(ch.graduateTitle)) {
+        _extra = '·' + ch.graduateTitle.match(/状元|榜眼|探花|第一名/)[0];
+      }
+      h += '<span class="rwp-mini-tag origin-special" style="background:'+_o.color+';border-color:'+_o.border+';">'+_o.label+_extra+'</span>';
+    }
+  }
   if (ch.birthplace) h += '<span class="rwp-mini-tag">籍贯 '+escHtml(ch.birthplace)+'</span>';
   if (ch.ethnicity || ch.faith) h += '<span class="rwp-mini-tag">'+(ch.ethnicity||'')+(ch.ethnicity&&ch.faith?' · ':'')+(ch.faith||'')+'</span>';
   if (ch.culture) h += '<span class="rwp-mini-tag">'+escHtml(ch.culture)+'</span>';

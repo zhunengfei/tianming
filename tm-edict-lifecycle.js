@@ -93,7 +93,51 @@ var EDICT_TYPES = {
     historyPaths:['开科','兴学','修书'],
     affectedClasses:{ '士人':+15, '寒门':+10, '国库':-5 },
     resistance:{ '世家':20 },
-    keywords:['开科','取士','兴学','建学','修书','印经','刊']
+    keywords:['兴学','建学','修书','印经','刊']  // G2·step 0a·去掉 '开科'/'取士'·让 enke 优先识别
+  },
+  enke: {
+    // G2·Phase G·step 0a·恩科·v3.1 Path C 诏令集成
+    label:'恩科',
+    lifecycleDays:730,                      // 2 年完成 (筹备 + 乡试 + 会试 + 殿试 + 谢恩)
+    immediate:false, phased:true,
+    historyPaths:['登基恩科','寿诞恩科','大婚恩科','平乱恩科','瑞祥恩科','无故强发'],
+    affectedClasses:{ '士林':+10, '官僚':-5, '国库':-8 },
+    resistance:{ '清议士林':30, '常科派':40, '礼部':50 },
+    unintendedRisk:'enke_abuse_party',      // 滥开 → 恩科党尾大不掉
+    keywords:['特赐','恩科','开恩','士子','恩荣','蒙恩','科赐','钦取','开科','取士']
+  },
+  wuju: {
+    // G3·Phase G·武举·Path C 诏令集成·M4 strong keyword required
+    label:'武举',
+    lifecycleDays:1095,                       // 3 年 phased
+    immediate:false, phased:true,
+    historyPaths:['war-crisis','general-shortage','periodic','muster-warriors','无故强发武举'],
+    affectedClasses:{ '军':+15, '士林':-3, '国库':-15 },
+    resistance:{ '文官':40, '清议':30, '兵部':20 },
+    unintendedRisk:'military_coup_risk',      // 武勋哗变·尾大不掉
+    keywords:['武举','武科','募将','设武科','钦点武状元']   // 删 '选武' 避撞 '选兵'
+  },
+  school: {
+    // Phase H·私学/书院·Path C 诏令集成·15 类·strong keyword
+    label:'兴学/禁讲学',
+    lifecycleDays:1095,                       // 3 年 phased
+    immediate:false, phased:true,
+    historyPaths:['兴官学','禁讲学','扶书院','官化书院','无故强禁'],
+    affectedClasses:{ '士林':+10, '国库':-5, '皇权':+5 },
+    resistance:{ '士林':50, '在野儒':70, '清议':40 },
+    unintendedRisk:'literati_revolt',          // 士林反弹·东林党根源
+    keywords:['兴学','建学','禁讲','禁书院','立书院','扶书院','官化','复立']
+  },
+  tongzi: {
+    // G5·Phase G·童子科·Path C 诏令集成·17 类·罕见 (10 年 cooldown)·strong keyword
+    label:'童子科',
+    lifecycleDays:365,                         // 1 年完成·短周期
+    immediate:false, phased:true,
+    historyPaths:['recommendation','royal-recognition','无故强荐'],
+    affectedClasses:{ '士林':+5, '民心':+3, '国库':-2 },
+    resistance:{ '清议':10, '礼部':15 },         // 罕见·resistance 极低
+    unintendedRisk:'precocious_decline',        // 神童早凋
+    keywords:['童子科','神童','荐神童','童子荐举']
   }
 };
 
