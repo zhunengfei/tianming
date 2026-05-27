@@ -842,11 +842,35 @@
   function renderFormalMap(){
     var shell = document.getElementById('tm-phase8-main-shell');
     var stage = mapStage();
-    if (!shell || !stage || !isGameVisible()) return;
+    if (!shell || !stage || !isGameVisible()) {
+      // 2026-05-27 diag·一次性输出·让 player 看到为何不渲染
+      if (!state._mapDiagShellMissing) {
+        state._mapDiagShellMissing = true;
+        console.warn('[map-render-skip] shell=' + !!shell + ' stage=' + !!stage + ' visible=' + isGameVisible());
+      }
+      return;
+    }
     var map = getMapData();
     if (!map || !Array.isArray(map.regions) || !map.regions.length) {
       stage.innerHTML = '<div class="tmf-map-loading">舆图数据尚未载入</div>';
       state.mapLoadRetry = (state.mapLoadRetry || 0) + 1;
+      // 2026-05-27 diag·每 20 retry 输出一次·让 player 看到 retry 在卡哪
+      if (state.mapLoadRetry % 20 === 1 || state.mapLoadRetry === 80) {
+        var gm = window.GM || {};
+        var p = window.P || {};
+        var diag = {
+          retry: state.mapLoadRetry,
+          mapDataExists: !!(map),
+          regionsLen: map && map.regions ? map.regions.length : 0,
+          gmMapData: !!gm.mapData,
+          gmMapRegions: gm.mapData && gm.mapData.regions ? gm.mapData.regions.length : 0,
+          pMap: !!p.map,
+          pMapData: !!p.mapData,
+          tmMapRt: !!window.TMMapRuntime,
+          mingRegions: Array.isArray(window.MING_MAP_REGIONS) ? window.MING_MAP_REGIONS.length : 0
+        };
+        console.warn('[map-data-missing] retry ' + state.mapLoadRetry + ':', diag);
+      }
       if (state.mapLoadRetry <= 80) setTimeout(renderFormalMapSoon, state.mapLoadRetry < 12 ? 250 : 700);
       return;
     }

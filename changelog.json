@@ -3,6 +3,25 @@
   "entries": [
     {
       "date": "2026-05-27",
+      "module": "1.2.7.8·**HOTFIX·地图不显诊断 + renderGameState wrap try/catch 隔离**",
+      "title": "**继 1.2.7.7 alias 全补后玩家仍报地图不显**。诊断·若 renderEventFeed 在 v3.3 改动后 throw·会阻塞 showHome → renderFormalMapSoon 永不触发·地图永不画。本版·(1) renderGameState wrap 内 try/catch 隔离·每一步独立失败不阻塞·(2) renderFormalMap 入口加 console.warn 诊断·shell/stage/visible 缺失输出·getMapData 返 null 时每 20 retry 输出 diag 包含 GM.mapData / P.map / TMMapRuntime / MING_MAP_REGIONS 状态·让玩家发出 console 后我即可定位是数据没载入还是渲染没触发。",
+      "items": [
+        {
+          "what": "[renderGameState wrap try/catch 隔离] web/phase8-formal-bridge.js L2570-2585·原 setTimeout(function(){ if(...) return; renderEventFeed(); if(...) showHome(); else renderFormalMapSoon(); }, 0)·改为·renderEventFeed 单独 try/catch (失败 console.warn)·showHome/renderFormalMapSoon 单独 try/catch。",
+          "why": "v3.3 event feed 改动 (1.2.7.5) 引入新 helper + state·若某 item 的 type 或数据异常导致 renderEventFeed throw·串联中后续 showHome 永不触发·ensureMainShell 不创 shell·renderFormalMap 不写 SVG·地图区域空白。try/catch 隔离让一个失败不阻塞另一个·至少地图能尝试画。"
+        },
+        {
+          "what": "[renderFormalMap 诊断 console.warn] web/phase8-formal-map.js L842-870·shell/stage/isGameVisible 任一缺失即输出 `[map-render-skip] shell=X stage=X visible=X` (一次性)·getMapData 返 null 时每 20 retry (1/21/41/61/80) 输出 `[map-data-missing] retry N:` + diag 对象 (mapDataExists / regionsLen / gmMapData / gmMapRegions / pMap / pMapData / tmMapRt / mingRegions)。",
+          "why": "玩家报地图不显·我无法确定是 (a) shell 没创建 (b) getMapData 返 null (c) 数据有但渲染失败。加 console.warn 让玩家发 console 后我能定位。8 个 diag 字段覆盖所有可能的数据源。"
+        },
+        {
+          "what": "[cache bump] phase8-formal-bridge.js → v=20260527-mapdiag-trycatch·phase8-formal-map.js → v=20260527-mapdiag。",
+          "why": "热更后玩家浏览器强制重拉新 JS·避免局部缓存残留旧版。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-27",
       "module": "1.2.7.7·**HOTFIX·补 6 个 wave 拆分残留 alias** (showHome / isPinned / issueRank / renderIssueCard / renderIssueDetail / toast)",
       "title": "**继 1.2.7.6 补 6 个 alias·全面 scan 5 个 split module 内所有 bridge 函数引用·确认零残留**。1.2.7.6 修了 map.js 6 个 alias·但又漏 `showHome` (因 map.js L96 `back.onclick = showHome` 是赋值非调用·上次 grep call pattern 漏)。新玩家版本 1.2.7.6 报错 `showHome is not defined`·导致**御案 home 按钮 onclick 触发 null·map render fail·地图不显**。本版用 broader ident scan (`grep -oE '[a-zA-Z_]+'` 而非 fn-call pattern) 跨 5 个 split module (map / rightrail / drafts / modules / records) 找出所有 bridge.js 定义函数被裸引用但未 alias 的·一次补全·6 个·彻底闭环 Wave 3-6 拆分残留。",
       "items": [

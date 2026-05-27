@@ -2573,9 +2573,12 @@
         var ret = oldRender.apply(this, arguments);
         setTimeout(function(){
           if (!ensureFormalRuntimeChrome(true)) return;
-          renderEventFeed();
-          if (!state.legacyView) showHome();
-          else renderFormalMapSoon();
+          // 2026-05-27 hotfix·try/catch 隔离·防 renderEventFeed 失败 → showHome/map render 永不触发
+          try { renderEventFeed(); } catch(e){ console.warn('[renderEventFeed-err]', e && e.message); }
+          try {
+            if (!state.legacyView) showHome();
+            else renderFormalMapSoon();
+          } catch(e){ console.warn('[showHome-or-mapRender-err]', e && e.message); }
         }, 0);
         return ret;
       };
