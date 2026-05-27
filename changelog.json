@@ -3,6 +3,25 @@
   "entries": [
     {
       "date": "2026-05-27",
+      "module": "1.2.7.6·**HOTFIX·修 phase8-formal-map.js 4 个 ReferenceError + chaoyi 起议站班 dark text bug**",
+      "title": "**两个 bug**·(1) 玩家反馈过回合时 console 报 2000+ 错·`ReferenceError: syncFormalShellVisibility is not defined` (phase8-formal-map.js:57) + `hasRegionMap is not defined` (EndTurnHooks 钩子)·根因·2026-05-26 Wave 6 拆 bridge.js → map.js 时·map.js 头部 alias 块漏了 4 个 bridge helper·**syncFormalShellVisibility / hasRegionMap / getScenarioMapData / activeScenarioId / mapIdentity / isGameVisible** (其实 5 个·凑 6 个安全)·导致 map 模块每次 ensureMainShell/getMapData/renderFormalMap 调用即 throw。bridge expose 加 5 个·map.js alias 加 5 个·零回归。(2) 大廷议起议站班 modal 内官员名字看不清·根因·.ty3-st-mem CSS 用 `color: var(--ink-700, #d9c9a9)` 期望 fallback 浅色·但 styles.css :root 全局已设 `--ink-700: #1c1914` (深近黑)·override fallback·浅 bg 上深字。改 literal `#e6d4a0` + 加 padding/letter-spacing/text-shadow·彻底可读。",
+      "items": [
+        {
+          "what": "[map.js alias 补 6 个 bridge helper] web/phase8-formal-bridge.js 末尾 expose 加 `_syncFormalShellVisibility / _hasRegionMap / _getScenarioMapData / _activeScenarioId / _mapIdentity / _isGameVisible`·web/phase8-formal-map.js 头部 alias 块加同名 var = bridge._xxx。",
+          "why": "Wave 6 拆分时 map.js 直接裸调这些 bridge 函数·没经 alias·闭包外不可见→ReferenceError。每次 endturn pipeline 触发 phase8-formal-map-refresh hook 都进 getMapData·进 hasRegionMap 检测·throw·EndTurnHooks 捕获后继续·但 console 飞 2000+ 报错刷屏。同 ensureMainShell→syncFormalShellVisibility 路径每次 ensureFormalRuntimeChrome 3s 周期触一次·一局对话 30 turn × 多 hook = 数千条。**修后 console 干净·过回合无 spam**。"
+        },
+        {
+          "what": "[起议站班 .ty3-st-mem dark text 修复] web/tm-tinyi-v3.css L899-906·color 从 `var(--ink-700, #d9c9a9)` 改 literal `#e6d4a0`·bg 从 `var(--bg-paper, #221c15)` 改 literal `rgba(34,28,21,.72)` (略透)·border 改 `rgba(150,128,72,.42)`·font-size 0.68→0.78rem·padding 1/6→2/7·加 text-shadow 0 1px 1px black。",
+          "why": "玩家反馈起议站班党派分班 modal 内官员名字看不清·全是深色字混背景。原因·styles.css :root L3373 全局已定 `--ink-700: #1c1914` (深近黑·turn-modal 用)·与 tm-chaoyi-changchao.css :root L10 的 `--ink-700: #d9c9a9` (浅) 加载先后影响。 tm-tinyi-v3.css 用 `var(--ink-700, #d9c9a9)` 期望 fallback·但 var 已定不走 fallback·实际取 #1c1914 = 不可读。改 literal 彻底脱钩 CSS var 风险。"
+        },
+        {
+          "what": "[cache version bump] web/index.html·phase8-formal-bridge.js + phase8-formal-map.js → `v=20260527-map-aliases`·tm-tinyi-v3.js 内 cssHref + fallback → `v=20260527-ststmem-light`·浏览器强制重拉。",
+          "why": "v3.3 event feed (1.2.7.5) 已 bump 过 bridge cache·这次再 bump 防 1.2.7.5 hot 包 + 1.2.7.6 src push 之间的 race·让玩家明确知道是新版。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-27",
       "module": "1.2.7.5·**左下事件栏全面重设计·邸抄文字流 paradigm** (v3.3)",
       "title": "**事件栏 366×252 → 442×240** (宽+24%·高-25%)·**全部 chrome 透明化** (~6% 不透明度·spine 朱漆+顶底 1px 金线·其他全删)·**item 默认 22px** 只显 title 一行·点击展开见 body+detail+meta+进入详情·**按 turn 自动分组+sticky turn header** ("T 54·春" 钉顶)·**8 类 type 字头染色** (议/军/势/财/人/报/索/杂·朱/钴/玉/紫/etc.)·**filter chips** (全/朝/军/报/⋯)·**density toggle** (紧/宽)·**横向 collapse toggle** (‹/›·收到 28px 窄条)·**state 持久** (filter/density/collapsed 跟 expandedIdx 一起)·**类型识别 + 季节** 从 item.type / item.time 自动派生。",
       "items": [

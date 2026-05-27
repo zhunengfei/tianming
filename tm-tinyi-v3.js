@@ -43,12 +43,12 @@
   if (typeof document === 'undefined') return;
   if (document.getElementById('ty3-css')) return;
   var link = document.createElement('link');
-  var cssHref = 'tm-tinyi-v3.css?v=20260426y';
+  var cssHref = 'tm-tinyi-v3.css?v=20260527-ststmem-light';
   link.id = 'ty3-css';
   link.rel = 'stylesheet';
   link.href = cssHref;
   link.setAttribute('data-css-base', cssHref);
-  link.setAttribute('data-css-fallback', 'https://cdn.jsdelivr.net/gh/misfit-user/tianming@main/tm-tinyi-v3.css?v=20260426y');
+  link.setAttribute('data-css-fallback', 'https://cdn.jsdelivr.net/gh/misfit-user/tianming@main/tm-tinyi-v3.css?v=20260527-ststmem-light');
   link.onload = function() {
     if (typeof window !== 'undefined' && window.TM_CSS_LOADED) window.TM_CSS_LOADED(link);
   };
@@ -128,6 +128,12 @@ function _ty3_inferTopicTags(topicType, topicText) {
   if (/河|水利|堤|渠|湖|江工/.test(t))  tags['river-works'] = true;
   if (/夷|使|和亲|互市/.test(t))        tags['foreign-policy'] = true;
   if (/灾|疫|旱|涝|蝗|饥/.test(t))      tags['relief'] = true;
+  // G2·BB7·恩科 tag·让 tinyi NPC 见 topic 含恩科·走 enke 党友/敌路径
+  if (/恩科|特赐|开恩|蒙恩|科赐/.test(t))   tags['enke'] = true;
+  if (/反恩科|节恩典|讥滥赏/.test(t))       tags['anti-enke'] = true;
+  // G3·武举 tag·让 tinyi NPC 见 topic 含武举 / 武进士 / 边事 → 走 武勋派友/敌路径
+  if (/武举|武科|武进士|边事|边镇|武勋/.test(t))     tags['wuju'] = true;
+  if (/反武举|罢武人|裁武|节军费/.test(t))            tags['anti-wuju'] = true;
   return Object.keys(tags);
 }
 
@@ -680,7 +686,47 @@ function _ty3_getDims(ch) {
 }
 
 // initial stance·按 RULES·v2.9 §5.5.1 25 条核心 + class 加成
+// L4·c·wrapper·调 reformLean modulator·tags 含 reform / restoration 时加权·非 reform topic 透传
 function _ty3_initialStanceFromDims(ch, topic, tags) {
+  var result = _ty3_initialStanceFromDimsCore(ch, topic, tags);
+  return _ty3_applyReformLeanModulator(ch, tags, result);
+}
+
+// L4·c·NEW·若 NPC 有 _kjpReformLean (R6 schema·{value, lastTurn})·且 tags 含 reform·调 stance intensity
+// 走 tags 非 topic.source·因 topic 实际是 string (tinyi-v3.js:4085 / panel.js:1677 都传 string)
+// 不动原 17 return 分支·post-call wrap·防破 v3 25 RULES + smoke 115 case
+function _ty3_applyReformLeanModulator(ch, tags, result) {
+  if (!result) return result;
+  if (!ch || !ch._kjpReformLean) return result;
+  var leanObj = ch._kjpReformLean;
+  // R6 schema·必 object·旧 plain number 不响应 (R6 _kjpAccumReformLean 已自动升级·防回退)
+  if (typeof leanObj !== 'object') return result;
+  var t = tags || [];
+  // panel.js _kjpClassifyDiffTags 派出 'reform' / 'restoration'·tinyi v3 _ty3_inferTopicTags 同
+  var isReform = t.indexOf('reform') >= 0 || t.indexOf('restoration') >= 0;
+  if (!isReform) return result;
+
+  var lean = parseInt(leanObj.value, 10) || 0;
+  // R6·decay 由 _kjpAccumReformLean 写时算·此处直接读 current value
+
+  if (lean > 30) {
+    // 偏 support·原 oppose 翻 neutral·原其他 boost intensity
+    if (result.stance === 'oppose') {
+      return { stance: 'neutral', intensity: (result.intensity || 0.5) * 0.7, _modulated: true, _modSource: 'reformLean+' };
+    }
+    return { stance: 'support', intensity: Math.min(1.0, (result.intensity || 0.5) * 1.3), _modulated: true, _modSource: 'reformLean+' };
+  }
+  if (lean < -30) {
+    if (result.stance === 'support') {
+      return { stance: 'neutral', intensity: (result.intensity || 0.5) * 0.7, _modulated: true, _modSource: 'reformLean-' };
+    }
+    return { stance: 'oppose', intensity: Math.min(1.0, (result.intensity || 0.5) * 1.3), _modulated: true, _modSource: 'reformLean-' };
+  }
+  // -30~+30·噪音区·不改·避免轻微 audience 翻 stance
+  return result;
+}
+
+function _ty3_initialStanceFromDimsCore(ch, topic, tags) {
   var dims = _ty3_getDims(ch);
   tags = tags || [];
   var tagsSet = {};
@@ -732,6 +778,9 @@ if (typeof window !== 'undefined') {
   window._ty3_dimsFromKeywords = _ty3_dimsFromKeywords;
   window._ty3_getDims = _ty3_getDims;
   window._ty3_initialStanceFromDims = _ty3_initialStanceFromDims;
+  // L4·c·expose
+  window._ty3_initialStanceFromDimsCore = _ty3_initialStanceFromDimsCore;
+  window._ty3_applyReformLeanModulator = _ty3_applyReformLeanModulator;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -2737,6 +2786,13 @@ function _ty3_buildImpeachmentTopicMeta(accuserName, accuserCh, accusedCh, topic
 
 function _ty3_buildAccusationMemorialStructured(accuserName, accuserCh, accusedCh, topicMeta) {
   if (!accusedCh || !accusedCh.name) return null;
+  // G3·BB2·文官弹劾武进士 → record for 兵谏 counter
+  // 自然 trigger·accused 是 武进士 (_origin=='wuju') 且 accuser 非 武进士·counter +1
+  if (accusedCh._origin === 'wuju' && (!accuserCh || accuserCh._origin !== 'wuju')) {
+    if (typeof window !== 'undefined' && typeof window._kjG3RecordWenguanImpeachment === 'function') {
+      try { window._kjG3RecordWenguanImpeachment(); } catch(_) {}
+    }
+  }
   var meta = topicMeta && typeof topicMeta === 'object' ? topicMeta : _ty3_buildImpeachmentTopicMeta(accuserName, accuserCh, accusedCh, topicMeta);
   var accuserTitle = (accuserCh && (accuserCh.officialTitle || accuserCh.title)) || 'censorate';
   var accuserNameText = accuserCh ? accuserCh.name : (accuserName || 'unknown');

@@ -2750,6 +2750,12 @@
     _personNameKey: personNameKey,
     _clearFormalDraftStore: clearFormalDraftStore,
     _fullHongyanText: fullHongyanText,
+    _syncFormalShellVisibility: syncFormalShellVisibility,
+    _hasRegionMap: hasRegionMap,
+    _getScenarioMapData: getScenarioMapData,
+    _activeScenarioId: activeScenarioId,
+    _mapIdentity: mapIdentity,
+    _isGameVisible: isGameVisible,
     _state: state
   };
 

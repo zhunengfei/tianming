@@ -39,6 +39,12 @@
   var toast = bridge._toast;
   var cssEscape = bridge._cssEscape;
   var renderEventFeed = bridge._renderEventFeed;
+  var syncFormalShellVisibility = bridge._syncFormalShellVisibility;
+  var hasRegionMap = bridge._hasRegionMap;
+  var getScenarioMapData = bridge._getScenarioMapData;
+  var activeScenarioId = bridge._activeScenarioId;
+  var mapIdentity = bridge._mapIdentity;
+  var isGameVisible = bridge._isGameVisible;
 
   // ── late-bound wrappers (orchestration into bridge / window) ───────
   function openPanel(slot){ return bridge.openPanel(slot); }

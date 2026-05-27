@@ -897,12 +897,15 @@
   gap: 3px;
 }
 .ty3-st-mem {
-  font-size: 0.68rem;
-  padding: 1px 6px;
-  background: var(--bg-paper, #221c15);
-  color: var(--ink-700, #d9c9a9);
-  border: 1px solid var(--ink-200, #4d4234);
+  font-size: 0.78rem;
+  padding: 2px 7px;
+  background: rgba(34,28,21,.72);
+  /* 2026-05-27·修 dark text bug·styles.css :root --ink-700=#1c1914 太黑·改 literal 浅色 */
+  color: #e6d4a0;
+  border: 1px solid rgba(150,128,72,.42);
   border-radius: 2px;
+  letter-spacing: .04em;
+  text-shadow: 0 1px 1px rgba(0,0,0,.5);
 }
 .ty3-st-foot {
   text-align: center;
