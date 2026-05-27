@@ -23,7 +23,7 @@
     {
       "date": "2026-05-27",
       "module": "1.2.7.5·**左下事件栏全面重设计·邸抄文字流 paradigm** (v3.3)",
-      "title": "**事件栏 366×252 → 442×240** (宽+24%·高-25%)·**全部 chrome 透明化** (~6% 不透明度·spine 朱漆+顶底 1px 金线·其他全删)·**item 默认 22px** 只显 title 一行·点击展开见 body+detail+meta+进入详情·**按 turn 自动分组+sticky turn header** ("T 54·春" 钉顶)·**8 类 type 字头染色** (议/军/势/财/人/报/索/杂·朱/钴/玉/紫/etc.)·**filter chips** (全/朝/军/报/⋯)·**density toggle** (紧/宽)·**横向 collapse toggle** (‹/›·收到 28px 窄条)·**state 持久** (filter/density/collapsed 跟 expandedIdx 一起)·**类型识别 + 季节** 从 item.type / item.time 自动派生。",
+      "title": "**事件栏 366×252 → 442×240** (宽+24%·高-25%)·**全部 chrome 透明化** (~6% 不透明度·spine 朱漆+顶底 1px 金线·其他全删)·**item 默认 22px** 只显 title 一行·点击展开见 body+detail+meta+进入详情·**按 turn 自动分组+sticky turn header** (T 54·春 钉顶)·**8 类 type 字头染色** (议/军/势/财/人/报/索/杂·朱/钴/玉/紫/etc.)·**filter chips** (全/朝/军/报/⋯)·**density toggle** (紧/宽)·**横向 collapse toggle** (‹/›·收到 28px 窄条)·**state 持久** (filter/density/collapsed 跟 expandedIdx 一起)·**类型识别 + 季节** 从 item.type / item.time 自动派生。",
       "items": [
         {
           "what": "[新 HTML 结构] web/phase8-formal-bridge.js·ensureFormalChrome() 内 notice 模板·从 `.tm-event-notice` + `.tm-event-board-head` (含 turn-button + turn-menu 老 dropdown) 改 `.tmv3-feed` + `.tmv3-head` (含 tmv3-tt 标题 + tmv3-cnt 计数 + tmv3-filters 5 chip + tmv3-density 紧/宽 + tmv3-collapse ‹/›)·class 全切 tmv3-* 命名空间·老 CSS 规则因 class 不匹配自动失效·无需手动删。",
@@ -70,19 +70,19 @@
         },
         {
           "what": "[rail 按钮 chrome 印钮立体化] web/phase8-formal-bridge.js L1879-L1889·.tm-rc-icon 从 42×42 扁平 → 44×46 印钮立体·**多层 box-shadow**·top inset 高光 + 左 bevel 微亮 + 右 bevel 微暗 + 底 inset 暗压 (印盒留影) + 底部 inner glow + 外 drop shadow + 外底 1px 高光。**:before 顶部金色 lip**·左右 6px 内缩·height 2px·`linear-gradient transparent → rgba(255,238,180,.46) → transparent` 顶冠光泽。**hover → translateY(-1px) + 0 0 14px 232,197,113,.22 金晕**·替代原 translateX(-1px) 横滑。**active (按下) → translateY(+1px) + inset 2px 5px 阴影**·印章 stamp 感。**.hot 状态**·border 212,80,58,.62 + inset 朱暗 gradient + outer 0 0 9px 192,52,38,.28 朱晕。**.ok 状态**·border 140,196,178,.52 + inset 玉暗 + outer 0 0 8px 96,168,140,.22 玉晕。**.active 状态**·border 238,202,118,.92 + inset 0 0 0 1px 金内圈 + outer 0 0 20px 232,197,113,.40 金光晕 + :before lip 增亮 .82。",
-          "why": "原版只 1px gold border + 1 层 dark gradient + 简单 inset shadow·8 个按钮看起来扁平+重复·状态 (hot/ok/active) 只靠 border 色调切换辨识度低。新印钮 paradigm 三件事·(1) **立体感**·多层 shadow 模拟实物印钮厚度+底座留影·从 desk paradigm 一致 (御案/印钮匹配)·(2) **状态区分**·hot 加朱晕·ok 加玉晕·active 加金光晕·三个状态颜色族明显区分·盲扫识别·(3) **交互反馈**·hover 浮起+stamp 按下·替代原版直滑·点击有"印章按下"反馈·与 desk paradigm 印章付有司隐喻一致。"
+          "why": "原版只 1px gold border + 1 层 dark gradient + 简单 inset shadow·8 个按钮看起来扁平+重复·状态 (hot/ok/active) 只靠 border 色调切换辨识度低。新印钮 paradigm 三件事·(1) **立体感**·多层 shadow 模拟实物印钮厚度+底座留影·从 desk paradigm 一致 (御案/印钮匹配)·(2) **状态区分**·hot 加朱晕·ok 加玉晕·active 加金光晕·三个状态颜色族明显区分·盲扫识别·(3) **交互反馈**·hover 浮起+stamp 按下·替代原版直滑·点击有印章按下反馈·与 desk paradigm 印章付有司隐喻一致。"
         },
         {
           "what": "[国事 cap 印章牌化] web/phase8-formal-bridge.js L1878·.tm-rc-cap 从 40×18 → 44×22·加 radial 朱晕 50%/30% (`rgba(212,68,46,.30)`) overlay 老背景·letter-spacing .22em → .32em·color rgba(212,190,122,.76) → #efd58f 提亮·text-shadow 0 1px 0 rgba(0,0,0,.6) 深嵌·box-shadow 多层 (顶部 .20 inset 高光 + 底部 inset 暗 + 外 drop)。",
-          "why": "原 cap 太简陋·与"国事"这种重要 anchor 字头不匹配。加印章 plaque 感·朱晕底色让"国事"二字浮在朱印之上·配合下方 8 印钮组成完整"国事印盒"视觉。"
+          "why": "原 cap 太简陋·与 国事 这种重要 anchor 字头不匹配。加印章 plaque 感·朱晕底色让 国事 二字浮在朱印之上·配合下方 8 印钮组成完整 国事印盒 视觉。"
         },
         {
-          "what": "[divider 双线+朱点] web/phase8-formal-bridge.js L1878·.tm-rc-divider 从 width 34 height 1 单 gradient 线·改 38×7·radial 朱红 center 22% (印盒 朱钉) + `:before` 上 1px 金 gradient line + `:after` 下 1px 金 gradient line·组成"金线—朱点—金线" 印盒 separator。",
+          "what": "[divider 双线+朱点] web/phase8-formal-bridge.js L1878·.tm-rc-divider 从 width 34 height 1 单 gradient 线·改 38×7·radial 朱红 center 22% (印盒 朱钉) + `:before` 上 1px 金 gradient line + `:after` 下 1px 金 gradient line·组成 金线—朱点—金线 印盒 separator。",
           "why": "原 divider 单 1px 金 fade line·分组节奏弱·不够 anchor。新双线夹朱点·像印盒分格的金属铆钉·分组节奏更清·与印钮 paradigm 一致。"
         },
         {
           "what": "[count badge 朱印方印化] web/phase8-formal-bridge.js L1889·.tm-rc-count 从 14×14 8px 圆角胶囊 sans serif → 15×15 2px 方角 `STSong`/`SimSun` 衬线·朱漆 `linear-gradient(180deg,#c74a30,#811e10)`·金边 + inset 顶高光 .20 + inset 底暗 .34 + drop shadow .46·letter-spacing .04em。",
-          "why": "原版圆角胶囊感觉是"app 红点"·与古典 paradigm 脱节。改方角 + 衬线字 + 朱漆 gradient 后·变成"朱印方印"·与右侧栏整体 印钮 + 印盒 + 国事 主题视觉一致。"
+          "why": "原版圆角胶囊感觉是 app 红点·与古典 paradigm 脱节。改方角 + 衬线字 + 朱漆 gradient 后·变成 朱印方印·与右侧栏整体 印钮 + 印盒 + 国事 主题视觉一致。"
         }
       ]
     },
