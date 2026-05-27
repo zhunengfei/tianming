@@ -9,6 +9,10 @@
   state.activeSlot = state.activeSlot || '';
   state.eventLookback = state.eventLookback || 3;
   state.eventExpandedIdx = state.eventExpandedIdx == null ? null : (Number.isFinite(Number(state.eventExpandedIdx)) ? Number(state.eventExpandedIdx) : null);
+  // v3.3 邸抄·filter/density/collapse
+  state.eventFilter = state.eventFilter || 'all';
+  state.eventDensity = state.eventDensity || 'compact';
+  state.eventCollapsed = state.eventCollapsed === true;
   state.mapMode = state.mapMode || 'owner';
   state.mapScale = state.mapScale || 'region';
   state.mapView = state.mapView || { scale: 1, tx: 0, ty: 0 };
@@ -541,6 +545,43 @@
     return '第 ' + (turn || 1) + ' 回合';
   }
 
+  // ====== v3.3 邸抄·event feed helpers ======
+  function _eventTypeInfo(type) {
+    var t = String(type || '');
+    if (/朝议|廷议|朝政|奏疏|内阁|台谏/.test(t)) return ['t-chao', '议'];
+    if (/军务|军|宣府|边关|战|总兵/.test(t)) return ['t-army', '军'];
+    if (/势力|外族|外|蒙|鞑|瓦剌|羌|金/.test(t)) return ['t-faction', '势'];
+    if (/财|户|赋|盐课|岁入|漕|银/.test(t)) return ['t-finance', '财'];
+    if (/人物|科举|官|文苑|经历|承诺|动向|宦|侍郎|尚书|学士/.test(t)) return ['t-people', '人'];
+    if (/邸报|近事|事件|纪事|消息|新闻/.test(t)) return ['t-news', '报'];
+    if (/线索|御案|谜|疑/.test(t)) return ['t-clue', '索'];
+    return ['t-misc', '杂'];
+  }
+  function _seasonChar(turn, timeStr) {
+    var s = String(timeStr || '');
+    var monthMatch = s.match(/[一二三四五六七八九十]+月/);
+    if (monthMatch) {
+      var map = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10, 十一: 11, 十二: 12 };
+      var month = map[monthMatch[0].replace('月', '')] || 0;
+      if (month >= 1 && month <= 3) return '春';
+      if (month >= 4 && month <= 6) return '夏';
+      if (month >= 7 && month <= 9) return '秋';
+      if (month >= 10) return '冬';
+    }
+    var seasons = ['春', '夏', '秋', '冬'];
+    return seasons[((Number(turn) || 1) - 1) % 4] || '春';
+  }
+  function _isItemAlert(item) {
+    var sev = String((item && (item.severity || item.level)) || '').toLowerCase();
+    return /alert|crit|急|critical|emergency/.test(sev);
+  }
+  function _isItemHot(item) {
+    var sev = String((item && (item.severity || item.level)) || '').toLowerCase();
+    if (/hot|warn|warning/.test(sev)) return true;
+    var t = String(item && item.type || '');
+    return /军务|战|急/.test(t) || _isItemAlert(item);
+  }
+
   function collectRecentEvents(lookback){
     var gm = window.GM || {};
     var turn = Number(gm.turn || 1);
@@ -698,27 +739,69 @@
     if (!host) return;
     var list = collectRecentEvents();
     state.eventCache = list;
+
+    // v3.3 filter
+    var filter = state.eventFilter || 'all';
+    var filteredList = list;
+    if (filter !== 'all' && filter !== 'more') {
+      filteredList = list.filter(function(item){
+        return _eventTypeInfo(item.type)[0] === ('t-' + filter);
+      });
+    }
+
     var count = document.getElementById('tm-event-count');
     if (count) count.textContent = String(list.length);
     renderEventTurnMenu();
-    if (!list.length) {
-      host.innerHTML = '<div class="tm-event-empty">暂无近事。新事件会自动归入这里。</div>';
+
+    if (!filteredList.length) {
+      host.innerHTML = '<div class="tmv3-empty">' + (filter === 'all' ? '暂无近事。新事件会自动归入此处。' : '此类暂无近事。') + '</div>';
       return;
     }
-    host.innerHTML = list.map(function(item, idx){
-      var seal = String(item.type || item.title || '事').trim().slice(0, 1) || '事';
-      var text = String(item.text || item.time || '').replace(/\s+/g, ' ').trim();
-      var detail = String(item.detail || text || item.time || '').replace(/\s+/g, ' ').trim();
-      var timeLabel = String(item.time || getTurnText(item.turn)).replace(/\s+/g, ' ').trim();
-      var meta = Array.isArray(item.meta) ? item.meta.filter(Boolean).slice(0, 3) : [];
-      var expanded = state.eventExpandedIdx === idx;
-      var isNew = Number(item.turn || 0) >= Number((window.GM && GM.turn) || 1);
-      return '<button type="button" class="tm-event-item' + (isNew ? ' is-new' : '') + (expanded ? ' active expanded' : '') + '" aria-expanded="' + (expanded ? 'true' : 'false') + '" data-event-idx="' + idx + '">' +
-        '<span class="tm-event-seal">' + esc(seal) + '</span>' +
-        '<span class="tm-event-main"><span class="tm-event-head"><span class="tm-event-kicker">' + esc(item.type) + '</span><b class="tm-event-title">' + esc(item.title) + '</b><span class="tm-event-time">' + esc(timeLabel) + '</span></span><span class="tm-event-body">' + esc(text) + '</span><span class="tm-event-detail">' + esc(detail) + '<span class="tm-event-trace">' + meta.map(function(m){ return '<span>' + esc(m) + '</span>'; }).join('') + '</span></span></span>' +
-        '<span class="tm-event-tag">' + esc(item.type) + '</span>' +
-        '</button>';
-    }).join('');
+
+    var currentTurn = Number((window.GM && GM.turn) || 1);
+    var html = '';
+    var lastTurn = null;
+    filteredList.forEach(function(item, idx){
+      var typeInfo = _eventTypeInfo(item.type);
+      var typeClass = typeInfo[0];
+      var typeChar = typeInfo[1];
+      var turn = Number(item.turn || currentTurn);
+      var seasonChar = _seasonChar(turn, item.time);
+
+      if (turn !== lastTurn) {
+        lastTurn = turn;
+        html += '<div class="tmv3-turnhead"><b>T ' + esc(turn) + '</b> <small>' + esc(seasonChar) + '</small></div>';
+      }
+
+      var text = String(item.text || '').replace(/\s+/g, ' ').trim();
+      var detail = String(item.detail || '').replace(/\s+/g, ' ').trim();
+      var meta = Array.isArray(item.meta) ? item.meta.filter(Boolean).slice(0, 4) : [];
+
+      var classes = ['tmv3-item', typeClass];
+      if (_isItemAlert(item)) classes.push('is-alert');
+      if (_isItemHot(item)) classes.push('is-hot');
+      if (turn >= currentTurn) classes.push('is-new');
+      else if (turn < currentTurn - 1) classes.push('is-read');
+      if (state.eventExpandedIdx === idx) classes.push('expanded');
+
+      html += '<div class="' + classes.join(' ') + '" data-event-idx="' + idx + '">' +
+        '<span class="tmv3-ttype">' + esc(typeChar) + '</span>' +
+        '<div class="tmv3-main">' +
+          '<div class="tmv3-headrow">' +
+            '<span class="tmv3-title">' + esc(item.title || '未题') + '</span>' +
+            '<span class="tmv3-turn">T ' + esc(turn) + '·' + esc(seasonChar) + '</span>' +
+          '</div>' +
+          (text ? '<span class="tmv3-text">' + esc(text) + '</span>' : '') +
+          (detail && detail !== text ? '<span class="tmv3-text tmv3-text-detail">' + esc(detail) + '</span>' : '') +
+          '<div class="tmv3-foot">' +
+            '<div class="tmv3-meta">' + meta.map(function(m){ return '<span>' + esc(m) + '</span>'; }).join('') + '</div>' +
+            '<a class="tmv3-open" data-event-idx="' + idx + '" tabindex="0">进入详情 <em>↗</em></a>' +
+          '</div>' +
+        '</div>' +
+        '<div class="tmv3-mark"></div>' +
+        '</div>';
+    });
+    host.innerHTML = html;
   }
 
   function toggleEventRow(idx, row){
@@ -869,21 +952,51 @@
     ensurePreviewPanelHost();
     ensurePreviewBottomEntries();
     var notice = document.getElementById('tm-phase8-event-notice');
+    var v33Html =
+      '<div class="tmv3-head">' +
+        '<span class="tmv3-tt">邸报</span>' +
+        '<span class="tmv3-cnt"><b id="tm-event-count">0</b>条</span>' +
+        '<span class="tmv3-acts">' +
+          '<span class="tmv3-filters">' +
+            '<button type="button" class="tmv3-fchip on" data-event-filter="all">全</button>' +
+            '<button type="button" class="tmv3-fchip" data-event-filter="chao">朝</button>' +
+            '<button type="button" class="tmv3-fchip" data-event-filter="army">军</button>' +
+            '<button type="button" class="tmv3-fchip" data-event-filter="news">报</button>' +
+            '<button type="button" class="tmv3-fchip" data-event-filter="more">⋯</button>' +
+          '</span>' +
+          '<span class="tmv3-density">' +
+            '<button type="button" class="tmv3-dbtn on" data-event-density="compact">紧</button>' +
+            '<button type="button" class="tmv3-dbtn" data-event-density="comfortable">宽</button>' +
+          '</span>' +
+          '<button type="button" class="tmv3-collapse" aria-label="收起/展开"><span class="tmv3-collapse-icon"></span></button>' +
+        '</span>' +
+      '</div>' +
+      '<div class="tmv3-list" id="tm-event-list" tabindex="0" aria-label="近事列表"></div>';
     if (!notice) {
       notice = document.createElement('section');
       notice.id = 'tm-phase8-event-notice';
-      notice.className = 'tm-event-notice';
+      notice.className = 'tmv3-feed';
       notice.setAttribute('aria-label', '朝野近事');
-      notice.innerHTML =
-        '<div class="tm-event-board-head"><button type="button" class="tm-event-turn-button" id="tm-event-turn-button" aria-expanded="false" title="选择回合范围"><span id="tm-event-scope-label">最近三回合</span><i id="tm-event-count">0</i><b aria-hidden="true">▾</b></button><div class="tm-event-turn-menu" id="tm-event-turn-menu" aria-label="选择回合范围"></div></div>' +
-        '<div class="tm-event-list tmf-event-list" id="tm-event-list" tabindex="0" aria-label="近事列表"></div>';
+      notice.innerHTML = v33Html;
       g.appendChild(notice);
     }
-    if (notice && !document.getElementById('tm-event-turn-button')) {
-      notice.innerHTML =
-        '<div class="tm-event-board-head"><button type="button" class="tm-event-turn-button" id="tm-event-turn-button" aria-expanded="false" title="选择回合范围"><span id="tm-event-scope-label">最近三回合</span><i id="tm-event-count">0</i><b aria-hidden="true">▾</b></button><div class="tm-event-turn-menu" id="tm-event-turn-menu" aria-label="选择回合范围"></div></div>' +
-        '<div class="tm-event-list tmf-event-list" id="tm-event-list" tabindex="0" aria-label="近事列表"></div>';
+    // v3.3 升级·若是老结构 (有 tm-event-turn-button / tm-event-board-head)·重建为 tmv3
+    if (notice && (!notice.querySelector('.tmv3-head') || notice.querySelector('.tm-event-board-head'))) {
+      notice.className = 'tmv3-feed';
+      notice.innerHTML = v33Html;
     }
+    // 应用持久化 state
+    if (state.eventCollapsed) notice.classList.add('collapsed');
+    else notice.classList.remove('collapsed');
+    notice.classList.toggle('density-comfortable', state.eventDensity === 'comfortable');
+    var activeFilter = state.eventFilter || 'all';
+    notice.querySelectorAll('.tmv3-fchip').forEach(function(b){
+      b.classList.toggle('on', b.dataset.eventFilter === activeFilter);
+    });
+    var activeDensity = state.eventDensity || 'compact';
+    notice.querySelectorAll('.tmv3-dbtn').forEach(function(b){
+      b.classList.toggle('on', b.dataset.eventDensity === activeDensity);
+    });
     var tray = document.getElementById('tm-phase8-action-tray');
     if (!tray) {
       tray = document.createElement('div');
@@ -923,6 +1036,72 @@
         }
       });
       g.addEventListener('click', function(e){
+        // v3.3 邸抄 handlers
+        var openLink = e.target && e.target.closest ? e.target.closest('.tmv3-open') : null;
+        if (openLink) {
+          e.preventDefault();
+          e.stopPropagation();
+          openEventDetail(Number(openLink.dataset.eventIdx));
+          return;
+        }
+        var fchip = e.target && e.target.closest ? e.target.closest('.tmv3-fchip') : null;
+        if (fchip) {
+          e.preventDefault();
+          e.stopPropagation();
+          var f = fchip.dataset.eventFilter || 'all';
+          if (f === 'more') {
+            var pool = ['all', 'chao', 'army', 'news', 'faction', 'finance', 'people', 'clue', 'misc'];
+            var cur = pool.indexOf(state.eventFilter || 'all');
+            f = pool[(cur + 1) % pool.length];
+          }
+          state.eventFilter = f;
+          state.eventExpandedIdx = null;
+          var feedF = fchip.closest('.tmv3-feed');
+          if (feedF) feedF.querySelectorAll('.tmv3-fchip').forEach(function(b){
+            b.classList.toggle('on', b.dataset.eventFilter === f);
+          });
+          renderEventFeed();
+          return;
+        }
+        var dbtn = e.target && e.target.closest ? e.target.closest('.tmv3-dbtn') : null;
+        if (dbtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          var d = dbtn.dataset.eventDensity || 'compact';
+          state.eventDensity = d;
+          var feedD = dbtn.closest('.tmv3-feed');
+          if (feedD) {
+            feedD.classList.toggle('density-comfortable', d === 'comfortable');
+            feedD.querySelectorAll('.tmv3-dbtn').forEach(function(b){
+              b.classList.toggle('on', b.dataset.eventDensity === d);
+            });
+          }
+          return;
+        }
+        var cbtn = e.target && e.target.closest ? e.target.closest('.tmv3-collapse') : null;
+        if (cbtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          var feedC = cbtn.closest('.tmv3-feed');
+          if (feedC) {
+            feedC.classList.toggle('collapsed');
+            state.eventCollapsed = feedC.classList.contains('collapsed');
+          }
+          return;
+        }
+        var tmv3Item = e.target && e.target.closest ? e.target.closest('.tmv3-item') : null;
+        if (tmv3Item) {
+          if (tmv3Item.classList.contains('expanded')) {
+            var t = e.target;
+            if (t.closest('.tmv3-text') || t.closest('.tmv3-meta') || t.closest('.tmv3-turn')) return;
+          }
+          e.preventDefault();
+          var idx = Number(tmv3Item.dataset.eventIdx);
+          toggleEventRow(idx, tmv3Item);
+          return;
+        }
+
+        // legacy fallback (old turn dropdown·若残留)
         var turnBtn = e.target && e.target.closest ? e.target.closest('#tm-event-turn-button') : null;
         if (turnBtn) {
           e.preventDefault();
@@ -943,12 +1122,6 @@
           closeEventTurnMenu();
           renderEventFeed();
           return;
-        }
-        var row = e.target && e.target.closest ? e.target.closest('[data-event-idx]') : null;
-        if (row) {
-          if (e.target && e.target.closest && e.target.closest('.tm-event-detail')) return;
-          var idx = Number(row.dataset.eventIdx);
-          toggleEventRow(idx, row);
         }
       });
       document.addEventListener('click', function(e){
@@ -2113,7 +2286,111 @@
       '@media(max-width:1080px){body.tm-phase8-formal #tm-phase8-action-tray.zb-action-tray{width:292px!important;height:123px!important;}body.tm-phase8-formal #tm-phase8-action-tray .zb-btn.zb-img-btn{width:138px!important;height:58px!important;}body.tm-phase8-formal #tm-phase8-action-tray .zb-action-copy{left:10px!important;width:78px!important;}body.tm-phase8-formal #tm-phase8-action-tray #zhao-btn .zb-action-copy{right:10px!important;}body.tm-phase8-formal #tm-phase8-action-tray .zb-action-title{font-size:14px!important;}body.tm-phase8-formal #tm-phase8-action-tray .zb-action-sub{font-size:9px!important;}body.tm-phase8-formal #tm-phase8-action-tray .zb-action-kicker{display:none!important;}body.tm-phase8-formal #tm-phase8-action-tray #zhao-btn{left:0!important;top:1px!important;}body.tm-phase8-formal #tm-phase8-action-tray #zhao-btn-2{left:145px!important;top:3px!important;}body.tm-phase8-formal #tm-phase8-action-tray #zhao-btn-3{left:6px!important;top:65px!important;}body.tm-phase8-formal #tm-phase8-action-tray #zhao-btn-4{left:150px!important;top:63px!important;}}',
       'body.tm-phase8-formal .zb-action-badge{position:absolute!important;z-index:4!important;right:8px!important;top:7px!important;min-width:18px!important;height:18px!important;padding:0 5px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;border:1px solid rgba(238,202,118,.66)!important;border-radius:999px!important;background:linear-gradient(180deg,rgba(92,34,24,.96),rgba(36,18,12,.94))!important;color:#ffe2a8!important;font:700 10px/1 "STSong","SimSun",serif!important;letter-spacing:0!important;box-shadow:0 3px 8px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,238,186,.14)!important;}body.tm-phase8-formal #zhao-btn .zb-action-badge{left:8px!important;right:auto!important;}',
       '@media(max-width:1280px){.tmf-map-paper{left:4.2%;right:5.8%;}.tmf-map-dossier{width:min(760px,72vw);}.tmf-map-legend{width:238px;}.tmf-dossier-rows{grid-template-columns:repeat(2,minmax(0,1fr));}body.tm-phase8-formal .bar-var{min-width:68px;padding-left:7px;padding-right:7px;}#tm-phase8-action-tray{transform:scale(.88);transform-origin:left bottom;}}',
-      '@media(max-width:980px){#tm-phase8-left-surface{display:none;}#tm-phase8-action-tray{display:none;}.tmf-map-alerts{display:none;}.tmf-map-legend{display:none;}body.tm-phase8-formal .bar-weather{display:none;}body.tm-phase8-formal .bar-vars{overflow-x:auto;}body.tm-phase8-formal .bar-time{min-width:150px;}.tmf-map-dossier{left:12px;right:66px;width:auto;}.tmf-dossier-rows{grid-template-columns:1fr;}}'
+      '@media(max-width:980px){#tm-phase8-left-surface{display:none;}#tm-phase8-action-tray{display:none;}.tmf-map-alerts{display:none;}.tmf-map-legend{display:none;}body.tm-phase8-formal .bar-weather{display:none;}body.tm-phase8-formal .bar-vars{overflow-x:auto;}body.tm-phase8-formal .bar-time{min-width:150px;}.tmf-map-dossier{left:12px;right:66px;width:auto;}.tmf-dossier-rows{grid-template-columns:1fr;}}',
+      // ============================================
+      // v3.3 邸抄 event feed·442×240·非文字透明~6%·按 turn 分组·filter/density/collapse
+      // ============================================
+      'body.tm-phase8-formal #tm-phase8-event-notice.tmv3-feed{position:absolute!important;left:0!important;bottom:188px!important;width:442px!important;height:240px!important;z-index:62!important;padding:0!important;display:flex!important;flex-direction:column!important;background:linear-gradient(90deg,rgba(165,52,38,.04),transparent 18%)!important;border:0!important;border-left:2px solid rgba(165,52,38,.22)!important;border-radius:0!important;box-shadow:none!important;font-family:"STKaiti","KaiTi","楷体",serif!important;color:#e8d4a3!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;overflow:visible!important;pointer-events:auto!important;transition:width .18s ease!important;}',
+      'body.tm-phase8-formal #tm-phase8-event-notice.tmv3-feed:before{content:""!important;position:absolute!important;left:0!important;right:0!important;top:0!important;height:1px!important;background:linear-gradient(90deg,rgba(218,179,93,.26),rgba(218,179,93,.10) 50%,transparent)!important;pointer-events:none!important;}',
+      'body.tm-phase8-formal #tm-phase8-event-notice.tmv3-feed:after{content:""!important;position:absolute!important;left:0!important;right:0!important;bottom:0!important;height:1px!important;background:linear-gradient(90deg,rgba(218,179,93,.22),rgba(218,179,93,.08) 50%,transparent)!important;pointer-events:none!important;}',
+      // head·title + count + filter + density + collapse
+      'body.tm-phase8-formal .tmv3-feed .tmv3-head{flex:0 0 32px;display:flex;align-items:center;gap:8px;padding:7px 10px 5px 10px;background:transparent;position:relative;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-tt{display:inline-flex;align-items:baseline;gap:6px;color:#efd58f;font:700 14px/1 "STKaiti","KaiTi",serif;letter-spacing:.28em;text-shadow:0 1px 1px rgba(0,0,0,.6);}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-tt:before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:#c84a30;box-shadow:0 0 5px rgba(212,52,40,.55);margin-right:3px;align-self:center;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-cnt{color:rgba(214,196,148,.66);font:11px/1 "STSong","SimSun",serif;letter-spacing:.04em;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-cnt b{color:rgba(232,213,160,.92);font-weight:700;font-size:12px;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-acts{margin-left:auto;display:inline-flex;gap:6px;align-items:center;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-filters{display:inline-flex;gap:3px;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-fchip{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:18px;padding:0 5px;border-radius:9px;background:transparent;border:1px solid rgba(218,179,93,.22);color:rgba(214,196,148,.62);font:11px/1 "STSong","SimSun",serif;letter-spacing:0;cursor:pointer;transition:all .14s;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-fchip:hover{border-color:rgba(218,179,93,.46);color:rgba(232,213,160,.82);}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-fchip.on{background:rgba(218,179,93,.16);border-color:rgba(218,179,93,.62);color:#f0d98c;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-density{display:inline-flex;gap:1px;padding:1px;border:1px solid rgba(218,179,93,.22);border-radius:10px;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-dbtn{min-width:19px;height:16px;padding:0 4px;border:0;background:transparent;color:rgba(214,196,148,.56);font:10.5px/1 "STSong",serif;cursor:pointer;border-radius:7px;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-dbtn.on{background:rgba(218,179,93,.22);color:#f0d98c;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-collapse{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;padding:0;margin-left:2px;border:1px solid rgba(218,179,93,.20);border-radius:9px;background:transparent;color:rgba(214,196,148,.62);cursor:pointer;transition:all .14s;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-collapse:hover{border-color:rgba(218,179,93,.48);color:#f0d98c;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-collapse-icon{font:12px/1 "STSong",serif;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-collapse-icon:before{content:"‹";}',
+      'body.tm-phase8-formal .tmv3-feed.collapsed .tmv3-collapse-icon:before{content:"›";}',
+      // 整栏 collapsed·缩到 28px 窄条
+      'body.tm-phase8-formal #tm-phase8-event-notice.tmv3-feed.collapsed{width:28px!important;}',
+      'body.tm-phase8-formal .tmv3-feed.collapsed .tmv3-head{flex-direction:column;padding:5px 0 0 0;gap:6px;align-items:center;}',
+      'body.tm-phase8-formal .tmv3-feed.collapsed .tmv3-tt{writing-mode:vertical-rl;text-orientation:upright;font-size:11px;letter-spacing:.24em;color:rgba(232,213,160,.74);margin-top:4px;}',
+      'body.tm-phase8-formal .tmv3-feed.collapsed .tmv3-tt:before{margin:0 0 4px 0;width:4px;height:4px;}',
+      'body.tm-phase8-formal .tmv3-feed.collapsed .tmv3-cnt,body.tm-phase8-formal .tmv3-feed.collapsed .tmv3-filters,body.tm-phase8-formal .tmv3-feed.collapsed .tmv3-density{display:none!important;}',
+      'body.tm-phase8-formal .tmv3-feed.collapsed .tmv3-acts{margin:0;display:block;}',
+      'body.tm-phase8-formal .tmv3-feed.collapsed .tmv3-list{display:none!important;}',
+      // list·scroll·稀薄 scrollbar
+      'body.tm-phase8-formal .tmv3-feed .tmv3-list{flex:1 1 auto;overflow-y:auto;padding:0 4px 8px 4px;display:block;scrollbar-width:thin;scrollbar-color:rgba(218,179,93,.32) transparent;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-list::-webkit-scrollbar{width:3px;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-list::-webkit-scrollbar-thumb{background:rgba(218,179,93,.36);}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-list::-webkit-scrollbar-track{background:transparent;}',
+      // turn header·sticky
+      'body.tm-phase8-formal .tmv3-feed .tmv3-turnhead{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:6px;padding:5px 7px 3px 7px;background:linear-gradient(180deg,rgba(28,18,12,.42) 0%,rgba(28,18,12,.18) 70%,transparent 100%);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-turnhead b{color:rgba(232,213,160,.92);font:700 12px/1 "STSong","SimSun",serif;letter-spacing:.08em;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-turnhead small{color:rgba(214,196,148,.56);font:10.5px/1 "STSong",serif;letter-spacing:.12em;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-turnhead:after{content:"";flex:1;height:1px;background:linear-gradient(90deg,rgba(218,179,93,.32),rgba(218,179,93,.06) 64%,transparent);}',
+      // item·collapsed default·22px 高·只 title 显
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item{position:relative;display:grid;grid-template-columns:16px minmax(0,1fr) 14px;gap:6px;align-items:center;padding:2px 6px 2px 7px;min-height:22px;cursor:pointer;color:inherit;border-left:2px solid var(--ttype-c,rgba(168,154,122,.22));transition:background .14s;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item:hover{background:linear-gradient(90deg,rgba(218,179,93,.04),transparent 56%);}',
+      // 8 type colors
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.t-chao{--ttype-c:rgba(244,180,148,.86);}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.t-army{--ttype-c:rgba(168,200,232,.86);}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.t-faction{--ttype-c:rgba(184,196,220,.82);}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.t-finance{--ttype-c:rgba(168,210,184,.86);}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.t-people{--ttype-c:rgba(208,176,210,.84);}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.t-news{--ttype-c:rgba(232,206,140,.86);}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.t-clue{--ttype-c:rgba(220,168,156,.84);}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.t-misc{--ttype-c:rgba(208,194,168,.68);}',
+      // ttype 字头
+      'body.tm-phase8-formal .tmv3-feed .tmv3-ttype{display:inline-flex;align-items:center;justify-content:center;font:700 12px/1 "STKaiti","KaiTi","STSong",serif;color:var(--ttype-c,rgba(214,196,148,.62));white-space:nowrap;letter-spacing:0;}',
+      // main·flex column for stacking exp-head/sec/foot
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item .tmv3-main{min-width:0;display:flex;flex-direction:column;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item .tmv3-headrow{display:contents;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item .tmv3-title{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:rgba(232,213,160,.94);font:14px/1.25 "STKaiti","KaiTi",serif;letter-spacing:.04em;}',
+      // collapsed·hide all but title
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item .tmv3-turn,body.tm-phase8-formal .tmv3-feed .tmv3-item .tmv3-text,body.tm-phase8-formal .tmv3-feed .tmv3-item .tmv3-foot{display:none;}',
+      // mark dot·6px·default transparent
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item .tmv3-mark{width:7px;height:7px;border-radius:50%;background:transparent;align-self:center;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.is-alert .tmv3-mark{background:radial-gradient(circle at 30% 28%,#ff9070,#a82010);box-shadow:0 0 5px rgba(232,80,52,.62);animation:tmv3-pulse 1.4s ease-in-out infinite;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.is-hot .tmv3-mark{background:radial-gradient(circle at 30% 28%,#ffb494,#c8281a);}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.is-new .tmv3-mark{background:radial-gradient(circle at 30% 28%,#ffe5a8,#c89432);box-shadow:0 0 4px rgba(232,184,106,.52);}',
+      '@keyframes tmv3-pulse{0%,100%{box-shadow:0 0 4px rgba(232,80,52,.42);}50%{box-shadow:0 0 9px rgba(232,80,52,.82);}}',
+      // state·title color tweaks
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.is-hot .tmv3-title{color:rgba(244,200,168,.98);}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.is-new .tmv3-title{color:rgba(248,228,168,1);}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.is-read .tmv3-title{color:rgba(212,196,156,.46);}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.is-read .tmv3-ttype{opacity:.56;}',
+      // new·top-flash line
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.is-new:before{content:"";position:absolute;left:7px;right:7px;top:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,238,180,.72),transparent);animation:tmv3-flash 2.4s ease-in-out infinite;}',
+      '@keyframes tmv3-flash{0%,100%{opacity:.28;}50%{opacity:.92;}}',
+      // EXPANDED·flex row layout·ttype + main 两列·main 自然增高
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.expanded{display:flex!important;flex-direction:row;align-items:flex-start;gap:8px;padding:8px 10px 9px 10px;margin:4px 0;background:rgba(218,179,93,.03);border-left-width:3px;border-top:1px solid rgba(218,179,93,.14);border-right:1px solid rgba(218,179,93,.14);border-bottom:1px solid rgba(218,179,93,.14);border-radius:2px;cursor:default;box-shadow:0 2px 6px rgba(0,0,0,.18);}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.expanded .tmv3-ttype{flex:0 0 auto;font-size:13px;padding-top:2px;color:var(--ttype-c,rgba(214,196,148,.78));}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.expanded .tmv3-main{flex:1 1 auto;display:flex!important;flex-direction:column;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.expanded .tmv3-mark{display:none!important;}',
+      // expanded·headrow flex·title left·turn pill right
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.expanded .tmv3-headrow{display:flex!important;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid rgba(218,179,93,.12);}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.expanded .tmv3-title{flex:1 1 auto;white-space:normal;color:#f4d98a;font:700 14px/1.45 "STKaiti","KaiTi",serif;letter-spacing:.04em;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.expanded .tmv3-turn{display:inline-flex!important;align-items:center;flex:0 0 auto;padding:1px 6px;border:1px solid rgba(218,179,93,.16);border-radius:8px;background:transparent;color:rgba(214,196,148,.68);font:10px/1.4 "STSong",serif;letter-spacing:.1em;}',
+      // expanded·text 段·display:block (no chip label)
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.expanded .tmv3-text{display:block!important;color:rgba(218,202,166,.86);font:12.5px/1.6 "STSong","SimSun",serif;letter-spacing:.02em;margin:5px 0 0 0;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.expanded .tmv3-text.tmv3-text-detail{color:rgba(214,202,168,.72);font-size:12px;margin-top:4px;}',
+      // expanded·foot·flex·meta + open btn
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.expanded .tmv3-foot{display:flex!important;align-items:center;justify-content:space-between;gap:10px;margin-top:6px;padding-top:6px;border-top:1px dotted rgba(218,179,93,.14);}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.expanded .tmv3-meta{display:flex!important;flex-wrap:wrap;gap:5px;flex:1 1 auto;min-width:0;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.expanded .tmv3-meta span{padding:1px 7px;border-radius:9px;border:1px solid rgba(218,179,93,.16);background:transparent;color:rgba(218,200,160,.74);font:10.5px/1.25 "STSong","SimSun",serif;letter-spacing:.04em;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.expanded .tmv3-open{display:inline-flex;align-items:center;gap:4px;color:var(--ttype-c,#efd58f);font:700 11px/1 "STKaiti","KaiTi",serif;letter-spacing:.14em;padding:4px 10px;border:1px solid var(--ttype-c,rgba(218,179,93,.42));border-radius:10px;background:transparent;cursor:pointer;text-decoration:none;flex:0 0 auto;white-space:nowrap;transition:all .14s;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.expanded .tmv3-open:hover{background:rgba(218,179,93,.06);}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-item.expanded .tmv3-open em{font-style:normal;font-size:12px;opacity:.92;}',
+      // density·comfortable mode
+      'body.tm-phase8-formal .tmv3-feed.density-comfortable .tmv3-item{min-height:28px;padding:4px 7px 4px 8px;}',
+      'body.tm-phase8-formal .tmv3-feed.density-comfortable .tmv3-item .tmv3-title{font-size:15.5px;}',
+      'body.tm-phase8-formal .tmv3-feed.density-comfortable .tmv3-item .tmv3-ttype{font-size:13px;}',
+      'body.tm-phase8-formal .tmv3-feed.density-comfortable .tmv3-turnhead{padding-top:8px;padding-bottom:5px;}',
+      'body.tm-phase8-formal .tmv3-feed.density-comfortable .tmv3-turnhead b{font-size:13px;}',
+      // empty
+      'body.tm-phase8-formal .tmv3-feed .tmv3-empty{margin:auto;padding:18px 12px;text-align:center;color:rgba(202,186,145,.42);font:11px/1.6 "STSong","SimSun",serif;letter-spacing:.14em;}'
     ].join('\n');
     document.head.appendChild(st);
   }
