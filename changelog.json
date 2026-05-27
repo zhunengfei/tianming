@@ -3,6 +3,37 @@
   "entries": [
     {
       "date": "2026-05-27",
+      "module": "1.2.7.4·**HOTFIX·修复老 UI .gc tab + panel 双显回归** + **右侧栏垂直居中** + **rail 按钮 chrome 印钮立体化**",
+      "title": "**1.2.7.3 落地后回归 + 续优化**·三件事。(1) **修双显回归**·新 SVG rail + 御案 main-shell + 4 raster card 已挂·但老 .gc 19 tab bar (朝政/诏令/奏疏/朝议/问对/鸿雁/编年/起居注/纪事/史记/官制/人物志/地方/文苑/科举/科技/市政) + 老 朝政中心 panel 仍可见·user 报「没修完全」。根因·L1890 CSS 依赖 `tm-phase8-home` class·但 race 路径下 home 未加。改为默认隐藏·只 legacy 模式才显示。(2) **rail 垂直居中**·user 反馈 rail 紧贴 topbar 要求挪到中间·`top:78px` 改 `top:50% transform:translateY(-50%)`。(3) **rail 按钮 chrome 重设计**·从扁平方块换 **印钮立体化** paradigm·`44×46px` 印石厚度+顶部金色 lip (`:before` 渐变高光)+ 底部 inset 暗边 (印盒留影)+ 左右 bevel + 多层 box-shadow (印石厚度)·hover 改 `translateY(-1px)` 浮起 (替代 translateX 滑动)·active `translateY(+1px)` 按下 (印章 stamp 感)·**hot/ok 状态强化**·border tint + 朱晕/玉晕 outer glow + 暗朱/暗玉 inner gradient·**active 强化**·金边 +1px 内圈 + 外晕 + 顶部 lip 增亮到 .82。**国事 cap 印章牌化**·44×22px·朱晕 radial overlay + 篆字 letter-spacing .32em + text-shadow 提升·**divider 双线+朱点**·radial 朱红 center 0% 强 22% 透 + 上下双 1px 金线 (印盒 separator)·**count badge 朱印方印化**·从圆角胶囊换 2px 方角·`STSong` 衬线字·朱漆 #c74a30→#811e10 gradient + 金边 + inset 高光下暗。",
+      "items": [
+        {
+          "what": "[CSS selector·home 依赖移除] web/phase8-formal-bridge.js L1890·`body.tm-phase8-home .gc > :not(#tm-phase8-main-shell){display:none!important}` 改 `body.tm-phase8-formal:not(.tm-phase8-legacy) .gc > :not(#tm-phase8-main-shell){display:none!important}`。",
+          "why": "原 selector 要求 home class 在 body 上·但 home 的加挂依赖 `installFormalShell → isGameVisible() && !state.legacyView → showHome()`·或 renderGameState 包装路径·两路径在游戏首屏 race 中常失火·home 未加挂·老 .gc 19 tabs + gt-zhaozheng 等 g-tab-panel 全显·与新 #tm-phase8-main-shell 并排堆叠。改 selector 后默认即隐藏·只 legacy 模式 (openLegacyTab) 显式打开才放行老 panel·home class 仍正常加但不再是 visibility 的 gate。"
+        },
+        {
+          "what": "[rail 垂直居中] web/phase8-formal-bridge.js L1877·`#tm-right-rail` 定位从 `top:78px` 改 `top:50%; transform:translateY(-50%)`·viewport 中线对齐 rail 中点。",
+          "why": "1.2.7.3 ship 后 user 反馈「右侧栏UI按钮紧贴上面，挪到中间一点」·rail 整体 ~410px·原始紧贴 topbar 底 (78px)·1080p 下尾端到 ~488px·下方还剩 ~592px 空·失衡。改居中后上下各 ~325px·与 4 个 raster action card (中央偏下) 视觉重心一致。"
+        },
+        {
+          "what": "[rail 按钮 chrome 印钮立体化] web/phase8-formal-bridge.js L1879-L1889·.tm-rc-icon 从 42×42 扁平 → 44×46 印钮立体·**多层 box-shadow**·top inset 高光 + 左 bevel 微亮 + 右 bevel 微暗 + 底 inset 暗压 (印盒留影) + 底部 inner glow + 外 drop shadow + 外底 1px 高光。**:before 顶部金色 lip**·左右 6px 内缩·height 2px·`linear-gradient transparent → rgba(255,238,180,.46) → transparent` 顶冠光泽。**hover → translateY(-1px) + 0 0 14px 232,197,113,.22 金晕**·替代原 translateX(-1px) 横滑。**active (按下) → translateY(+1px) + inset 2px 5px 阴影**·印章 stamp 感。**.hot 状态**·border 212,80,58,.62 + inset 朱暗 gradient + outer 0 0 9px 192,52,38,.28 朱晕。**.ok 状态**·border 140,196,178,.52 + inset 玉暗 + outer 0 0 8px 96,168,140,.22 玉晕。**.active 状态**·border 238,202,118,.92 + inset 0 0 0 1px 金内圈 + outer 0 0 20px 232,197,113,.40 金光晕 + :before lip 增亮 .82。",
+          "why": "原版只 1px gold border + 1 层 dark gradient + 简单 inset shadow·8 个按钮看起来扁平+重复·状态 (hot/ok/active) 只靠 border 色调切换辨识度低。新印钮 paradigm 三件事·(1) **立体感**·多层 shadow 模拟实物印钮厚度+底座留影·从 desk paradigm 一致 (御案/印钮匹配)·(2) **状态区分**·hot 加朱晕·ok 加玉晕·active 加金光晕·三个状态颜色族明显区分·盲扫识别·(3) **交互反馈**·hover 浮起+stamp 按下·替代原版直滑·点击有"印章按下"反馈·与 desk paradigm 印章付有司隐喻一致。"
+        },
+        {
+          "what": "[国事 cap 印章牌化] web/phase8-formal-bridge.js L1878·.tm-rc-cap 从 40×18 → 44×22·加 radial 朱晕 50%/30% (`rgba(212,68,46,.30)`) overlay 老背景·letter-spacing .22em → .32em·color rgba(212,190,122,.76) → #efd58f 提亮·text-shadow 0 1px 0 rgba(0,0,0,.6) 深嵌·box-shadow 多层 (顶部 .20 inset 高光 + 底部 inset 暗 + 外 drop)。",
+          "why": "原 cap 太简陋·与"国事"这种重要 anchor 字头不匹配。加印章 plaque 感·朱晕底色让"国事"二字浮在朱印之上·配合下方 8 印钮组成完整"国事印盒"视觉。"
+        },
+        {
+          "what": "[divider 双线+朱点] web/phase8-formal-bridge.js L1878·.tm-rc-divider 从 width 34 height 1 单 gradient 线·改 38×7·radial 朱红 center 22% (印盒 朱钉) + `:before` 上 1px 金 gradient line + `:after` 下 1px 金 gradient line·组成"金线—朱点—金线" 印盒 separator。",
+          "why": "原 divider 单 1px 金 fade line·分组节奏弱·不够 anchor。新双线夹朱点·像印盒分格的金属铆钉·分组节奏更清·与印钮 paradigm 一致。"
+        },
+        {
+          "what": "[count badge 朱印方印化] web/phase8-formal-bridge.js L1889·.tm-rc-count 从 14×14 8px 圆角胶囊 sans serif → 15×15 2px 方角 `STSong`/`SimSun` 衬线·朱漆 `linear-gradient(180deg,#c74a30,#811e10)`·金边 + inset 顶高光 .20 + inset 底暗 .34 + drop shadow .46·letter-spacing .04em。",
+          "why": "原版圆角胶囊感觉是"app 红点"·与古典 paradigm 脱节。改方角 + 衬线字 + 朱漆 gradient 后·变成"朱印方印"·与右侧栏整体 印钮 + 印盒 + 国事 主题视觉一致。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-27",
       "module": "1.2.7.3·**右侧栏图标 SVG 化** (8 slot 古朴立意·零汉字渲染) + **CRITICAL·修复 wave 3-6 拆分 IIFE crash·新 UI 真激活**",
       "title": "**两件**·(1) 右侧栏 8 slot 从汉字换 SVG·按古朴立意 (司南罗盘/衙门殿宇/竹简卷/朝班一品紫/双半合符/鱼鳞图册/算盘/官制树)·纯 SVG path 零图片零汉字 (避 diffusion 写字坑) + 圆印边框金描风+hover drop-shadow·总 ~8KB inline。(2) **CRITICAL fix**·实装时发现 phase8-formal-bridge.js 自昨日 wave 3-6 拆分起 IIFE 即 crash (12 函数迁出后仍裸引用)·导致 TMPhase8FormalBridge 永不 init·6 submodule 全失效·body.tm-phase8-formal 永不挂·**全玩家用的是老 sidebar-ui 视觉而非新御案 UI**。补 12 个 late-bind shim 函数 (照 ensureMainShell paradigm·lazy 走 bridge.drafts.X / bridge.map.X)·console error 8→0·新 UI 真正激活。",
       "items": [
