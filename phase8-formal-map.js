@@ -19,9 +19,11 @@
   var asset = bridge._asset;
   var miniRows = bridge._miniRows;
   var actionButton = bridge._actionButton;
-  var ownerKey = bridge._ownerKey;
-  var ownerName = bridge._ownerName;
-  var findFaction = bridge._findFaction;
+  // 2026-05-27·CRITICAL fix·删 3 个 shadow alias (ownerKey / ownerName / findFaction)
+  // 这 3 个在 map.js L566+ 有本地 function 声明·alias 指向 bridge.js wrapper (会 callback 到 bridge.map.X)
+  // var assignment 会 OVERWRITE hoisted function·导致本地调用变 wrapper·wrapper 调 bridge.map.X (= 同 wrapper)·**无限递归 RangeError**
+  // 已 ship 自 Wave 6 拆分 2026-05-26·之前没炸是因为 map render 路径没真触发 (因为 syncFormalShellVisibility / showHome 等 alias 没补·更早 throw 阻断)
+  // 1.2.7.7 补全 alias 后 map render 真跑通·这 3 个 shadow recursion 立刻暴露
   var findPerson = bridge._findPerson;
   var personKey = bridge._personKey;
   var getPeople = bridge._getPeople;
