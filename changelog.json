@@ -2,6 +2,25 @@
   "_comment": "天命·更新日志——新条目 unshift 到数组最前（由近及远）。格式：{date, module, title, items[]}；items 元素可为字符串或 {what, why}。",
   "entries": [
     {
+      "date": "2026-05-28",
+      "module": "1.2.8.0·廷议/御前 (未能陈词) 残留 bug 二次修·post-render 副作用守卫",
+      "title": "1.2.4.2 加了 _cy_jishiAdd shim 但「成功生成后变 (未能陈词)」仍偶发——根因·NpcMemorySystem.remember / opinions[name]= / _transcript+= 等 post-render 副作用任一行抛错·都会被 try{} 包裹·落到 catch 把已经渲染好的气泡覆写成红字。本版用 _tyRendered/_yqRendered 守卫·成功渲染后 catch 不再覆写·并把 4 处 post-render 副作用各自包 try/catch·任何一个挂掉不再波及气泡。",
+      "items": [
+        {
+          "what": "[tm-chaoyi-tinyi.js L498-549] 加 _tyRendered=false flag·obj.line 渲染成功 / rescue 渲染成功 / 最后 raw 兜底渲染成功 共 3 处置为 true。post-render 副作用 _cy_jishiAdd + NpcMemorySystem.remember 用 try/catch 包·捕错走 TM.errors.captureSilent·主流程不受影响。catch 入口加 captureSilent('tinyi-bubble')·并 if (_tyBubble && !_tyRendered) 才覆写「未能陈词」。",
+          "why": "彻底解决「能说完但说完变红字」——即使后续未知副作用又抛错·只要已经渲染过就不会被覆写·气泡保留正常发言。同时所有抛错都进错误归档·后续可定位真正的 root cause。"
+        },
+        {
+          "what": "[tm-chaoyi-yuqian.js L267-300] 同样 pattern·加 _yqRendered flag + 4 处 post-render try/catch (opinions / _transcript / _cy_jishiAdd / NpcMemorySystem.remember)·catch 同 tinyi 模式守卫。",
+          "why": "御前会议跟廷议共享同样的 bug 形态·一次性收口·两条路径都修。"
+        },
+        {
+          "what": "[cache bust] index.html·tm-chaoyi-tinyi.js ?v= 2026052310 → 2026052803·tm-chaoyi-yuqian.js ?v= 2026050701 → 2026052803。Smoke·node --check 两文件 PASS。",
+          "why": "强制浏览器重拉。"
+        }
+      ]
+    },
+    {
       "date": "2026-05-27",
       "module": "1.2.7.9·**CRITICAL·修地图无限递归 RangeError·ownerKey shadow alias bug**",
       "title": "**真凶找到了**·玩家 console 报 `Uncaught RangeError: Maximum call stack size exceeded at Object.ownerKey (phase8-formal-bridge.js:1376)`·重复无数行·**这是 map render 不显的真原因**。根因·map.js 头部 alias 块 L22-24 有 3 行 `var ownerKey = bridge._ownerKey` / `var ownerName = bridge._ownerName` / `var findFaction = bridge._findFaction`·但 map.js 内部又有本地 `function ownerKey(r){...}` (L566) / `function ownerName(r){...}` (L574) / `function findFaction(...)` 声明。JS 变量提升时·`var` 赋值在 `function declaration` 之后执行·导致 var 赋值 **覆盖** 本地 function。结果·map.js 内调 ownerKey → bridge._ownerKey (wrapper·bridge.js L1376 定义为 `function ownerKey(r){ return bridge.map.ownerKey(r); }`) → 然后 map.js IIFE 末尾 `bridge.map.ownerKey = ownerKey` 把这个 wrapper 又回填到 bridge.map.ownerKey·形成 **wrapper → bridge.map.ownerKey (=wrapper) → wrapper → ∞** 递归。Wave 6 拆分 2026-05-26 引入·但之前没炸是因为 syncFormalShellVisibility / hasRegionMap 等 alias 缺失·map render 路径更早 throw 阻断·没真跑到 ownerKey。1.2.7.7 alias 补齐后路径打通·shadow recursion 立刻暴露·**RangeError 阻塞 renderFormalMap 中段·SVG 不显·地图空白**。",
@@ -523,7 +542,7 @@
         },
         {
           "what": "[bug 修·tm-save-lifecycle.js A-1 selective clone] _autoSaveSnapshotGM() helper·deepClone(GM) 60s 同步 1500-2500ms 主线程 block → 400-600ms。3 色拆字段·mutable 必拷 (chars/facs/armies/eraState/vars/parties/turnChanges/_affinityMap 等)·append-only 引用 22 字段 (qijuHistory/jishiRecords/shijiHistory/evtLog/_chronicleTracks/_aiDispatchStats 等)·skip 7 字段 (_aiTelemetry/_debugSnapshots/_aiBranchDiag 等 debug-only)。3 处 deepClone(GM) 替换·tm-save-lifecycle 60s autoSave / tm-endturn-render 端回合 autosave / tm-endturn-render N 回合 autoSave·>800ms console.warn 提示 A-2 备份。fallback·typeof _autoSaveSnapshotGM==='function' 检查·没加载则降级 deepClone·不挂。",
-          "why": "user 实测·1.2.4.3 B+C ship 后仍有 3 秒卡顿/输入框卡/按钮 freeze·一分钟 2-3 次。实测就是 60s autoSave deepClone(GM)·A 方案 backlog 当时 gated on 实测·实测确认必做。"
+          "why": "user 实测·1.2.8.0 B+C ship 后仍有 3 秒卡顿/输入框卡/按钮 freeze·一分钟 2-3 次。实测就是 60s autoSave deepClone(GM)·A 方案 backlog 当时 gated on 实测·实测确认必做。"
         }
       ]
     },
@@ -556,7 +575,7 @@
     },
     {
       "date": "2026-05-22",
-      "module": "1.2.4.3·桌面端卡顿 + 输入框光标缺失修 (B+C 两轨)",
+      "module": "1.2.8.0·桌面端卡顿 + 输入框光标缺失修 (B+C 两轨)",
       "title": "B 轨 — 输入框光标缺失·原 mousedown setTimeout(10ms) focus workaround 在面板 innerHTML 重建时会给孤儿节点·加 isConnected guard。C 轨 — 桌面 60s autoSave 5 秒级卡顿·三处优化·atomic async writeFile + in-flight 锁 + tm_P_lite 降频。",
       "items": [
         {
@@ -564,7 +583,7 @@
           "why": "用户报「应用端经常文字输入框没有光标没办法输入·网页端正常」·根因·老 workaround 10ms 内 phase8-formal-bridge.js:10463 的 renderGameState 包装会触发 setTimeout(0) → renderEventFeed/showHome 重建面板·input 所在 DOM 节点已替换·setTimeout 10ms 后 focus(e.target) 落到游离孤儿·焦点设了等于没设。新逻辑用 isConnected (W3C 标准·shadow DOM 兼容) 检查·脱树则跳过·浏览器自己 handle 新 input 的焦点·光标就出来。"
         },
         {
-          "what": "main.js:1132 ipcMain.handle('auto-save') 把 fs.writeFileSync 改成 fs.promises.writeFile 写到 .tmp + fs.promises.rename 到最终文件·atomic + 异步。注意·main.js 只在下次 .exe installer 才会到玩家手里·hot update 不覆盖它·故 1.2.4.3 zip 不含此改动·先 GitHub push 留底。",
+          "what": "main.js:1132 ipcMain.handle('auto-save') 把 fs.writeFileSync 改成 fs.promises.writeFile 写到 .tmp + fs.promises.rename 到最终文件·atomic + 异步。注意·main.js 只在下次 .exe installer 才会到玩家手里·hot update 不覆盖它·故 1.2.8.0 zip 不含此改动·先 GitHub push 留底。",
           "why": "桌面端 autoSave 60s 一次同步链 5 秒级卡顿元凶之三·主进程 fs.writeFileSync 写 MB 级 JSON 在 Win 上 1-3 秒同步阻塞·IPC 回包前 renderer await 卡住。改 async + atomic 一步消两患·主进程不阻塞 + 进程被杀时 .tmp 半写不污染最终文件 (writeFileSync 本身也可能半写)。"
         },
         {

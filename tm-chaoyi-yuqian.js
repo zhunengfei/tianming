@@ -264,6 +264,7 @@ async function _yq2_oneAdvisorSpeak(name, roundNum) {
   var _yqDiv = addCYBubble(name, '\u2026', false);
   var _yqBubble = _yqDiv && _yqDiv.querySelector ? _yqDiv.querySelector('.cy-bubble') : null;
   var _yqRaf = false;
+  var _yqRendered = false;  // 1.2.4.3·气泡已渲染则禁止 catch 覆写「未能陈词」
   CY.abortCtrl = new AbortController();  // 每次新建·避免前次 abort 污染
   try {
     var raw = await callAIMessagesStream(
@@ -286,17 +287,17 @@ async function _yq2_oneAdvisorSpeak(name, roundNum) {
     );
     var obj = (typeof extractJSON === 'function') ? extractJSON(raw) : null;
     if (obj && obj.line) {
-      if (_yqBubble) _yqBubble.innerHTML = '\u3014' + candorLevel + '\u00B7\u7B2C' + roundNum + '\u8F6E\u3015' + escHtml(obj.line);
-      CY._yq2.opinions[name] = { line: obj.line, candor: candor, stance: obj.stance, inward: obj.inwardThought, round: roundNum };
-      if (CY._yq2._transcript != null) CY._yq2._transcript += '\n' + name + '：' + obj.line;
-      if (CY._yq2.record !== 'secret') {
-        _cy_jishiAdd('yuqian', CY._yq2.topic, name, obj.line, { candor: candor, stance: obj.stance, round: roundNum });
-      }
-      if (typeof NpcMemorySystem !== 'undefined') {
-        NpcMemorySystem.remember(name, '御前密议「' + CY._yq2.topic.slice(0,20) + '」第' + roundNum + '轮陈言——' + (obj.stance||''), '平', 5);
-      }
-    } else if (_yqBubble && raw) { _yqBubble.textContent = raw.slice(0, 200); }
-  } catch(e){ if (_yqBubble) { _yqBubble.textContent = '\uFF08\u672A\u80FD\u9648\u8BCD\uFF09'; _yqBubble.style.color = 'var(--red)'; } }
+      if (_yqBubble) { _yqBubble.innerHTML = '\u3014' + candorLevel + '\u00B7\u7B2C' + roundNum + '\u8F6E\u3015' + escHtml(obj.line); _yqRendered = true; }
+      try { CY._yq2.opinions[name] = { line: obj.line, candor: candor, stance: obj.stance, inward: obj.inwardThought, round: roundNum }; } catch(_oe){ try{window.TM&&TM.errors&&TM.errors.captureSilent(_oe,'yuqian-opinions');}catch(_){} }
+      try { if (CY._yq2._transcript != null) CY._yq2._transcript += '\n' + name + '：' + obj.line; } catch(_te){ try{window.TM&&TM.errors&&TM.errors.captureSilent(_te,'yuqian-transcript');}catch(_){} }
+      try { if (CY._yq2.record !== 'secret') { _cy_jishiAdd('yuqian', CY._yq2 && CY._yq2.topic, name, obj.line, { candor: candor, stance: obj.stance, round: roundNum }); } } catch(_je){ try{window.TM&&TM.errors&&TM.errors.captureSilent(_je,'yuqian-jishi');}catch(_){} }
+      try { if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(name, '御前密议「' + (CY._yq2 && CY._yq2.topic ? String(CY._yq2.topic).slice(0,20) : '') + '」第' + roundNum + '轮陈言——' + (obj.stance||''), '平', 5); } catch(_me){ try{window.TM&&TM.errors&&TM.errors.captureSilent(_me,'yuqian-mem');}catch(_){} }
+    } else if (_yqBubble && raw) { _yqBubble.textContent = raw.slice(0, 200); _yqRendered = true; }
+  } catch(e){
+    try{window.TM&&TM.errors&&TM.errors.captureSilent(e,'yuqian-bubble');}catch(_){}
+    // 1.2.4.3\u00B7\u53EA\u5728\u672A\u6E32\u67D3\u8FC7\u4EFB\u4F55\u5185\u5BB9\u65F6\u624D\u8986\u5199\u300C\u672A\u80FD\u9648\u8BCD\u300D\u00B7\u907F\u514D\u6210\u529F\u540E\u88AB\u5F02\u5E38\u526F\u4F5C\u7528\u6253\u56DE\u7EA2\u5B57
+    if (_yqBubble && !_yqRendered) { _yqBubble.textContent = '\uFF08\u672A\u80FD\u9648\u8BCD\uFF09'; _yqBubble.style.color = 'var(--red)'; }
+  }
 }
 
 function _yq2_offerFollowUp() {

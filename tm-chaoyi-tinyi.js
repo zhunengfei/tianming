@@ -495,6 +495,7 @@ async function _ty2_genOneSpeech(name, roundNum, prevSpeeches) {
   var _tyDiv = addCYBubble(name, '\u2026', false);
   var _tyBubble = _tyDiv && _tyDiv.querySelector ? _tyDiv.querySelector('.cy-bubble') : null;
   var _tyRaf = false;
+  var _tyRendered = false;  // 1.2.4.3·气泡已成功渲染则禁止 catch 覆写「未能陈词」
   CY.abortCtrl = new AbortController();  // 每次新建·避免前次 abort 污染
   try {
     var raw = await callAIMessagesStream(
@@ -519,9 +520,9 @@ async function _ty2_genOneSpeech(name, roundNum, prevSpeeches) {
     if (obj && obj.line) {
       var colors = { '极力支持':'var(--celadon-400)','支持':'var(--celadon-400)','倾向支持':'var(--celadon-400)','中立':'var(--ink-300)','倾向反对':'var(--vermillion-400)','反对':'var(--vermillion-400)','极力反对':'var(--vermillion-400)','折中':'var(--amber-400)','另提议':'var(--indigo-400)' };
       var c = colors[obj.stance] || '';
-      if (_tyBubble) _tyBubble.innerHTML = '\u3014' + (obj.stance||'\u4E2D\u7ACB') + '\u3015<span style="color:' + c + ';">' + escHtml(obj.line) + '</span>';
-      _cy_jishiAdd('tinyi', CY._ty2.topic, name, obj.line, { round: roundNum, stance: obj.stance });
-      if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(name, '廷议「' + CY._ty2.topic.slice(0,20) + '」持' + (obj.stance||'中立') + '：' + obj.line.slice(0,40), '平', 5);
+      if (_tyBubble) { _tyBubble.innerHTML = '\u3014' + (obj.stance||'\u4E2D\u7ACB') + '\u3015<span style="color:' + c + ';">' + escHtml(obj.line) + '</span>'; _tyRendered = true; }
+      try { _cy_jishiAdd('tinyi', CY._ty2 && CY._ty2.topic, name, obj.line, { round: roundNum, stance: obj.stance }); } catch(_je){ try{window.TM&&TM.errors&&TM.errors.captureSilent(_je,'tinyi-jishi');}catch(_){} }
+      try { if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(name, '廷议「' + (CY._ty2 && CY._ty2.topic ? String(CY._ty2.topic).slice(0,20) : '') + '」持' + (obj.stance||'中立') + '：' + String(obj.line).slice(0,40), '平', 5); } catch(_me){ try{window.TM&&TM.errors&&TM.errors.captureSilent(_me,'tinyi-mem');}catch(_){} }
       return obj;
     } else if (_tyBubble && raw) {
       // extractJSON 失败兜底·尽力救出 line 字段(可能 JSON 未完全闭合)·否则展示完整 raw(去 JSON 符号)
@@ -538,14 +539,20 @@ async function _ty2_genOneSpeech(name, roundNum, prevSpeeches) {
       if (_rescuedLine) {
         var _c2 = { '极力支持':'var(--celadon-400)','支持':'var(--celadon-400)','倾向支持':'var(--celadon-400)','中立':'var(--ink-300)','倾向反对':'var(--vermillion-400)','反对':'var(--vermillion-400)','极力反对':'var(--vermillion-400)','折中':'var(--amber-400)','另提议':'var(--indigo-400)' }[_rescuedStance] || '';
         _tyBubble.innerHTML = '\u3014' + (_rescuedStance||'\u4E2D\u7ACB') + '\u3015<span style="color:' + _c2 + ';">' + escHtml(_rescuedLine) + '</span>';
-        _cy_jishiAdd('tinyi', CY._ty2.topic, name, _rescuedLine, { round: roundNum, stance: _rescuedStance, rescued: true });
+        _tyRendered = true;
+        try { _cy_jishiAdd('tinyi', CY._ty2 && CY._ty2.topic, name, _rescuedLine, { round: roundNum, stance: _rescuedStance, rescued: true }); } catch(_je2){ try{window.TM&&TM.errors&&TM.errors.captureSilent(_je2,'tinyi-jishi-rescue');}catch(_){} }
         return { stance: _rescuedStance || '中立', line: _rescuedLine, confidence: 50, _rescued: true };
       }
       // 最后兜底·去 JSON 符号展示完整 raw (不 slice 200)
       var _clean = raw.replace(/^\s*\{[\s\S]*?"line"\s*:\s*"?|"\s*,?\s*"(?:stance|confidence|reason)"[\s\S]*?\}\s*$/g, '').replace(/^[\s"{]+|[\s"}]+$/g,'').trim();
       _tyBubble.textContent = _clean || raw;
+      if (_clean || raw) _tyRendered = true;
     }
-  } catch(e){ if (_tyBubble) { _tyBubble.textContent = '\uFF08\u672A\u80FD\u9648\u8BCD\uFF09'; _tyBubble.style.color = 'var(--red)'; } }
+  } catch(e){
+    try{window.TM&&TM.errors&&TM.errors.captureSilent(e,'tinyi-bubble');}catch(_){}
+    // 1.2.4.3\u00B7\u53EA\u5728\u672A\u6E32\u67D3\u8FC7\u4EFB\u4F55\u5185\u5BB9\u65F6\u624D\u8986\u5199\u300C\u672A\u80FD\u9648\u8BCD\u300D\u00B7\u907F\u514D\u6210\u529F\u540E\u88AB\u5F02\u5E38\u526F\u4F5C\u7528\u6253\u56DE\u7EA2\u5B57
+    if (_tyBubble && !_tyRendered) { _tyBubble.textContent = '\uFF08\u672A\u80FD\u9648\u8BCD\uFF09'; _tyBubble.style.color = 'var(--red)'; }
+  }
   return null;
 }
 
