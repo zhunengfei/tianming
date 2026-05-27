@@ -2756,6 +2756,11 @@
     _activeScenarioId: activeScenarioId,
     _mapIdentity: mapIdentity,
     _isGameVisible: isGameVisible,
+    _showHome: showHome,
+    _isPinned: isPinned,
+    _issueRank: issueRank,
+    _renderIssueCard: renderIssueCard,
+    _renderIssueDetail: renderIssueDetail,
     _state: state
   };
 

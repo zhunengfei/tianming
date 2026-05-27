@@ -44,6 +44,7 @@
   var getArmies = bridge._getArmies;
   var issueIsResolved = bridge._issueIsResolved;
   var tmfRenwuPortrait = bridge._tmfRenwuPortrait;
+  var toast = bridge._toast;
 
   // ── late-bound wrappers for orchestration calls (bridge.X / window.X) ─
   function openPanel(slot){ return bridge.openPanel(slot); }

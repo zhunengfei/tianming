@@ -3,6 +3,29 @@
   "entries": [
     {
       "date": "2026-05-27",
+      "module": "1.2.7.7·**HOTFIX·补 6 个 wave 拆分残留 alias** (showHome / isPinned / issueRank / renderIssueCard / renderIssueDetail / toast)",
+      "title": "**继 1.2.7.6 补 6 个 alias·全面 scan 5 个 split module 内所有 bridge 函数引用·确认零残留**。1.2.7.6 修了 map.js 6 个 alias·但又漏 `showHome` (因 map.js L96 `back.onclick = showHome` 是赋值非调用·上次 grep call pattern 漏)。新玩家版本 1.2.7.6 报错 `showHome is not defined`·导致**御案 home 按钮 onclick 触发 null·map render fail·地图不显**。本版用 broader ident scan (`grep -oE '[a-zA-Z_]+'` 而非 fn-call pattern) 跨 5 个 split module (map / rightrail / drafts / modules / records) 找出所有 bridge.js 定义函数被裸引用但未 alias 的·一次补全·6 个·彻底闭环 Wave 3-6 拆分残留。",
+      "items": [
+        {
+          "what": "[map.js·showHome alias] web/phase8-formal-bridge.js 末尾 expose `_showHome: showHome`·web/phase8-formal-map.js 头部 alias 块加 `var showHome = bridge._showHome`。",
+          "why": "map.js L96 `back.onclick = showHome` 是函数引用赋值·非 `showHome()` 调用·上次 1.2.7.6 fix 的 grep call pattern (`[a-zA-Z_]+\\(`) 没匹配。本版改用 broader ident scan 找出·补全。修后**御案 home 按钮可点·进 ensureMainShell 不再 throw·地图正常 render**。"
+        },
+        {
+          "what": "[modules.js·4 alias] web/phase8-formal-bridge.js 末尾 expose `_isPinned _issueRank _renderIssueCard _renderIssueDetail`·web/phase8-formal-modules.js 头 alias 加 4 个 `var X = bridge._X`。",
+          "why": "modules.js renwu_card / issue panel 渲染时直接调 isPinned/issueRank/renderIssueCard/renderIssueDetail·全 bridge.js 定义。Wave 5 拆分时漏 alias。玩家点 人物图志 或 issue 列表会 throw·panel 显示残缺。本版补全。"
+        },
+        {
+          "what": "[rightrail.js·toast alias] web/phase8-formal-rightrail.js 头 alias 加 `var toast = bridge._toast`。",
+          "why": "rightrail.js L998/1013/1032/1280 直接调 toast() 提示·但 alias 块没列。Wave 3 拆分时漏。玩家点科举主面板入口或户部旧动作 fallback 时 throw。本版补。"
+        },
+        {
+          "what": "[cache version bump] web/index.html·5 个文件 cache version 全 bump 防 race·bridge → `v=20260527-show-home-pinned`·map → `v=20260527-show-home`·modules → `v=20260527-issuecard-aliases`·rightrail → `v=20260527-toast-alias`。",
+          "why": "热更 deploy 后浏览器 cache 可能 mix·新旧 module 不兼容。新 cache version 强制重拉。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-27",
       "module": "1.2.7.6·**HOTFIX·修 phase8-formal-map.js 4 个 ReferenceError + chaoyi 起议站班 dark text bug**",
       "title": "**两个 bug**·(1) 玩家反馈过回合时 console 报 2000+ 错·`ReferenceError: syncFormalShellVisibility is not defined` (phase8-formal-map.js:57) + `hasRegionMap is not defined` (EndTurnHooks 钩子)·根因·2026-05-26 Wave 6 拆 bridge.js → map.js 时·map.js 头部 alias 块漏了 4 个 bridge helper·**syncFormalShellVisibility / hasRegionMap / getScenarioMapData / activeScenarioId / mapIdentity / isGameVisible** (其实 5 个·凑 6 个安全)·导致 map 模块每次 ensureMainShell/getMapData/renderFormalMap 调用即 throw。bridge expose 加 5 个·map.js alias 加 5 个·零回归。(2) 大廷议起议站班 modal 内官员名字看不清·根因·.ty3-st-mem CSS 用 `color: var(--ink-700, #d9c9a9)` 期望 fallback 浅色·但 styles.css :root 全局已设 `--ink-700: #1c1914` (深近黑)·override fallback·浅 bg 上深字。改 literal `#e6d4a0` + 加 padding/letter-spacing/text-shadow·彻底可读。",
       "items": [

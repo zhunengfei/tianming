@@ -45,6 +45,7 @@
   var activeScenarioId = bridge._activeScenarioId;
   var mapIdentity = bridge._mapIdentity;
   var isGameVisible = bridge._isGameVisible;
+  var showHome = bridge._showHome;
 
   // ── late-bound wrappers (orchestration into bridge / window) ───────
   function openPanel(slot){ return bridge.openPanel(slot); }

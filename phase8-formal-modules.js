@@ -43,6 +43,10 @@
   var issueIsResolved = bridge._issueIsResolved;
   var toast = bridge._toast;
   var renderEventFeed = bridge._renderEventFeed;
+  var isPinned = bridge._isPinned;
+  var issueRank = bridge._issueRank;
+  var renderIssueCard = bridge._renderIssueCard;
+  var renderIssueDetail = bridge._renderIssueDetail;
 
   // ── late-bound wrappers (orchestration into bridge / window) ───────
   function openPanel(slot){ return bridge.openPanel(slot); }
