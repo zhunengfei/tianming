@@ -2,6 +2,33 @@
   "_comment": "天命·更新日志——新条目 unshift 到数组最前（由近及远）。格式：{date, module, title, items[]}；items 元素可为字符串或 {what, why}。",
   "entries": [
     {
+      "date": "2026-05-27",
+      "module": "1.2.7.3·**右侧栏图标 SVG 化** (8 slot 古朴立意·零汉字渲染) + **CRITICAL·修复 wave 3-6 拆分 IIFE crash·新 UI 真激活**",
+      "title": "**两件**·(1) 右侧栏 8 slot 从汉字换 SVG·按古朴立意 (司南罗盘/衙门殿宇/竹简卷/朝班一品紫/双半合符/鱼鳞图册/算盘/官制树)·纯 SVG path 零图片零汉字 (避 diffusion 写字坑) + 圆印边框金描风+hover drop-shadow·总 ~8KB inline。(2) **CRITICAL fix**·实装时发现 phase8-formal-bridge.js 自昨日 wave 3-6 拆分起 IIFE 即 crash (12 函数迁出后仍裸引用)·导致 TMPhase8FormalBridge 永不 init·6 submodule 全失效·body.tm-phase8-formal 永不挂·**全玩家用的是老 sidebar-ui 视觉而非新御案 UI**。补 12 个 late-bind shim 函数 (照 ensureMainShell paradigm·lazy 走 bridge.drafts.X / bridge.map.X)·console error 8→0·新 UI 真正激活。",
+      "items": [
+        {
+          "what": "[Rail SVG·8 slot inline] web/phase8-formal-bridge.js·ensurePreviewRail() L1770-1789·8 个 SVG const (SVG_OL/ISSUE/POLICY/OFFICE/ARMY/MAP/FINANCE/ARCHIVE) 替代汉字第 2 参·esc(b[1]) 改 b[1] raw·CSS 加 `.tm-rc-svg{width:30px;height:30px;display:block;pointer-events:none}` + hover/active drop-shadow filter。立意·**司南**(方盘+磁勺+24山)·**衙门**(歇山顶+鸱吻+四柱+红门+三阶)·**竹简**(8 简+朱绶)·**朝班**(3 figure 一品紫+三品绿/二品绯)·**双半合符**(左右铜虎+合缝朱线)·**鱼鳞图册**(黄册封+朱红题+鱼鳞 plot grid)·**算盘**(7 档+上 2 下 5)·**官制树**(帝节红+三公金+六省道+18 县点)。",
+          "why": "顶栏 7 印石全是字符·rail 8 slot 也是字符 (纲/政/文/臣/军/图/户/制)·缺识别度·user 要求换图案。汉字 diffusion 写不出 (memory feedback_diffusion_models_cannot_render_hanzi)·必 SVG 手绘。preview 页 4 轮迭代 (v1 粗→v2 标 styles→v3 史料正确→v4 锁定 + 虎符升级 + 图重切到行政区划)·user 锁 8 立意 + 金描 style。"
+        },
+        {
+          "what": "[CRITICAL·补 12 个 late-bind shim] web/phase8-formal-bridge.js L1219-L1231·照 ensureMainShell()/renderFormalMap() 同 paradigm·新增 openZhaoPreviewPanel/openYueZouPreviewPanel/openHongyanPreviewPanel/openShiluPreviewPanel (drafts)·syncFormalEdictDraftsToLegacyInputs/getFormalEdictDraftSnapshot/clearFormalEdictDrafts/showFormalEdictAdoptMenu/dismissFormalEdictSuggestion (drafts)·actionBtn/actionChip/renderActionStats (drafts)·refreshMapFromRuntime (map)·全 lazy 走 (window.TMPhase8FormalBridge||{}).drafts.X·apply(null, arguments) 传参。",
+          "why": "wave 3-6 拆分 (2026-05-26) 把这 12 个函数从 bridge 迁出到 drafts.js / map.js·但 bridge.js L2304-L2438 (window.openZhao=... 和 TMPhase8FormalBridge={...} 对象字面量) 仍裸引用·IIFE 评估到第一个 bare ref 即 throw ReferenceError·**TMPhase8FormalBridge 永不 init**·6 submodule 全 console.error 'bridge.js 必须先 load'·body.tm-phase8-formal 永不挂 (installFormalShell 永不跑)·**新 UI 实际从未激活·全玩家见的是老 sidebar-ui (CSS 隐但 JS 仍 render 占空间)**。playwright 验·修后 console error 8→0·hasBridge=true·hasStyle=true·rightRail=true·8 button·8 SVG。"
+        },
+        {
+          "what": "[实装验证] playwright 测·body.className='tm-phase8-formal tm-phase8-outgame' (home 页)·或加 'tm-phase8-game-active' (game 页)·#bar display=none·.gs-rail-left .gs-rail display=none·新 #topbar/#tm-right-rail/#tm-phase8-main-shell 真挂·rail 8 button 顺序 ol/issue/policy/office/army/map/finance/archive 一一对应 SVG_*·data-tip 全对·pathCount 8-20 range 合理。",
+          "why": "防回归·确认双层 UI 真 swap (老 hidden·新 active)·确认 8 slot mapping 零错位 (button[i].data-slot === SVG_X 的 X 一对一)。"
+        },
+        {
+          "what": "[预览 doc 留底] web/preview/right-rail-icons-preview.html v4 (932 行)·8 立意 status table + 5 锁定 icon 精修 + 臣 v2 一品紫 vs 三公并列对比 + 军 6 候选 (戟/将旗/烽火/虎符/战盔/阵图) + 图 6 候选 (基于 renderMapPanelRich 实际是行政区划重切·鱼鳞图册/黄册/舆图/阡陌/公堂/九州) + 虎符 3 升级 variant (蹲虎/双半/虎首) + final rail mock。",
+          "why": "未来调 icon / 加 slot 走同 paradigm·preview 页留底·SVG 路径可直接 copy 出。"
+        },
+        {
+          "what": "[bridge.js 备份] web/backups/2026-05-27-rail-icons-svg/bridge.pre-rail-icons.js·实装前快照·便回滚 (但 backup 本身已含 IIFE crash bug·rollback 等于回到 broken state·不推荐)。",
+          "why": "拆分 paradigm 强 require backup·见 feedback_large_file_split_paradigm。"
+        }
+      ]
+    },
+    {
       "date": "2026-05-26",
       "module": "1.2.7.2·**Phase 8 formal-bridge 大文件拆分全收官 (Wave 3-6 一日完工)** + 科举主面板 gate 反转·特科/学派状态条·智能 incremental 友好",
       "title": "**bridge.js 10603 → 2445 行 (-77%)·拆 6 surface module·438 函数迁出·零回归**。Wave 3 rightrail.js 1696 行 (110 fn·9 dispatch renderer + 6 sub-panel + 全 right* helper + handleRightPanelAction + bindRightPanelActions)·Wave 4 drafts.js 2068 行 (94 fn·desk overlay 基建 + 诏书/奏疏/书信/记录 4 个 Formal panel + 4 个 Preview overlay opener + edict draft 管理)·Wave 5 modules.js 1319 行 (70 fn·12 kind module dispatch + 全 tmfRenwu* 人物图志 + renwu filter UI)·Wave 6 map.js 2689 行 (121 fn·renderFormalMap + region/faction dossier + alerts + basemap + tile rendering·最大一刀)。**paradigm**·头部 alias 块从 bridge._xxx 引·**body 0 改动**·跨闭包 helper 通过 bridge._xxx + late-bound wrapper·index.html 加载顺序 bridge → topbar → map → modules → drafts → records → rightrail 保 helper 就绪。**中文 token diff +4 (噪声内·零翻译)**。**8 formal + 4 tinyi smoke 全 PASS·6 smoke 跟拆改 + 16 个 bridge expose helper 新增**。**科举主面板修复**·(1) ⚖️ 改革范式按钮 gate 反转·从 `useNewKejuL===true` 改 `!==false`·**默认 ENABLED**·L1-L12 全功能直接可用 (2) 新「科举生态」状态条·2×2 grid 显示恩科/武举/童子科/私学 真实状态·读 GM._enkeHistory/_wujuHistory/_tongziHistory/_schoolNetwork。**热更增量友好**·90%+ 文件 sha 不变·incremental fetch 走 server-side unzip·1.5-2 MB 增量 vs 432 MB 全包。",
