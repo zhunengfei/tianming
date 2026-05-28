@@ -376,6 +376,72 @@ function applyEdictActions(actions) {
 }
 
 // ============================================================
+// 玩家移动意图提取（移动对账层 S1·2026-05-28）
+// 从诏书自由文本里确定性地捕获"令某人赴/返/召某地"类移动令·只捕获不执行·
+// 产出 [{char, to, reason, raw}] 供 reconcile 兜底：AI 漏吐 char_updates.travelTo
+// 时引擎自己落地（历代顽疾根因——移动 100% 靠 AI 自愿吐字段·无确定性后手）。
+// 镜像 extractEdictActions 的"已知姓名锚定"范式·高精度·宁缺毋滥（错抓会误瞬移）。
+// ============================================================
+function extractEdictMovements(edictText) {
+  if (!edictText || edictText.length < 4) return [];
+  if (typeof GM === 'undefined' || !GM || !Array.isArray(GM.chars)) return [];
+  var text = String(edictText).replace(/\s+/g, '');
+  var capital = GM._capital || '京师';
+
+  // 已知姓名集（含字号/别名）——锚定真实人物·避免误抓自由文本
+  var knownChars = [];
+  var knownMap = {};
+  GM.chars.forEach(function(c) {
+    if (!c || !c.name) return;
+    if (!knownMap[c.name]) { knownMap[c.name] = c.name; knownChars.push(c.name); }
+    ['zi','haoName','milkName'].forEach(function(k){
+      if (c[k] && c[k].length >= 2 && !knownMap[c[k]]) { knownMap[c[k]] = c.name; knownChars.push(c[k]); }
+    });
+    if (Array.isArray(c.aliases)) c.aliases.forEach(function(a){
+      if (a && a.length >= 2 && !knownMap[a]) { knownMap[a] = c.name; knownChars.push(a); }
+    });
+  });
+  knownChars.sort(function(a,b){ return b.length - a.length; });
+  if (!knownChars.length) return [];
+  var nameAlt = knownChars.map(function(n){return n.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}).join('|');
+
+  var out = [];
+  var seen = {};
+  function _push(name, to, raw) {
+    var canon = knownMap[name] || name;
+    to = String(to||'').replace(/[，。、；：的之至于往赴]/g,'').trim();
+    if (!canon || !to) return;
+    var key = canon + '→' + to;
+    if (seen[key]) return;
+    seen[key] = 1;
+    out.push({ char: canon, to: to, reason: '诏令移动·' + (raw||'').slice(0,24), raw: raw||'' });
+  }
+  // 入朝/召见类目的地归一到都城
+  function _toCapitalIfCourt(loc) {
+    if (/^(京|京师|京城|都|都城|帝京|畿|阙下)$/.test(loc) || /京师|京城/.test(loc)) return capital;
+    return loc;
+  }
+
+  var m;
+  // A·入朝/召见（目的地=都城）：召/召还/征召/诏/命/令 + 姓名(可顿号列举) + 入朝/延朝/还朝/赴阙/陛见/入觐/入京/还京/进京/来京/赴京
+  var courtRx = new RegExp('(?:召还|召回|征召|召|诏|命|令)((?:'+nameAlt+')(?:[、，和及与](?:'+nameAlt+')){0,5})(?:[^。；\n]{0,12}?)(入朝|延朝|还朝|赴阙|陛见|入觐|觐见|入京|还京|进京|来京|赴京)', 'g');
+  while ((m = courtRx.exec(text)) !== null) {
+    var names = m[1].split(/[、，和及与]/).filter(Boolean);
+    names.forEach(function(nm){ if (knownMap[nm]) _push(nm, capital, m[0]); });
+  }
+
+  // B·明确目的地移动：(令/命/着/诏/使)? + 姓名 + 移动动词 + 地点(2-8 汉字·遇标点止)
+  var moveVerb = '(?:返回|返还|还朝|赴任|赴镇|赴阙|赴|调往|调赴|调任|调防|移驻|移镇|镇守|驻守|出镇|出守|迁往|迁徙|巡幸|驰赴|驰援|前往|起复)';
+  var moveRx = new RegExp('(?:令|命|着|诏|使)?('+nameAlt+')'+moveVerb+'([一-龥]{2,8})', 'g');
+  while ((m = moveRx.exec(text)) !== null) {
+    if (!knownMap[m[1]]) continue;
+    _push(m[1], _toCapitalIfCourt(String(m[2]).replace(/[，。、；：].*$/,'')), m[0]);
+  }
+
+  return out;
+}
+
+// ============================================================
 // 自定义国策提取（借鉴 ChongzhenSim coreGameplaySystem）
 // 从诏令中识别"定为国策""纳入国策"等语句，创建持久化政策
 // 国策跨回合生效，影响 AI 推演上下文

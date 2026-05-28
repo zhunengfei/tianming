@@ -934,6 +934,14 @@
     tp += '  ※ estimatedDays = 从下旨当日起算的【总】天数（参考剧本驿路·急递 400 里/日·常驿 200 里/日）。系统会在本回合 endTurn 自动扣 ' + (typeof _getDaysPerTurn === 'function' ? _getDaysPerTurn() : 30) + ' 天·不要 AI 自己扣·照实写总天数。\n';
     tp += '  ※ 已在【旅程在途】列出的角色·不得再次输出 travelTo（会被 applier 幂等保护拒绝并记"复诏催程"）·若需改目的地·先写 reason 说明并直接给新 travelTo·applier 会按新终点重启。\n';
     tp += '  ※ 在途角色不得在 zhengwen/events/npc_actions 中被叙事为"在京视事/出席朝议/参与议政"——他人在路上。可叙事其旅途见闻、地方迎送、信使追及。\n';
+    // 移动对账层·本回合玩家明确下达的移动令（确定性捕获·逐条必须输出 travelTo·否则引擎自动兜底落地）
+    if (GM._turnMoveCommands && GM._turnMoveCommands.length > 0) {
+      tp += '  ※【本回合玩家明确移动令·下列每条都必须在 char_updates 中输出对应 travelTo】\n';
+      GM._turnMoveCommands.forEach(function(mc){
+        tp += '    · ' + mc.char + ' → ' + mc.to + '（须输出 char_updates:[{name:"' + mc.char + '",travelTo:{toLocation:"' + mc.to + '",estimatedDays:N,reason:"…"}}]）\n';
+      });
+      tp += '    ※ 若漏输出·引擎将按玩家规则自动落地（"即时抵达"规则在线则当回合到位·否则启程在途）·但叙事会与数据脱节·务必自己逐条输出 travelTo。\n';
+    }
     // ═══ 通用启动约束·防"叙事而无 schema entry"导致下回合才启动 ═══
     tp += '【启动型动作·必须本回合产生 schema entry·不得仅 zhengwen 叙事】\n';
     tp += '  ※ 玩家本回合行动若属【启动型】，必须在对应 schema 字段输出至少一条新 entry，配合"起步"值表现刚启动·不可只在 zhengwen/shilu 叙事而无对应字段：\n';

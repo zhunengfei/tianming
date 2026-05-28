@@ -1355,6 +1355,8 @@
     // ── 13. 问天 directive 合规回报 ──
     // schema: directive_compliance:[{id,status:'followed|partial|ignored',reason,evidence}]
     try { _applyDirectiveCompliance(G, aiOutput); } catch(_dcE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_dcE, 'applier] directive compliance:') : console.warn('[applier] directive compliance:', _dcE); }
+    // ── 13.5 移动对账·确定性兜底（AI 漏吐 travelTo 时·引擎按玩家移动令+即时规则自行落地·根治"人物原地不动"顽疾）──
+    try { _reconcilePlayerMovements(G); } catch(_rmE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_rmE, 'applier] move reconcile:') : console.warn('[applier] move reconcile:', _rmE); }
     try { _applyRegentDecisions(G, aiOutput); } catch(_rdE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_rdE, 'applier] regent decisions:') : console.warn('[applier] regent decisions:', _rdE); }
     try { _applyBattleResult(G, aiOutput, applied); } catch(_brE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_brE, 'applier] battle result:') : console.warn('[applier] battle result:', _brE); }
 
@@ -2629,6 +2631,77 @@
     G._turnReport.push({ type: 'epitaph', char: name, reason: epitaph.reason, turn: curTurn });
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  //  移动对账层 S3·确定性兜底（2026-05-28）
+  //  顽疾根因：人物移动 100% 靠 AI 自愿吐 char_updates.travelTo·AI 只叙事不吐字段→原地不动。
+  //  本层在 AI 变更应用后·按 prep 捕获的玩家移动令逐条核对·AI 漏的引擎自己落地。
+  // ═══════════════════════════════════════════════════════════════════
+  // 是否有"即时/次回合抵达"类玩家持久规则/天意在线（决策2·规则纯 context·这里只读不改规则）
+  function _hasInstantArrivalRule(G) {
+    if (!G || !Array.isArray(G._playerDirectives)) return false;
+    var moveKey = /人事|调动|调任|移动|移驻|赴任|召见|召还|到任|抵达|走位/;
+    var instKey = /即刻|即时|瞬间|立即|当回合|次回合|疾驰|星夜|无在途|不在途|不存在.{0,3}在途/;
+    return G._playerDirectives.some(function(d){
+      if (!d) return false;
+      if (d.type !== 'rule' && !d._absolute) return false;   // 仅持久规则/天意
+      var t = (d.content || '') + ' ' + (d.structured ? JSON.stringify(d.structured) : '');
+      return moveKey.test(t) && instKey.test(t);
+    });
+  }
+  // 决策1·即时到达=系统型·须挂后果（轻量·不直写财政账本避免 desync·重后果可后续按距离/品级扩展）
+  function _applyInstantArrivalCost(G, ch, mc) {
+    try {
+      if (typeof ch.stress === 'number') ch.stress = Math.min(100, ch.stress + 5); else ch.stress = 5;
+      if (typeof global.addEB === 'function') global.addEB('人事', ch.name + ' 奉诏急递星夜驰抵 ' + mc.to + '·鞍马劳顿（即时到达·驿传代价）');
+      if (!Array.isArray(G._turnReport)) G._turnReport = [];
+      G._turnReport.push({ type:'instant_arrival_cost', char: ch.name, to: mc.to, stress: 5, turn: G.turn || 0 });
+    } catch(_){}
+  }
+  function _reconcilePlayerMovements(G) {
+    if (!G || !Array.isArray(G._turnMoveCommands) || G._turnMoveCommands.length === 0) return;
+    var cmds = G._turnMoveCommands;
+    G._turnMoveCommands = [];   // 本回合消费一次·清空·避免跨回合重复兜底
+    if (!Array.isArray(G.chars)) return;
+    var instant = _hasInstantArrivalRule(G);
+    var dateText = (typeof global.getTSText === 'function') ? global.getTSText(G.turn || 0) : ('T' + (G.turn || 0));
+    var fixed = 0;
+    cmds.forEach(function(mc){
+      if (!mc || !mc.char || !mc.to) return;
+      var ch = null;
+      for (var i = 0; i < G.chars.length; i++) { if (G.chars[i] && G.chars[i].name === mc.char) { ch = G.chars[i]; break; } }
+      if (!ch) return;
+      if (ch.alive === false) return;                                  // 已故不动
+      if (_sameTravelLocation(ch.location || '', mc.to)) return;        // 已在目标地·达成
+      var heading = ch._travelTo && _sameTravelLocation(ch._travelTo, mc.to);  // AI 已为此目标启程在途
+      if (heading && !instant) return;                                 // 已在途·又无即时规则→尊重 AI 行程·不重复兜底
+      if (typeof ch._travelAssignPost !== 'string') ch._travelAssignPost = '';
+      if (instant) {
+        // 即时抵达规则在线→当回合直接到位（AI 漏吐 或 只启了慢程·都压成即抵·满足"不存在在途"）+ 决策1后果
+        if (!heading) ch._travelFrom = ch.location || '';
+        ch._travelTo = mc.to;
+        ch._travelReason = (mc.reason || '诏令移动') + '·急递即刻抵达(玩家规则)';
+        _arriveCharNow(G, ch, dateText);
+        _applyInstantArrivalCost(G, ch, mc);
+      } else {
+        // 无即时规则·AI 又漏了→引擎补启正常多回合行程（至少"走位起步"·不再原地不动）
+        ch._travelFrom = ch.location || '';
+        ch._travelTo = mc.to;
+        ch._travelReason = (mc.reason || '诏令移动') + '·引擎补启';
+        ch._travelStartTurn = G.turn || 0;
+        ch._travelRemainingDays = _estimateTravelDays(ch._travelFrom, mc.to);
+        try { _syncCharacterLocationMirrors(G, ch, _travelMirrorFields(ch), []); } catch(_){}
+        if (typeof global.addEB === 'function') global.addEB('人事', ch.name + ' 奉诏启程赴 ' + mc.to + '（引擎补启·AI 漏返 travelTo）');
+      }
+      if (!Array.isArray(G._turnReport)) G._turnReport = [];
+      G._turnReport.push({ type:'move_reconciled', char: ch.name, to: mc.to, instant: !!instant, turn: G.turn || 0 });
+      fixed++;
+    });
+    if (fixed > 0 && typeof _refreshCharacterLocationUiAfterTravel === 'function') {
+      try { _refreshCharacterLocationUiAfterTravel(); } catch(_){}
+    }
+  }
+  global._reconcilePlayerMovements = _reconcilePlayerMovements;
+
   function _applyDirectiveCompliance(G, aiOutput) {
     if (!G || !Array.isArray(G._playerDirectives) || G._playerDirectives.length === 0) return;
     var reports = aiOutput && Array.isArray(aiOutput.directive_compliance) ? aiOutput.directive_compliance : [];
@@ -3543,7 +3616,19 @@
         // 旧版回合系统兼容：未到回合则继续
         if ((G.turn || 0) < ch._travelArrival) { inflight++; return; }
       }
+      _arriveCharNow(G, ch, dateText);
+      arrived++;
+    });
 
+    if (arrived > 0) _refreshCharacterLocationUiAfterTravel();
+    return { arrived: arrived, inflight: inflight };
+  }
+
+  // 到达落地（天数到期 / 即时抵达对账 两处复用·移动对账层 S3 抽出 2026-05-28）
+  // 调用前 ch._travelTo 等走位字段须已就位；本函数落 location + 自动就任 + 三处播报 + 清字段。
+  function _arriveCharNow(G, ch, dateText) {
+    if (!G || !ch || !ch._travelTo) return;
+    if (!dateText) dateText = (typeof global.getTSText === 'function') ? global.getTSText(G.turn || 0) : ('T' + (G.turn || 0));
       // —— 到达 ——
       var fromLoc = ch._travelFrom || '';
       var toLoc = ch._travelTo;
@@ -3632,12 +3717,8 @@
       // 写入本回合报告（供史记读取）
       if (!Array.isArray(G._turnReport)) G._turnReport = [];
       G._turnReport.push({ type:'travel_arrived', char: ch.name, to: toLoc, assignPost: assignPost, turn: G.turn || 0 });
-      arrived++;
-    });
-
-    if (arrived > 0) _refreshCharacterLocationUiAfterTravel();
-    return { arrived: arrived, inflight: inflight };
   }
+  global._arriveCharNow = _arriveCharNow;
 
   // ═══════════════════════════════════════════════════════════════════
   //  导出

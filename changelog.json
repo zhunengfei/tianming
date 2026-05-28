@@ -3,6 +3,29 @@
   "entries": [
     {
       "date": "2026-05-28",
+      "module": "1.2.8.1·**两项 high 修复·①闲置黑屏 (renderer OOM) ②下诏移动人物不生效·确定性移动对账层**",
+      "title": "①玩家反馈闲置 10 分钟以上天命 exe 黑屏 (控制台 Render process gone)。根因·autoSave 的 defer 逻辑使「闲置反而是存档最频繁的状态」——活跃游玩频繁输入触发 defer (约 3 分钟存一次)·闲置无输入永不 defer·每 60 秒满血 deepClone(P)+GM 快照 (~1 秒·数百 MB 瞬时分配)+IPC·闲置 10 分钟累积约 10 次内存峰值→渲染进程堆耗尽→黑屏。而闲置时 GM 完全冻结·这些存档全是把盘上同一份数据反复重写·纯浪费。②玩家下诏令移动人物 (令徐光启返回京师)·AI 叙事确认收到 (召…延朝) 但所在地纹丝不动·历代版本都没修好。根因·人物移动 100% 靠 AI 自愿吐 char_updates.travelTo·AI 只叙事不吐字段就原地不动·天意规则是纯 context 也逼不出字段·历代全在加 prompt 警告 (概率手段补不到 100%)·缺的是引擎侧确定性兜底。",
+      "items": [
+        {
+          "what": "[tm-save-lifecycle.js·autoSave 闲置跳存] 加 _autoSaveLastSavedTurn / _autoSaveIdleSkipStreak·autoSave 在「自上次成功存档以来既无用户输入又无回合推进 (GM.turn 未变)」时跳过——盘上副本已是最新。index.html cache-bust ?v=2026052810。",
+          "why": "闲置时 GM 冻结·重存同一份数据是渲染进程 OOM 黑屏唯一的持续内存压力源·跳过它把闲置从「存档最频繁」变成「不存档」·彻底消除病态峰值·且零数据丢失 (任何点击/打字/回合推进都立即恢复存档)。"
+        },
+        {
+          "what": "[移动对账层·4 文件] tm-endturn-edict.js 新 extractEdictMovements 确定性解析诏书移动令 (已知姓名锚定·覆盖 返回/赴/召…延朝/移驻 等)·tm-endturn-prep.js 本势力过滤后存 GM._turnMoveCommands·tm-endturn-prompt.js 每回合注入明确移动清单·tm-ai-change-applier.js 新 _reconcilePlayerMovements 在 AI 变更应用后逐条核对·AI 漏吐 travelTo 时引擎自己落地 (抽出 _arriveCharNow 复用到达逻辑·改 location+就任+播报+清在途)。",
+          "why": "把人物移动从「100% 靠 AI 自愿吐字段」改成「AI 漏了引擎兜底」·根治历代「下诏移动但人物原地不动」顽疾。"
+        },
+        {
+          "what": "[即时抵达·系统型挂后果] 若玩家有「人事调动次回合抵达/不存在在途」类天意规则在线·兜底时当回合直接到位·并挂轻量后果 (急递星夜·精力损耗·叙事记一笔·不直写财政账本避免 desync)。无即时规则则补启正常多回合行程·至少「走位起步」不再原地不动。",
+          "why": "尊重玩家「召见即刻抵达」诉求的同时·即时到达作为系统型机制须有代价 (急递耗费)·而非零成本瞬移。"
+        },
+        {
+          "what": "[回归测试] 新 scripts/smoke-edict-movement-reconcile.js (8 项·含玩家真实诏书措辞)·与 travel 21 / applier baseline / 问天 hardchange / boot / apply-fields 30 / prompt-tokens 47 / full-turn-flow 全部 PASS。index.html cache-bust 5 处 JS。",
+          "why": "锁定解析器对真实措辞行为·防回归。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-28",
       "module": "1.2.8.0·廷议/御前 (未能陈词) 残留 bug 二次修·post-render 副作用守卫",
       "title": "1.2.4.2 加了 _cy_jishiAdd shim 但「成功生成后变 (未能陈词)」仍偶发——根因·NpcMemorySystem.remember / opinions[name]= / _transcript+= 等 post-render 副作用任一行抛错·都会被 try{} 包裹·落到 catch 把已经渲染好的气泡覆写成红字。本版用 _tyRendered/_yqRendered 守卫·成功渲染后 catch 不再覆写·并把 4 处 post-render 副作用各自包 try/catch·任何一个挂掉不再波及气泡。",
       "items": [

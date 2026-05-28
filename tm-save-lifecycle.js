@@ -1146,6 +1146,14 @@ var _autoSaveLiteTick=0;
 var _autoSaveLastInputMs=0;   // C·最后一次用户输入时间
 var _autoSaveLastDoneMs=0;     // C·最后一次 autoSave 成功时间
 var _autoSaveDeferStreak=0;    // C·连续 defer 次数·用于日志
+// D (2026-05-28)·闲置跳存·防 renderer OOM
+// 闲置时 defer 永不触发 (无输入→_sinceInput 恒>5000)·autoSave 反而每 60s 满血跑一次 (比活跃游玩 3 分钟一次频繁 3 倍)·
+// 每次全量 deepClone(P)+_autoSaveSnapshotGM()(~1s·数百 MB 瞬时分配)+IPC structuredClone·
+// 闲置 10 分钟累积 ~10 次峰值→堆耗尽→Render process gone 黑屏。
+// 而闲置时 GM 完全冻结·这些存档是把盘上同一份数据反复重写·纯浪费。
+// 故:真闲置 (自上次成功存档以来无输入 且 turn 未变) 时跳过·盘上副本已是最新。
+var _autoSaveLastSavedTurn=-1; // D·上次成功存档时的 GM.turn
+var _autoSaveIdleSkipStreak=0; // D·连续闲置跳过次数·用于日志
 
 // C·document 级监听·任何键盘/指点/IME composition 都算 active input·5s 内 autoSave 跳过
 if (typeof document !== 'undefined'){
@@ -1166,7 +1174,9 @@ function _autoSaveSnapshotGM(){
     _turnReport:1, _foreshadows:1, allCharacters:1, summarizedTurns:1,
     recentChaoyi:1, _ccHeldItems:1, _aiDispatchStats:1, _subcallTimings:1,
     _pendingMartyrEvents:1, _pendingTinyiActions:1, _pendingTinyiTopics:1,
-    triggeredHistoryEvents:1, triggeredOffendEvents:1, rigidTriggers:1
+    triggeredHistoryEvents:1, triggeredOffendEvents:1, rigidTriggers:1,
+    // L3·R5·改革召对历史·cap 50·append-only·不深拷
+    _kjpPrivateAudienceLog:1
   };
   // skip·debug-only·崩溃恢复用不上·清掉省 100-300ms
   var SKIP = {
@@ -1216,6 +1226,21 @@ if(window.tianming&&window.tianming.isDesktop){
       console.log('[autoSave] defer 结束·streak='+_autoSaveDeferStreak+(_sinceInput>=5000?' (闲置)':' (3 分钟强制)'));
       _autoSaveDeferStreak=0;
     }
+    // D·闲置跳存·自上次成功存档以来既无用户输入又无回合推进·盘上副本已是最新·
+    // 跳过避免无谓的全量 clone+IPC 内存峰值 (闲置反复存同一份数据是 renderer OOM 黑屏的根因)
+    if(GM.running && _autoSaveLastDoneMs>0
+        && _autoSaveLastInputMs<=_autoSaveLastDoneMs
+        && GM.turn===_autoSaveLastSavedTurn){
+      _autoSaveIdleSkipStreak++;
+      if(_autoSaveIdleSkipStreak===1 || _autoSaveIdleSkipStreak%10===0){
+        console.log('[autoSave] skip·闲置无变更·turn='+GM.turn+'·已跳过 '+_autoSaveIdleSkipStreak+' 次 (盘上副本最新)');
+      }
+      return;
+    }
+    if(_autoSaveIdleSkipStreak>0){
+      console.log('[autoSave] 闲置结束·恢复存档·skip streak='+_autoSaveIdleSkipStreak);
+      _autoSaveIdleSkipStreak=0;
+    }
     _autoSaveInFlight=true;
     try{
       _autoSaveSkipCount=0;
@@ -1231,6 +1256,7 @@ if(window.tianming&&window.tianming.isDesktop){
       }
       await window.tianming.autoSave(saveData);
       _autoSaveLastDoneMs=Date.now();
+      _autoSaveLastSavedTurn=(typeof GM!=='undefined'&&GM)?GM.turn:_autoSaveLastSavedTurn; // D·记录存档时 turn·闲置跳存基线
       // C3·tm_P_lite 5 分钟刷一次·完整 P 已在 autoSave 里·lite 只是 boot 快速恢复用
       _autoSaveLiteTick++;
       if(_autoSaveLiteTick>=5){

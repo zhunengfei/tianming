@@ -540,6 +540,26 @@ function _endTurn_collectInput() {
   }
   input.edictActions = edictActions;
 
+  // 移动对账层 S2·2026-05-28·确定性捕获本势力人物移动令→存 GM._turnMoveCommands·
+  // 供 AI 回合应用后 reconcile 兜底（AI 漏吐 travelTo 时引擎自己落地·根治"人物原地不动"顽疾）
+  try {
+    var _moveCmds = (typeof extractEdictMovements === 'function') ? extractEdictMovements(allEdictText) : [];
+    var _pFacMove = (P.playerInfo && P.playerInfo.factionName) || '';
+    _moveCmds = _moveCmds.filter(function(mc) {
+      var ch = (typeof findCharByName === 'function') ? findCharByName(mc.char) : null;
+      if (!ch) return false;                           // 只认在册人物
+      if (ch.isPlayer) return true;
+      if (!_pFacMove) return true;                     // 剧本无玩家势力概念·全收
+      return !ch.faction || ch.faction === _pFacMove;  // 仅本势力·敌方调动属外交·仍交 AI
+    });
+    GM._turnMoveCommands = _moveCmds;
+    input.playerMoveCommands = _moveCmds;
+    if (_moveCmds.length > 0) {
+      _moveCmds.forEach(function(mc){ addEB('诏令意图', '欲移驻 ' + mc.char + ' → ' + mc.to); });
+      _dbg('[移动对账] 捕获本势力移动令 ' + _moveCmds.length + ' 条', _moveCmds);
+    }
+  } catch(_mvErr) { GM._turnMoveCommands = []; try { window.TM && TM.errors && TM.errors.captureSilent(_mvErr, 'prep·extractEdictMovements'); } catch(_){} }
+
   // 收集昏君活动
   if (typeof TyrantActivitySystem !== 'undefined') {
     input.tyrantActivities = TyrantActivitySystem.collectActivities();
