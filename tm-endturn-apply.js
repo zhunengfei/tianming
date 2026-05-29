@@ -210,16 +210,20 @@
             try {
               _patch.sentiment_changes.forEach(function(s) {
                 var pathMap = { minxin: 'minxin', huangwei: 'huangwei', huangquan: 'huangquan' };
-                var key = pathMap[s.target]; if (!key || !GM[key]) return;
-                if (typeof GM[key] === 'object' && typeof GM[key].index === 'number') {
-                  GM[key].index = Math.max(0, Math.min(100, GM[key].index + s.delta));
+                var key = pathMap[s.target]; if (!key) return;
+                var _AE = (typeof window !== 'undefined' && window.AuthorityEngines) || (typeof global !== 'undefined' && global.AuthorityEngines) || null;
+                var _adj = _AE && ({ minxin: _AE.adjustMinxin, huangwei: _AE.adjustHuangwei, huangquan: _AE.adjustHuangquan })[s.target];
+                if (typeof _adj === 'function') {
+                  _adj('aiSentiment', s.delta, s.reason || 'AI推演');
+                } else if (GM[key] && typeof GM[key].trueIndex === 'number') {
+                  GM[key].trueIndex = Math.max(0, Math.min(100, GM[key].trueIndex + s.delta));
                 } else if (typeof GM[key] === 'number') {
                   GM[key] = Math.max(0, Math.min(100, GM[key] + s.delta));
                 }
                 // 登记 turnChanges 供史记显示
                 if (!GM.turnChanges) GM.turnChanges = {};
                 if (!GM.turnChanges.variables) GM.turnChanges.variables = [];
-                GM.turnChanges.variables.push({ path: key + '.index', label: ({minxin:'民心',huangwei:'皇威',huangquan:'皇权'})[s.target], delta: s.delta, reason: s.reason || '一致性补录' });
+                GM.turnChanges.variables.push({ path: key + '.trueIndex', label: ({minxin:'民心',huangwei:'皇威',huangquan:'皇权'})[s.target], delta: s.delta, reason: s.reason || '一致性补录' });
               });
               _patch.population_changes.forEach(function(p) {
                 if (!GM.adminHierarchy || !Array.isArray(GM.adminHierarchy.nodes)) return;

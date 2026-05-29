@@ -578,7 +578,6 @@
   //  · C2 朱批扩展 7 选项 (processImperialAssentExtended·_tickInvestigations)
   //  · C3 动态机构 (registerDynamicInstitution·_tickDynamicInstitutions·abolishInstitution)
   //  · C3.5 官制二阶段 Phase II (enhanceOfficeReformDraft)
-  //  · C4 环保 POLICY_KEYWORDS regex + 路由 (POLICY_KEYWORDS·detectEnvPolicy·routeEnvPolicy)
   // ═══════════════════════════════════════════════════════════════════
 
   // C1 · 侍臣问疑 7 快捷选项
@@ -848,79 +847,7 @@
     return memo;
   }
 
-  // C4 · 环保 POLICY_KEYWORDS regex + 自动路由
-  var POLICY_KEYWORDS = [
-    { id:'feng_shan_mu',     re:/封山|育林|育木|禁樵/,                   kind:'env' },
-    { id:'jin_hu_kui',       re:/禁伐|禁樵采/,                            kind:'env' },
-    { id:'yi_he_shui',       re:/疏浚|浚河|浚渠/,                         kind:'env' },
-    { id:'ke_gao',           re:/治碱|治盐|压盐/,                          kind:'env' },
-    { id:'tun_tian',         re:/屯田|军屯|民屯/,                         kind:'env' },
-    { id:'fan_gu',           re:/休耕|轮作|反古/,                          kind:'env' },
-    { id:'jie_yong',         re:/节用|节俭|省费/,                          kind:'env' },
-    { id:'zhi_tian_yu',      re:/治田|修田|田赋/,                          kind:'env' },
-    { id:'jin_dian_hun',     re:/禁猎|保畜|禁网/,                          kind:'env' },
-    { id:'shui_li',          re:/兴修水利|水利|修渠/,                       kind:'env' },
-    { id:'ken_huang',        re:/垦荒|开荒|垦殖/,                           kind:'env' },
-    { id:'yu_huang',         re:/育林|皇林|育木/,                           kind:'env' },
-    { id:'jing_wei',         re:/清污|清河|净流/,                           kind:'env' },
-    { id:'reforest',         re:/植树|造林|栽植/,                           kind:'recovery' },
-    { id:'soil_terrace',     re:/梯田|等高/,                                kind:'recovery' },
-    { id:'leach_salt',       re:/引水压盐|淋盐/,                            kind:'recovery' },
-    { id:'green_belt',       re:/固沙|沙堤|防沙/,                           kind:'recovery' },
-    { id:'well_deepen',      re:/深井|凿井/,                                kind:'recovery' },
-    { id:'dredge',           re:/大浚|浚渠|疏河/,                           kind:'recovery' },
-    { id:'reserve_park',     re:/设围场|保护|禁猎场/,                       kind:'recovery' },
-    { id:'fallow_rotate',    re:/休耕|轮休|歇地/,                           kind:'recovery' },
-    { id:'sewage_clean',     re:/清沟|沟渠|排污/,                           kind:'recovery' },
-    { id:'disaster_relief_eco',re:/救荒|复原|复耕/,                         kind:'recovery' },
-    { id:'jin_hai',          re:/禁海|海禁|下海禁/,                          kind:'special', specialHandler:'applyHaijin' },
-    { id:'yu_jin',           re:/鱼禁|禁渔|休渔/,                            kind:'special', specialHandler:'applyYujin' }
-  ];
-
-  function detectEnvPolicy(text) {
-    var matched = [];
-    POLICY_KEYWORDS.forEach(function(p) {
-      if (p.re.test(text)) matched.push(p);
-    });
-    return matched;
-  }
-
-  function routeEnvPolicy(text, ctx) {
-    var G = global.GM;
-    ctx = ctx || {};
-    var matched = detectEnvPolicy(text);
-    if (matched.length === 0) return { ok: false, reason: '无环保关键词' };
-    var results = [];
-    matched.forEach(function(p) {
-      if (p.kind === 'recovery' && typeof global.EnvRecoveryFill !== 'undefined') {
-        var r = global.EnvRecoveryFill.enactRecovery(p.id, ctx.regionId);
-        results.push({ policy: p.id, ok: r.ok, reason: r.reason });
-      } else if (p.kind === 'env' && typeof global.EnvCapacityEngine !== 'undefined' && typeof global.EnvCapacityEngine.enactPolicy === 'function') {
-        var r2 = global.EnvCapacityEngine.enactPolicy(p.id, ctx.regionId);
-        results.push({ policy: p.id, ok: r2 && r2.ok !== false, reason: r2 && r2.reason });
-      } else if (p.kind === 'special') {
-        if (p.id === 'jin_hai') {
-          G._maritimeBan = { active: true, turn: G.turn || 0 };
-          if (G.fiscal && G.fiscal.regions) {
-            Object.keys(G.fiscal.regions).forEach(function(rid) {
-              var reg = G.fiscal.regions[rid];
-              if ((reg.name || rid).match(/闽|粤|浙|沪|沿海/)) {
-                reg.compliance = Math.max(0.1, (reg.compliance || 0.7) - 0.05);
-              }
-            });
-          }
-          if (global.addEB) global.addEB('海禁', '行禁海，沿海商船归港');
-          if (global._adjAuthority) global._adjAuthority('minxin', -2);
-          results.push({ policy: 'jin_hai', ok: true });
-        } else if (p.id === 'yu_jin') {
-          G._fishingBan = { active: true, turn: G.turn || 0, duration: 12 };
-          if (global.addEB) global.addEB('鱼禁', '春夏禁渔，养殖鱼类');
-          results.push({ policy: 'yu_jin', ok: true });
-        }
-      }
-    });
-    return { ok: true, matched: matched.map(function(p){return p.id;}), results: results };
-  }
+  // (C4 环保 POLICY_KEYWORDS / detectEnvPolicy / routeEnvPolicy — R12 遗留死代码·主流程零调用·2026-05-29 删除)
 
   // ═══════════════════════════════════════════════════════════════════
   //  AI 上下文
@@ -974,9 +901,6 @@
     // R12b inline·原 phase-c-patches APPEND
     registerDynamicInstitution: registerDynamicInstitution,
     abolishInstitution: abolishInstitution,
-    detectEnvPolicy: detectEnvPolicy,
-    routeEnvPolicy: routeEnvPolicy,
-    POLICY_KEYWORDS: POLICY_KEYWORDS,
     enhanceOfficeReformDraft: enhanceOfficeReformDraft,
     VERSION: 2
   };
@@ -994,12 +918,9 @@
   global.PhaseC.tick = tick;
   global.PhaseC.registerDynamicInstitution = registerDynamicInstitution;
   global.PhaseC.abolishInstitution = abolishInstitution;
-  global.PhaseC.detectEnvPolicy = detectEnvPolicy;
-  global.PhaseC.routeEnvPolicy = routeEnvPolicy;
   global.PhaseC.enhanceOfficeReformDraft = enhanceOfficeReformDraft;
   global.PhaseC.openClarificationPanel = openClarificationPanel;
   global.PhaseC.processImperialAssentExtended = processImperialAssentExtended;
-  global.PhaseC.POLICY_KEYWORDS = POLICY_KEYWORDS;
   global.PhaseC.VERSION = 2;
 
 })(typeof window !== 'undefined' ? window : (typeof global !== 'undefined' ? global : this));

@@ -2,6 +2,67 @@
   "_comment": "天命·更新日志——新条目 unshift 到数组最前（由近及远）。格式：{date, module, title, items[]}；items 元素可为字符串或 {what, why}。",
   "entries": [
     {
+      "date": "2026-05-29",
+      "module": "1.2.8.4·**开源改革接入央地真账·肃贪/清丈/开海/盐法/劝农真的能增收**",
+      "title": "玩家反馈（E.B）：开源改革、肃贪追赃一通操作做下来，「中央月入」却 28 回合死焊在 89 万纹丝不动、实征率也不变，只能靠抄家等一次性手段续命。根因和民心『两本账』同源——这些改革停在叙事层，从没接进中央/地方税收真正读取的底数（CascadeTax）。本版加『财政改革对账层』：识别到玩家下的肃贪/清丈/开海/盐法/劝农诏令，确定性地把对应底数拨上去（必生效），AI 按情境定力度、引擎兜底保证一定落账，下回合中央月入与实征率面板真正随之变动。",
+      "items": [
+        {
+          "what": "[tm-endturn-prep.js + tm-ai-change-applier.js] 新增财政改革对账层：每回合捕获玩家开源/肃贪诏令存入队列，AI 推演后确定性拨开关——肃贪→升地方征收合规率（compliance，中央实收↑）、清丈→查回隐占田亩、开海→解海禁、盐法→调盐税率、劝农→启劝农。AI 给了力度用 AI 的、没给走粗保底，凡识别为改革必有非零变动写入。",
+          "why": "改革只改叙事、不进真账，是『中央月入死焊』最直接的现场。照搬已验证的『移动对账层』范式（AI 漏吐时引擎兜底），保证玩家的开源努力一定反映到财政面板，不再纹丝不动。已实测：肃贪升 compliance 后中央月入 86907→97771（+12.5%）。"
+        },
+        {
+          "what": "[内部·tm-edict-parser.js] 删除 R12 遗留的环保诏令路由死代码（POLICY_KEYWORDS/detectEnvPolicy/routeEnvPolicy）——主流程从未调用、属废弃尝试，清理减负。同步补『财政改革→面板真变』『民心操作→真账』两条回归测试。",
+          "why": "死代码徒增维护噪音、易误导后续判断；补测试锁住两条关键链路不再蒸发。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-28",
+      "module": "1.2.8.3·**民心/皇威/皇权写入端修复·操作不再蒸发**",
+      "title": "玩家反馈：赈灾、以工代赈、杀贪、开恩科做了一堆，民心数值纹丝不动；AI 推演对发军饷等也反响平平、只加一点点。根因不是 AI 记不住，是核心数值引擎『两本账』——民心真账是 GM.minxin.trueIndex（权威引擎每回合在算），但玩家三条变更通道全没写进它：AI 情绪变化写了个不存在的 .index 字段直接蒸发、科举恩科的民心效果被永不成立的 number 守卫挡掉、议题选项 effect{民心:+N} 被丢进没人读的 _issueEffects 黑洞。本版把三条通道全收口到引擎正确写入 API，操作真正落进真账。界面本就读 trueIndex，无需改。",
+      "items": [
+        {
+          "what": "[tm-endturn-apply.js] AI 推演每回合的民心/皇威/皇权变化，旧逻辑判断 GM[key].index 是数字才生效，但这仨运行时是 {trueIndex} 对象、无 .index 字段，判断永不成立、变化全蒸发。改为优先调 AuthorityEngines.adjustMinxin/adjustHuangwei/adjustHuangquan 写进各自 trueIndex，兜底直写 trueIndex。",
+          "why": "AI 推演是玩家操作进数值的主通道之一，蒸发掉就成了『AI 反响平平、数值不动』。三个权威值同一处 bug，一并修。"
+        },
+        {
+          "what": "[tm-keju-enke.js] 科举改元/恩科士林效果两处旧有 typeof GM.minxin==='number' 守卫，而 minxin 是对象、守卫永不成立、效果静默跳过。去守卫，改走 adjustMinxin('socialMobility')。",
+          "why": "科举恩科是玩家影响士林民心的正经手段，被死守卫挡掉等于白做。"
+        },
+        {
+          "what": "[tm-endturn-helpers.js] 玩家选议题选项的 effect{民心/皇威/皇权:+N}，旧逻辑按 key 找 GM.vars 同名变量（不存在）再找 GM[key]（非数字），都不中就丢进 _issueEffects 黑洞。改为 forEach 开头加权威路由，这三个 key（中英都认）直接走 adjust 写 trueIndex。",
+          "why": "赈灾、以工代赈这类主动决断走的就是议题选项 effect，丢进黑洞就是『赈灾了民心不动』最直接的现场。"
+        }
+      ]
+    },
+    {
+      "date": "2026-05-28",
+      "module": "1.2.8.2·**新功能·玩家手动删除 AI 角色 (硬编码后门·AI 不可干涉)**",
+      "title": "玩家反馈·AI 错误抓取名字/重复生成/势力归属错乱 (如恩科连开三回合生成大量「朝廷」势力垃圾角色) 已严重影响游玩·且玩家此前对错误角色毫无直接干预手段·只能任 AI 推演自行保留。本版给玩家一个最强后门——人物详情页红色「删除」按钮·硬编码执行·AI 全程不可干涉。删一次写入 GM.deletedCharNames 黑名单 (随存档持久化)·AI 各生成路径撞同名一律跳过·彻底抹除不留痕 (不发邸报·不留去世记录)。唯一不可删·主角本体 (isPlayer)——更替走已有禅位机制。",
+      "items": [
+        {
+          "what": "[tm-player-core.js·deleteCharacterByPlayer] 新增运行时删除函数·从 GM.chars 彻底移除 (绝不误删 isPlayer)·并级联清理 GM._pendingCharacters / 官职 (PostTransfer.cascadeVacate + officeTree actualHolders 新 schema 走 _offDismissPerson) / 军队主帅 / GM.facs 首领 / adminHierarchy + provinceStats governor / 党派 leader+members / GM._enkeParty members+cohorts / 后宫 heirs+pregnancies。完成后 buildIndices + renderRenwu 刷新。彻底抹除·全程不调 addEB·不留任何记录。",
+          "why": "错误角色挂在势力/官职/党派多处引用·只 splice 人物志会留 ghost holder。照搬已验证的 applyCharacterDeaths 死亡级联清单 (但去掉所有邸报/记忆副作用) 做到真·不留痕。拦 isPlayer 是因为整局势力外交数据全挂主角本体·删它会崩存档·主角更替已有禅位机制承接。"
+        },
+        {
+          "what": "[tm-player-core.js·人物详情页] openCharRenwuPage 动作区加红色「删除」按钮 (仅 !isPlayer 显示)·点击走 _rwpConfirmDelete 二次确认弹窗 (红色警示·明示不可撤销+将入黑名单)·确认后才执行。",
+          "why": "删除不可逆·二次确认防手滑。主角不显删除按钮·从 UI 层杜绝误删主角。"
+        },
+        {
+          "what": "[tm-char-autogen.js·黑名单防重生] 新增 isCharNameDeleted / markCharNameDeleted 助手 (读写 GM.deletedCharNames·随存档持久化)。三处拦截·aiGenerateCompleteCharacter 入口 (撞黑名单 return null)·addPendingCharacter (黑名单名不入待结晶池·不显可点人名)·scanMentionedCharacters 候选过滤 (黑名单名跳过)。",
+          "why": "删一次必须永久生效·否则 AI 下回合推演又把同名角色抓回来·删除就形同虚设。入口级 return null 是总闸·addPendingCharacter/scan 拦截是不让玩家在叙事里再看到那个可点的错误人名。与硬编码 NAME_BLACKLIST(误抓词表) 互补·此名单由玩家运行时动态累加。"
+        },
+        {
+          "what": "[tm-keju-enke.js·恩科发进士] _kjG2SpawnEnkeJinshiPool 进士名 dedup while 循环条件加 isCharNameDeleted 判断·撞黑名单视为冲突换名重生。",
+          "why": "恩科进士名虽为程序生成·仍兜底·避免极小概率复活已删进士名。"
+        },
+        {
+          "what": "[回归测试] 新 scripts/smoke-char-delete-blacklist.js (11 项·锁黑名单读写+三处生成路径拦截+不误伤非黑名单名)·node --check 三文件 PASS·smoke-char-autogen-containers 9/9 + smoke-p5-beta-npc-char 67 断言无回归。index.html cache-bust·tm-player-core / tm-keju-enke / tm-char-autogen → v=20260528-chardelete。",
+          "why": "锁定『永不重生』契约防回归。运行时删除级联在 tm-player-core·依赖过多无法 vm 单测·靠 node --check + 照搬已验证死亡级联保正确。"
+        }
+      ]
+    },
+    {
       "date": "2026-05-28",
       "module": "1.2.8.1·**两项 high 修复·①闲置黑屏 (renderer OOM) ②下诏移动人物不生效·确定性移动对账层**",
       "title": "①玩家反馈闲置 10 分钟以上天命 exe 黑屏 (控制台 Render process gone)。根因·autoSave 的 defer 逻辑使「闲置反而是存档最频繁的状态」——活跃游玩频繁输入触发 defer (约 3 分钟存一次)·闲置无输入永不 defer·每 60 秒满血 deepClone(P)+GM 快照 (~1 秒·数百 MB 瞬时分配)+IPC·闲置 10 分钟累积约 10 次内存峰值→渲染进程堆耗尽→黑屏。而闲置时 GM 完全冻结·这些存档全是把盘上同一份数据反复重写·纯浪费。②玩家下诏令移动人物 (令徐光启返回京师)·AI 叙事确认收到 (召…延朝) 但所在地纹丝不动·历代版本都没修好。根因·人物移动 100% 靠 AI 自愿吐 char_updates.travelTo·AI 只叙事不吐字段就原地不动·天意规则是纯 context 也逼不出字段·历代全在加 prompt 警告 (概率手段补不到 100%)·缺的是引擎侧确定性兜底。",

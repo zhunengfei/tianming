@@ -1357,6 +1357,8 @@
     try { _applyDirectiveCompliance(G, aiOutput); } catch(_dcE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_dcE, 'applier] directive compliance:') : console.warn('[applier] directive compliance:', _dcE); }
     // ── 13.5 移动对账·确定性兜底（AI 漏吐 travelTo 时·引擎按玩家移动令+即时规则自行落地·根治"人物原地不动"顽疾）──
     try { _reconcilePlayerMovements(G); } catch(_rmE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_rmE, 'applier] move reconcile:') : console.warn('[applier] move reconcile:', _rmE); }
+    // ── 13.6 财政改革对账·P-VWF·确定性拨开关（肃贪升compliance/清丈triggerSurvey/盐法/开海/劝农）·根治"改革不进央地真账·月入死焊" ──
+    try { _reconcilePlayerFiscalReforms(G, aiOutput); } catch(_frE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_frE, 'applier] fiscal reform reconcile:') : console.warn('[applier] fiscal reform reconcile:', _frE); }
     try { _applyRegentDecisions(G, aiOutput); } catch(_rdE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_rdE, 'applier] regent decisions:') : console.warn('[applier] regent decisions:', _rdE); }
     try { _applyBattleResult(G, aiOutput, applied); } catch(_brE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_brE, 'applier] battle result:') : console.warn('[applier] battle result:', _brE); }
 
@@ -2701,6 +2703,60 @@
     }
   }
   global._reconcilePlayerMovements = _reconcilePlayerMovements;
+
+  // ── P-VWF·2026-05-29·财政改革对账层 ──
+  // 照 _reconcilePlayerMovements 范式·读 GM._turnFiscalReforms·按 type 确定性拨开关（必生效）·
+  // 根治"玩家开源改革(肃贪/清丈/盐法/开海/劝农)未接入央地真账·中央月入死焊"。
+  // 量：粗保底值（明示·owner 可调·绝非精细基线表）·只是 AI 没吐力度时的"必生效"兜底；
+  // AI 按情境吐力度（2b-AI量）留后续 prompt 教 AI 再接·此处先保"生不生效"高一量级的红线。
+  function _reconcilePlayerFiscalReforms(G, aiOutput) {
+    if (!G || !Array.isArray(G._turnFiscalReforms) || G._turnFiscalReforms.length === 0) return;
+    var reforms = G._turnFiscalReforms;
+    G._turnFiscalReforms = [];   // 本回合消费一次·清空·避免跨回合重复兜底
+    var FE = (typeof window !== 'undefined' && window.FiscalEngine) || (typeof global !== 'undefined' && global.FiscalEngine) || null;
+    var _P = (typeof window !== 'undefined' && window.P) || (typeof global !== 'undefined' && global.P) || null;
+    var pFac = (_P && _P.playerInfo && _P.playerInfo.factionName) || '';
+    if (!Array.isArray(G._turnReport)) G._turnReport = [];
+    // 粗保底量（owner 可调·非精细分操作表·仅 AI 未吐力度时的必生效兜底）
+    var BASE = { compliance: 0.05, saltRate: 0.05 };
+    // 2b-AI量：AI 按情境吐 reform_effects:[{type, complianceDelta?, rateDelta?}]·有则用 AI（夹护栏）·无则走 BASE 粗保底
+    var aiMag = {};
+    var _aiRe = (aiOutput && Array.isArray(aiOutput.reform_effects)) ? aiOutput.reform_effects : [];
+    _aiRe.forEach(function(re) { if (re && re.type) aiMag[re.type] = re; });
+
+    reforms.forEach(function(fr) {
+      if (!fr || !fr.type) return;
+      var detail = { type: fr.type };
+      if (fr.type === 'anticorruption') {
+        var cd = (aiMag.anticorruption && typeof aiMag.anticorruption.complianceDelta === 'number') ? Math.max(0, Math.min(0.2, aiMag.anticorruption.complianceDelta)) : BASE.compliance; // AI 给则用·夹护栏 0-0.2·无则粗保底
+        var n = (FE && FE.adjustPlayerCompliance) ? FE.adjustPlayerCompliance(pFac, cd, 0.1, 1) : 0;
+        if (n === 0 && FE && FE.adjustPlayerCompliance) n = FE.adjustPlayerCompliance('', cd, 0.1, 1); // 势力key对不上→不过滤兜底·保必生效
+        detail.complianceUp = cd; detail.fromAI = !!aiMag.anticorruption; detail.divisions = n;
+      } else if (fr.type === 'landsurvey') {
+        var ns = (FE && FE.triggerPlayerSurvey) ? FE.triggerPlayerSurvey(pFac) : 0;
+        if (ns === 0 && FE && FE.triggerPlayerSurvey) ns = FE.triggerPlayerSurvey('');
+        detail.surveyed = ns;
+      } else if (fr.type === 'saltreform') {
+        if (!G.policies) G.policies = {};
+        var cur = typeof G.policies.saltTaxRate === 'number' ? G.policies.saltTaxRate : 0.40;
+        var sd = (aiMag.saltreform && typeof aiMag.saltreform.rateDelta === 'number') ? Math.max(-0.2, Math.min(0.2, aiMag.saltreform.rateDelta)) : BASE.saltRate; // AI 给则用·夹护栏 ±0.2·无则粗保底
+        G.policies.saltTaxRate = Math.max(0, Math.min(0.8, cur + sd)); // 护栏·税率不破0.8崩档
+        detail.saltTaxRate = G.policies.saltTaxRate; detail.fromAI = !!aiMag.saltreform;
+      } else if (fr.type === 'openmaritime') {
+        if (G._maritimeBan) G._maritimeBan = { active: false, turn: G.turn || 0 };
+        detail.maritimeBanLifted = true;
+      } else if (fr.type === 'encouragefarming') {
+        if (!G.policies) G.policies = {};
+        G.policies.encourageFarming = true;
+        detail.encourageFarming = true;
+      } else {
+        return;
+      }
+      G._turnReport.push({ type: 'fiscal_reform_reconciled', reform: fr.type, detail: detail, turn: G.turn || 0 });
+      if (typeof global.addEB === 'function') global.addEB('财政改革', fr.type + '·已确定性落账（P-VWF 对账层·必生效）');
+    });
+  }
+  global._reconcilePlayerFiscalReforms = _reconcilePlayerFiscalReforms;
 
   function _applyDirectiveCompliance(G, aiOutput) {
     if (!G || !Array.isArray(G._playerDirectives) || G._playerDirectives.length === 0) return;

@@ -73,8 +73,6 @@ expectedRoutes.forEach(r => assert(actualRoutes.indexOf(r) >= 0, `QUERY_QUICK_OP
 ctx.EdictComplete.QUERY_QUICK_OPTIONS.forEach((o, i) => {
   assert(o.id && o.label && o.route && o.fill, `QUERY_QUICK_OPTIONS[${i}] has 4 fields {id, label, route, fill}`);
 });
-assert(ctx.PhaseC.POLICY_KEYWORDS, 'POLICY_KEYWORDS exposed via PhaseC');
-assert(ctx.PhaseC.POLICY_KEYWORDS.length >= 6, 'POLICY_KEYWORDS has 6+ entries');
 
 // ══════════════════════════════════════════════════════════════
 // Test 2 · R12b 后·OVERRIDE 已 inline 入 v1·EdictParser.VERSION 升 2 标识
@@ -82,8 +80,6 @@ assert(ctx.PhaseC.POLICY_KEYWORDS.length >= 6, 'POLICY_KEYWORDS has 6+ entries')
 eq(ctx.EdictParser.VERSION, 2, 'EdictParser.VERSION=2 after R12b inline merge');
 eq(ctx.PhaseC.VERSION, 2, 'PhaseC.VERSION=2 after R12b inline merge');
 assert(typeof ctx.EdictParser.registerDynamicInstitution === 'function', 'EdictParser.registerDynamicInstitution exposed (was PhaseC-only pre-R12b)');
-assert(typeof ctx.EdictParser.detectEnvPolicy === 'function', 'EdictParser.detectEnvPolicy exposed');
-assert(typeof ctx.EdictParser.routeEnvPolicy === 'function', 'EdictParser.routeEnvPolicy exposed');
 
 // ══════════════════════════════════════════════════════════════
 // Test 3 · processImperialAssent('approve') tax_reform → no institution registered
@@ -207,11 +203,6 @@ assert(ctx.GM.dynamicInstitutions[0].corruption > beforeCorr, 'PhaseC.tick grows
 // ══════════════════════════════════════════════════════════════
 // Test 10 · POLICY_KEYWORDS regex matching (env policy detection)
 // ══════════════════════════════════════════════════════════════
-const matchedFengShan = ctx.PhaseC.POLICY_KEYWORDS.find(p => p.re.test('封山育林'));
-assert(matchedFengShan, 'POLICY_KEYWORDS regex matches 封山育林');
-eq(matchedFengShan.kind, 'env', 'matched POLICY_KEYWORDS kind=env');
-
-const matchedJunTun = ctx.PhaseC.POLICY_KEYWORDS.find(p => p.re.test('军屯戍边'));
-assert(matchedJunTun, 'POLICY_KEYWORDS regex matches 军屯');
+// (Test 10 已删·POLICY_KEYWORDS env-policy 死代码 2026-05-29 移除)
 
 console.log('[smoke-edict-parser-layered] pass assertions=' + ASSERTS);

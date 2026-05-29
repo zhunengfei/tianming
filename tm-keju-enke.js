@@ -659,8 +659,10 @@
     for (var i = 0; i < count; i++) {
       var name = _kjG2GenEnkeJinshiName(seed, i);
       // 健壮 dedup·循环 try suffix 直到不撞 (上限 50 防死循环)
+      // 撞玩家手删黑名单(GM.deletedCharNames)也视为冲突·换名重生·避免复活已删进士
       var attempt = 0;
-      while (GM.chars.find(function(c) { return c && c.name === name; }) && attempt < 50) {
+      var _isDel = (typeof isCharNameDeleted === 'function') ? isCharNameDeleted : function(){ return false; };
+      while ((GM.chars.find(function(c) { return c && c.name === name; }) || _isDel(name)) && attempt < 50) {
         name = _kjG2GenEnkeJinshiName(seed, i) + _kjG2GetNumberSuffix(attempt);
         attempt++;
       }
@@ -891,6 +893,12 @@
           tags: ['科举', '恩科']
         });
       }
+      // F5·toast 提示玩家 (诏书走完了·但科举没启用·让 user 知道下一步)
+      if (typeof window !== 'undefined' && typeof window.toast === 'function') {
+        try {
+          window.toast('⚠ 陛下下诏开' + (td.historyPath || '恩科') + '·然朝中无主礼部之人 (亦无 prestige≥60 重臣)·恩科无法启用·请先任命礼部尚书 / 礼部侍郎再下诏');
+        } catch(_) {}
+      }
       return null;
     }
 
@@ -987,8 +995,11 @@
       GM._kejuParadigm = GM._kejuParadigm || {};
       GM._kejuParadigm._enkeRejectedBirthday60 = curYear;
     }
-    if (td.subtype === 'reign-change' && typeof GM.minxin === 'number') {
-      GM.minxin -= 3;
+    if (td.subtype === 'reign-change') {
+      var _AEk1 = (typeof window !== 'undefined' && window.AuthorityEngines) || (typeof global !== 'undefined' && global.AuthorityEngines) || null;
+      if (_AEk1 && _AEk1.adjustMinxin) _AEk1.adjustMinxin('socialMobility', -3, '改元恩科·士林失望');
+      else if (GM.minxin && typeof GM.minxin.trueIndex === 'number') GM.minxin.trueIndex = Math.max(0, GM.minxin.trueIndex - 3);
+      else if (typeof GM.minxin === 'number') GM.minxin -= 3;
     }
   }
 
@@ -1003,8 +1014,12 @@
     if (typeof GM.guoku === 'number' && typeof ac['国库'] === 'number') {
       GM.guoku += ac['国库'];
     }
-    if (typeof GM.minxin === 'number' && typeof ac['士林'] === 'number') {
-      GM.minxin += Math.round(ac['士林'] * 0.3); // 士林 +10 → minxin +3 (士林是 minxin subset)
+    if (typeof ac['士林'] === 'number') {
+      var _dMx = Math.round(ac['士林'] * 0.3); // 士林 +10 → minxin +3 (士林是 minxin subset)
+      var _AEk2 = (typeof window !== 'undefined' && window.AuthorityEngines) || (typeof global !== 'undefined' && global.AuthorityEngines) || null;
+      if (_AEk2 && _AEk2.adjustMinxin) _AEk2.adjustMinxin('socialMobility', _dMx, '恩科·士林感念');
+      else if (GM.minxin && typeof GM.minxin.trueIndex === 'number') GM.minxin.trueIndex = Math.max(0, Math.min(100, GM.minxin.trueIndex + _dMx));
+      else if (typeof GM.minxin === 'number') GM.minxin += _dMx;
     }
     // 不 apply 官僚 / lizhi·避跟其他 system 重复
     // chronicle 记 cost apply

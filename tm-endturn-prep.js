@@ -560,6 +560,19 @@ function _endTurn_collectInput() {
     }
   } catch(_mvErr) { GM._turnMoveCommands = []; try { window.TM && TM.errors && TM.errors.captureSilent(_mvErr, 'prep·extractEdictMovements'); } catch(_){} }
 
+  // 财政改革对账层 P-VWF·2026-05-29·确定性捕获玩家开源/肃贪诏令→存 GM._turnFiscalReforms·
+  // 供 AI 回合应用后 _reconcilePlayerFiscalReforms 兜底拨开关（根治"改革不进央地真账·月入死焊"）
+  // 财政改革是国家级政策动作·不按人物势力过滤
+  try {
+    var _fiscalReforms = (typeof extractEdictFiscalReforms === 'function') ? extractEdictFiscalReforms(allEdictText) : [];
+    GM._turnFiscalReforms = _fiscalReforms;
+    input.playerFiscalReforms = _fiscalReforms;
+    if (_fiscalReforms.length > 0) {
+      _fiscalReforms.forEach(function(fr){ addEB('诏令意图', '财政改革·' + fr.type + '（' + fr.raw + '）'); });
+      _dbg('[财政对账] 捕获改革诏令 ' + _fiscalReforms.length + ' 条', _fiscalReforms);
+    }
+  } catch(_frErr) { GM._turnFiscalReforms = []; try { window.TM && TM.errors && TM.errors.captureSilent(_frErr, 'prep·extractEdictFiscalReforms'); } catch(_){} }
+
   // 收集昏君活动
   if (typeof TyrantActivitySystem !== 'undefined') {
     input.tyrantActivities = TyrantActivitySystem.collectActivities();

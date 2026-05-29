@@ -312,6 +312,9 @@
       if (existing) return existing;
     }
 
+    // 玩家手删黑名单·撞同名直接拒绝重生 (永不重生·硬编码·AI 不可干涉)
+    if (isCharNameDeleted(name)) return null;
+
     // 并发锁：若同名正在生成中，等待其完成（避免重复 API 调用）
     if (!GM._generatingChars) GM._generatingChars = {};
     if (GM._generatingChars[name]) {
@@ -995,6 +998,8 @@
   /** pending 清单：推演提及但未生成的人物 */
   function addPendingCharacter(entry) {
     if (!GM._pendingCharacters) GM._pendingCharacters = [];
+    // 玩家手删黑名单·AI 推演再提及也不入待结晶池 (不显可点人名·永不重生)
+    if (entry && isCharNameDeleted(entry.name)) return null;
     // 去重+累加 mentions
     var existing = GM._pendingCharacters.find(function(p){ return p.name === entry.name; });
     if (existing) {
@@ -1661,6 +1666,8 @@
     });
     candidates = candidates.filter(function(name) {
       if (!name) return false;
+      // 玩家手删黑名单·跳过 (永不重生)
+      if (isCharNameDeleted(name)) return false;
       // 严格匹配
       if (_aliveMap[name]) return false;
       // 去除可能的前后空格/全角空格
@@ -1784,8 +1791,30 @@
     return removed;
   }
 
+  // ─── 玩家手删黑名单 (GM.deletedCharNames·随存档持久化) ───
+  // 玩家在人物详情页手动删除的 AI 角色名进此名单·AI 各生成路径撞同名一律跳过·永不重生
+  // 与硬编码 NAME_BLACKLIST(误抓词表) 不同·此名单由玩家运行时动态累加
+  function _tmDeletedNamesArr() {
+    var G = (typeof global !== 'undefined' && global.GM) || (typeof window !== 'undefined' && window.GM);
+    if (!G) return null;
+    if (!Array.isArray(G.deletedCharNames)) G.deletedCharNames = [];
+    return G.deletedCharNames;
+  }
+  function isCharNameDeleted(name) {
+    if (!name) return false;
+    var arr = _tmDeletedNamesArr();
+    return !!(arr && arr.indexOf(name) >= 0);
+  }
+  function markCharNameDeleted(name) {
+    if (!name) return;
+    var arr = _tmDeletedNamesArr();
+    if (arr && arr.indexOf(name) < 0) arr.push(name);
+  }
+
   // 对外导出
   global.aiGenerateCompleteCharacter = aiGenerateCompleteCharacter;
+  global.isCharNameDeleted = isCharNameDeleted;
+  global.markCharNameDeleted = markCharNameDeleted;
   global.edictRecruitCharacter = edictRecruitCharacter;
   global.parseEdictRecruitPatterns = parseEdictRecruitPatterns;
   global.handleEdictTextForRecruit = handleEdictTextForRecruit;

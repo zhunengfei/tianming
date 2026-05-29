@@ -51,9 +51,6 @@ ctx.EdictParser = {
   getHistoricalEdictPresets: fn('parserGetHistoricalPresets'),
   registerDynamicInstitution: fn('parserRegisterDynInst'),
   abolishInstitution: fn('parserAbolishInst'),
-  detectEnvPolicy: fn('parserDetectEnvPolicy'),
-  routeEnvPolicy: fn('parserRouteEnvPolicy'),
-  POLICY_KEYWORDS: { keyword: /test/ },
   enhanceOfficeReformDraft: fn('parserEnhanceOfficeReform'),
   VERSION: 2
 };
@@ -109,12 +106,10 @@ ctx.PhaseC = {
   tick: ctx.EdictParser.tick,
   registerDynamicInstitution: ctx.EdictParser.registerDynamicInstitution,
   abolishInstitution: ctx.EdictParser.abolishInstitution,
-  detectEnvPolicy: ctx.EdictParser.detectEnvPolicy,
-  routeEnvPolicy: ctx.EdictParser.routeEnvPolicy,
   enhanceOfficeReformDraft: ctx.EdictParser.enhanceOfficeReformDraft,
-  POLICY_KEYWORDS: ctx.EdictParser.POLICY_KEYWORDS,
   VERSION: 2
 };
+// 注:detectEnvPolicy/routeEnvPolicy/POLICY_KEYWORDS 死代码已于 2026-05-29 删除
 
 // ─── mock·lifecycle 11 globals (tm-edict-lifecycle.js·与 parser 同名 EDICT_TYPES 是不同对象!) ───
 ctx.EDICT_TYPES = { _kind: 'lifecycle-broad-category', _count: 11, military: 'mil', fiscal: 'fis' };
@@ -188,9 +183,7 @@ assert(typeof TM.Edict.parser.classify === 'function');
 assert(typeof TM.Edict.parser.tryExecute === 'function');
 assert(typeof TM.Edict.parser.processImperialAssent === 'function');
 assert(typeof TM.Edict.parser.registerDynamicInstitution === 'function', 'R12b inline·registerDynamicInstitution');
-assert(typeof TM.Edict.parser.detectEnvPolicy === 'function', 'R12b inline·detectEnvPolicy');
 assert(typeof TM.Edict.parser.enhanceOfficeReformDraft === 'function', 'R12b inline·enhanceOfficeReformDraft');
-assert(TM.Edict.parser.POLICY_KEYWORDS && typeof TM.Edict.parser.POLICY_KEYWORDS === 'object', 'POLICY_KEYWORDS');
 
 // ─── 8·complete keys 完整 ───
 assert(typeof TM.Edict.complete.openEdictHelp === 'function');

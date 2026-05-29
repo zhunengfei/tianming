@@ -2213,6 +2213,114 @@ function _fmtShort(v) {
 // ───────────────────────────────────────────────────────────────────
 // 人物志完整页 openCharRenwuPage（1120px 居中，6 Tab，双击或点"完整人物志"入口）
 // ───────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+// 玩家手动删除 AI 角色 · 硬编码执行 · AI 全程不可干涉
+//   · 唯一拦截：主角本体 (isPlayer)——更替走已有禅位机制
+//   · 彻底抹除不留痕：从人物志/官职/势力/党派/后宫等处一并清除·不发邸报·不留去世记录
+//   · 删一次写入 GM.deletedCharNames 黑名单·AI 撞同名永不重生 (拦截点见 tm-char-autogen.js)
+// ══════════════════════════════════════════════════════════════════
+function deleteCharacterByPlayer(name) {
+  if (!name) return false;
+  var ch = (typeof findCharByName === 'function') ? findCharByName(name) : null;
+  if (!ch) { if (typeof toast === 'function') toast('未找到角色'); return false; }
+  if (ch.isPlayer) {
+    if (typeof toast === 'function') toast('主角本体不可删除·如需更替请走禅位');
+    return false;
+  }
+  var realName = ch.name || name;
+
+  // 1. 人物志彻底移除 (绝不误删主角)
+  if (Array.isArray(GM.chars)) {
+    GM.chars = GM.chars.filter(function(c) { return !(c && c.name === realName && !c.isPlayer); });
+  }
+  // 2. 待结晶 pending 列表移除
+  if (Array.isArray(GM._pendingCharacters)) {
+    GM._pendingCharacters = GM._pendingCharacters.filter(function(p) { return p && p.name !== realName; });
+  }
+  // 3. 官职 / 行政区划 governor 级联空缺 (复用 PostTransfer.cascadeVacate)
+  try { if (typeof PostTransfer !== 'undefined' && PostTransfer.cascadeVacate) PostTransfer.cascadeVacate(realName); } catch(_){}
+  // 3b. officeTree actualHolders 新 schema 清理 (cascadeVacate 仅清 p.holder)
+  if (GM.officeTree && typeof _offDismissPerson === 'function') {
+    (function _clrOff(ns) {
+      ns.forEach(function(n) {
+        if (n.positions) n.positions.forEach(function(p) {
+          if (p.holder === realName || (Array.isArray(p.actualHolders) && p.actualHolders.some(function(h){ return h && h.name === realName; }))) {
+            try { _offDismissPerson(p, realName); } catch(_){}
+          }
+        });
+        if (n.subs) _clrOff(n.subs);
+      });
+    })(GM.officeTree);
+  }
+  // 4. 军队主帅引用
+  if (Array.isArray(GM.armies)) GM.armies.forEach(function(a) {
+    if (a && a.commander === realName) { a.commander = ''; a.commanderTitle = ''; }
+  });
+  // 5. 势力首领引用
+  if (Array.isArray(GM.facs)) GM.facs.forEach(function(f) { if (f && f.leader === realName) f.leader = ''; });
+  // 6. 省份统计 governor (adminHierarchy 已由 cascadeVacate 处理)
+  if (GM.provinceStats) Object.keys(GM.provinceStats).forEach(function(k) {
+    if (GM.provinceStats[k] && GM.provinceStats[k].governor === realName) GM.provinceStats[k].governor = '';
+  });
+  // 7. 党派 leader + 成员
+  if (Array.isArray(GM.parties)) GM.parties.forEach(function(p) {
+    if (!p) return;
+    if (p.leader === realName) p.leader = '';
+    if (Array.isArray(p.members)) p.members = p.members.filter(function(m) { return m !== realName; });
+  });
+  if (GM._enkeParty) {
+    if (Array.isArray(GM._enkeParty.members)) GM._enkeParty.members = GM._enkeParty.members.filter(function(m){ return m !== realName; });
+    if (GM._enkeParty.cohorts) Object.keys(GM._enkeParty.cohorts).forEach(function(y) {
+      if (Array.isArray(GM._enkeParty.cohorts[y])) GM._enkeParty.cohorts[y] = GM._enkeParty.cohorts[y].filter(function(m){ return m !== realName; });
+    });
+  }
+  // 8. 后宫继承人 / 孕期引用
+  if (GM.harem) {
+    if (Array.isArray(GM.harem.heirs)) GM.harem.heirs = GM.harem.heirs.filter(function(h){ return h !== realName; });
+    if (Array.isArray(GM.harem.pregnancies)) GM.harem.pregnancies = GM.harem.pregnancies.filter(function(pg){ return pg && pg.mother !== realName; });
+  }
+  // 9. 写入黑名单 (随存档持久化)·AI 撞同名永不重生
+  if (typeof markCharNameDeleted === 'function') markCharNameDeleted(realName);
+  else {
+    if (!Array.isArray(GM.deletedCharNames)) GM.deletedCharNames = [];
+    if (GM.deletedCharNames.indexOf(realName) < 0) GM.deletedCharNames.push(realName);
+  }
+
+  // 10. 关详情页 + 重建索引 + 刷新人物列表 (彻底抹除·不发邸报)
+  var ov = document.getElementById('_renwuPageOv');
+  if (ov) ov.classList.remove('open');
+  if (typeof buildIndices === 'function') { try { buildIndices(); } catch(_){} }
+  if (typeof renderRenwu === 'function') { try { renderRenwu(true); } catch(_){} }
+  if (typeof toast === 'function') toast('已删除「' + realName + '」·已入黑名单·AI 不会再生成');
+  return true;
+}
+
+// 删除前二次确认 (红色警示·不可撤销)
+function _rwpConfirmDelete(name) {
+  if (!name) return;
+  var existing = document.getElementById('_rwpDelConfirmOv');
+  if (existing) existing.remove();
+  var safe = String(name).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  var m = document.createElement('div');
+  m.id = '_rwpDelConfirmOv';
+  m.className = 'modal-bg show';
+  m.style.zIndex = 3000;
+  m.innerHTML =
+    '<div style="background:var(--bg-1);border:1px solid #a33;border-radius:12px;width:90%;max-width:420px;padding:1.4rem 1.6rem;box-shadow:0 8px 40px rgba(0,0,0,0.5);">'
+    + '<div style="font-size:1.05rem;font-weight:700;color:#e57373;margin-bottom:0.7rem;">⚠ 彻底删除角色</div>'
+    + '<div style="font-size:0.86rem;color:var(--txt-d);line-height:1.75;margin-bottom:1.2rem;">'
+    +   '将<b style="color:#e57373;">彻底抹除</b>「' + escHtml(name) + '」——从人物志、官职、势力、党派等处一并清除，<b>不可撤销</b>。<br>'
+    +   '删除后该名字进入黑名单，AI 推演中<b>不会再重新生成</b>同名角色。'
+    + '</div>'
+    + '<div style="display:flex;gap:0.8rem;justify-content:flex-end;">'
+    +   '<button class="bt bs" onclick="var o=document.getElementById(\'_rwpDelConfirmOv\');if(o)o.remove();">取 消</button>'
+    +   '<button class="bt" style="background:#a33;color:#fff;border-color:#c44;" onclick="var o=document.getElementById(\'_rwpDelConfirmOv\');if(o)o.remove();deleteCharacterByPlayer(\'' + safe + '\');">确认删除</button>'
+    + '</div>'
+    + '</div>';
+  m.addEventListener('click', function(e){ if (e.target === m) m.remove(); });
+  document.body.appendChild(m);
+}
+
 function openCharRenwuPage(charName) {
   var ch = typeof findCharByName === 'function' ? findCharByName(charName) : null;
   if (!ch) { toast('未找到角色'); return; }
@@ -2321,6 +2429,10 @@ function openCharRenwuPage(charName) {
     if (ch.officialTitle || ch.title) {
       h += '<button class="rwp-act-btn" onclick="_rwpOpenOffice(\''+safeName+'\')">官 制</button>';
     }
+  }
+  // 删除按钮·硬编码后门·仅对非主角显示 (主角更替走禅位)
+  if (!ch.isPlayer) {
+    h += '<button class="rwp-act-btn" style="color:#e57373;border-color:#a33;" onclick="_rwpConfirmDelete(\''+safeName+'\')">删 除</button>';
   }
   h += '<button class="rwp-act-btn close" onclick="document.getElementById(\'_renwuPageOv\').classList.remove(\'open\')">×</button>';
   h += '</div>';

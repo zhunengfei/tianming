@@ -1314,6 +1314,12 @@ function _chooseIssueOption(issueId, choiceIdx) {
     Object.keys(ch.effect).forEach(function(k) {
       var v = ch.effect[k];
       if (typeof v !== 'number') return;
+      // 权威类变量（民心/皇威/皇权）路由到真账引擎写 trueIndex·而非当普通 vars 或丢进 _issueEffects 黑洞
+      var _AEi = (typeof window !== 'undefined' && window.AuthorityEngines) || (typeof global !== 'undefined' && global.AuthorityEngines) || null;
+      if (_AEi) {
+        var _authFn = ({ '民心': _AEi.adjustMinxin, 'minxin': _AEi.adjustMinxin, '皇威': _AEi.adjustHuangwei, 'huangwei': _AEi.adjustHuangwei, '皇权': _AEi.adjustHuangquan, 'huangquan': _AEi.adjustHuangquan })[k];
+        if (typeof _authFn === 'function') { _authFn('issueChoice', v, '要务决断·' + (ch.text || '')); return; }
+      }
       // 先匹配 GM.vars
       if (GM.vars && GM.vars[k]) {
         var vObj = GM.vars[k];

@@ -942,6 +942,19 @@
       });
       tp += '    ※ 若漏输出·引擎将按玩家规则自动落地（"即时抵达"规则在线则当回合到位·否则启程在途）·但叙事会与数据脱节·务必自己逐条输出 travelTo。\n';
     }
+    // 财政改革对账层·本回合玩家明确的开源/肃贪改革（确定性捕获·引擎已保证必生效·AI 只按情境定"力度"）
+    if (GM._turnFiscalReforms && GM._turnFiscalReforms.length > 0) {
+      tp += '【本回合玩家财政改革·你按情境定力度·改革本身已必生效】\n';
+      tp += '  ※ 下列改革引擎已确定性落账（必生效·不会"纹丝不动"）·你只需按本回合情境（推行阻力/民心/吏治/改革决心/地方配合）定"力度"·在 reform_effects 中输出：\n';
+      GM._turnFiscalReforms.forEach(function(fr){
+        tp += '    · ' + fr.type + '（' + (fr.raw || '') + '）\n';
+      });
+      tp += '  ※ reform_effects:[{type, complianceDelta?, rateDelta?}]·type 用上列英文标识·\n';
+      tp += '    · anticorruption(肃贪/整饬吏治) → complianceDelta 0~0.20：升地方实征率、抑贪墨截留\n';
+      tp += '    · saltreform(盐法/盐课) → rateDelta -0.20~+0.20：盐课税率增减\n';
+      tp += '    · 力度随情境：大刀阔斧/众正盈朝/民心归附→偏高；阻力重重/敷衍塞责/积弊深→偏低。漏给则引擎按粗保底落地（仍生效·只是不随情境浮动）。\n';
+      tp += '    · landsurvey(清丈)/openmaritime(开海)/encouragefarming(劝农) 为开关型·引擎自动落地（查隐田/弛海禁/劝农政策）·无需给数值。\n';
+    }
     // ═══ 通用启动约束·防"叙事而无 schema entry"导致下回合才启动 ═══
     tp += '【启动型动作·必须本回合产生 schema entry·不得仅 zhengwen 叙事】\n';
     tp += '  ※ 玩家本回合行动若属【启动型】，必须在对应 schema 字段输出至少一条新 entry，配合"起步"值表现刚启动·不可只在 zhengwen/shilu 叙事而无对应字段：\n';

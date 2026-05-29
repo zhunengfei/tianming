@@ -1398,6 +1398,35 @@
     return true;
   }
 
+  // P-VWF·2026-05-29·确定性升本势力各 division 的 compliance（cascade 真读·splitCascadeAmount qiyunNet=qiyunGross×compliance）
+  // 复用 walkAdminDivisions 正确遍历·delta 由对账层给（AI 力度 或 粗保底）·此处只夹安全护栏·返回生效 division 数
+  function adjustPlayerCompliance(faction, delta, clampMin, clampMax) {
+    var d = Number(delta) || 0;
+    if (!d) return 0;
+    var lo = typeof clampMin === 'number' ? clampMin : 0.1;
+    var hi = typeof clampMax === 'number' ? clampMax : 1;
+    var n = 0;
+    walkAdminDivisions(getGame(), function(div, parent, fac) {
+      if (faction && fac && fac !== faction) return;
+      if (div && div.fiscal && typeof div.fiscal.compliance === 'number') {
+        div.fiscal.compliance = Math.max(lo, Math.min(hi, div.fiscal.compliance + d));
+        n++;
+      }
+    }, { faction: faction || undefined });
+    return n;
+  }
+
+  // P-VWF·对本势力每个 division 触发清丈（triggerSurvey 现成·按 landsAnnexed 查回隐田）·返回触发数
+  function triggerPlayerSurvey(faction) {
+    var n = 0;
+    walkAdminDivisions(getGame(), function(div, parent, fac) {
+      if (faction && fac && fac !== faction) return;
+      var id = div && (div.id || div.name || div.code);
+      if (id && triggerSurvey(id)) n++;
+    }, { faction: faction || undefined });
+    return n;
+  }
+
   function getSalaryConfig(G) {
     var fc = getFiscalConfig(G);
     var cfg = {};
@@ -1706,7 +1735,10 @@
     createTransferOrderAtomic: createTransferOrderAtomic,
     _tickTransferOrders: _tickTransferOrders,
     init: init,
-    tick: tick
+    tick: tick,
+    triggerSurvey: triggerSurvey,
+    adjustPlayerCompliance: adjustPlayerCompliance,
+    triggerPlayerSurvey: triggerPlayerSurvey
   };
 
   global.FiscalEngine = global.FiscalEngine || {};
@@ -1730,7 +1762,9 @@
     sumEconomyBase: sumEconomyBase,
     getDivEconomy: getDivEconomy,
     getTopContributors: getTopContributors,
-    triggerSurvey: triggerSurvey
+    triggerSurvey: triggerSurvey,
+    adjustPlayerCompliance: adjustPlayerCompliance,
+    triggerPlayerSurvey: triggerPlayerSurvey
   };
 
   global.FixedExpense = {
