@@ -1318,7 +1318,7 @@ function _chooseIssueOption(issueId, choiceIdx) {
       var _AEi = (typeof window !== 'undefined' && window.AuthorityEngines) || (typeof global !== 'undefined' && global.AuthorityEngines) || null;
       if (_AEi) {
         var _authFn = ({ '民心': _AEi.adjustMinxin, 'minxin': _AEi.adjustMinxin, '皇威': _AEi.adjustHuangwei, 'huangwei': _AEi.adjustHuangwei, '皇权': _AEi.adjustHuangquan, 'huangquan': _AEi.adjustHuangquan })[k];
-        if (typeof _authFn === 'function') { _authFn('issueChoice', v, '要务决断·' + (ch.text || '')); return; }
+        if (typeof _authFn === 'function') { _authFn('issueChoice', v, '要务决断·' + (ch.text || ''), { persist: true }); return; }
       }
       // 先匹配 GM.vars
       if (GM.vars && GM.vars[k]) {

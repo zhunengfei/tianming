@@ -1416,6 +1416,24 @@
     return n;
   }
 
+  // P-DZ·2026-05-29·确定性降本势力各 division 的 corruption（cascade corrPenalty 真读·computeTaxAmount → 中央实收；且 aggregateRegionsToVariables 把它聚合成 subDepts.provincial.true → 实征率面板）
+  // delta 由对账层给（AI 力度 或 粗保底·负值=降浊度）·此处只夹安全护栏·返回生效 division 数
+  function adjustPlayerDivisionCorruption(faction, delta, clampMin, clampMax) {
+    var d = Number(delta) || 0;
+    if (!d) return 0;
+    var lo = typeof clampMin === 'number' ? clampMin : 0;
+    var hi = typeof clampMax === 'number' ? clampMax : 100;
+    var n = 0;
+    walkAdminDivisions(getGame(), function(div, parent, fac) {
+      if (faction && fac && fac !== faction) return;
+      if (div && typeof div.corruption === 'number') {
+        div.corruption = Math.max(lo, Math.min(hi, div.corruption + d));
+        n++;
+      }
+    }, { faction: faction || undefined });
+    return n;
+  }
+
   // P-VWF·对本势力每个 division 触发清丈（triggerSurvey 现成·按 landsAnnexed 查回隐田）·返回触发数
   function triggerPlayerSurvey(faction) {
     var n = 0;
@@ -1738,6 +1756,7 @@
     tick: tick,
     triggerSurvey: triggerSurvey,
     adjustPlayerCompliance: adjustPlayerCompliance,
+    adjustPlayerDivisionCorruption: adjustPlayerDivisionCorruption,
     triggerPlayerSurvey: triggerPlayerSurvey
   };
 
@@ -1764,6 +1783,7 @@
     getTopContributors: getTopContributors,
     triggerSurvey: triggerSurvey,
     adjustPlayerCompliance: adjustPlayerCompliance,
+    adjustPlayerDivisionCorruption: adjustPlayerDivisionCorruption,
     triggerPlayerSurvey: triggerPlayerSurvey
   };
 

@@ -211,7 +211,19 @@
     }
     // 不再因“无事迹/久无诏令”自动衰减；只记录本轮皇威 tick。
     hw.history.lastAuthorityTick = ctx.turn || 0;
-    hw.history.lastAuthorityTick = ctx.turn || 0;
+    // ── P-5TK·皇威天象扣分衰减+封顶（双账·drains.heavenlySign 累计扣分→回血 index + 同步削 drain 显示·老存档同样回血）──
+    // 衰减参数·owner 可调（被动机制参数·非玩家操作效果量）
+    var P5TK_HW_HEAL = 0.10, P5TK_HW_CAP = 25, P5TK_HW_MIN = 0.5;
+    var hsDrain = hw.drains.heavenlySign || 0;
+    if (hsDrain > 0) {
+      var hwHeal = Math.min(hsDrain, Math.max(P5TK_HW_MIN, hsDrain * P5TK_HW_HEAL) * mr);
+      hw.index = Math.min(100, hw.index + hwHeal);
+      hw.drains.heavenlySign = Math.max(0, hsDrain - hwHeal);
+    }
+    if ((hw.drains.heavenlySign || 0) > P5TK_HW_CAP) {
+      hw.index = Math.min(100, hw.index + ((hw.drains.heavenlySign || 0) - P5TK_HW_CAP));
+      hw.drains.heavenlySign = P5TK_HW_CAP;
+    }
     _updatePerceivedHuangwei(hw);
   }
 
@@ -545,11 +557,28 @@
     return 'revolt';
   }
 
-  function adjustMinxin(source, delta, reason) {
+  function adjustMinxin(source, delta, reason, opts) {
     var mx = _ensureMinxin();
     if (!mx) return;
     mx.trueIndex = Math.max(0, Math.min(100, mx.trueIndex + delta));
     if (mx.sources[source] !== undefined) mx.sources[source] += delta;
+    // P-DZ民心·治本：所有民心变化（玩家操作 + 引擎 tick）都把 delta 摊回玩家本势力各 div.minxin 叶子，
+    //   叶子成民心唯一真相源、trueIndex 纯由回合末 aggregateRegionsToVariables 从叶子聚合——彻底消除
+    //   「trueIndex 独立累积 vs 叶子」两本账。每叶子 += 同一 delta、加权均值即 +delta（数学等价）。
+    //   注：引擎线负项（赋税/天象/战乱…）一并生效·民心动力学被打开·各 source 系数须桌面端跑回合配平。opts.persist 已废·留作向后兼容。
+    if (Number(delta)) {
+      try {
+        var _IB = global.IntegrationBridge || (typeof window !== 'undefined' && window.IntegrationBridge) || null;
+        var _Gp = global.GM || (typeof window !== 'undefined' && window.GM) || null;
+        if (_IB && typeof _IB.getLeafDivisions === 'function' && _Gp && _Gp.adminHierarchy) {
+          var _leaves = _IB.getLeafDivisions(_Gp.adminHierarchy, 'player') || [];
+          for (var _li = 0; _li < _leaves.length; _li++) {
+            var _ld = _leaves[_li];
+            if (_ld && typeof _ld.minxin === 'number') _ld.minxin = Math.max(0, Math.min(100, _ld.minxin + delta));
+          }
+        }
+      } catch (_pmE) {}
+    }
     var newPhase = _getMinxinPhase(mx.trueIndex);
     if (newPhase !== mx.phase) {
       mx.phase = newPhase;
@@ -651,6 +680,34 @@
     } else {
       mx.prophecy.intensity = Math.max(0, mx.prophecy.intensity - 0.002 * mr);
     }
+    // ── P-5TK·天象/谶纬类不可抗力扣分衰减+封顶（原本只进不出→现在会回血·作用于已累计存量·老存档同样缓慢回血）──
+    // 衰减参数·owner 可调（被动机制参数·非玩家操作效果量）：每回合回血累计负值的 _HEAL 比例·单项扣分封顶 -_CAP
+    var P5TK_HEAL = 0.10, P5TK_CAP = 25, P5TK_MIN = 0.5;
+    ['heavenSign', 'prophecy'].forEach(function(s) {
+      var acc = mx.sources[s] || 0;
+      if (acc < 0) {
+        var heal = Math.min(-acc, Math.max(P5TK_MIN, -acc * P5TK_HEAL) * mr);
+        if (heal > 0) adjustMinxin(s, heal, '天象创伤渐平（P-5TK 衰减）');
+      }
+      if ((mx.sources[s] || 0) < -P5TK_CAP) adjustMinxin(s, (-P5TK_CAP) - (mx.sources[s] || 0), '天象扣分封顶（P-5TK）');
+    });
+    // ── P-DZ民心·稳定器（B 方案）：治本打开动力学后，给玩家叶子民心一个向「开局基线」缓慢回归的力，
+    //   防引擎负项（赋税/天象/战乱…）累积把民心单调打崩。回归率 P_MX_REGRESS 小·机制参数·可调；
+    //   基线 _minxinBase = 叶子开局民心（首回合锚定·保各地差异）·偏离越大拉力越大（线性回归）。──
+    try {
+      var _IBm = global.IntegrationBridge || (typeof window !== 'undefined' && window.IntegrationBridge) || null;
+      if (_IBm && typeof _IBm.getLeafDivisions === 'function' && G && G.adminHierarchy) {
+        var P_MX_REGRESS = 0.05; // 每回合（按月 mr）向开局基线回归比例·稳定器强度·可调
+        var _mlvs = _IBm.getLeafDivisions(G.adminHierarchy, 'player') || [];
+        for (var _mi = 0; _mi < _mlvs.length; _mi++) {
+          var _md = _mlvs[_mi];
+          if (!_md || typeof _md.minxin !== 'number') continue;
+          if (typeof _md._minxinBase !== 'number') _md._minxinBase = _md.minxin; // 首回合锚定开局基线
+          var _gap = _md._minxinBase - _md.minxin;
+          if (_gap) _md.minxin = Math.max(0, Math.min(100, _md.minxin + _gap * P_MX_REGRESS * mr));
+        }
+      }
+    } catch (_msE) {}
     // 民变触发（B3 分段）
     if (mx.trueIndex < 20 && Math.random() < 0.05 * mr) {
       _triggerRevolt(ctx);

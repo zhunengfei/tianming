@@ -372,6 +372,31 @@ function applyEdictActions(actions) {
           var deadRels = AffinityMap.getRelations(a.character);
           deadRels.forEach(function(r) { if (r.value > 20) AffinityMap.add(r.name, P.playerInfo.characterName || '玩家', -15, '赐死' + a.character); });
         }
+        // P-DZ·处决官员接降浊度：杀官对其所在部门是震慑 → 降对应 corruption。按 officialTitle 推部门：
+        //   非地方官部门(fiscal/military/judicial/central/imperial) 直降 subDepts[dept].true（aggregate 不覆盖这几口·持久）；
+        //   地方官(provincial)或推不出 → 降全势力 div.corruption 源头（FE.adjustPlayerDivisionCorruption·cascade + 回合末 aggregate 都吃·持久）。
+        //   量 = 保守保底 P_EXEC_CORR_DROP（可调·处决走诏书确定性通道·不走 AI reform_effects）。
+        try {
+          var _title = String((char.officialTitle || char.position || '')).trim();
+          var P_EXEC_CORR_DROP = 5; // 处决一名官员对其部门的震慑降浊度·保守保底·可调
+          var _dept = '';
+          if (/户部|度支|太仓|钞关|盐运|税课/.test(_title)) _dept = 'fiscal';
+          else if (/兵部|都督|总兵|武选|军务/.test(_title)) _dept = 'military';
+          else if (/刑部|都察院|御史|大理寺|按察|提刑/.test(_title)) _dept = 'judicial';
+          else if (/吏部|内阁|大学士|首辅|次辅|中枢/.test(_title)) _dept = 'central';
+          else if (/锦衣卫|东厂|西厂|司礼监|内官监|宦/.test(_title)) _dept = 'imperial';
+          else if (/巡抚|总督|知府|知州|知县|布政|参政|道员/.test(_title)) _dept = 'provincial';
+          var _CEe = (typeof CorruptionEngine !== 'undefined' && CorruptionEngine) || (typeof window !== 'undefined' && window.CorruptionEngine) || null;
+          var _FEe = (typeof FiscalEngine !== 'undefined' && FiscalEngine) || (typeof window !== 'undefined' && window.FiscalEngine) || null;
+          var _pFacE = (typeof P !== 'undefined' && P && P.playerInfo && P.playerInfo.factionName) || '';
+          if (_dept && _dept !== 'provincial' && GM.corruption && GM.corruption.subDepts && GM.corruption.subDepts[_dept] && typeof GM.corruption.subDepts[_dept].true === 'number') {
+            GM.corruption.subDepts[_dept].true = Math.max(0, GM.corruption.subDepts[_dept].true - P_EXEC_CORR_DROP);
+            if (_CEe && typeof _CEe.syncIndexFromSubDepts === 'function') _CEe.syncIndexFromSubDepts('处决' + (_title || '官员') + '·' + _dept + '部门震慑（P-DZ）');
+          } else if (_FEe && typeof _FEe.adjustPlayerDivisionCorruption === 'function') {
+            var _ne = _FEe.adjustPlayerDivisionCorruption(_pFacE, -P_EXEC_CORR_DROP, 0, 100);
+            if (_ne === 0) _FEe.adjustPlayerDivisionCorruption('', -P_EXEC_CORR_DROP, 0, 100);
+          }
+        } catch (_execCorrE) {}
   });
 }
 

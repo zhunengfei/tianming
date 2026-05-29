@@ -2718,7 +2718,7 @@
     var pFac = (_P && _P.playerInfo && _P.playerInfo.factionName) || '';
     if (!Array.isArray(G._turnReport)) G._turnReport = [];
     // 粗保底量（owner 可调·非精细分操作表·仅 AI 未吐力度时的必生效兜底）
-    var BASE = { compliance: 0.05, saltRate: 0.05 };
+    var BASE = { compliance: 0.05, saltRate: 0.05, corruption: 3 };
     // 2b-AI量：AI 按情境吐 reform_effects:[{type, complianceDelta?, rateDelta?}]·有则用 AI（夹护栏）·无则走 BASE 粗保底
     var aiMag = {};
     var _aiRe = (aiOutput && Array.isArray(aiOutput.reform_effects)) ? aiOutput.reform_effects : [];
@@ -2732,6 +2732,24 @@
         var n = (FE && FE.adjustPlayerCompliance) ? FE.adjustPlayerCompliance(pFac, cd, 0.1, 1) : 0;
         if (n === 0 && FE && FE.adjustPlayerCompliance) n = FE.adjustPlayerCompliance('', cd, 0.1, 1); // 势力key对不上→不过滤兜底·保必生效
         detail.complianceUp = cd; detail.fromAI = !!aiMag.anticorruption; detail.divisions = n;
+        // P-DZ·吏治接浊度：肃贪降浊度。落点已查死（aggregateRegionsToVariables endturn 把 div.corruption 聚合→subDepts.provincial.true，会覆盖直接写的 provincial），故分两条：
+        //   ① provincial 半 + cascade 中央月入：降源头 div.corruption（cascade corrPenalty 直接读·computeTaxAmount→实收；回合末 aggregate 把它聚合成 provincial.true→实征率面板·持久不回弹）
+        //   ② fiscal 半：独立全局口·aggregate 不覆盖·直接降 subDepts.fiscal.true + sync（当回合即反映实征率财政半）
+        // 确定性管「降这件事 + 护栏」，量交 AI（corruptionDelta 夹 0~15）·无则粗保底
+        try {
+          var corrDrop = (aiMag.anticorruption && typeof aiMag.anticorruption.corruptionDelta === 'number') ? Math.max(0, Math.min(15, aiMag.anticorruption.corruptionDelta)) : BASE.corruption; // AI 给则用·夹 0~15·无则粗保底
+          // ① 降源头 div.corruption（cascade 中央月入 + 回合末 aggregate→provincial.true）
+          var _divN = (FE && FE.adjustPlayerDivisionCorruption) ? FE.adjustPlayerDivisionCorruption(pFac, -corrDrop, 0, 100) : 0;
+          if (_divN === 0 && FE && FE.adjustPlayerDivisionCorruption) _divN = FE.adjustPlayerDivisionCorruption('', -corrDrop, 0, 100); // 势力 key 对不上→不过滤兜底·保必生效
+          // ② fiscal 独立全局口·直接降 + sync（当回合即反映）
+          var _CE = (typeof global !== 'undefined' && global.CorruptionEngine) || (typeof window !== 'undefined' && window.CorruptionEngine) || null;
+          var _GMc = (typeof global !== 'undefined' && global.GM) || G; // 与 corruption-engine 同源
+          if (_GMc && _GMc.corruption && _GMc.corruption.subDepts && _GMc.corruption.subDepts.fiscal && typeof _GMc.corruption.subDepts.fiscal.true === 'number') {
+            _GMc.corruption.subDepts.fiscal.true = Math.max(0, _GMc.corruption.subDepts.fiscal.true - corrDrop);
+            if (_CE && typeof _CE.syncIndexFromSubDepts === 'function') _CE.syncIndexFromSubDepts('肃贪整饬吏治（P-DZ·财政口·实征率回升）');
+          }
+          detail.corruptionDrop = corrDrop; detail.corruptionDivisions = _divN; detail.corruptionFromAI = !!(aiMag.anticorruption && typeof aiMag.anticorruption.corruptionDelta === 'number');
+        } catch (_dzE) {}
       } else if (fr.type === 'landsurvey') {
         var ns = (FE && FE.triggerPlayerSurvey) ? FE.triggerPlayerSurvey(pFac) : 0;
         if (ns === 0 && FE && FE.triggerPlayerSurvey) ns = FE.triggerPlayerSurvey('');
@@ -3137,6 +3155,33 @@
         loser: r.result && r.result.loser,
         turn: G.turn || 0
       });
+
+      // P-5TK 第二刀：玩家方军胜 → 皇威加分（病根②：军功此前几乎不接皇威，金州/喜峰口胜仗皇威累计≈0）
+      // 确定性管「赢了必加 + 护栏 + 保守保底（防面板纹丝不动）」；量优先 AI(battleResult.huangweiDelta)，AI 没吐才走保底
+      try {
+        var _AE5TK = global.AuthorityEngines || (global.TM && global.TM.AuthorityEngines);
+        if (_AE5TK && typeof _AE5TK.adjustHuangwei === 'function') {
+          var _winId5TK = String(aiOutput.battleResult.winnerFactionId || aiOutput.battleResult.winnerFaction || aiOutput.battleResult.winner || (r.result && r.result.winner) || '').trim();
+          // 宁漏不误：在 G.facs 按 name/id 找到 winner 对应势力、确认 isPlayer 才加；拿不准就不加（绝不给敌胜误涨皇威）
+          var _winFac5TK = _winId5TK ? (G.facs || []).find(function(f){ return f && (f.name === _winId5TK || f.id === _winId5TK); }) : null;
+          var _P5TK = (typeof window !== 'undefined' && window.P) || (typeof global !== 'undefined' && global.P) || null;
+          var _pName5TK = (_P5TK && _P5TK.playerInfo && _P5TK.playerInfo.factionName) || '';
+          var _isPlayerWin5TK = !!(_winFac5TK && _winFac5TK.isPlayer) || (!!_pName5TK && _winId5TK === _pName5TK);
+          if (_isPlayerWin5TK) {
+            var P5TK_HW_WIN_BASE = 2;   // 军胜皇威保底加分（AI 未吐量时兜底·可调）
+            var P5TK_HW_WIN_CAP = 8;    // 单场皇威加分护栏上限（防 AI 吐爆表·可调）
+            var _aiHw5TK = Number(aiOutput.battleResult.huangweiDelta);
+            var _hwGain5TK = (isFinite(_aiHw5TK) && _aiHw5TK > 0) ? Math.min(_aiHw5TK, P5TK_HW_WIN_CAP) : P5TK_HW_WIN_BASE;
+            if (_hwGain5TK > 0) {
+              var _hwR5TK = _AE5TK.adjustHuangwei('militaryVictory', _hwGain5TK, '玩家方军胜·' + _winId5TK + '（P-5TK 军功接皇威）');
+              if (applied) {
+                if (!applied.semantic) applied.semantic = {};
+                applied.semantic.huangweiMilitaryVictory = (_hwR5TK && _hwR5TK.delta) || _hwGain5TK;
+              }
+            }
+          }
+        }
+      } catch (_e5TK) {}
     } else if (applied && applied.failed) {
       applied.failed.push({ battleResult: true, reason: r && r.reason });
     }

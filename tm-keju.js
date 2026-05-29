@@ -375,6 +375,13 @@ function _adjustHuangquan(delta, reason) {
 /** 辅助·调整民心 */
 function _adjustMinxin(delta, reason) {
   try {
+    // P-DZ\u6C11\u5FC3\u00B7\u79D1\u4E3E\u6C11\u5FC3\u8D70 AuthorityEngines.adjustMinxin \u5E76 persist \u644A\u56DE\u53F6\u5B50\uFF08\u9632\u56DE\u5408\u672B aggregate \u62B9\uFF09\u00B7\u4FDD\u7559\u90B8\u62A5
+    var _AEkj = (typeof AuthorityEngines !== 'undefined' && AuthorityEngines) || (typeof window !== 'undefined' && window.AuthorityEngines) || null;
+    if (_AEkj && typeof _AEkj.adjustMinxin === 'function') {
+      _AEkj.adjustMinxin('socialMobility', delta, reason, { persist: true });
+      if (typeof addEB === 'function') addEB('\u6C11\u5FC3', (delta > 0 ? '+' : '') + delta + '\u00B7' + (reason || ''));
+      return;
+    }
     if (GM.minxin && typeof GM.minxin === 'object') {
       GM.minxin.trueIndex = Math.max(0, Math.min(100, (typeof GM.minxin.trueIndex === 'number' ? GM.minxin.trueIndex : 50) + delta));
       if (typeof addEB === 'function') addEB('\u6C11\u5FC3', (delta > 0 ? '+' : '') + delta + '\u00B7' + (reason || ''));

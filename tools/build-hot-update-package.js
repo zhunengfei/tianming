@@ -27,7 +27,7 @@ const ALLOWED_EXTS = new Set([
 const EXCLUDED_DIRS = new Set([
   '.git', 'node_modules', '.cache', '.tmp', 'tmp', 'dist', 'build', 'release', 'coverage',
   // 本地开发产物·绝不入热更包
-  '_archive', 'backups', '_screenshots', 'test-results', '_codex_tmp',
+  '_archive', 'backups', '_screenshots', 'test-results', '_codex_tmp', '.playwright-cli',
   // godot 端 WIP 移植·web 运行时不依赖·package.json 也用 !web/godot/**/* 排掉
   'godot'
 ]);
@@ -36,6 +36,7 @@ const EXCLUDED_DIRS = new Set([
 function _isExcludedDir(name) {
   if (EXCLUDED_DIRS.has(name)) return true;
   if (name.startsWith('.bak-')) return true;
+  if (name.startsWith('_codex')) return true; // _codex_tmp / _codex_preview_*.png 等 codex 临时产物·不入热更包
   return false;
 }
 

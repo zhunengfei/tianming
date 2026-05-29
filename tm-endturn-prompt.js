@@ -658,9 +658,13 @@
     if (GM.jishiRecords && GM.jishiRecords.length > 0) {
       var _thisWendui = GM.jishiRecords.filter(function(j) { return j.turn === GM.turn && j.char; });
       if (_thisWendui.length > 0) {
-        tp += '\u3010\u672C\u56DE\u5408\u95EE\u5BF9\u8BB0\u5F55\u2014\u2014NPC\u7684\u627F\u8BFA\u548C\u8A00\u8BBA\u5E94\u5728\u63A8\u6F14\u4E2D\u4F53\u73B0\u3011\n';
+        // \u7B2C\u4E00\u5200\u00B7\u95EE\u5BF9\u6458\u8981\u5316\uFF1AnpcSaid \u5168\u6587\u622A\u65AD\u4E3A\u6897\u6982\uFF08\u627F\u8BFA/\u8BED\u6C14\u7531 sc1q \u7684 commitments/npc_dialogue_intent \u7ED3\u6784\u5316\u6CE8\u5165\u00B7\u89C1 ai.js sc1q \u6CE8\u5165\u6BB5\uFF09\u00B7\u7701 ~4.5K tp1
+        tp += '\u3010\u672C\u56DE\u5408\u95EE\u5BF9\u6458\u8981\u2014\u2014\u627F\u8BFA\u4E0E\u8BED\u6C14\u8BE6\u89C1\u4E0B\u65B9 sc1q \u63A8\u6F14\u8F93\u51FA\u3011\n';
         _thisWendui.forEach(function(j) {
-          tp += '  \u53EC\u89C1' + (j.char || '') + '\uFF1A\u73A9\u5BB6\u8BF4\u201C' + (j.playerSaid || '') + '\u201D\u2192NPC\u7B54\u201C' + (j.npcSaid || '') + '\u201D\n';
+          var _ps = (j.playerSaid || '').slice(0, 40);
+          var _ns = (j.npcSaid || '').slice(0, 70);
+          var _nsTail = (j.npcSaid || '').length > 70 ? '\u2026' : '';
+          tp += '  \u53EC\u89C1' + (j.char || '') + '\uFF1A\u73A9\u5BB6\u95EE\u201C' + _ps + '\u201D\u2192NPC\u7B54\u201C' + _ns + _nsTail + '\u201D\n';
         });
       }
     }
@@ -949,8 +953,8 @@
       GM._turnFiscalReforms.forEach(function(fr){
         tp += '    · ' + fr.type + '（' + (fr.raw || '') + '）\n';
       });
-      tp += '  ※ reform_effects:[{type, complianceDelta?, rateDelta?}]·type 用上列英文标识·\n';
-      tp += '    · anticorruption(肃贪/整饬吏治) → complianceDelta 0~0.20：升地方实征率、抑贪墨截留\n';
+      tp += '  ※ reform_effects:[{type, complianceDelta?, rateDelta?, corruptionDelta?}]·type 用上列英文标识·\n';
+      tp += '    · anticorruption(肃贪/整饬吏治) → complianceDelta 0~0.20（升中央起运到账率·抑起运段截留）＋ corruptionDelta 0~15（降本势力州县腐败浊度·抬面板实征率 + 经央地 corrPenalty 真账增收）\n';
       tp += '    · saltreform(盐法/盐课) → rateDelta -0.20~+0.20：盐课税率增减\n';
       tp += '    · 力度随情境：大刀阔斧/众正盈朝/民心归附→偏高；阻力重重/敷衍塞责/积弊深→偏低。漏给则引擎按粗保底落地（仍生效·只是不随情境浮动）。\n';
       tp += '    · landsurvey(清丈)/openmaritime(开海)/encouragefarming(劝农) 为开关型·引擎自动落地（查隐田/弛海禁/劝农政策）·无需给数值。\n';
@@ -2666,7 +2670,7 @@
     sysP += '\n你可以通过返回JSON中的对应字段修改游戏中的一切：';
     sysP += '\n- resource_changes: 修改任何资源变量';
     sysP += '\n- char_updates: 修改角色忠诚/野心/压力/所在地/立场/党派等（new_location/new_stance/new_party）';
-    sysP += '\n- battleResult: 结构化战斗结果。若本回合明确发生战斗，请输出 {winnerFactionId, loserFactionId, occupiedCityIds, casualties:{attacker,defender}, affectedArmies:[{armyId,side,loss,moraleDelta,loyaltyDelta,state,commanderFate}], commanderFate:{name,outcome}, postBattleEffects[]}，胜负/占城/伤亡不得只写在叙事里。';
+    sysP += '\n- battleResult: 结构化战斗结果。若本回合明确发生战斗，请输出 {winnerFactionId, loserFactionId, occupiedCityIds, casualties:{attacker,defender}, affectedArmies:[{armyId,side,loss,moraleDelta,loyaltyDelta,state,commanderFate}], commanderFate:{name,outcome}, huangweiDelta, postBattleEffects[]}，胜负/占城/伤亡不得只写在叙事里。\n  ※ huangweiDelta 0~8：仅当赢家是玩家势力时按战果定皇威加分——灭国级大捷/收复重镇 6~8、击溃主力 3~5、小胜/边境摩擦 1~2；敌胜或平局给 0。漏给则引擎按保底 +2/场落地。';
     sysP += '\n\n【NPC自主行为系统·核心——每回合必须生成】';
     sysP += '\nnpc_actions是世界活力的引擎。每回合应有5-10条NPC自主行为，涵盖不同层级的角色。';
     sysP += '\nbehaviorType可用类型：';
