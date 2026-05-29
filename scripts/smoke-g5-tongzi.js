@@ -19,7 +19,7 @@ function _resetGM() {
 global.window = global;
 global._logChronicle = function() {};
 _resetGM();
-require('../web/tm-keju-tongzi.js');
+require('../tm-keju-tongzi.js');
 
 var pass = 0, fail = 0;
 function _check(label, cond) {

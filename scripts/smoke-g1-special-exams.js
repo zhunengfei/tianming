@@ -28,7 +28,7 @@ global.window = {};
 global.GM = { turn: 100, year: 1627, chars: [], vars: {} };
 global.P = { conf: {}, keju: {}, playerInfo: {}, time: { year: 1627 } };
 
-require('../web/tm-keju-special-exams.js');
+require('../tm-keju-special-exams.js');
 
 const fns = {};
 ['_kjInitSpecialExamCalendar','_kjCheckSpecialExamTriggers','_kjConsumeSpecialExamForAgenda','_kjSpawnSpecialExam',

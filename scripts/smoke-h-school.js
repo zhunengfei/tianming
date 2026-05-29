@@ -17,7 +17,7 @@ global.findCharByName = function(name) {
   return global.GM.chars.find(c => c && c.name === name);
 };
 
-require('../web/tm-keju-school-network.js');
+require('../tm-keju-school-network.js');
 
 const fns = {};
 ['_isHEnabled', '_kjpInitSchoolNetwork', '_kjpOnSchoolFounding',
@@ -430,7 +430,7 @@ check('L6·H2·affinity·无党人=0',
 console.log('=== §M·RAA·small audit ===');
 
 // C1·cross-scenario reset·H 字段入 reset list
-require('../web/tm-keju-event-hooks.js');
+require('../tm-keju-event-hooks.js');
 resetGM({ flagOn: true });
 global.GM.year = 1700;
 global.GM._schoolNetwork = { academies: [], tier: 'active' };
