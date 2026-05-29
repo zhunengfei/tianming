@@ -12,6 +12,77 @@
 // ============================================================
 //  剧本编辑器桥接：打开 editor.html
 // ============================================================
+var SCENARIO_RESET_EDITOR_DRAFT_KEY = 'tm.scenarioEditorReset.previewDraft.v1';
+
+function _tmEditorBridgeClone(value) {
+  return JSON.parse(JSON.stringify(value == null ? null : value));
+}
+
+function _tmEditorBridgeRows(scnId, scenario, key) {
+  if (scenario && Array.isArray(scenario[key])) return _tmEditorBridgeClone(scenario[key]);
+  if (typeof P === 'undefined' || !P || !Array.isArray(P[key])) return [];
+  return P[key].filter(function(row) {
+    return row && row.sid === scnId;
+  }).map(_tmEditorBridgeClone);
+}
+
+function buildScenarioResetEditorSnapshot(scnId) {
+  var scn = findScenarioById(scnId);
+  if (!scn) return null;
+  var scenario = _tmEditorBridgeClone(scn);
+  scenario.id = scnId;
+  scenario.name = scenario.name || scenario.title || scnId;
+  scenario.era = scenario.era || scenario.dynasty || '';
+  scenario.role = scenario.role || scenario.emperor || '';
+  scenario.background = scenario.background || scenario.overview || scenario.desc || '';
+  ['characters', 'factions', 'parties', 'classes', 'items', 'relations', 'events', 'rigidHistoryEvents', 'timeline', 'families'].forEach(function(key) {
+    var rows = _tmEditorBridgeRows(scnId, scenario, key);
+    if (rows.length || !Array.isArray(scenario[key])) scenario[key] = rows;
+  });
+  ['map', 'mapData', 'adminHierarchy', 'officeTree', 'officeConfig', 'government', 'fiscalConfig', 'economyConfig', 'military', 'techTree', 'civicTree', 'variables', 'rules', 'mechanicsConfig'].forEach(function(key) {
+    if (scenario[key] == null && typeof P !== 'undefined' && P && P[key] != null) scenario[key] = _tmEditorBridgeClone(P[key]);
+  });
+  return scenario;
+}
+
+function openScenarioResetEditor(scnId) {
+  var scenario = buildScenarioResetEditorSnapshot(scnId);
+  if (!scenario) {
+    toast('找不到剧本');
+    return null;
+  }
+  var payload = {
+    savedAt: new Date().toISOString(),
+    scenario: scenario,
+    original: _tmEditorBridgeClone(scenario),
+    currentProjectId: null,
+    history: [{
+      time: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
+      type: '正式入口载入',
+      detail: scenario.name || scnId
+    }],
+    drafts: [],
+    aiJobs: [],
+    aiReferences: [],
+    aiFixPlan: null,
+    quickTestReport: null,
+    sandboxLaunch: null,
+    fieldNotes: {}
+  };
+  try {
+    localStorage.setItem(SCENARIO_RESET_EDITOR_DRAFT_KEY, JSON.stringify(payload));
+  } catch (e) {
+    console.warn('[openScenarioResetEditor] localStorage 写入失败', e && e.message || e);
+    toast('新版工坊写入失败');
+    return null;
+  }
+  console.log('[openScenarioResetEditor] 打开新版剧本工坊, scnId=' + scnId);
+  window.location.href = 'preview/scenario-editor-reset-preview.html?tmScenarioEditorSource=runtime&scnId=' + encodeURIComponent(scnId);
+  return scenario;
+}
+window.openScenarioResetEditor = openScenarioResetEditor;
+window.buildScenarioResetEditorSnapshot = buildScenarioResetEditorSnapshot;
+
 function openEditorHtml(scnId){
   var scn=findScenarioById(scnId);
   if(!scn){toast('找不到剧本');return;}

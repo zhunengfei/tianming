@@ -388,7 +388,10 @@ function openWenduiModal(name, mode, prefillMsg) {
     });
     if (typeof addEB === 'function') addEB('\u540E\u5BAB', '\u671D\u5802\u95EE\u5BF9' + name + '\u00B7\u6B64\u4E3E\u5F15\u5916\u81E3\u4FA7\u76EE');
   }
-  var modeLabel = _wenduiMode === 'private' ? '私下叙谈' : '朝堂问对';
+  // L4·a·加 cedui mode label
+  var modeLabel = _wenduiMode === 'private' ? '私下叙谈' :
+                  _wenduiMode === 'cedui' ? '改革策对' :
+                  '朝堂问对';
 
   // 创建全屏弹窗
   var modal = document.createElement('div');
@@ -515,9 +518,15 @@ function openWenduiModal(name, mode, prefillMsg) {
 // 对质：召入第二人
 var _wdConfronter = null;
 function _wdSummonConfronter() {
+  // L4\u00B7f1\u00B7cedui mode \u5141\u53EC\u4EBA\u5BF9\u8D28\u00B7multi-advisor \u534F\u5546\u00B7confronter \u72EC\u7ACB archetype\u00B7\u5173\u540E\u8DD1 merge LLM
+  // (RX\u00B7C3 \u4E34\u7981\u89E3\u9664)
   var capital = GM._capital || '\u4EAC\u57CE';
   var current = GM.wenduiTarget;
   var candidates = (GM.chars || []).filter(function(c) { return c.alive !== false && c.name !== current && _wdCanDirectAudience(c); });
+  // L4\u00B7f1\u00B7\u82E5 cedui mode\u00B7\u989D\u5916\u8FC7\u6EE4 loyalty>=60\u00B7\u8DDF L4\u00B7a advisor \u5019\u9009\u6807\u51C6\u4E00\u81F4
+  if (_wenduiMode === 'cedui') {
+    candidates = candidates.filter(function(c) { return (c.loyalty || 50) >= 60; });
+  }
   if (candidates.length === 0) { toast('\u65E0\u53EF\u53EC\u89C1\u4E4B\u4EBA'); return; }
   var html = '<div style="max-height:50vh;overflow-y:auto;">';
   candidates.slice(0, 20).forEach(function(c) {
@@ -1120,9 +1129,21 @@ function _wdUpdateEmotionBar(name) {
 
 function closeWenduiModal() {
   var _targetName = GM.wenduiTarget;
+  var _closingMode = _wenduiMode;   // L4·b2·snapshot 关前 mode
   _wdConfronter = null; // 清除对质者
   var m = _$('wendui-modal'); if (m) m.remove();
   GM.wenduiTarget = null;
+  // L4·b2·若关 cedui mode·调 hook 应用政治后果
+  // G2·step 0a·若 G2 enke wendui context active·优先路由 G2 hook (避误调 L4 改革 handler)
+  if (_closingMode === 'cedui' && _targetName && typeof window !== 'undefined') {
+    var _g2Routed = false;
+    if (window._kjG2EnkeWenduiContext && typeof window._kjG2OnEnkeWenduiClose === 'function') {
+      try { _g2Routed = window._kjG2OnEnkeWenduiClose(_targetName); } catch(_){}
+    }
+    if (!_g2Routed && typeof window._kjpOnCeduiClose === 'function') {
+      try { window._kjpOnCeduiClose(_targetName); } catch(_){}
+    }
+  }
   // ── 已见：移出待接见队列、压抑动态求见到下一回合 ──
   if (_targetName) {
     if (Array.isArray(GM._pendingAudiences) && GM._pendingAudiences.length) {
@@ -1423,6 +1444,16 @@ async function sendWendui(){
 
     try{
       var sysP = _wdBuildPrompt(ch, name);
+      // L4·a·若 mode === 'cedui'·prompt 顶段注入 archetype voice + paradigm context
+      if (_wenduiMode === 'cedui' && typeof _kjpBuildCeduiPromptContext === 'function') {
+        try {
+          var _arch = (typeof _kjpInferAdvisorArchetype === 'function')
+            ? _kjpInferAdvisorArchetype(ch)
+            : 'A3_pragmatic';
+          var _ceduiCtx = _kjpBuildCeduiPromptContext(ch, _arch);
+          if (_ceduiCtx) sysP = _ceduiCtx + '\n\n' + sysP;
+        } catch(_){}
+      }
       if (typeof _aiDialogueWordHint === 'function') sysP += '\n' + _aiDialogueWordHint("wd");
       var history=GM.wenduiHistory[name].slice(-10);
       var messages=[{role:'system',content:sysP}];
@@ -1497,7 +1528,14 @@ async function sendWendui(){
           });
           if (typeof _renderEdictSuggestions === 'function') _renderEdictSuggestions();
         }
-        GM.wenduiHistory[name].push({role:'npc',content:replyText,loyaltyDelta:loyaltyDelta});
+        // L4·a·若 mode === 'cedui'·entry 加 mode + ceduiParadigmDigest 字段·便 L4·g1 自引用读
+        // RX·B5·加 turn 字段·_kjpAppendOwnCeduiHint 按 turn 算近 5 turn boost
+        var _wdEntry = { role:'npc', content:replyText, loyaltyDelta:loyaltyDelta, turn: (typeof GM !== 'undefined' && GM.turn) || 0 };
+        if (_wenduiMode && _wenduiMode !== 'formal') _wdEntry.mode = _wenduiMode;
+        if (_wenduiMode === 'cedui' && typeof window !== 'undefined' && window._kjpCurrentCeduiDigest) {
+          _wdEntry.ceduiParadigmDigest = window._kjpCurrentCeduiDigest;
+        }
+        GM.wenduiHistory[name].push(_wdEntry);
         // NPC记忆——D3 优先使用 AI 返回的 memoryImpact，否则回退默认
         if (typeof NpcMemorySystem !== 'undefined') {
           var _playerName = (P.playerInfo && P.playerInfo.characterName) || '陛下';
