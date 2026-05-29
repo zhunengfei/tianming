@@ -20,13 +20,21 @@ const TOP_LEVEL_COVERAGE = {
   overview: 'scriptInfo',
   desc: 'scriptInfo',
   background: 'scriptInfo',
+  opening: 'scriptInfo',
   openingText: 'scriptInfo',
+  openingHook: 'scriptInfo',
+  openingLetters: 'scriptInfo',
   startYear: 'scriptInfo',
+  startMonth: 'scriptInfo',
+  startLocation: 'scriptInfo',
   tags: 'scriptInfo',
   scnStyle: 'scriptInfo',
   scnStyleRule: 'scriptInfo',
   refFiles: 'scriptInfo',
+  refFilesContent: 'scriptInfo',
   refText: 'scriptInfo',
+  _adaptation: 'scriptInfo',
+  _buildStatus: 'scriptInfo',
   playerInfo: 'playerOverview',
   gameSettings: 'scriptInfo',
   time: 'scriptInfo',
@@ -38,6 +46,8 @@ const TOP_LEVEL_COVERAGE = {
   relations: 'characters',
   factionRelations: 'factions',
   presetRelations: 'characters',
+  initialEnYuan: 'characters',
+  initialPatronNetwork: 'characters',
   variables: 'variables',
   rules: 'rules',
   events: 'events',
@@ -54,10 +64,12 @@ const TOP_LEVEL_COVERAGE = {
   populationConfig: 'eraState',
   fiscalConfig: 'economy',
   guoku: 'economy',
+  guoku_advanced: 'economy',
   map: 'mapSystem',
   mapData: 'mapSystem',
   mapRuntimeContract: 'mapSystem',
   adminHierarchy: 'administration',
+  adminConfig: 'administration',
   government: 'government',
   officeTree: 'government',
   officeConfig: 'government',
@@ -78,7 +90,10 @@ const TOP_LEVEL_COVERAGE = {
   offendGroups: 'offendGroups',
   imperialEdicts: 'imperialEdicts',
   authorityConfig: 'government',
+  authorityConfigDeep: 'government',
   corruption: 'government',
+  engineConstants: 'rules',
+  edictConfig: 'rules',
   customPresets: 'rules',
   customPrompt: 'rules',
   modelRequirements: 'rules',
@@ -95,34 +110,38 @@ const TOP_LEVEL_COVERAGE = {
   isFullyDetailed: 'scriptInfo',
   externalForces: 'factions',
   neitang: 'government',
-  chaoyi: 'government'
+  neitang_advanced: 'government',
+  chaoyi: 'government',
+  tinyi: 'government'
 };
 
 const RESET_BLUEPRINT_MODULES = [
   {
     id: 'scenarioOpening',
-    title: 'Scenario opening and player setup',
+    title: '剧本总览与玩家开局',
     currentPanels: ['scriptInfo', 'playerOverview'],
     topLevelKeys: [
       '_version', 'id', 'name', 'dynasty', 'dynastyPhaseHint', 'era',
       'emperor', 'role', 'background', 'overview', 'openingText', 'opening',
       'openingLetters', 'playerInfo', 'gameSettings', 'startYear', 'active',
-      'tags', 'scnStyle', 'scnStyleRule', 'refFiles', 'refText',
-      'masterScript', 'isFullyDetailed'
+      'startMonth', 'startLocation', 'openingHook', 'tags', 'scnStyle',
+      'scnStyleRule', 'refFiles', 'refFilesContent', 'refText',
+      'masterScript', 'isFullyDetailed', '_adaptation', '_buildStatus'
     ]
   },
   {
     id: 'peopleLineages',
-    title: 'People, portraits, kinship, and traits',
+    title: '人物、立绘、家族与特质',
     currentPanels: ['characters', 'items'],
     topLevelKeys: [
       'characters', 'families', 'relations', 'presetRelations',
-      'traitDefinitions', 'items', 'schemeConfig'
+      'traitDefinitions', 'items', 'schemeConfig', 'initialEnYuan',
+      'initialPatronNetwork'
     ]
   },
   {
     id: 'factionsSociety',
-    title: 'Factions, parties, classes, and diplomacy',
+    title: '势力、党派、阶层与外交',
     currentPanels: ['factions', 'parties', 'classes'],
     topLevelKeys: [
       'factions', 'factionRelations', 'parties', 'classes',
@@ -131,46 +150,47 @@ const RESET_BLUEPRINT_MODULES = [
   },
   {
     id: 'courtInstitutions',
-    title: 'Court institutions and palace systems',
+    title: '朝廷制度与宫殿系统',
     currentPanels: [
       'government', 'haremConfig', 'kejuSystem', 'palaceSystem',
       'postSystem', 'titleSystem', 'vassalSystem', 'variables'
     ],
     topLevelKeys: [
       'government', 'officeTree', 'officeConfig', 'authorityConfig',
-      'corruption', 'neitang', 'chaoyi', 'haremConfig', 'palaceSystem',
+      'authorityConfigDeep', 'corruption', 'neitang', 'neitang_advanced',
+      'chaoyi', 'tinyi', 'haremConfig', 'palaceSystem',
       'keju', 'postSystem', 'titleSystem', 'vassalSystem',
       'officialVassalMapping', 'variables'
     ]
   },
   {
     id: 'adminMap',
-    title: 'Administrative hierarchy, map, cities, and construction',
+    title: '行政区划、地图、城市与建筑',
     currentPanels: ['administration', 'mapSystem', 'buildingSystem', 'civicTree', 'techTree'],
     topLevelKeys: [
       'adminHierarchy', 'map', 'mapData', 'mapRuntimeContract', 'cities',
-      'buildingSystem', 'civicTree', 'techTree'
+      'adminConfig', 'buildingSystem', 'civicTree', 'techTree'
     ]
   },
   {
     id: 'economyPopulation',
-    title: 'Economy, population, environment, and culture',
+    title: '经济、人口、环境与文化',
     currentPanels: ['economy', 'eraState', 'worldSettings'],
     topLevelKeys: [
       'economyConfig', 'populationConfig', 'fiscalConfig', 'guoku',
-      'environmentConfig', 'culturalConfig', 'culturalWorks',
+      'guoku_advanced', 'environmentConfig', 'culturalConfig', 'culturalWorks',
       'worldSettings', 'worldview', 'eraState'
     ]
   },
   {
     id: 'militaryFrontier',
-    title: 'Military, war, and frontier setup',
+    title: '军务、战事与边防',
     currentPanels: ['military'],
     topLevelKeys: ['military', 'militaryConfig', 'battleConfig', 'warConfig']
   },
   {
     id: 'eventsChronicle',
-    title: 'Events, history locks, timeline, and victory conditions',
+    title: '事件、硬历史锁、时间线与胜负条件',
     currentPanels: ['events', 'timeline', 'goals'],
     topLevelKeys: [
       'events', 'rigidHistoryEvents', 'rigidTriggers', 'timeline', 'goals',
@@ -179,12 +199,13 @@ const RESET_BLUEPRINT_MODULES = [
   },
   {
     id: 'rulesAi',
-    title: 'Rules, mechanics, presets, and AI requirements',
+    title: '规则、机制、预设与 AI 要求',
     currentPanels: ['rules'],
     topLevelKeys: [
       'rules', 'globalRules', 'mechanics', 'mechanicsConfig',
       'customPresets', 'customPrompt', 'modelRequirements',
-      'aiAutoEnrich', 'decisionConfig'
+      'engineConstants', 'edictConfig', 'imperialEdicts',
+      'influenceGroups', 'offendGroups', 'aiAutoEnrich', 'decisionConfig'
     ]
   }
 ];
@@ -192,7 +213,7 @@ const RESET_BLUEPRINT_MODULES = [
 const CHARACTER_FIELD_GROUPS = [
   {
     id: 'identity',
-    title: 'Identity and biography',
+    title: '身份与生平',
     fields: [
       'id', 'sid', 'name', 'zi', 'haoName', 'gender', 'age', 'birthYear',
       'birthTime', 'birthplace', 'ethnicity', 'culture', 'faith', 'bio',
@@ -201,7 +222,7 @@ const CHARACTER_FIELD_GROUPS = [
   },
   {
     id: 'familyKinship',
-    title: 'Family and kinship',
+    title: '家族与血亲',
     fields: [
       'family', 'familyRole', 'familyStatus', 'familyTier', 'familyMembers',
       'father', 'mother', 'spouse', 'relations', 'rels', 'royalRelation',
@@ -210,7 +231,7 @@ const CHARACTER_FIELD_GROUPS = [
   },
   {
     id: 'officeCareer',
-    title: 'Office, class, and career',
+    title: '官职、阶层与履历',
     fields: [
       'officialTitle', 'occupation', 'rankLevel', 'career', 'class', 'faction',
       'party', 'partyRank', 'location', 'administration', 'vassalType',
@@ -219,7 +240,7 @@ const CHARACTER_FIELD_GROUPS = [
   },
   {
     id: 'abilitiesTraits',
-    title: 'Abilities, traits, and values',
+    title: '能力、特质与价值观',
     fields: [
       'intelligence', 'learning', 'management', 'military', 'valor',
       'charisma', 'diplomacy', 'integrity', 'benevolence', 'loyalty',
@@ -228,7 +249,7 @@ const CHARACTER_FIELD_GROUPS = [
   },
   {
     id: 'aiPersona',
-    title: 'AI persona and behavior',
+    title: 'AI 人格与行为',
     fields: [
       'aiPersonaText', 'persona', 'personality', 'behaviorMode',
       'innerThought', 'ambition', 'personalGoal', 'personalGoals', 'stance',
@@ -237,7 +258,7 @@ const CHARACTER_FIELD_GROUPS = [
   },
   {
     id: 'resourcesMemory',
-    title: 'Resources, memory, and provenance',
+    title: '资源、记忆与出处',
     fields: [
       'resources', '_memory', 'historicalSources', 'hobbies', 'mentor',
       'playerRelation', 'alive'
@@ -248,7 +269,7 @@ const CHARACTER_FIELD_GROUPS = [
 const FACTION_FIELD_GROUPS = [
   {
     id: 'identity',
-    title: 'Identity and territorial base',
+    title: '身份与领土根基',
     fields: [
       'id', 'sid', 'name', 'type', 'desc', 'description', 'color', 'capital',
       'territory', 'culture', 'ideology', 'mainstream', 'history',
@@ -257,7 +278,7 @@ const FACTION_FIELD_GROUPS = [
   },
   {
     id: 'leadership',
-    title: 'Leadership and members',
+    title: '首领与成员',
     fields: [
       'leader', 'leaderInfo', 'leaderTitle', 'leadership', 'heirInfo',
       'members', 'internalParties', 'partyRelations'
@@ -265,7 +286,7 @@ const FACTION_FIELD_GROUPS = [
   },
   {
     id: 'npcStrategy',
-    title: 'NPC strategy and decision hints',
+    title: 'NPC 策略与决策提示',
     fields: [
       'aiProfile', 'personality', 'goal', 'strategy', 'longTermStrategy',
       'strategicPriorities', 'decisionHints', 'npcDecisionHints',
@@ -274,7 +295,7 @@ const FACTION_FIELD_GROUPS = [
   },
   {
     id: 'diplomacy',
-    title: 'Diplomacy and player relation',
+    title: '外交与玩家关系',
     fields: [
       'attitude', 'attitudeDetail', 'relations', 'playerRelation',
       'knownSpies', 'publicOpinion', 'popularInfluence', 'courtInfluence'
@@ -282,7 +303,7 @@ const FACTION_FIELD_GROUPS = [
   },
   {
     id: 'economyMilitary',
-    title: 'Economy, military, and resources',
+    title: '经济、军事与资源',
     fields: [
       'economy', 'economicPolicy', 'economicStructure', 'treasury',
       'resources', 'mainResources', 'population', 'militaryStrength',
@@ -292,7 +313,7 @@ const FACTION_FIELD_GROUPS = [
   },
   {
     id: 'succession',
-    title: 'Succession and end conditions',
+    title: '继承与终局条件',
     fields: [
       'succession', 'victoryConditions', 'defeatConditions',
       'offendThresholds', 'traits'
@@ -303,12 +324,12 @@ const FACTION_FIELD_GROUPS = [
 const ADMIN_FIELD_GROUPS = [
   {
     id: 'divisionIdentity',
-    title: 'Division identity and hierarchy',
+    title: '区划身份与层级',
     fields: ['id', 'name', 'level', 'type', 'children', 'divisions', 'parent', 'capital']
   },
   {
     id: 'divisionStats',
-    title: 'Population, fiscal, and local conditions',
+    title: '人口、财政与地方状况',
     fields: [
       'population', 'economy', 'tax', 'grain', 'military', 'publicOrder',
       'minxin', 'corruption', 'resources'
@@ -709,5 +730,6 @@ module.exports = {
   buildResetBlueprint,
   loadOfficialScenario,
   parseEditorHtml,
-  summarizeOfficialScenario
+  summarizeOfficialScenario,
+  RESET_BLUEPRINT_MODULES
 };

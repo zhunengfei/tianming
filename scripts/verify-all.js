@@ -136,6 +136,8 @@ const checks = [
   { name: 'editor-reset-inventory', file: 'smoke-editor-reset-inventory.js', estSec: 1, expectExit: 0 },
   // 2026-05-21 scenario editor reset preview: home shell and health dashboard skeleton
   { name: 'scenario-editor-reset-preview', file: 'smoke-scenario-editor-reset-preview.js', estSec: 1, expectExit: 0 },
+  // 2026-05-25 scenario editor reset round-trip: bundle integrity + polymorphism predicates across both official scenarios
+  { name: 'scenario-editor-reset-roundtrip', file: 'smoke-scenario-editor-reset-roundtrip.js', estSec: 1, expectExit: 0 },
   // P6 (2026-05-04) HTML inline namespace migration lock; index/editor safe first pass (Codex own)
   { name: 'p6-inline-namespaces', file: 'smoke-p6-inline-namespaces.js', estSec: 1, expectExit: 0 },
   // P6 optional namespace lint (2026-05-04) retired aliases + migrated inline handlers stay retired

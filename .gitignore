@@ -48,6 +48,11 @@ tools/smoke-fiscal-three-numbers.js
 tools/smoke-pre-endturn-save.js
 tools/smoke-save-name-and-double.js
 tools/fill-shaosong-traits.js
+tools/add-dingyou-field.js
+tools/fill-tianqi-mentors.js
+tools/add-tinyi-convening-config.js
+tm-keju-learning-traits.js
+tm-keju-dianshi-events.js
 
 # 一次性 asset 处理工具 (alpha 处理图片等·非生产)
 preview/img/_remove-white-bg.js

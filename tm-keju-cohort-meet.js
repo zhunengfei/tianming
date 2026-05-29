@@ -92,15 +92,39 @@
     return out;
   }
 
+  /**
+   * Phase L·L5 share·inject 主 genMemorialsAI prompt·让主 LLM 写同年集会议·入 GM.memorials
+   * 跟 F2/L5 同 paradigm·跨系统 share
+   * RAA·B5·gate dependency·F3 独立 D1 flag·跟 L5/F2 各自 flag·non-coupled
+   */
+  function _kjF3InjectMemorialPrompt(promptBuf) {
+    if (!_isD1Enabled()) return promptBuf;
+    if (typeof GM === 'undefined' || !GM || !GM._kjCohortMeets || !GM._kjCohortMeets.length) return promptBuf;
+    var meets = GM._kjCohortMeets.slice(0, 2);
+    if (!meets.length) return promptBuf;
+    var inject = '\n\n【F3·同年集会·可能上书】\n';
+    meets.forEach(function(m) {
+      if (!m || !m.organizer || !m.cohortYear) return;
+      inject += '  · ' + m.cohortYear + ' 年同年 ' + m.attendeeCount + ' 人·' + m.organizer + ' 召·议时政·疑结党\n';
+    });
+    inject += '※ 若上述同年组织者为本回合奏疏对象·生成 200-400 字古文·\n';
+    inject += '   - type 标 "政务"·subtype 标 "同年集会"·relatedTo 标 cohortYear\n';
+    inject += '   - content·按 "同年情谊"·议时政·或自请释疑 (恐结党之嫌)\n';
+    inject += '   - 结尾"伏请陛下"\n';
+    return promptBuf + inject;
+  }
+
   // 暴露
   if (typeof window !== 'undefined') {
     window._kjCheckCohortMeetTriggers = _kjCheckCohortMeetTriggers;
     window._kjConsumeCohortMeetsForAgenda = _kjConsumeCohortMeetsForAgenda;
+    window._kjF3InjectMemorialPrompt = _kjF3InjectMemorialPrompt;
   }
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
       _kjCheckCohortMeetTriggers: _kjCheckCohortMeetTriggers,
-      _kjConsumeCohortMeetsForAgenda: _kjConsumeCohortMeetsForAgenda
+      _kjConsumeCohortMeetsForAgenda: _kjConsumeCohortMeetsForAgenda,
+      _kjF3InjectMemorialPrompt: _kjF3InjectMemorialPrompt
     };
   }
 })();

@@ -152,10 +152,20 @@ async function initKejuSystem(scenario) {
     // v7.1\u00B7E1\u00B7mentor \u53CD\u5411\u7D22\u5F15 namespace init
     if (typeof _kjInitMentorIndex === 'function') _kjInitMentorIndex();
     if (typeof _kjInitDiscipleGraph === 'function') _kjInitDiscipleGraph();
+    // Stage 2\u00B7Phase G\u00B7G1\u00B7\u7279\u79D1 calendar init (flag gate inside)
+    if (typeof _kjInitSpecialExamCalendar === 'function') {
+      try { _kjInitSpecialExamCalendar(); }
+      catch(e) { try { console.warn('[G1] special exam calendar init failed', e); } catch(_){} }
+    }
     // Stage 2\u00B7L1\u00B7KejuParadigm \u5730\u57FA init
     if (typeof _kjpInitParadigm === 'function') {
       try { _kjpInitParadigm({ initBy: 'init' }); }
       catch(e) { try { console.warn('[L1] paradigm init failed', e); } catch(_){} }
+    }
+    // Stage 2\u00B7L8\u00B7cross-scenario inheritance hook (\u8DE8\u4EE3\u627F\u88AD\u00B7localStorage archive)
+    if (typeof _initKejuL8Hook === 'function') {
+      try { _initKejuL8Hook(); }
+      catch(e) { try { console.warn('[L8] init hook failed', e); } catch(_){} }
     }
 
     _dbg('[\u79D1\u4E3E\u5236\u5EA6] \u521D\u59CB\u5316:', data.enabled ? '\u5DF2\u542F\u7528' : '\u672A\u542F\u7528', data.reason);
@@ -2029,13 +2039,39 @@ async function _keyiStreamRound() {
       return who + '[' + (x.stance||'') + ']\uFF1A' + (x.line||'').slice(0,60);
     }).join('\n');
     var hasPlayerRecent = KEYI_STATE.speeches.slice(-6).some(function(x){ return x._isPlayer; });
+
+    // L4\u00B7d\u00B7\u6309 topicType \u6D3E topicLabel + \u6CE8\u5165 reform topicData
+    var _topicType = (GM.keju && GM.keju._pendingProposal && GM.keju._pendingProposal.topicType) || 'kaike';
+    var _topicData = (GM.keju && GM.keju._pendingProposal && GM.keju._pendingProposal.topicData) || {};
+    var _topicLabel = (typeof _kjGetTopicShortLabel === 'function')
+      ? _kjGetTopicShortLabel(_topicType) || '\u5F00\u79D1\u4E3E'
+      : '\u5F00\u79D1\u4E3E';
+    var _reformInjection = '';
+    if (_topicType === 'reform' && typeof _ty3_appendReformPromptIfReform === 'function') {
+      _reformInjection = _ty3_appendReformPromptIfReform('', _topicData);
+    }
+    var _privateAudienceHint = '';
+    if (_topicType === 'reform' && typeof _kjpAppendPrivateAudienceHint === 'function') {
+      _privateAudienceHint = _kjpAppendPrivateAudienceHint('', ch, _topicData);
+    }
+    var _ownCeduiHint = '';
+    if (_topicType === 'reform' && typeof _kjpAppendOwnCeduiHint === 'function') {
+      _ownCeduiHint = _kjpAppendOwnCeduiHint('', ch, _topicData);
+    }
+    // L5\u00B7c\u00B7NPC \u8BAE\u653F\u4E2D\u53E3\u8FF0 quote from \u81EA\u5DF1\u5199\u7684\u6539\u9769\u53CD\u5BF9\u594F\u758F\u00B7\u771F"\u6F14"\u53CD\u5BF9
+    var _ownObjectionHint = '';
+    if (_topicType === 'reform' && typeof _kjpAppendOwnObjectionMemorialHint === 'function') {
+      _ownObjectionHint = _kjpAppendOwnObjectionMemorialHint('', ch, _topicData);
+    }
+
     var prompt = ctxBase + '\n' +
       '\u4F60\u662F\u4E0A\u671D\u5EAD\u8BAE\u7684\u5927\u81E3 ' + s.name + '\uFF08' + (s.title||'') + '\uFF09\u3002\n' +
       '\u6027\u683C\uFF1A' + ((ch&&ch.personality)||'').slice(0,30) + '\n' +
       '\u5FE0\u8BDA ' + (s.loyalty||50) + '\u3001\u515A\u6D3E ' + (s.party||'\u65E0\u515A') + '\u3001\u8EAB\u4EFD ' + (ch && ch.class || '') + '\n' +
+      _reformInjection + _privateAudienceHint + _ownCeduiHint + _ownObjectionHint +
       (prev ? '\u5DF2\u53D1\u8A00\uFF1A\n' + prev + '\n' : '') +
       (hasPlayerRecent ? '\u2605 \u9661\u4E0B\u521A\u521A\u9F99\u97F3\u5F00\u53E3\u00B7\u4F60\u5FC5\u987B\u606D\u656C\u56DE\u5E94\u5723\u8C15\u00B7\u53EF\u5927\u7EB2\u987A\u5723\u610F\u4E5F\u53EF\u59D4\u5A49\u9648\u8BF4\u96BE\u5904\uFF08\u4F46\u9700\u4FDD\u6301\u81EA\u5DF1\u672C\u6765\u7684\u515A\u6D3E\u7ACB\u573A\uFF09\u3002\n' : '') +
-      '\u8BF7\u5C31\u300C\u5F00\u79D1\u4E3E\u300D\u7ACB\u573A\u53D1\u8868 80-160 \u5B57\u534A\u6587\u8A00\u5EAD\u8BAE\u3002\n' +
+      '\u8BF7\u5C31\u300C' + _topicLabel + '\u300D\u7ACB\u573A\u53D1\u8868 80-160 \u5B57\u534A\u6587\u8A00\u5EAD\u8BAE\u3002\n' +
       '\u683C\u5F0F\uFF1A\u7B2C\u4E00\u884C\u4EC5\u8F93\u51FA\u7ACB\u573A\u6807\u8BB0 support\u3001oppose \u6216 abstain \u4E09\u8BCD\u4E4B\u4E00\u3002\u4ECE\u7B2C\u4E8C\u884C\u8D77\u8F93\u51FA\u53D1\u8A00\u6B63\u6587\u3002';
 
     var tokens = 800;

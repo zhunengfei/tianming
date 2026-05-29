@@ -433,7 +433,16 @@ async function genMemorialsAI(count){
     prompt += 'NPC间通信（npc_correspondence）：密谋串联、私下交易、情报交换——皇帝看不到但间谍可截获\n';
     prompt += '同一NPC同一话题不要同时走奏疏和来函两个渠道——选最合适的一个。\n';
 
-    prompt += '\u8FD4\u56DEJSON: [{"from":"\u89D2\u8272\u540D","title":"\u5B98\u804C","type":"\u653F\u52A1|\u519B\u52A1|\u6C11\u751F|\u7ECF\u6D4E|\u4EBA\u4E8B|\u5BC6\u594F","subtype":"\u9898\u672C|\u4E0A\u758F|\u5BC6\u6298|\u8868","content":"\u594F\u758F\u5168\u6587","reliability":"high|medium|low","bias":"none|self_serving|factional|ignorance|deception","relatedTo":"\u5173\u8054\u7684\u53E6\u4E00\u4EFD\u594F\u758F\u7684from(\u53EF\u9009)","priority":"urgent|normal(\u6F14\u4E49\u6A21\u5F0F\u65F6\u586B)"}]';
+    prompt += '\u8FD4\u56DEJSON: [{"from":"\u89D2\u8272\u540D","title":"\u5B98\u804C","type":"\u653F\u52A1|\u519B\u52A1|\u6C11\u751F|\u7ECF\u6D4E|\u4EBA\u4E8B|\u5BC6\u594F","subtype":"\u9898\u672C|\u4E0A\u758F|\u5BC6\u6298|\u8868|\u6539\u9769\u53CD\u5BF9|\u95E8\u751F\u4E0A\u4E66|\u540C\u5E74\u96C6\u4F1A","content":"\u594F\u758F\u5168\u6587","reliability":"high|medium|low","bias":"none|self_serving|factional|ignorance|deception","relatedTo":"\u5173\u8054\u7684\u53E6\u4E00\u4EFD\u594F\u758F\u7684from(\u53EF\u9009)|\u6216\u6539\u9769 id|\u5E08\u540D|cohortYear","priority":"urgent|normal(\u6F14\u4E49\u6A21\u5F0F\u65F6\u586B)"}]';
+
+    // Phase L\u00B7L5/F2/F3\u00B7inject \u6539\u9769\u53CD\u5BF9 + \u95E8\u751F\u4E0A\u4E66 + \u540C\u5E74\u96C6\u4F1A prompt\u00B7\u8BA9\u4E3B LLM \u4E00\u5E76\u5199\u00B7\u5165 GM.memorials
+    try {
+      if (typeof window !== 'undefined') {
+        if (typeof window._kjpL5InjectObjectionPrompt === 'function') prompt = window._kjpL5InjectObjectionPrompt(prompt);
+        if (typeof window._kjF2InjectMemorialPrompt === 'function')   prompt = window._kjF2InjectMemorialPrompt(prompt);
+        if (typeof window._kjF3InjectMemorialPrompt === 'function')   prompt = window._kjF3InjectMemorialPrompt(prompt);
+      }
+    } catch(_l5InjE) { try { console.warn('[memorials\u00B7L5/F2/F3 inject]', _l5InjE); } catch(_){} }
 
     // 完善·动态 max_tokens·按 count × 最长档位估算·中文 1 字 ≈ 1.5 token
     var _loyalRange = _getCharRange('memLoyal');
@@ -536,6 +545,13 @@ async function genMemorialsAI(count){
         }
       });
       GM.memorials = localMems;
+
+      // Phase L·L5/F2/F3·post-spawn·detect 改革反对 / 门生上书 / 同年集会 subtype·写 NPC reformLean / memory
+      try {
+        if (typeof window !== 'undefined' && typeof window._kjpL5PostSpawnHook === 'function') {
+          window._kjpL5PostSpawnHook(localMems);
+        }
+      } catch(_l5PostE) { try { console.warn('[memorials·L5 post-spawn]', _l5PostE); } catch(_){} }
     }
   } catch(e) { console.warn('[genMemorialsAI]', e.message || e); }
   renderMemorials();
@@ -766,6 +782,16 @@ function _stageMemorialDecision(m, action, reply, extra) {
   if (extra && extra._referredTo) entry.referredTo = extra._referredTo;
   GM._approvedMemorials.push(entry);
   if (GM._approvedMemorials.length > 30) GM._approvedMemorials.shift();
+
+  // Phase L·L5·RBB·BB-D1·若是 改革反对 奏疏·user 已 take action·写"已处理"标
+  // 用独立 dict (`_kjpL5UserActedCooldown`)·非 _kjpL5InjectCooldown·避免跟 turn-based cooldown 冲突
+  try {
+    if (m.subtype === '改革反对' && m.relatedTo && m.from && typeof GM !== 'undefined') {
+      if (!GM._kjpL5UserActedCooldown) GM._kjpL5UserActedCooldown = {};
+      // 持久 lock·user 已批/驳/廷议·下次 L5 inject check 见 lock·skip
+      GM._kjpL5UserActedCooldown[m.relatedTo + '_' + m.from] = (GM.turn || 0);
+    }
+  } catch(_l5dE) {}
 }
 
 function _approveMemorial(idx) {

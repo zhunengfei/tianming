@@ -863,7 +863,8 @@
   }
 
   function openShizhengLegacyFlow(){
-    closeDeskOverlay();
+    var dr = (window.TMPhase8FormalBridge || {}).drafts;
+    if (dr && typeof dr.closeDeskOverlay === 'function') dr.closeDeskOverlay();
     closeModule();
     if (typeof window.openShizhengTasks === 'function') {
       window.openShizhengTasks();
@@ -2545,7 +2546,14 @@
     installWenduiFormalReturnHook();
     if (!state.topbarSyncTimer && typeof setInterval === 'function') {
       state.topbarSyncTimer = setInterval(function(){
-        ensureFormalRuntimeChrome(false);
+        try { ensureFormalRuntimeChrome(false); } catch(_){}
+        // 2026-05-27 defensive·若 #ming-map-layer 内没 SVG (wrap miss / 数据迟到)·尝试重渲染
+        try {
+          var stage = document.getElementById('ming-map-layer');
+          if (stage && isGameVisible() && !state.legacyView && stage.children.length === 0) {
+            renderFormalMapSoon();
+          }
+        } catch(_){}
       }, 3000);
     }
     installContextMenu();

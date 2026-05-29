@@ -442,6 +442,37 @@ function extractEdictMovements(edictText) {
 }
 
 // ============================================================
+// 财政改革识别（P-VWF·2026-05-29）——确定性识别玩家开源/肃贪类改革
+// 镜像 extractEdictMovements 范式：纯关键词识别，输出改革列表，供
+// prep 存 GM._turnFiscalReforms、applier 的 _reconcilePlayerFiscalReforms 兜底拨开关。
+// 本函数只管"质/有没有"（识别出哪类改革），不碰数值、不拨开关。
+// ============================================================
+function extractEdictFiscalReforms(edictText) {
+  if (!edictText || edictText.length < 4) return [];
+  if (typeof GM === 'undefined' || !GM) return [];
+  var text = String(edictText).replace(/\s+/g, '');
+
+  // 五类开源/肃贪改革·每条 {type, re}·type 决定 applier 拨哪个开关
+  var RULES = [
+    { type: 'anticorruption',   re: /严惩贪墨|惩治贪官|惩贪|肃贪|查贪|追赃|整饬吏治|澄清吏治|考成法|京察大计/ },
+    { type: 'landsurvey',       re: /清丈|丈量田亩|清丈田亩|核田|清查田亩|度田|鱼鳞册/ },
+    { type: 'saltreform',       re: /盐法|盐课|整顿盐政|盐政改革|纲盐|开中法/ },
+    { type: 'openmaritime',     re: /开海|弛海禁|驰海禁|开市舶|通商舶|开洋|准海商/ },
+    { type: 'encouragefarming', re: /劝农|劝课农桑|奖励垦荒|奖励开垦|屯田|垦荒/ }
+  ];
+
+  var out = [];
+  var seen = {};
+  RULES.forEach(function(rule) {
+    var m = rule.re.exec(text);
+    if (!m || seen[rule.type]) return;
+    seen[rule.type] = 1;
+    out.push({ type: rule.type, raw: String(m[0]).slice(0, 24) });
+  });
+  return out;
+}
+
+// ============================================================
 // 自定义国策提取（借鉴 ChongzhenSim coreGameplaySystem）
 // 从诏令中识别"定为国策""纳入国策"等语句，创建持久化政策
 // 国策跨回合生效，影响 AI 推演上下文

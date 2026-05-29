@@ -148,7 +148,7 @@ if(window.tianming&&window.tianming.isDesktop){
     if (typeof buildIndices === 'function') buildIndices();
     P._activeScnName=name;
     GM.sid=scn.id;
-    openEditorHtml(scn.id);
+    (window.openScenarioResetEditor||openEditorHtml)(scn.id);
     }catch(e){console.error('[desktopEnterScn] 错误:',e);toast('打开失败: '+e.message);}
   };
 
@@ -341,7 +341,7 @@ if(window.tianming&&window.tianming.isDesktop){
     GM.sid=id;
     var r=await window.tianming.saveScenario(name,scn);
     if(!r.success){toast('保存失败: '+(r.error||''));return;}
-    openEditorHtml(id);
+    (window.openScenarioResetEditor||openEditorHtml)(id);
   };
 
   doSaveGame=async function(){

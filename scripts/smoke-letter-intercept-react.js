@@ -207,13 +207,24 @@ setTimeout(() => {
     assertEq(GM._pendingNpcLetters.length, 1, 'old intercepted letter should create one follow-up pending letter');
     // 把 pending NPC 信注入 letters（_processPendingNpcLetters 由 settle 内部完成）
     GM.turn = 3;
-    sandbox._settleLettersAndTravel();
+    const _origRandom = sandbox.Math.random;
+    sandbox.Math.random = () => 0;
+    try {
+      sandbox._settleLettersAndTravel();
+    } finally {
+      sandbox.Math.random = _origRandom;
+    }
     let followup2 = GM.letters.find(l => l._npcInitiated && l.from === sun.name);
     console.log('  T3 settle 后·NPC 续问信入队 letters·status:', followup2 && followup2.status, '·deliveryTurn:', followup2 && followup2.deliveryTurn);
     assert(followup2, 'pending follow-up should be converted into a letter');
     assertEq(followup2.status, 'traveling', 'converted follow-up should start traveling');
     GM.turn = 5;
-    sandbox._settleLettersAndTravel();
+    sandbox.Math.random = () => 0.99;
+    try {
+      sandbox._settleLettersAndTravel();
+    } finally {
+      sandbox.Math.random = _origRandom;
+    }
     followup2 = GM.letters.find(l => l._npcInitiated && l.from === sun.name);
     console.log('  T5 settle 后·续问信 status:', followup2 && followup2.status);
     assertEq(followup2.status, 'returned', 'follow-up letter should return by T5');

@@ -563,10 +563,19 @@ async function _aiFetchWithRetry(url, body, signal, opts) {
   }, priority);
 }
 
+// 第三刀·超时按输出体量分级：只放宽不收紧（小请求维持 180s 零回归，大输出 sc1 等放宽到 600s 上限）。
+// 依据：生成 N 个 output token 约需 N×(20~40ms)，2 万 token 的 sc1 在慢模型/高负载第三方代理下 180s 根本不够，
+// 一超时就被原样重发，正是 retry 风暴的根源。调用方显式传 opts.timeoutMs 时一律尊重。
+function _aiComputeTimeout(maxTok, optsTimeoutMs) {
+  if (optsTimeoutMs != null) return optsTimeoutMs;
+  var t = Number(maxTok) || 2000;
+  return Math.min(200000, Math.max(30000, Math.round(t * 15)));
+}
+
 async function _aiFetchWithRetryInner(url, body, signal, opts) {
   opts = opts || {};
   var maxRetries = (opts.maxRetries != null) ? opts.maxRetries : 3;
-  var timeoutMs = opts.timeoutMs || 180000;
+  var timeoutMs = _aiComputeTimeout(body && body.max_tokens, opts.timeoutMs);
   // M3·优先用 opts.apiKey（次 API 调用传入）·否则回退 primary
   var key = opts.apiKey || P.ai.key;
   var lastError = null;
@@ -579,7 +588,8 @@ async function _aiFetchWithRetryInner(url, body, signal, opts) {
   } catch(_tkE) {}
   for (var attempt = 0; attempt <= maxRetries; attempt++) {
     var ctrl = new AbortController();
-    var aborter = function() { ctrl.abort(); };
+    var timedOut = false;
+    var aborter = function() { timedOut = true; ctrl.abort(); };
     var timer = setTimeout(aborter, timeoutMs);
     if (signal) {
       if (signal.aborted) { clearTimeout(timer); throw new Error('Aborted'); }
@@ -624,7 +634,16 @@ async function _aiFetchWithRetryInner(url, body, signal, opts) {
       lastError = e;
       // 外部 signal 主动中断——不重试
       if (signal && signal.aborted) throw e;
-      // 超时或网络错误——重试
+      // 第三刀·防重试风暴：本地超时（timer 触发）原样重发大概率再次超时，白等一整个超时周期 + 翻倍 token 费用。
+      //   大请求（maxTok>8000，如 sc1）超时 → 立即放弃，不在 fetch 层重发；小请求最多再试一次。
+      if (timedOut) {
+        var _bigReq = !!(body && body.max_tokens && body.max_tokens > 8000);
+        if (_bigReq || attempt >= 1) {
+          if (!e.lastRaw) e.lastRaw = _aiLastRaw;
+          throw e;
+        }
+      }
+      // 网络错误 / 小请求首次超时——指数退避重试
       if (attempt < maxRetries) {
         var delayRetry = 1000 * Math.pow(2, attempt);
         console.warn('[AI] 第 ' + (attempt+1) + ' 次尝试失败: ' + (e.message || e) + '，' + delayRetry + 'ms 后重试');

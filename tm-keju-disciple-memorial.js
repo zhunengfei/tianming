@@ -140,19 +140,53 @@
     return out;
   }
 
+  /**
+   * Phase L·L5 share·inject 主 genMemorialsAI prompt·让主 LLM 写门生上书·入 GM.memorials
+   * 跟 L5 同 paradigm·跨系统 share·user 在「百官奏疏」main UI 一处批
+   * RAA·B5·gate dependency·F2 独立 D1 flag (useNewKejuD1)·L5 是 useNewKejuL5·两 flag 独立
+   * 若 L5 on + D1 off → L5 inject 反对奏疏·F2 不 inject 门生上书 (符合 F2 启用语义)
+   */
+  function _kjF2InjectMemorialPrompt(promptBuf) {
+    if (!_isD1Enabled()) return promptBuf;
+    if (typeof GM === 'undefined' || !GM || !GM._kjDiscipleMemorials || !GM._kjDiscipleMemorials.length) return promptBuf;
+    var memorials = GM._kjDiscipleMemorials.slice(0, 2);
+    if (!memorials.length) return promptBuf;
+    var inject = '\n\n【F2·门生联名·可能上书】\n';
+    memorials.forEach(function(m) {
+      if (!m || !m.mentor || !m.cosigners) return;
+      var stateLbl = (m.triggerType === 'mentor_passing') ? '已逝'
+                   : (m.triggerType === 'passing') ? '将逝'
+                   : (m.triggerType === 'impeach') ? '被劾'
+                   : (m.triggerType === 'retire') ? '致仕' : '';
+      inject += '  · 门生 ' + (m.leaderDisciple || '?') + ' 等 ' + m.cosigners.length +
+                ' 人·为 ' + m.mentor + (stateLbl ? '(' + stateLbl + ')' : '') + '·' +
+                (m.detail || '联名') + '\n';
+    });
+    inject += '※ 若上述门生为本回合奏疏对象·生成 200-400 字古文·\n';
+    inject += '   - type 标 "政务"·subtype 标 "门生上书"·relatedTo 标 mentor 名\n';
+    inject += '   - content 援"师恩深"·按 triggerType 调语气·\n';
+    inject += '     · mentor_passing / passing·哀痛·"请祭恩师"\n';
+    inject += '     · impeach·诚惶·"请陛下明察·恩师无罪"\n';
+    inject += '     · retire·恳切·"请恩师起复·朝廷不可无此老臣"\n';
+    inject += '   - 结尾"伏请陛下"\n';
+    return promptBuf + inject;
+  }
+
   // 暴露
   if (typeof window !== 'undefined') {
     window._kjCheckDiscipleMemorialTriggers = _kjCheckDiscipleMemorialTriggers;
     window._kjConsumeDiscipleMemorialsForAgenda = _kjConsumeDiscipleMemorialsForAgenda;
     window._kjDetectMentorState = _kjDetectMentorState;
     window._kjIsCrossPartyMemorial = _kjIsCrossPartyMemorial;
+    window._kjF2InjectMemorialPrompt = _kjF2InjectMemorialPrompt;
   }
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
       _kjCheckDiscipleMemorialTriggers: _kjCheckDiscipleMemorialTriggers,
       _kjConsumeDiscipleMemorialsForAgenda: _kjConsumeDiscipleMemorialsForAgenda,
       _kjDetectMentorState: _kjDetectMentorState,
-      _kjIsCrossPartyMemorial: _kjIsCrossPartyMemorial
+      _kjIsCrossPartyMemorial: _kjIsCrossPartyMemorial,
+      _kjF2InjectMemorialPrompt: _kjF2InjectMemorialPrompt
     };
   }
 })();

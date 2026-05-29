@@ -33,7 +33,7 @@
   // §0·常量
   // ════════════════════════════════════════════════════════════════
 
-  var PARADIGM_VERSION = 1;
+  var PARADIGM_VERSION = 2;   // L8·v2·_reformChronicle [year]→[histId][year]
   var VALID_IDEOLOGIES = ['traditional', 'reformist', 'practical', 'modern'];
   var VALID_RETAKE = ['no', 'allow_3x', 'unlimited'];
   var VALID_RANKING = ['by_score', 'by_origin', 'by_party', 'by_recommendation'];
@@ -192,18 +192,27 @@
       } : null
     };
 
+    // L11·C5·force=true 时·清 _inheritance 旧 cache·防 load 新剧本仍见前剧本的 inheritance toast
+    if (opts.force && GM._kejuParadigm && GM._kejuParadigm._inheritance) {
+      try { GM._kejuParadigm._inheritance = null; } catch(_){}
+    }
     GM._kejuParadigm = paradigm;
 
     // chronicle entry·user 可见 baseline 立
+    // C3/C4 修·按 initBy 差异化 text·区分 init/migration/reset
     try {
       if (Array.isArray(GM._chronicle)) {
+        var ib = paradigm.initBy || 'init';
+        var verb = (ib === 'migration') ? '已迁 (旧存档自动升级)' :
+                   (ib === 'reset')     ? '已重置' :
+                                          '立';
         GM._chronicle.push({
           turn: GM.turn || 1,
           date: GM._gameDate || (typeof getTSText === 'function' ? getTSText(GM.turn) : ''),
-          type: 'keju-paradigm-init',
-          text: (era || '本朝') + ' 科举 paradigm 立·' + paradigm.subjects.length + ' 科·' +
+          type: 'keju-paradigm-' + (ib === 'init' ? 'init' : ib),
+          text: (era || '本朝') + ' 科举 paradigm ' + verb + '·' + paradigm.subjects.length + ' 科·' +
                 paradigm.tiers.length + ' tier·' + paradigm.quota.total + ' 名',
-          tags: ['科举', 'paradigm', era]
+          tags: ['科举', 'paradigm', ib, era]
         });
       }
     } catch (_) {}
@@ -359,12 +368,38 @@
    * 新增 L2-L50 字段时·加 entry·version bump
    */
   var MIGRATIONS = {
-    // 0 → 1·首次 init (本 L1 实现)
-    0: function(_oldOrEmpty) {
-      // 真正的 v0→v1 走 _kjpInitParadigm·此处仅占位
-      return null; // caller 会调 _kjpInitParadigm
+    // 0 → 1·真升级·若 oldOrEmpty 有 (v0 paradigm 已存)·从现 preset 重 init·保留 history
+    // (caller 路径·_kjpMigrate 已处理 oldOrEmpty=null 走 _kjpInitParadigm·此 migrator 只处理 oldOrEmpty 有 但 ver<1)
+    0: function(oldOrEmpty) {
+      // A3 修·v0 paradigm 已存时真升级·非占位
+      if (typeof GM === 'undefined' || !GM) return null;
+      var oldHistory = (oldOrEmpty && oldOrEmpty.history) || [];
+      var oldChronicle = (oldOrEmpty && oldOrEmpty._reformChronicle) || {};
+      GM._kejuParadigm = null;
+      _kjpInitParadigm({ force: true, initBy: 'migration' });
+      if (GM._kejuParadigm) {
+        GM._kejuParadigm.history = oldHistory;
+        GM._kejuParadigm._reformChronicle = oldChronicle;
+      }
+      return GM._kejuParadigm;
+    },
+    // L8·1 → 2·_reformChronicle schema·year-keyed → histId-keyed
+    // v1·{year: {histId, text, ...}}·v2·{histId: {year: {text, ...}}}
+    // 走 tm-keju-reform-evolution.js 的 _kjpMigrateReformChronicleV1 helper
+    1: function(p) {
+      if (!p) return null;
+      try {
+        if (typeof _kjpMigrateReformChronicleV1 === 'function') {
+          _kjpMigrateReformChronicleV1(p);
+        } else if (typeof window !== 'undefined' && typeof window._kjpMigrateReformChronicleV1 === 'function') {
+          window._kjpMigrateReformChronicleV1(p);
+        }
+      } catch (e) {
+        try { console.warn('[L1·migrate v1→2·_reformChronicle]', e); } catch(_){}
+      }
+      p.version = 2;
+      return p;
     }
-    // 后续·1: function(p) { p.newField = 'default'; p.version = 2; return p; }
   };
 
   /**
@@ -420,33 +455,27 @@
 
     // force re-init from preset
     GM._kejuParadigm = null;
-    var saved_era = '';
-    if (P && P.scenario) {
+    // A2 修·try-finally + typeof guard·避免 init throw 时 P.scenario.era 被破·或空字符串原值被 skip
+    var hasScenario = !!(typeof P !== 'undefined' && P && P.scenario);
+    var saved_era;
+    if (hasScenario) {
       saved_era = P.scenario.era;
       P.scenario.era = era;
     }
-    _kjpInitParadigm({ force: true, initBy: 'reset' });
-    if (saved_era !== '' && P && P.scenario) {
-      P.scenario.era = saved_era;
+    try {
+      _kjpInitParadigm({ force: true, initBy: 'reset' });
+    } finally {
+      if (hasScenario) {
+        P.scenario.era = saved_era;
+      }
     }
 
     // 恢复 history + chronicle (reset 不破坏)
+    // C3/C4 修后·_kjpInitParadigm 已写 differentiated chronicle (type=keju-paradigm-reset·text 含"已重置")
+    // 此处不再重复 push·避免双 entry
     if (GM._kejuParadigm) {
       GM._kejuParadigm.history = oldHistory;
       GM._kejuParadigm._reformChronicle = oldChronicle;
-
-      // 写 chronicle·reset 事件
-      try {
-        if (Array.isArray(GM._chronicle)) {
-          GM._chronicle.push({
-            turn: GM.turn || 1,
-            date: GM._gameDate || '',
-            type: 'keju-paradigm-reset',
-            text: '科举 paradigm reset 到 ' + era + ' 朝制·history 保留',
-            tags: ['科举', 'paradigm', 'reset', era]
-          });
-        }
-      } catch(_) {}
       return true;
     }
     return false;
@@ -489,11 +518,17 @@
       try { console.warn('[L1·import] no version·skip'); } catch(_){}
       return false;
     }
-    if (p.version !== PARADIGM_VERSION) {
-      try { console.warn('[L1·import] version mismatch·imported=' + p.version + '·current=' + PARADIGM_VERSION); } catch(_){}
-      // 继续 import·后续 _kjpMigrate 会升级
+    var versionMismatch = (p.version !== PARADIGM_VERSION);
+    if (versionMismatch) {
+      try { console.warn('[L1·import] version mismatch·imported=' + p.version + '·current=' + PARADIGM_VERSION + '·auto-migrate'); } catch(_){}
     }
     GM._kejuParadigm = _deepClone(p);
+    // A4 修·import 后 auto-migrate·确保 version up-to-date
+    if (versionMismatch) {
+      try { _kjpMigrate(); } catch(eM) {
+        try { console.warn('[L1·import] auto-migrate failed', eM); } catch(_){}
+      }
+    }
 
     try {
       if (Array.isArray(GM._chronicle)) {
@@ -501,7 +536,7 @@
           turn: GM.turn || 1,
           date: GM._gameDate || '',
           type: 'keju-paradigm-import',
-          text: '科举 paradigm 从外部 import',
+          text: '科举 paradigm 从外部 import' + (versionMismatch ? ' (auto-migrated)' : ''),
           tags: ['科举', 'paradigm', 'import']
         });
       }
@@ -585,12 +620,133 @@
   // ════════════════════════════════════════════════════════════════
 
   /**
-   * lint paradigm vs Stage 1·检测两边不一致·L7 实现·L1 stub
-   * @returns {object} {ok, warnings}
+   * lint paradigm vs Stage 1·检测两边不一致·L7 真填 (本 sprint)
+   * @param {object} paradigm - 当前 GM._kejuParadigm (可省·走 global)
+   * @param {object} diff - _kjpComputeDiff 输出 (可省·只校验 paradigm 自身)
+   * @returns {{ok:boolean, warnings:Array}}
    */
-  function _kjpLintAgainstStage1() {
-    // L7 实现·L1 stub 返 ok=true·warnings=[]
-    return { ok: true, warnings: [], _stub: true };
+  function _kjpLintAgainstStage1(paradigm, diff) {
+    paradigm = paradigm || (typeof GM !== 'undefined' && GM ? GM._kejuParadigm : null);
+    var warnings = [];
+    if (!paradigm) return { ok: true, warnings: warnings };
+
+    // Inv 1·D4 殿试代主 6 身份硬码男·准女子卷需 _timeAnomaly
+    if (diff && diff.candidateRules && diff.candidateRules.excludedClasses &&
+        Array.isArray(diff.candidateRules.excludedClasses.removed) &&
+        diff.candidateRules.excludedClasses.removed.indexOf('女子') >= 0) {
+      var hasAnomaly = (typeof P !== 'undefined' && P && P.scenario && P.scenario._timeAnomaly);
+      if (!hasAnomaly) {
+        warnings.push({
+          code: 'D4_GENDER_BREAK', severity: 'fatal',
+          msg: 'D4 殿试 6 身份硬码男·准女子卷需 _timeAnomaly·否则 chars filter 崩'
+        });
+      } else {
+        warnings.push({
+          code: 'D4_GENDER_ANOMALY', severity: 'warn',
+          msg: '准女子卷·走 _timeAnomaly·D4 chars filter 需 reimagined 配合'
+        });
+      }
+    }
+
+    // Inv 2·ideology→modern·但 allocationRules.firstClass 仍 hardcode 翰林·E2 党派派生 mismatch
+    if (diff && diff.ideology && diff.ideology.new === 'modern' &&
+        paradigm.allocationRules && paradigm.allocationRules.firstClass) {
+      var positions = paradigm.allocationRules.firstClass.positions || [];
+      var posStr = '';
+      try { posStr = JSON.stringify(positions); } catch(_){}
+      if (posStr.indexOf('翰林') >= 0) {
+        warnings.push({
+          code: 'E2_MODERN_HANLIN', severity: 'warn',
+          msg: 'modern ideology·但一甲仍授翰林·建议同步改授新派职'
+        });
+      }
+    }
+
+    // Inv 3·mentorLineage=false·但 GM._discipleGraph 已有数据·F1 孤儿
+    if (diff && diff.mentorLineage === false &&
+        typeof GM !== 'undefined' && GM && GM._discipleGraph && GM._discipleGraph.byMentor) {
+      var mentorCount = Object.keys(GM._discipleGraph.byMentor).length;
+      if (mentorCount > 0) {
+        warnings.push({
+          code: 'F1_DISCIPLE_ORPHAN', severity: 'warn',
+          msg: '禁 mentor lineage·但 GM._discipleGraph 已有 ' + mentorCount + ' mentor·历史关系保留 read-only'
+        });
+      }
+    }
+
+    // Inv 4·tiers 改·L3 panel readonly·建议走 L20 国子监
+    if (diff && diff.tiers && diff.tiers.changed) {
+      warnings.push({
+        code: 'L20_TIER_CHANGE', severity: 'warn',
+        msg: 'tier 增删 L3 panel readonly·建议走 L20 国子监·diff.tiers 不 apply'
+      });
+    }
+
+    // Inv 5·subjects 总权重 sum·过 200 → B3 题目算法溢出
+    if (diff && diff.subjects && Array.isArray(paradigm.subjects)) {
+      var added = diff.subjects.added || [];
+      var weightChanged = diff.subjects.weightChanged || [];
+      var removed = diff.subjects.removed || [];
+      if (added.length || weightChanged.length || removed.length) {
+        var removedIds = {};
+        removed.forEach(function(r) { if (r && r.id) removedIds[r.id] = 1; });
+        var changedMap = {};
+        weightChanged.forEach(function(c) { if (c && c.id) changedMap[c.id] = c.newW; });
+        var sum = 0;
+        paradigm.subjects.forEach(function(s) {
+          if (!s || removedIds[s.id]) return;
+          if (changedMap[s.id] != null) sum += parseInt(changedMap[s.id], 10) || 0;
+          else sum += parseInt(s.weight, 10) || 0;
+        });
+        added.forEach(function(a) { if (a) sum += parseInt(a.weight, 10) || 0; });
+        if (sum > 200) {
+          warnings.push({
+            code: 'B3_WEIGHT_OVERFLOW', severity: 'fatal',
+            msg: 'subjects 总权重 ' + sum + '% > 200·B3 题目选择算法不可预测·请调权重'
+          });
+        }
+      }
+    }
+
+    // Inv 6·examinerRules.minYears>30·剧本若无 senior NPC·主考算法 fall to null
+    if (diff && diff.examinerRules && typeof diff.examinerRules.minYears === 'number' &&
+        diff.examinerRules.minYears > 30) {
+      warnings.push({
+        code: 'C1_EXAMINER_NONE_RISK', severity: 'warn',
+        msg: '主考 minYears>30·若剧本无足资历 NPC·考试 abort'
+      });
+    }
+
+    // Inv 7·quota.total=0·E3 选官分配崩
+    if (diff && diff.quota && diff.quota.total && diff.quota.total.new === 0) {
+      warnings.push({
+        code: 'E3_ZERO_QUOTA', severity: 'fatal',
+        msg: '录取 quota=0·废科举·建议走 intent=restoration 专路径'
+      });
+    }
+
+    // Inv 8·candidateRules.minAge>50·候选池可能 0 人
+    if (diff && diff.candidateRules && typeof diff.candidateRules.minAge === 'number' &&
+        diff.candidateRules.minAge > 50) {
+      warnings.push({
+        code: 'CANDIDATE_NONE_RISK', severity: 'warn',
+        msg: '最小年龄>50·候选池可能 0 人·会试 abort'
+      });
+    }
+
+    // Inv 9·ceremony 全禁·D5 簪花跨马叙事缺·non-fatal
+    if (diff && diff.ceremony && diff.ceremony.palaceTest === false && diff.ceremony.rosterRelease === false) {
+      warnings.push({
+        code: 'D5_NO_CEREMONY', severity: 'warn',
+        msg: '禁殿试 + 放榜·D5 簪花跨马叙事缺·建议留 1-2 ceremony'
+      });
+    }
+
+    var hasFatal = false;
+    for (var i = 0; i < warnings.length; i++) {
+      if (warnings[i].severity === 'fatal') { hasFatal = true; break; }
+    }
+    return { ok: !hasFatal, warnings: warnings };
   }
 
   // ════════════════════════════════════════════════════════════════

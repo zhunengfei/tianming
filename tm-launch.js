@@ -472,11 +472,11 @@ function showScnManage(){
     "<div class=\"scn-grid edit-grid-purple\">"+
     "<div class=\"scn-card scn-card-new\" onclick=\"createNewScn()\">\uFF0B \u65B0 \u5EFA \u7A7A \u5377</div>"+
     P.scenarios.map(function(s,i){
-      return "<div class=\"scn-card\" onclick=\"openEditorHtml('"+s.id+"')\">"+
+      return "<div class=\"scn-card\" onclick=\"(window.openScenarioResetEditor||openEditorHtml)('"+s.id+"')\">"+
         "<div class=\"scn-era\">"+s.era+"</div>"+
         "<div class=\"scn-name\">"+s.name+"</div>"+
         "<div class=\"scn-role\">"+s.role+"</div>"+
-        "<div style=\"display:flex;justify-content:flex-end;margin-top:0.5rem;\"><button class=\"bd bsm\" onclick=\"event.stopPropagation();if(confirm('\u5220\u9664?')){P.scenarios.splice("+i+",1);saveP();showScnManage();}\">\u5220\u9664</button></div></div>";
+        "<div style=\"display:flex;gap:0.4rem;justify-content:flex-end;margin-top:0.5rem;flex-wrap:wrap;\"><button class=\"bd bsm\" onclick=\"event.stopPropagation();(window.openScenarioResetEditor||openEditorHtml)('"+s.id+"')\">\u65B0\u5DE5\u574A</button><button class=\"bd bsm\" onclick=\"event.stopPropagation();openEditorHtml('"+s.id+"')\">\u65E7\u7F16\u8F91</button><button class=\"bd bsm\" onclick=\"event.stopPropagation();if(confirm('\u5220\u9664?')){P.scenarios.splice("+i+",1);saveP();showScnManage();}\">\u5220\u9664</button></div></div>";
     }).join("")+
     "</div>";
 }
@@ -496,7 +496,7 @@ function confirmNewScn(){
   var id=uid();
   P.scenarios.push({id:id,era:"",name:name,role:"",background:"",tags:[],opening:"",suggestions:[],active:true,winCond:"",loseCond:"",customPrompt:"",scnStyle:"",scnStyleRule:"",refText:"",masterScript:"",refFiles:[]});
   saveP(); // 持久化新建的剧本
-  openEditorHtml(id);
+  (window.openScenarioResetEditor||openEditorHtml)(id);
 }
 
 // ============================================================

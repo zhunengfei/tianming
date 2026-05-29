@@ -165,7 +165,7 @@ setTimeout(() => {
     assertEq(summaryInfo.grade, 'B', 'summary hook sandbox should settle to B');
     assert(summaryGM.recentChaoyi.length > 0, 'settleArchonGrade should auto-record recentChaoyi');
     assert(summaryGM.recentChaoyi[0].chaoyiTrackId, 'settleArchonGrade should attach a chaoyi track id');
-    assert((summaryGM._chronicleTracks || []).some(t => t && t.sourceType === 'chaoyi_pending'), 'settleArchonGrade should auto-upsert chaoyi_pending track');
+    assert((summaryGM._chronicleTracks || []).some(t => t && t.sourceType === 'tingyi_pending'), 'settleArchonGrade should auto-upsert tingyi_pending track');
     Object.assign(summaryGM, savedGM);
     summaryCY._ty2 = savedCY._ty2;
     summaryCY._ty3 = savedCY._ty3;
@@ -296,8 +296,8 @@ setTimeout(() => {
     assertEq(queued.dueTurn, GM.turn + 6, 'follow-up due turn should use engineConstants delay');
     assert(issuedSeal.followUp && issuedSeal.followUp.topicId, 'issued seal should carry a persistent follow-up topicId');
     assertEq(queued.topicId, issuedSeal.followUp.topicId, 'follow-up queue topicId should stay stable');
-    const queuedTrack = (GM._chronicleTracks || []).find(t => t && t.sourceType === 'chaoyi_pending');
-    assert(queuedTrack, 'issued seal should seed a chaoyi_pending track');
+    const queuedTrack = (GM._chronicleTracks || []).find(t => t && t.sourceType === 'tingyi_pending');
+    assert(queuedTrack, 'issued seal should seed a tingyi_pending track');
     assertEq(queuedTrack.sourceId, queued.topicId, 'chaoyi track id should match follow-up topicId');
     assertEq(sandbox.CY._ty3.followUpTurn, queued.dueTurn, 'followUpTurn should attach to topic state');
     assert((GM._chronicle || []).some(x => x && x.sealStatus === 'issued'), 'issued seal should write chronicle');
@@ -313,7 +313,7 @@ setTimeout(() => {
     assert((GM.corruption.history || []).some(x => x && x.type === 'tinyi_follow_up'), 'stage 7 should write corruption history');
     assert((GM._chronicle || []).some(x => x && x.topicId === queued.topicId), 'stage 7 should write follow-up chronicle');
     assert((GM._ty3_pendingReviewForPrompt || []).some(x => x && x.topicId === queued.topicId), 'stage 7 should queue prompt summary');
-    const reviewedTrack = (GM._chronicleTracks || []).find(t => t && t.sourceType === 'chaoyi_pending');
+    const reviewedTrack = (GM._chronicleTracks || []).find(t => t && t.sourceType === 'tingyi_pending');
     assert(reviewedTrack, 'stage 7 should keep the chaoyi track alive');
     assertEq(reviewedTrack.recentReviewOutcome, followSummaries[0].outcome, 'stage 7 should write review outcome back to chaoyi track');
     assertEq(reviewedTrack.recentReviewTurn, GM.turn, 'stage 7 should write review turn back to chaoyi track');
@@ -380,7 +380,7 @@ setTimeout(() => {
     GM._pendingTinyiTopics = [];
     GM._chronicleTracks = [
       { id: 'cc-track', sourceType: 'changchao', status: 'active', title: '河工整饬', startTurn: 1, expectedEndTurn: 11, progress: 90, currentStage: 'started' },
-      { id: 'meta-track', sourceType: 'chaoyi_pending', status: 'active', title: '旧廷议', startTurn: 1, expectedEndTurn: 11, progress: 95, currentStage: '\u8BB0\u5F55' }
+      { id: 'meta-track', sourceType: 'tingyi_pending', status: 'active', title: '旧廷议', startTurn: 1, expectedEndTurn: 11, progress: 95, currentStage: '\u8BB0\u5F55' }
     ];
     GM.turn = 11;
     sandbox._ty3_tickChronicleTracks();
@@ -389,7 +389,7 @@ setTimeout(() => {
     assertEq(ccTrack.currentStage, '验收待复', 'changchao track should advance into Chinese verify stage');
     assert(ccTrack._verifyPrompted, 'changchao track should prompt a 95% verification topic');
     assert(GM._pendingTinyiTopics.some(t => t && t.trackId === 'cc-track' && /议复/.test(t.topic || '')), 'changchao track should spawn a verification topic');
-    assert(!metaTrack._verifyPrompted, 'chaoyi_pending tracks should stay metadata-only and not spawn verification');
+    assert(!metaTrack._verifyPrompted, 'tingyi_pending tracks should stay metadata-only and not spawn verification');
     assert(!GM._pendingTinyiTopics.some(t => t && t.trackId === 'meta-track'), 'metadata-only tracks should not spawn verification topics');
 
     const reviewMemories = [];

@@ -109,6 +109,12 @@
         text: _getCurYear() + '年·朝中无翰林学士主童子科·此次免开',
         tags: ['科举', '童子科']
       });
+      // F5·toast 提示玩家 (诏书走完了·但童子科没启用)
+      if (typeof window !== 'undefined' && typeof window.toast === 'function') {
+        try {
+          window.toast('⚠ 陛下下诏开童子科·然朝中无翰林学士可主考·童子科无法启用·请先任命翰林学士再下诏');
+        } catch(_) {}
+      }
       return;
     }
     var pool = _kjG5SpawnTongzijinshiPool(td, examiner);
@@ -661,10 +667,15 @@
 
   function _kjG5ParseTongziFromEdictText(text) {
     if (!text) return null;
-    if (!/童子科|神童|荐神童|童子荐举/.test(text)) return null;
+    // F4·放宽·加 早慧/英才科/少年科/童试·全含"童/慧/少年/才"·避撞日常奖励诏书
+    if (!/童子科|神童|荐神童|童子荐举|童试|早慧|早惠|少年科|英才科/.test(text)) return null;
+    // F6·negative gate·扫时政记时 AI 可能写"议罢童子科/未开/搁置"·skip
+    if (/议罢童子科|罢童子科|未开童子科|停童子科|废童子科|搁置童子科|驳童子科|不准开童子科|反对童子科|拒开童子科/.test(text)) {
+      return null;
+    }
     var subtype = '_player_edict';
-    if (/州县|荐举|藩司/.test(text)) subtype = 'recommendation';
-    else if (/钦点|圣恩/.test(text)) subtype = 'royal-recognition';
+    if (/州县|荐举|藩司|府县/.test(text)) subtype = 'recommendation';
+    else if (/钦点|圣恩|亲擢/.test(text)) subtype = 'royal-recognition';
     return {
       type: 'tongzi',
       category: 'tongzi',
@@ -685,7 +696,8 @@
       var a = _kjG5ParseTongziFromEdictText(edicts);
       if (a) out.push(a);
     } else if (typeof edicts === 'object') {
-      ['political', 'military', 'diplomatic', 'economic'].forEach(function(key) {
+      // F1·加 'other'·御案"其他"栏的童子科诏书也要扫
+      ['political', 'military', 'diplomatic', 'economic', 'other'].forEach(function(key) {
         var t = edicts[key];
         if (t && typeof t === 'string') {
           var a2 = _kjG5ParseTongziFromEdictText(t);
@@ -979,13 +991,24 @@
 
   function _kjG5PickLibuLeader() {
     if (typeof GM === 'undefined' || !GM) return null;
-    return (GM.chars || []).filter(function(c) {
-      if (!c || c.alive === false) return false;
+    var chars = GM.chars || [];
+    var cands = chars.filter(function(c) {
+      if (!c || c.alive === false || c._retired) return false;
       var t = String(c.officialTitle || c.title || '');
       return /礼部|翰林|国子|秘书/.test(t);
-    }).sort(function(a, b) {
+    });
+    // F3·parity G2/G3·title 没人 → 退化用 prestige≥60
+    if (!cands.length) {
+      cands = chars.filter(function(c) {
+        if (!c || c.alive === false || c._retired) return false;
+        return (c.prestige || 0) >= 60;
+      });
+    }
+    if (!cands.length) return null;
+    cands.sort(function(a, b) {
       return (b.intelligence || 50) - (a.intelligence || 50);
-    })[0] || null;
+    });
+    return cands[0];
   }
 
   function _kjG5OpenLibuTongziWendui() {

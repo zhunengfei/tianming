@@ -106,6 +106,14 @@
       callback: '_kjEunuchCheckKeyiCallback',  // I2 接
       description: '本议商议宦官干预·制衡/限制/放任 三路径·明清专有·涉及司礼监批红/东厂阅卷',
       sliceOwner: 'I2'
+    },
+    special_exam: {
+      title: function(td) { return '议·' + (({ enke:'恩科', wuju:'武举', fanyi:'翻译科', tongzi:'童子科' })[td && td.examType] || '特科'); },
+      shortLabel: '科议·特科',
+      threshold: 0.4,
+      callback: '_kjG2SpecialExamKeyiCallback',  // G2 step a 接
+      description: '本议商议特科开闭·允/驳/推迟·恩科政治表态·武举选将·翻译开通·童子荐贤',
+      sliceOwner: 'G2'
     }
   };
 

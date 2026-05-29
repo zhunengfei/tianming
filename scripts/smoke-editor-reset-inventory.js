@@ -44,8 +44,8 @@ assert(report.coverage && report.coverage.unmappedTopLevelKeys.length >= 1,
   'inventory should report unmapped official top-level keys');
 assert(report.coverage.unmappedTopLevelKeys.includes('families'),
   'families should currently be reported as unmapped editor coverage');
-assert(report.coverage.unmappedTopLevelKeys.includes('openingLetters'),
-  'openingLetters should currently be reported as unmapped editor coverage');
+assert(report.coverage.unmappedTopLevelKeys.includes('culturalWorks'),
+  'culturalWorks should currently be reported as unmapped editor coverage');
 
 assert(report.blueprint && Array.isArray(report.blueprint.modules),
   'inventory should include a reset blueprint module list');
@@ -63,6 +63,11 @@ assert(report.blueprint.modules.some((mod) =>
   mod.topLevelKeys.includes('opening') &&
   mod.topLevelKeys.includes('openingLetters')),
   'scenarioOpening blueprint should own opening and opening letters');
+assert(report.blueprint.modules.some((mod) =>
+  mod.id === 'courtInstitutions' &&
+  mod.topLevelKeys.includes('tinyi') &&
+  mod.topLevelKeys.includes('chaoyi')),
+  'courtInstitutions blueprint should own tinyi and chaoyi court deliberation config');
 assert(report.blueprint.nestedFieldGroups.character.groups.some((group) => group.id === 'familyKinship'),
   'character nested fields should include a family/kinship group');
 assert(report.blueprint.nestedFieldGroups.character.groups.some((group) => group.id === 'aiPersona'),

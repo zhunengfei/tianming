@@ -255,6 +255,11 @@ function diffObj(a, b, prefix, out) {
   if (a !== b) out.push({ path: prefix, a: a, b: b });
 }
 
+function fmtDiffValue(value) {
+  const encoded = JSON.stringify(value);
+  return (encoded == null ? '<u>' : encoded).slice(0, 200);
+}
+
 // ─── 跑一次 _endTurnCore ────────────────────────────────────────
 // [slice 7c·2026-05-08] flag 已废·两个 mode 都跑 pipeline·变成 self-diff (决定性 smoke)
 async function runOneTurn(sb, mode) {
@@ -336,8 +341,8 @@ async function runOneTurn(sb, mode) {
   if (baselineDiffs.length > 0) {
     console.log('[pipeline-diff] FAIL·baseline self-diff != 0 (' + baselineDiffs.length + ')·随机源未锁定·先修 fixture');
     baselineDiffs.slice(0, 5).forEach(d => console.log('  baseline diff: ' + d.path
-      + '\n    A: ' + JSON.stringify(d.a).slice(0,200)
-      + '\n    B: ' + JSON.stringify(d.b).slice(0,200)));
+      + '\n    A: ' + fmtDiffValue(d.a)
+      + '\n    B: ' + fmtDiffValue(d.b)));
     process.exit(5);
   }
   console.log('[pipeline-diff] baseline self-diff = 0·fixture deterministic·继续 pipeline 对照');
@@ -384,10 +389,8 @@ async function runOneTurn(sb, mode) {
   } else {
     console.log('[pipeline-diff] FAIL·' + diffs.length + ' diff(s) between modes:');
     diffs.slice(0, 30).forEach(d => {
-      const a = JSON.stringify(d.a);
-      const b = JSON.stringify(d.b);
-      console.log('  ' + d.path + '\n    legacy:   ' + (a||'<u>').slice(0,200)
-                  + '\n    pipeline: ' + (b||'<u>').slice(0,200));
+      console.log('  ' + d.path + '\n    legacy:   ' + fmtDiffValue(d.a)
+                  + '\n    pipeline: ' + fmtDiffValue(d.b));
     });
     if (diffs.length > 30) console.log('  ... + ' + (diffs.length - 30) + ' more');
     process.exit(4);

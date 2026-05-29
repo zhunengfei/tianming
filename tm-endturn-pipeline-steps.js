@@ -409,6 +409,37 @@
             }
           }
         } catch(e) { try { console.warn('[pipeline.post-ai-edict] G5 tongzi scan', e); } catch(_){} }
+        // F6·扫时政记 (AI 推演输出)·覆盖"诏书未明写但 AI 在叙事中体现开恩科"的情况
+        // 复用 3 个 ScanCtxInputEdictsForX·passing string (parser 已加 negative gate 防"罢/未/搁置"误识别)
+        try {
+          var _ar = ctx.results && ctx.results.aiResult;
+          if (_ar) {
+            var _shizhengTxt = [_ar.shizhengji || '', _ar.zhengwen || '', _ar.shilu || ''].join('\n');
+            if (_shizhengTxt.trim()) {
+              if (typeof _kjG2ScanCtxInputEdictsForEnke === 'function' && typeof _kjG2OnEnkeApprovedViaEdict === 'function') {
+                var sjEnke = _kjG2ScanCtxInputEdictsForEnke(_shizhengTxt);
+                for (var sei = 0; sei < (sjEnke && sjEnke.length || 0); sei++) {
+                  sjEnke[sei]._sourceCategory = 'shizhengji';
+                  _kjG2OnEnkeApprovedViaEdict(sjEnke[sei]);
+                }
+              }
+              if (typeof _kjG3ScanCtxInputEdictsForWuju === 'function' && typeof _kjG3OnWujuApprovedViaEdict === 'function') {
+                var sjWuju = _kjG3ScanCtxInputEdictsForWuju(_shizhengTxt);
+                for (var swi = 0; swi < (sjWuju && sjWuju.length || 0); swi++) {
+                  sjWuju[swi]._sourceCategory = 'shizhengji';
+                  _kjG3OnWujuApprovedViaEdict(sjWuju[swi]);
+                }
+              }
+              if (typeof _kjG5ScanCtxInputEdictsForTongzi === 'function' && typeof _kjG5OnTongziApprovedViaEdict === 'function') {
+                var sjTongzi = _kjG5ScanCtxInputEdictsForTongzi(_shizhengTxt);
+                for (var sti = 0; sti < (sjTongzi && sjTongzi.length || 0); sti++) {
+                  sjTongzi[sti]._sourceCategory = 'shizhengji';
+                  _kjG5OnTongziApprovedViaEdict(sjTongzi[sti]);
+                }
+              }
+            }
+          }
+        } catch(e) { try { console.warn('[pipeline.post-ai-edict] G2/G3/G5 shizhengji scan', e); } catch(_){} }
         if (typeof TyrantActivitySystem !== 'undefined' && TyrantActivitySystem && TyrantActivitySystem.applyEffects) {
           try {
             var ta = ctx.input.tyrantActivities || (typeof GM !== 'undefined' ? GM._turnTyrantActivities : null) || [];
