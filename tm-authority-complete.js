@@ -81,24 +81,20 @@
     var G = global.GM;
     var mx = G.minxin;
     if (!mx) return;
-    // 每区独立演化
+    // D·并账：各省 byRegion.index 不再独立演化 / 向全国均值回归（那套既被回合末 P-UIMX 覆盖、又跟真值打架），
+    //   改为单一镜像 adminHierarchy 的 div.minxin 真值——div.minxin 才是治本/聚合/民变共同认的源。
+    //   解析不到对应 division 的旧条目（命名空间对不上）按兵不动，不致误改。
+    //   注：局部灾情/民怨对民心的压力，应在 adjustMinxin 端落到 div.minxin（真值源）、而非这层派生缓存——留待后续接入。
+    var _PUm = global.TM && global.TM.AIChange && global.TM.AIChange.PathUtils;
     Object.keys(mx.byRegion || {}).forEach(function(rid) {
       var reg = mx.byRegion[rid];
-      var region = (G.regions || []).find(function(r) { return r.id === rid; });
-      if (!region) return;
-      // 本区 delta
-      var delta = 0;
-      if (region.unrest > 60) delta -= 0.3 * mr;
-      if (region.disasterLevel > 0.3) delta -= 0.5 * mr * region.disasterLevel;
-      // 承载力
-      if (G.environment && G.environment.byRegion && G.environment.byRegion[rid]) {
-        var load = G.environment.byRegion[rid].currentLoad || 0.5;
-        if (load > 1.2) delta -= (load - 1.2) * 0.4 * mr;
+      if (!reg) return;
+      var div = (_PUm && typeof _PUm.findDivisionByNameOrId === 'function') ? _PUm.findDivisionByNameOrId(G, rid) : null;
+      if (div && typeof div.minxin === 'number') {
+        var prev = reg.index;
+        reg.index = Math.max(0, Math.min(100, div.minxin));
+        reg.trend = reg.index > prev ? 'rising' : reg.index < prev ? 'falling' : 'stable';
       }
-      // 向全国均值回归
-      delta += (mx.trueIndex - reg.index) * 0.05 * mr;
-      reg.index = Math.max(0, Math.min(100, reg.index + delta));
-      reg.trend = delta > 0 ? 'rising' : delta < 0 ? 'falling' : 'stable';
     });
     // 每阶层独立演化
     Object.keys(mx.byClass || {}).forEach(function(cl) {
@@ -244,14 +240,30 @@
     { id:5, name:'改朝', scale:1000000, threshold:5,  threat:'doom',    description:'问鼎中原，王朝终结' }
   ];
 
+  // 区引用 → 该省 div.minxin 真值（A·并账地基）。r.region 可能是行政区名("陕西")或 div.id，
+  //   复用 PathUtils.findDivisionByNameOrId(按 name|id 深度匹配) 落到 adminHierarchy 叶子取真值源 div.minxin；
+  //   解析不到（旧民变挂的 G.regions id 对不上 / 无 adminHierarchy）→ 回退全国 fallback，不致崩。
+  function _localMinxinForRegion(G, regionRef, fallback) {
+    try {
+      var PU = global.TM && global.TM.AIChange && global.TM.AIChange.PathUtils;
+      if (PU && typeof PU.findDivisionByNameOrId === 'function' && regionRef != null && regionRef !== '') {
+        var d = PU.findDivisionByNameOrId(G, regionRef);
+        if (d && typeof d.minxin === 'number') return d.minxin;
+      }
+    } catch (_e) {}
+    return fallback;
+  }
+
   function _tickRevoltUpgrade(ctx, mr) {
     var mx = global.GM.minxin;
     if (!mx || !mx.revolts) return;
     mx.revolts.forEach(function(r) {
       if (r.status !== 'ongoing') return;
+      // C·民变判级读「该省」真值 div.minxin（解析不到回退全国 trueIndex）——每个民变按自己所在省的民心定级，不再被全国均值掩盖
+      var localMx = _localMinxinForRegion(global.GM, r.region, mx.trueIndex);
       // 初次：按阈值确定起始级别
       if (!r.level) {
-        var idx = mx.trueIndex;
+        var idx = localMx;
         r.level = 1;
         for (var i = 0; i < REVOLT_LEVELS.length; i++) {
           if (idx <= REVOLT_LEVELS[i].threshold) r.level = REVOLT_LEVELS[i].id;
@@ -261,7 +273,7 @@
       // 升级条件：民心仍低 + 官军未剿 + 时间够长
       var currentDef = REVOLT_LEVELS[r.level - 1];
       if (r.level < 5) {
-        var upgradeReady = (ctx.turn - r.turn) > _turnsForMonthsLocal(6) && mx.trueIndex < currentDef.threshold && !r._suppressed;
+        var upgradeReady = (ctx.turn - r.turn) > _turnsForMonthsLocal(6) && localMx < currentDef.threshold && !r._suppressed;
         if (upgradeReady && Math.random() < 0.15 * mr) {
           r.level++;
           r.scale = REVOLT_LEVELS[r.level - 1].scale;
@@ -288,10 +300,17 @@
           r.status = 'suppressed';
           r._suppressed = true;
           if (global.addEB) global.addEB('民变', (r.region || '某地') + ' ' + REVOLT_LEVELS[r.level - 1].name + ' 已平');
+          // P-5TK·平乱接皇威：官军确定性镇压民变成功 → 加皇威（按民变等级定量·封顶·防重复）
+          if (!r._hwAwarded && typeof global.AuthorityEngines !== 'undefined' && typeof global.AuthorityEngines.adjustHuangwei === 'function') {
+            var _P5TK_SUP_PER = 2, _P5TK_SUP_MIN = 2, _P5TK_SUP_CAP = 8;
+            var _supGain = Math.max(_P5TK_SUP_MIN, Math.min(_P5TK_SUP_CAP, (r.level || 1) * _P5TK_SUP_PER));
+            global.AuthorityEngines.adjustHuangwei('suppressRevolt', _supGain, (r.region || '某地') + ' 平乱');
+            r._hwAwarded = true;
+          }
         }
       }
-      // 自然瓦解：若民心回升
-      if (mx.trueIndex > currentDef.threshold + 15 && Math.random() < 0.05) {
+      // 自然瓦解：若「该省」民心回升（解析不到回退全国）
+      if (localMx > currentDef.threshold + 15 && Math.random() < 0.05) {
         r.status = 'dispersed';
       }
     });

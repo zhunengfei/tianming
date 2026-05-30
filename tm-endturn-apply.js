@@ -208,22 +208,36 @@
 
             // ─ 直接施加 sentiment/population 补丁（不走 applyAITurnChanges 因为它没这俩字段） ─
             try {
+              // B1.5·AI 皇威/皇权参与定量的护栏：保留 AI 自由给(灵活)，但上闸——①单事件夹 ±P_AI_EVENT_CAP(3) ②每回合该值 AI 净变封顶 ±P_AI_TURN_CAP(5)防暴冲。
+              //   闸只收紧 authority(皇威/皇权)；民心走 adjustMinxin 摊叶子(治本)、自有动力学、不在此夹。经 aiSentiment 记账可审计。配额按回合重置。
+              if (GM._aiAuthCapTurn !== (GM.turn || 0)) { GM._aiAuthCapTurn = (GM.turn || 0); GM._aiAuthAcc = { huangwei: 0, huangquan: 0 }; }
               _patch.sentiment_changes.forEach(function(s) {
                 var pathMap = { minxin: 'minxin', huangwei: 'huangwei', huangquan: 'huangquan' };
                 var key = pathMap[s.target]; if (!key) return;
+                var delta = Number(s.delta) || 0;
+                if (s.target === 'huangwei' || s.target === 'huangquan') {
+                  var P_AI_EVENT_CAP = 3, P_AI_TURN_CAP = 5;
+                  if (delta > P_AI_EVENT_CAP) delta = P_AI_EVENT_CAP;       // ① 单事件夹
+                  else if (delta < -P_AI_EVENT_CAP) delta = -P_AI_EVENT_CAP;
+                  var acc = GM._aiAuthAcc[s.target] || 0;                    // ② 每回合净变封顶
+                  if (delta >= 0) delta = Math.max(0, Math.min(delta, P_AI_TURN_CAP - acc));
+                  else delta = Math.min(0, Math.max(delta, -P_AI_TURN_CAP - acc));
+                  if (delta === 0) return;                                   // 配额用尽·丢弃这条
+                  GM._aiAuthAcc[s.target] = acc + delta;
+                }
                 var _AE = (typeof window !== 'undefined' && window.AuthorityEngines) || (typeof global !== 'undefined' && global.AuthorityEngines) || null;
                 var _adj = _AE && ({ minxin: _AE.adjustMinxin, huangwei: _AE.adjustHuangwei, huangquan: _AE.adjustHuangquan })[s.target];
                 if (typeof _adj === 'function') {
-                  _adj('aiSentiment', s.delta, s.reason || 'AI推演');
+                  _adj('aiSentiment', delta, s.reason || 'AI推演');
                 } else if (GM[key] && typeof GM[key].trueIndex === 'number') {
-                  GM[key].trueIndex = Math.max(0, Math.min(100, GM[key].trueIndex + s.delta));
+                  GM[key].trueIndex = Math.max(0, Math.min(100, GM[key].trueIndex + delta));
                 } else if (typeof GM[key] === 'number') {
-                  GM[key] = Math.max(0, Math.min(100, GM[key] + s.delta));
+                  GM[key] = Math.max(0, Math.min(100, GM[key] + delta));
                 }
                 // 登记 turnChanges 供史记显示
                 if (!GM.turnChanges) GM.turnChanges = {};
                 if (!GM.turnChanges.variables) GM.turnChanges.variables = [];
-                GM.turnChanges.variables.push({ path: key + '.trueIndex', label: ({minxin:'民心',huangwei:'皇威',huangquan:'皇权'})[s.target], delta: s.delta, reason: s.reason || '一致性补录' });
+                GM.turnChanges.variables.push({ path: key + '.trueIndex', label: ({minxin:'民心',huangwei:'皇威',huangquan:'皇权'})[s.target], delta: delta, reason: s.reason || '一致性补录' });
               });
               _patch.population_changes.forEach(function(p) {
                 if (!GM.adminHierarchy || !Array.isArray(GM.adminHierarchy.nodes)) return;
@@ -277,19 +291,37 @@
                 if (!GM.minxin) GM.minxin = {};
                 if (!Array.isArray(GM.minxin.revolts)) GM.minxin.revolts = [];
                 if (r.action === 'start') {
-                  GM.minxin.revolts.push({
-                    region: r.region,
-                    leader: r.leader || '',
-                    scale: r.scale || 1000,
-                    startedTurn: GM.turn || 0,
-                    status: 'ongoing',
-                    _autoFromReconcile: true
-                  });
+                  // 确定性护栏：AI 叙事可提鼓噪，但该省民心若仍安定(div.minxin>=阈值)，不坐实为引擎民变——
+                  //   防「AI 推演不认数值」(E.B 报：全国/各省民心 98 仍冒叛军)。解析不到该省真值则照旧放行(不误拦)。
+                  var _PUr = (typeof TM !== 'undefined' && TM.AIChange && TM.AIChange.PathUtils) || null;
+                  var _rdiv = (_PUr && typeof _PUr.findDivisionByNameOrId === 'function') ? _PUr.findDivisionByNameOrId(GM, r.region) : null;
+                  var _rmx = (_rdiv && typeof _rdiv.minxin === 'number') ? _rdiv.minxin : null;
+                  var P_AI_REVOLT_MX = 50; // 该省民心≥此值·AI 叙事的起事不坐实为真民变·可调
+                  if (_rmx != null && _rmx >= P_AI_REVOLT_MX) {
+                    if (typeof addEB === 'function') addEB('民变', (r.region||'某地') + '虽有鼓噪，然民心 ' + Math.round(_rmx) + ' 尚安，未成气候（确定性护栏·未坐实）');
+                  } else {
+                    GM.minxin.revolts.push({
+                      region: r.region,
+                      leader: r.leader || '',
+                      scale: r.scale || 1000,
+                      startedTurn: GM.turn || 0,
+                      status: 'ongoing',
+                      _autoFromReconcile: true
+                    });
+                  }
                 } else if (r.action === 'suppress' || r.action === 'appease') {
                   var openR = GM.minxin.revolts.find(function(x){return x && x.status === 'ongoing' && x.region === r.region;});
                   if (openR) {
                     openR.status = (r.action === 'suppress') ? 'suppressed' : 'appeased';
                     openR.endedTurn = GM.turn || 0;
+                    // AI 叙事的武力平乱也确定性接皇威（与引擎/手动平乱同口径·_hwAwarded 防重复·状态互斥不双计）；招抚不计
+                    if (r.action === 'suppress' && !openR._hwAwarded) {
+                      var _AEsup = (typeof window !== 'undefined' && window.AuthorityEngines) || (typeof global !== 'undefined' && global.AuthorityEngines) || null;
+                      if (_AEsup && typeof _AEsup.adjustHuangwei === 'function') {
+                        _AEsup.adjustHuangwei('suppressRevolt', Math.max(2, Math.min(8, (openR.level || 1) * 2)), (r.region || '某地') + ' 平乱');
+                        openR._hwAwarded = true;
+                      }
+                    }
                   }
                 }
                 if (!GM.turnChanges) GM.turnChanges = {};

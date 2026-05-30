@@ -224,6 +224,10 @@
       hw.index = Math.min(100, hw.index + ((hw.drains.heavenlySign || 0) - P5TK_HW_CAP));
       hw.drains.heavenlySign = P5TK_HW_CAP;
     }
+    // P-5TK·衰减/封顶改了 hw.index → 同步重算段位 phase + 按新 index 修正暴君/失威 active（否则 index 变了 phase 缓存滞留·面板段位与威望脱节·authority-ui 还拿 phase 算皇威乘数）
+    hw.phase = _getHuangweiPhase(hw.index);
+    hw.tyrantSyndrome.active = hw.index > 90 ? true : (hw.index < 85 ? false : hw.tyrantSyndrome.active);
+    hw.lostAuthorityCrisis.active = hw.index < 30 ? true : (hw.index > 35 ? false : hw.lostAuthorityCrisis.active);
     _updatePerceivedHuangwei(hw);
   }
 
@@ -708,30 +712,54 @@
         }
       }
     } catch (_msE) {}
-    // 民变触发（B3 分段）
-    if (mx.trueIndex < 20 && Math.random() < 0.05 * mr) {
-      _triggerRevolt(ctx);
-    }
+    // B·民变触发改各省：扫玩家叶子，任一省 div.minxin 低于阈值 → 该省按低概率揭竿（不再卡全国 trueIndex<20，
+    //   也不再被全国均值掩盖单省塌方）。越烂概率越高；该省已有 ongoing 民变由 _triggerRevolt 内去重。
+    //   阈值 P_REVOLT_MX / 基础概率 P_REVOLT_BASE 为机制参数·owner 可调。无 adminHierarchy 时回退旧的全国闸。
+    try {
+      var _IBr = global.IntegrationBridge || (typeof window !== 'undefined' && window.IntegrationBridge) || null;
+      if (_IBr && typeof _IBr.getLeafDivisions === 'function' && G && G.adminHierarchy) {
+        var P_REVOLT_MX = 25;      // 本省民心低于此值才可能揭竿
+        var P_REVOLT_BASE = 0.05;  // 基础月概率
+        var _rlvs = _IBr.getLeafDivisions(G.adminHierarchy, 'player') || [];
+        for (var _ri = 0; _ri < _rlvs.length; _ri++) {
+          var _rd = _rlvs[_ri];
+          if (!_rd || typeof _rd.minxin !== 'number' || _rd.minxin >= P_REVOLT_MX) continue;
+          var _sev = Math.min(1, (P_REVOLT_MX - _rd.minxin) / P_REVOLT_MX); // 越烂越高
+          if (Math.random() < P_REVOLT_BASE * (0.5 + _sev) * mr) _triggerRevolt(ctx, _rd);
+        }
+      } else if (mx.trueIndex < 20 && Math.random() < 0.05 * mr) {
+        _triggerRevolt(ctx); // 回退：无 adminHierarchy 时仍用旧全国闸 + G.regions 选址
+      }
+    } catch (_revTrigE) { try { if (mx.trueIndex < 20 && Math.random() < 0.05 * mr) _triggerRevolt(ctx); } catch (_e2) {} }
     _updateMinxinPerceived();
   }
 
-  function _triggerRevolt(ctx) {
+  function _triggerRevolt(ctx, division) {
     var mx = _ensureMinxin();
     if (!mx) return;
     var G = global.GM;
-    var region = (G.regions || []).filter(function(r) { return r.unrest > 60; })[0];
-    if (!region) return;
+    if (!Array.isArray(mx.revolts)) mx.revolts = [];
+    var regionName, regionObj = null;
+    if (division && division.name) {
+      regionName = division.name;   // B·各省路：region 写行政区名（与 AI 路同口径·C 的 findDivisionByNameOrId 解析器认得→读该省 div.minxin）
+    } else {
+      regionObj = (G.regions || []).filter(function(r) { return r.unrest > 60; })[0]; // 回退：旧 G.regions 选址
+      if (!regionObj) return;
+      regionName = regionObj.id;
+    }
+    // 同省已有 ongoing 民变 → 不重复点燃
+    if (mx.revolts.some(function(rv) { return rv.status === 'ongoing' && rv.region === regionName; })) return;
     var revolt = {
       id: 'revolt_' + ctx.turn + '_' + Math.floor(Math.random()*10000),
       turn: ctx.turn,
-      region: region.id,
+      region: regionName,
       scale: Math.round(Math.random() * 30000 + 5000),
       status: 'ongoing'
     };
     mx.revolts.push(revolt);
-    if (global.addEB) global.addEB('民变', region.id + ' 民变，众约 ' + revolt.scale);
+    if (global.addEB) global.addEB('民变', regionName + ' 民变，众约 ' + revolt.scale);
     if (typeof G.unrest === 'number') G.unrest = Math.min(100, G.unrest + 5);
-    region.unrest = Math.min(100, (region.unrest||30) + 10);
+    if (regionObj) regionObj.unrest = Math.min(100, (regionObj.unrest||30) + 10);
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -941,6 +969,22 @@
     }
   };
 
+  // P-DZ·phase 同步：把 minxin/huangwei/huangquan 的 phase 缓存重算成当前数值对应段位，
+  // 并按当前 index 校正皇威 tyrant/失威状态（保滞回）。治本——数值被 tick 衰减 / aggregate 等
+  // 绕过 adjustXxx 的路径改过后，在回合末 aggregate 之后调它一次，phase 与后果不再读到滞留旧段。
+  function syncAuthorityPhases() {
+    var G = global.GM; if (!G) return;
+    if (G.minxin && typeof G.minxin.trueIndex === 'number') G.minxin.phase = _getMinxinPhase(G.minxin.trueIndex);
+    if (G.huangquan && typeof G.huangquan.index === 'number') G.huangquan.phase = _getHuangquanPhase(G.huangquan.index);
+    if (G.huangwei && typeof G.huangwei.index === 'number') {
+      G.huangwei.phase = _getHuangweiPhase(G.huangwei.index);
+      var ts = G.huangwei.tyrantSyndrome;
+      if (ts) { if (G.huangwei.index > 90) ts.active = true; else if (G.huangwei.index < 85) ts.active = false; }
+      var lc = G.huangwei.lostAuthorityCrisis;
+      if (lc) { if (G.huangwei.index < 30) lc.active = true; else if (G.huangwei.index > 35) lc.active = false; }
+    }
+  }
+
   global.AuthorityEngines = {
     init: init,
     tick: tick,
@@ -948,6 +992,7 @@
     adjustHuangquan: adjustHuangquan,
     setHuangquan: setHuangquan,
     adjustMinxin: adjustMinxin,
+    syncAuthorityPhases: syncAuthorityPhases,
     applyTyrantExecutionAmplification: applyTyrantExecutionAmplification,
     filterQueryOptionsByPhase: filterQueryOptionsByPhase,
     getHuangweiValue: getHuangweiValue,
@@ -958,6 +1003,8 @@
     HUANGWEI_PHASE: HUANGWEI_PHASE,
     HUANGQUAN_PHASE: HUANGQUAN_PHASE,
     MINXIN_PHASE: MINXIN_PHASE,
+    _getMinxinPhase: _getMinxinPhase,
+    _getHuangweiPhase: _getHuangweiPhase,
     HUANGWEI_SOURCES_14: HUANGWEI_SOURCES_14,
     HUANGWEI_DRAINS_14: HUANGWEI_DRAINS_14,
     HUANGQUAN_SOURCES_8: HUANGQUAN_SOURCES_8,

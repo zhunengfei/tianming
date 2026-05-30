@@ -1152,7 +1152,13 @@
           var marker = fac === _playerFac ? '【我方·'+fac+'】' : ('【'+fac+'·敌/中】');
           tp18 += '\n' + marker + '\n';
           _armyByFac[fac].forEach(function(a) {
-            tp18 += '  ' + a.name + ' 兵' + (a.soldiers||0) + ' 士气' + (a.morale||50) + ' 训' + (a.training||50) + (a.commander?' 帅:'+a.commander:'') + (a.garrison?' 驻:'+a.garrison:'') + '\n';
+            tp18 += '  ' + a.name + ' 兵' + (a.soldiers||0) + ' 士气' + (a.morale||50) + ' 训' + (a.training||50) + (a.loyalty!==undefined?' 忠'+a.loyalty:'') + (a.quality?' '+a.quality:'') + (a.commander?' 帅:'+a.commander:'') + (a.garrison?' 驻:'+a.garrison:'');
+            // 第二刀·军事明细归位 sc18(战斗解算所需)：兵种/装备/年饷——原在 sc1(buildAIContext)·主推演用不上·移来此处
+            if (Array.isArray(a.composition) && a.composition.length > 0) tp18 += ' 兵种:' + a.composition.map(function(c){return c.type+(c.count?c.count+'人':'');}).join('/');
+            if (a.equipmentCondition) tp18 += ' 装备' + a.equipmentCondition;
+            if (Array.isArray(a.equipment) && a.equipment.length > 0) tp18 += '(' + a.equipment.slice(0,4).map(function(eq){return eq.name+(eq.count?eq.count:'');}).join(',') + ')';
+            if (Array.isArray(a.salary) && a.salary.length > 0) tp18 += ' 年饷:' + a.salary.map(function(s){return (s.amount||0)+(s.unit||'')+(s.resource?'('+s.resource+')':'');}).join('+');
+            tp18 += '\n';
           });
         });
         if (p1 && p1.army_changes && p1.army_changes.length > 0) tp18 += '\u672C\u56DE\u5408\u519B\u4E8B\u53D8\u52A8\uFF1A' + p1.army_changes.map(function(a){return a.name+' \u5175'+a.soldiers_delta;}).join('\uFF1B') + '\n';
@@ -1172,7 +1178,7 @@
         tp18 += '· 敌方势力兵力·玩家不可直接调动·但可通过外交/册封/招抚/挑衅影响其行动\n';
         tp18 += '· 两势力交锋·按双方兵力/士气/装备/补给/训练/统帅能力综合推演·给出具体伤亡与结果\n';
         tp18 += '· 每个非玩家势力本回合应至少 1 条 faction_military_actions 条目（兵力调动/作战/备战/征募等）\n';
-        tp18 += '\n请返回JSON：{"military_situation":"全局军事态势分析(200字)","border_threats":"边境威胁评估(150字)","army_morale_analysis":"各军士气分析和风险(100字)","supplementary_army_changes":[{"name":"部队","faction":"所属","soldiers_delta":0,"morale_delta":0,"reason":""}],"faction_military_actions":[{"faction":"势力名","action":"军事行动30字","targetFaction":"目标势力可空","casualties":0,"outcome":"结果30字","rationale":"动机30字"}],"war_probability":"下回合爆发战争的概率和方向(80字)"}';
+        tp18 += '\n请返回JSON：{"military_situation":"全局军事态势分析(200字)","border_threats":"边境威胁评估(150字)","army_morale_analysis":"各军士气分析和风险(100字)","supplementary_army_changes":[{"name":"部队","faction":"所属","soldiers_delta":0,"morale_delta":0,"composition":[{"type":"兵种名","count":人数}],"equipment":[{"name":"装备名","count":数量}],"equipmentCondition":"装备状况·简陋/一般/优良","quality":"兵质","reason":"兵种/装备/兵质仅在实际变动时填(如扩编火器营/换装红衣大炮/整训提升)·否则省略这几项"}],"faction_military_actions":[{"faction":"势力名","action":"军事行动30字","targetFaction":"目标势力可空","casualties":0,"outcome":"结果30字","rationale":"动机30字"}],"war_probability":"下回合爆发战争的概率和方向(80字)"}';
         tp18 += '\n\u82e5\u672c\u56de\u5408\u660e\u786e\u53d1\u751f\u4e00\u573a\u53ef\u843d\u5730\u6218\u6597/\u5360\u57ce\uff0c\u8fd8\u5fc5\u987b\u8fd4\u56de battleResult:{winnerFactionId,loserFactionId,occupiedCityIds,casualties:{attacker,defender},affectedArmies:[{armyId,side,loss,moraleDelta,loyaltyDelta,state,commanderFate}],attackerArmyId,defenderArmyId,commanderFate:{name,outcome},postBattleEffects[]}.\u82e5\u591a\u573a\u6218\u6597\uff0c\u9009\u6700\u91cd\u5927\u4e00\u573a\u5199 battleResult\uff0c\u5176\u4f59\u7559\u5728 faction_military_actions\u3002';
         var _sc18Body = {model:P.ai.model||"gpt-4o", messages:[{role:"system",content:_maybeCacheSys(sysP)},{role:"user",content:tp18}], temperature:0.7, max_tokens:_tok(12000)};
         if (_modelFamily === 'openai') _sc18Body.response_format = { type: 'json_object' };

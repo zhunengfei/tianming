@@ -623,6 +623,10 @@
           : G.corruption);
         var corrForPerc = typeof corrForPercRaw === 'number' && isFinite(corrForPercRaw) ? corrForPercRaw : 30;
         G.minxin.perceivedIndex = Math.min(100, avgMx + (corrForPerc / 100) * 10);
+        // aggregate 写了 trueIndex(avgMx) → 同步重算段位 phase（否则 phase 缓存滞留·面板段位与民心值脱节，如 98 却显示「揭竿」）
+        if (global.AuthorityEngines && typeof global.AuthorityEngines._getMinxinPhase === 'function') {
+          G.minxin.phase = global.AuthorityEngines._getMinxinPhase(avgMx);
+        }
       }
     }
 
@@ -697,6 +701,32 @@
       }
     });
     if (loadCnt > 0) G.environment.nationalLoad = loadSum / loadCnt;
+
+    // P-UIMX·回合末把各省 minxinDetails.index（UI「天下民情图」热力图读此字段·var-drawers r.index）刷成该省叶子的人口加权 div.minxin。
+    //   治本 adjustMinxin 摊的是叶子 div.minxin、聚合 trueIndex 也读叶子(本函数上方)，但 byRegion 上挂的顶层省 minxinDetails.index
+    //   只在 init/_updateLegacyProxies 当 .index===undefined 时写过一次、之后从不刷新 → 滞留开局值（玩家看到各省四五十、实际已治到八九十）。
+    //   与段位 phase 滞留同病同治：真值变了、UI 读的派生缓存得跟上。flat（省即叶子）与嵌套（省下府县）都走加权 walk；|| 60 与上方 trueIndex 同语义。
+    try {
+      topLevel.forEach(function(prov) {
+        var _num = 0, _den = 0;
+        (function walk(node) {
+          if (!node) return;
+          if (!node.children || node.children.length === 0) {
+            var w = (node.population && node.population.mouths) || (typeof node.population === 'number' ? node.population : 1);
+            _num += (node.minxin || 60) * w; _den += w;
+          } else { node.children.forEach(walk); }
+        })(prov);
+        var _v = _den > 0 ? _num / _den : (prov.minxin || 60);
+        if (!prov.minxinDetails) prov.minxinDetails = {};
+        prov.minxinDetails.index = _v;
+        prov.minxinDetails.trueIndex = _v;
+      });
+    } catch (_uiMxSyncE) {}
+
+    // P-DZ·回合末数值定型后，统一把 minxin/huangwei/huangquan 的 phase 段位 + 皇威 tyrant/失威状态
+    //   重算对齐当前数值（minxin.trueIndex 此处刚由聚合写定、huangwei.index 由 _tickHuangwei 衰减写定）——
+    //   修「数值变了但段位/暴君标记滞留」：面板段位错位 + authority-complete 等按 phase 触发的后果被带偏。
+    try { if (global.AuthorityEngines && typeof global.AuthorityEngines.syncAuthorityPhases === 'function') global.AuthorityEngines.syncAuthorityPhases(); } catch (_syncPhaseE) {}
   }
 
   // ═══════════════════════════════════════════════════════════════════

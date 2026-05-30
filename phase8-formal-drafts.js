@@ -35,9 +35,9 @@
   var collectRecentEvents = bridge._collectRecentEvents;
   var getTurnText = bridge._getTurnText;
   var firstArray = bridge._firstArray;
-  var actionBtn = bridge._actionBtn;
-  var actionChip = bridge._actionChip;
-  var renderActionStats = bridge._renderActionStats;
+  // actionBtn/actionChip/renderActionStats 用本文件内的本地 function 实现 (见下文)·
+  // 不再引 bridge._* shim——该 shim 委托 bridge.drafts.* 而此导出此前缺失·导致全家返回空串·
+  // 遣使送出/准奏/留中等按钮渲染空 (修复 2026-05-29)·本地实现末尾导出到 bridge.drafts 供 records/rightrail/bridge 的 shim 解析
   var compactText = bridge._compactText;
   var getMemorials = bridge._getMemorials;
   var getIssues = bridge._getIssues;
@@ -579,94 +579,126 @@
     var gm = deskGM();
     Array.prototype.forEach.call(document.querySelectorAll('.tm-desk-overlay'), captureDeskOverlayState);
     var letterDraft = state.letterDraft || {};
-    var to = deskValue('[data-desk-letter-to]', (letterDraft.to || gm._pendingLetterTo || '')).trim();
-    if (!to) { toast('请先选择收信人'); return; }
+    var singleTo = deskValue('[data-desk-letter-to]', (letterDraft.to || gm._pendingLetterTo || '')).trim();
     var selfName = (window.P && P.playerInfo && P.playerInfo.characterName) || '';
-    if (selfName && to === selfName) { toast('不能自寄信函'); return; }
+    // 群发·多收件人 (承接旧 _ltMultiMode/_ltMultiTargets)·群发态逐人各发一函·草稿态不群发·剔除自己
+    var multiOn = !draftOnly && !!state.letterMultiMode && Array.isArray(state.letterMultiTargets) && state.letterMultiTargets.length > 0;
+    var toList = (multiOn ? state.letterMultiTargets.slice() : [singleTo]).filter(function(n){ return n && !(selfName && n === selfName); });
+    if (!toList.length) { toast(multiOn ? '群发名单为空（自己已剔除）' : (selfName && singleTo === selfName ? '不能自寄信函' : '请先选择收信人')); return; }
     var body = deskValue('[data-desk-letter-body]', letterDraft.body || '').trim();
     if (!body) { toast('请先写下书信正文'); return; }
     var letterType = deskValue('[data-desk-letter-type]', letterDraft.type || 'personal') || 'personal';
     var urgency = deskValue('[data-desk-letter-urgency]', letterDraft.urgency || 'normal') || 'normal';
     var cipher = deskValue('[data-desk-letter-cipher]', letterDraft.cipher || 'none') || 'none';
     var sendMode = deskValue('[data-desk-letter-sendmode]', letterDraft.sendMode || 'multi_courier') || 'multi_courier';
+    // 信物/令牌校验·承接旧 sendLetter (征调令需虎符·密旨/正诏需玺印)·
+    // 结算引擎按 letterType→needsToken + _tokenUsed 判"无符不从"(tm-hongyan-office.js _settleLettersAndTravel)·
+    // 此前 desk 流程从不写 _tokenUsed → 征调令对忠诚<60 者永远被抗命且玩家无感知 (修复 2026-05-29)
+    var LT_TYPES = window.LETTER_TYPES || {};
+    var LT_TOKENS = window.LETTER_TOKENS || {};
+    var tokenNeeded = (LT_TYPES[letterType] || {}).needsToken;
+    var tokenUsed = '';
+    if (tokenNeeded && typeof tokenNeeded === 'string') {
+      var heldToken = (gm.items || []).some(function(it){ return it && (it.type === tokenNeeded || it.name === ((LT_TOKENS[tokenNeeded] || {}).label)); });
+      if (heldToken) tokenUsed = tokenNeeded;
+      else if (!draftOnly) toast('⚠ 未持有' + ((LT_TOKENS[tokenNeeded] || {}).label || '凭证') + '——对方可能疑诏不从');
+    }
+    // 正式诏令(征调令/正诏等)经中书门下·权臣(忠诚<30 且 野心>70)可阻挠·承接旧 sendLetter·status→blocked·卡片可"绕封锁·改密旨"破局
+    var formalBlocked = false;
+    if (!draftOnly && (LT_TYPES[letterType] || {}).formal && typeof window._ltFindPrimeMinister === 'function') {
+      try {
+        var primeMin = window._ltFindPrimeMinister();
+        if (primeMin && (primeMin.loyalty || 50) < 30 && (primeMin.ambition || 50) > 70) {
+          formalBlocked = true;
+          toast('⚠ ' + (primeMin.name || '权臣') + '阻挠此诏令流转——可改用密旨绕过');
+        }
+      } catch(_) {}
+    }
     var capital = gm._capital || '京城';
-    var ch = (typeof window.findCharByName === 'function') ? window.findCharByName(to) : findPerson(to);
-    var toLoc = (ch && ch.location) || capital;
     var dpv = 30;
     try { if (typeof window._getDaysPerTurn === 'function') dpv = Math.max(1, Number(window._getDaysPerTurn()) || 30); } catch(_) {}
-    var days = 5;
-    try { if (typeof window.calcLetterDays === 'function') days = Math.max(1, Number(window.calcLetterDays(capital, toLoc, urgency)) || 5); } catch(_) {}
-    if (sendMode === 'secret_agent') days = Math.ceil(days * 1.5);
-    var deliveryTurns = Math.max(1, Math.ceil(days / dpv));
-    var replyDays = days * 2 + 3;
-    var replyTurns = Math.max(deliveryTurns + 1, Math.ceil(replyDays / dpv));
     var nowDay = (typeof window.getCurrentGameDay === 'function') ? window.getCurrentGameDay() : (((gm.turn || 1) - 1) * dpv);
     var typeLabel = letterTypeLabelFormal(letterType);
-    var letter = {
-      id: deskId(draftOnly ? 'ltr_draft' : 'ltr'),
-      from: '玩家',
-      to: to,
-      fromLocation: capital,
-      toLocation: toLoc,
-      title: typeLabel + '·' + to,
-      subjectLine: typeLabel,
-      content: body,
-      body: body,
-      sentTurn: gm.turn || 1,
-      deliveryTurn: draftOnly ? null : (gm.turn || 1) + deliveryTurns,
-      replyTurn: draftOnly ? null : (gm.turn || 1) + replyTurns,
-      _sentDay: nowDay,
-      _deliveryDay: draftOnly ? null : nowDay + days,
-      _replyDay: draftOnly ? null : nowDay + replyDays,
-      _travelDays: draftOnly ? 0 : days,
-      reply: '',
-      status: draftOnly ? 'draft' : 'traveling',
-      urgency: urgency,
-      letterType: letterType,
-      _npcInitiated: false,
-      _replyExpected: true,
-      _cipher: cipher,
-      _sendMode: sendMode,
-      _source: 'phase8-desk'
-    };
-    deskArray(gm, 'letters').push(letter);
-    if (!draftOnly && (letterType === 'military_order' || letterType === 'secret_decree' || letterType === 'formal_edict')) {
-      deskArray(gm, '_edictTracker').push({
+    var multiCount = toList.length > 1 ? toList.length : 0;
+    toList.forEach(function(curTo){
+      var ch = (typeof window.findCharByName === 'function') ? window.findCharByName(curTo) : findPerson(curTo);
+      var toLoc = (ch && ch.location) || capital;
+      var days = 5;
+      try { if (typeof window.calcLetterDays === 'function') days = Math.max(1, Number(window.calcLetterDays(capital, toLoc, urgency)) || 5); } catch(_) {}
+      if (sendMode === 'secret_agent') days = Math.ceil(days * 1.5);
+      var deliveryTurns = Math.max(1, Math.ceil(days / dpv));
+      var replyDays = days * 2 + 3;
+      var replyTurns = Math.max(deliveryTurns + 1, Math.ceil(replyDays / dpv));
+      var letter = {
+        id: deskId(draftOnly ? 'ltr_draft' : 'ltr'),
+        from: '玩家',
+        to: curTo,
+        fromLocation: capital,
+        toLocation: toLoc,
+        title: typeLabel + '·' + curTo,
+        subjectLine: typeLabel,
         content: body,
-        category: letterType === 'military_order' ? '军令' : '政令',
-        turn: gm.turn || 1,
-        status: 'pending',
-        source: 'letter',
-        target: to,
-        letterId: letter.id
-      });
-    }
-    if (!draftOnly) {
-      deskArray(gm, 'letters').forEach(function(l){
-        if (l && l._npcInitiated && l.from === to && l._replyExpected && !l._playerReplied) {
-          l._playerReplied = true;
-          l._repliedTurn = gm.turn || 1;
-          l._repliedByDesk = true;
-        }
-      });
-      deskRemember(to, '收到御前鸿雁：' + compactText(body, 50), letterType === 'formal_edict' || letterType === 'military_order' ? '敬' : '平', 5);
-      if (Array.isArray(gm.qijuHistory)) {
-        gm.qijuHistory.unshift({ turn: gm.turn || 1, date: deskDateText(gm.turn || 1), content: '【鸿雁传书】遣' + letterUrgencyLabelFormal(urgency) + '致' + to + '（' + typeLabel + (cipher !== 'none' ? '·' + letterCipherLabelFormal(cipher) : '') + '）。内容：' + body });
+        body: body,
+        sentTurn: gm.turn || 1,
+        deliveryTurn: draftOnly ? null : (gm.turn || 1) + deliveryTurns,
+        replyTurn: draftOnly ? null : (gm.turn || 1) + replyTurns,
+        _sentDay: nowDay,
+        _deliveryDay: draftOnly ? null : nowDay + days,
+        _replyDay: draftOnly ? null : nowDay + replyDays,
+        _travelDays: draftOnly ? 0 : days,
+        reply: '',
+        status: draftOnly ? 'draft' : (formalBlocked ? 'blocked' : 'traveling'),
+        urgency: urgency,
+        letterType: letterType,
+        _npcInitiated: false,
+        _replyExpected: true,
+        _cipher: cipher,
+        _sendMode: sendMode,
+        _tokenUsed: tokenUsed,
+        _multiRecipients: multiCount || undefined,
+        _source: 'phase8-desk'
+      };
+      deskArray(gm, 'letters').push(letter);
+      if (!draftOnly && (letterType === 'military_order' || letterType === 'secret_decree' || letterType === 'formal_edict')) {
+        deskArray(gm, '_edictTracker').push({
+          content: body,
+          category: letterType === 'military_order' ? '军令' : '政令',
+          turn: gm.turn || 1,
+          status: 'pending',
+          source: 'letter',
+          target: curTo,
+          letterId: letter.id
+        });
       }
+      if (!draftOnly) {
+        deskArray(gm, 'letters').forEach(function(l){
+          if (l && l._npcInitiated && l.from === curTo && l._replyExpected && !l._playerReplied) {
+            l._playerReplied = true;
+            l._repliedTurn = gm.turn || 1;
+            l._repliedByDesk = true;
+          }
+        });
+        deskRemember(curTo, '收到御前鸿雁：' + compactText(body, 50), letterType === 'formal_edict' || letterType === 'military_order' ? '敬' : '平', 5);
+      }
+    });
+    var toNames = toList.join('、');
+    if (!draftOnly && Array.isArray(gm.qijuHistory)) {
+      gm.qijuHistory.unshift({ turn: gm.turn || 1, date: deskDateText(gm.turn || 1), content: '【鸿雁传书】遣' + letterUrgencyLabelFormal(urgency) + '致' + toNames + '（' + typeLabel + (cipher !== 'none' ? '·' + letterCipherLabelFormal(cipher) : '') + (multiCount ? '·群发' + multiCount + '函' : '') + '）。内容：' + body });
     }
-    deskRecord('鸿雁', (draftOnly ? '草函' : '遣使') + '致' + to, body, ['鸿雁', typeLabel, letterUrgencyLabelFormal(urgency)]);
-    deskDecision('letter', (draftOnly ? '草拟' : '遣使') + '致' + to + '：' + compactText(body, 80), draftOnly ? '保存为鸿雁草稿' : '进入 GM.letters，由驿递与回信系统结算');
-    gm._pendingLetterTo = to;
+    deskRecord('鸿雁', (draftOnly ? '草函' : '遣使') + '致' + toNames, body, ['鸿雁', typeLabel, letterUrgencyLabelFormal(urgency)]);
+    deskDecision('letter', (draftOnly ? '草拟' : '遣使') + '致' + toNames + '：' + compactText(body, 80), draftOnly ? '保存为鸿雁草稿' : '进入 GM.letters，由驿递与回信系统结算');
+    gm._pendingLetterTo = toList[0];
     state.letterDraft = state.letterDraft || {};
-    state.letterDraft.to = to;
+    state.letterDraft.to = toList[0];
     state.letterDraft.type = letterType;
     state.letterDraft.urgency = urgency;
     state.letterDraft.cipher = cipher;
     state.letterDraft.sendMode = sendMode;
     if (!draftOnly) state.letterDraft.body = '';
+    if (multiOn) { state.letterMultiMode = false; state.letterMultiTargets = []; }
     saveFormalDraftsToGM(false);
     deskRefreshLegacy();
-    toast(draftOnly ? '鸿雁草稿已保存' : '信函已发出，驿递系统会继续结算');
+    toast(multiCount ? ('已群发 ' + multiCount + ' 函') : (draftOnly ? '鸿雁草稿已保存' : '信函已发出，驿递系统会继续结算'));
     openHongyanPreviewPanel();
   }
 
@@ -799,11 +831,34 @@
       deskStageMemorial(data.id || '', data.decision || 'annotated', data.replyid || '');
     } else if (action === 'memorial-edict-desk') {
       deskMemorialToEdict(data.id || '');
+    } else if (action === 'memorial-qiaozhi-desk') {
+      var qzFound = deskFindRawMemorial(data.id || '');
+      var qzTarget = qzFound && qzFound.raw && qzFound.raw._qiaozhiTarget;
+      if (qzTarget && typeof window.openQiaozhiPanel === 'function') {
+        closeDeskOverlay();
+        window.openQiaozhiPanel(qzTarget);
+      } else {
+        toast('未找到可侨置的失地记录');
+      }
     } else if (action === 'memorial-summon-desk') {
       closeDeskOverlay();
       openModule('wendui');
     } else if (action === 'letter-target-desk') {
-      deskTargetLetter(data.name || data.id || '');
+      var ltName = data.name || data.id || '';
+      if (state.letterMultiMode) {
+        // 群发态·点名册切换选中 (不切换单 target)
+        if (!Array.isArray(state.letterMultiTargets)) state.letterMultiTargets = [];
+        var mi = state.letterMultiTargets.indexOf(ltName);
+        if (mi >= 0) state.letterMultiTargets.splice(mi, 1);
+        else if (ltName) state.letterMultiTargets.push(ltName);
+        openHongyanPreviewPanel();
+      } else {
+        deskTargetLetter(ltName);
+      }
+    } else if (action === 'letter-multi-toggle-desk') {
+      state.letterMultiMode = !state.letterMultiMode;
+      state.letterMultiTargets = state.letterMultiMode && Array.isArray(state.letterMultiTargets) ? state.letterMultiTargets : [];
+      openHongyanPreviewPanel();
     } else if (action === 'letter-filter-desk') {
       state.letterFilter = data.filter || 'all';
       saveFormalDraftsToGM(false);
@@ -842,6 +897,8 @@
         state.edictDrafts = state.edictDrafts || {};
         state.edictDrafts.private = (state.edictDrafts.private ? state.edictDrafts.private + '\n\n' : '') + '摘录鸿雁通信，着密察其情。';
         toast('已摘入密旨草诏');
+      } else if (data.letterAction === 'bypass' && rawLetter && typeof window._ltBypassBlock === 'function') {
+        window._ltBypassBlock(rawLetter.id);
       } else {
         toast('已记录鸿雁动作：' + (data.letterAction || '核实'));
       }
@@ -956,7 +1013,7 @@
       'body.tm-phase8-formal .tm-bridge-panel{position:absolute;box-sizing:border-box;}',
       'body.tm-phase8-formal .tm-action-panel{left:58px;top:74px;width:min(1080px,calc(100vw - 132px));height:min(720px,calc(100vh - 118px));overflow:visible;transform:translateX(-12px);transition:transform .18s ease,opacity .18s ease;opacity:.98;}',
       'body.tm-phase8-formal .tm-bridge-overlay.show .tm-action-panel{transform:translateX(0);}',
-      'body.tm-phase8-formal .tm-action-panel.edict-shell{left:50%;top:58px;width:min(1360px,calc(100vw - 72px));height:min(840px,calc(100vh - 86px));transform:translate(-50%,10px);}',
+      'body.tm-phase8-formal .tm-action-panel.edict-shell{left:50%;top:54px;width:calc(100vw - 130px);height:calc(100vh - 104px);transform:translate(-50%,10px);}',
       'body.tm-phase8-formal .tm-bridge-overlay.show .tm-action-panel.edict-shell{transform:translate(-50%,0);}',
       'body.tm-phase8-formal .tm-action-panel.memorial-shell{left:40px;right:40px;top:64px;width:auto;height:min(820px,calc(100vh - 94px));transform:none;}',
       'body.tm-phase8-formal .tm-bridge-overlay.show .tm-action-panel.memorial-shell{transform:none;}',
@@ -1056,21 +1113,27 @@
       'body.tm-phase8-formal .hy-search-v5{margin-bottom:10px;} body.tm-phase8-formal .hy-roster-scroll-v5{min-height:0;overflow:auto;padding-right:4px;scrollbar-color:rgba(126,184,167,.44) rgba(0,0,0,.22);} body.tm-phase8-formal .hy-region-group-v5{margin-bottom:9px;}',
       'body.tm-phase8-formal .hy-person-v5{width:100%;display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:9px;align-items:center;min-height:64px;margin-bottom:7px;padding:7px 8px;border:1px solid rgba(126,184,167,.18);color:#eadfbd;background:rgba(255,245,210,.035);cursor:pointer;text-align:left;font-family:inherit;}',
       'body.tm-phase8-formal .hy-person-v5.active{border-color:rgba(239,201,116,.52);background:linear-gradient(90deg,rgba(58,104,86,.46),rgba(255,245,210,.055));box-shadow:inset 3px 0 0 rgba(126,184,167,.82);} body.tm-phase8-formal .hy-person-v5:hover{border-color:rgba(126,184,167,.38);background:rgba(126,184,167,.075);}',
+      // 群发·多选 (A·2026-05-29)
+      'body.tm-phase8-formal .hy-multi-bar-v5{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;} body.tm-phase8-formal .hy-multi-toggle-v5{letter-spacing:.06em;}',
+      'body.tm-phase8-formal .hy-multi-hint-v5{flex:1;min-width:96px;font-size:10px;line-height:1.45;color:rgba(232,220,187,.52);}',
+      'body.tm-phase8-formal .hy-person-v5.multi-sel{border-color:rgba(239,201,116,.62);background:linear-gradient(90deg,rgba(120,90,30,.40),rgba(255,245,210,.05));box-shadow:inset 3px 0 0 rgba(239,201,116,.9);}',
+      'body.tm-phase8-formal .hy-person-counts-v5 em.msel{font-style:normal;font-size:15px;line-height:1;color:rgba(232,220,187,.40);} body.tm-phase8-formal .hy-person-counts-v5 em.msel.on{color:#f2d98d;}',
+      'body.tm-phase8-formal .hy-multi-banner-v5{margin:0 0 10px;padding:8px 10px;border:1px solid rgba(239,201,116,.35);background:rgba(120,90,30,.18);color:#eadfbd;font-size:12px;line-height:1.5;} body.tm-phase8-formal .hy-multi-banner-v5 b{color:#f2d98d;margin-right:4px;} body.tm-phase8-formal .hy-multi-banner-v5 small{display:block;margin-top:3px;font-size:10.5px;color:rgba(232,220,187,.55);}',
       'body.tm-phase8-formal .hy-face-v5{width:46px;height:54px;object-fit:cover;border:1px solid rgba(126,184,167,.32);background:rgba(0,0,0,.28);box-shadow:0 5px 12px rgba(0,0,0,.24);} body.tm-phase8-formal .hy-person-main-v5{min-width:0;} body.tm-phase8-formal .hy-person-main-v5 b{display:block;color:#f0d892;font-size:13px;white-space:normal;overflow:visible;text-overflow:clip;line-height:1.35;} body.tm-phase8-formal .hy-person-main-v5 span,body.tm-phase8-formal .hy-person-main-v5 i{display:block;margin-top:3px;color:rgba(232,220,187,.58);font-size:10.5px;white-space:normal;overflow:visible;text-overflow:clip;font-style:normal;line-height:1.35;}',
       'body.tm-phase8-formal .hy-person-counts-v5{display:flex;flex-direction:column;gap:4px;align-items:flex-end;} body.tm-phase8-formal .hy-person-counts-v5 em{min-width:20px;height:18px;display:grid;place-items:center;border:1px solid rgba(126,184,167,.24);border-radius:999px;color:#d9eddf;background:rgba(0,0,0,.18);font-size:10px;font-style:normal;} body.tm-phase8-formal .hy-person-counts-v5 em.hot{border-color:rgba(213,92,64,.38);color:#f0a082;background:rgba(126,31,24,.18);} body.tm-phase8-formal .hy-person-counts-v5 em.on{border-color:rgba(239,201,116,.42);color:#f5db96;}',
       'body.tm-phase8-formal .hy-letter-desk-v5{min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr);gap:12px;overflow:hidden;}',
       'body.tm-phase8-formal .hy-compose-card-v5{padding:13px 14px;} body.tm-phase8-formal .hy-compose-card-v5>header{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:11px;align-items:center;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid rgba(126,184,167,.16);} body.tm-phase8-formal .hy-compose-card-v5>header img{width:60px;height:66px;object-fit:cover;border:1px solid rgba(126,184,167,.34);background:rgba(0,0,0,.25);} body.tm-phase8-formal .hy-compose-card-v5>header b{display:block;color:#f0d892;font-size:18px;} body.tm-phase8-formal .hy-compose-card-v5>header em{display:block;margin-top:4px;color:rgba(232,220,187,.60);font-size:11px;font-style:normal;}',
       'body.tm-phase8-formal .hy-route-v5{margin-bottom:10px;padding:7px 9px;border:1px solid rgba(198,139,69,.24);color:#eadbb4;background:linear-gradient(90deg,rgba(95,44,27,.34),rgba(0,0,0,.10));font-size:11.5px;line-height:1.45;}',
-      'body.tm-phase8-formal .hy-compose-grid-v5{display:grid;grid-template-columns:1.1fr repeat(4,minmax(96px,.7fr));gap:8px;margin-bottom:8px;} body.tm-phase8-formal .hy-compose-grid-v5 label span{display:block;margin-bottom:4px;color:rgba(224,211,171,.58);font-size:10.5px;} body.tm-phase8-formal .hy-compose-paper-v5{min-height:104px;max-height:180px;resize:vertical;} body.tm-phase8-formal .hy-compose-actions-v5{display:flex;flex-wrap:wrap;gap:7px;align-items:center;}',
+      'body.tm-phase8-formal .hy-compose-grid-v5{display:grid;grid-template-columns:1.1fr repeat(4,minmax(96px,.7fr));gap:8px;margin-bottom:8px;} body.tm-phase8-formal .hy-compose-grid-v5 label span{display:block;margin-bottom:4px;color:rgba(232,220,187,.80);font-size:12px;letter-spacing:.05em;} body.tm-phase8-formal .hy-compose-paper-v5{min-height:104px;max-height:180px;resize:vertical;} body.tm-phase8-formal .hy-compose-actions-v5{display:flex;flex-wrap:wrap;gap:7px;align-items:center;}',
       'body.tm-phase8-formal .hy-thread-card-v5{display:grid;grid-template-rows:auto minmax(0,1fr);overflow:hidden;} body.tm-phase8-formal .hy-thread-card-v5>header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid rgba(126,184,167,.16);background:rgba(0,0,0,.12);} body.tm-phase8-formal .hy-thread-card-v5>header b{display:block;color:#f0d892;font-size:16px;} body.tm-phase8-formal .hy-thread-card-v5>header em{display:block;margin-top:3px;color:rgba(232,220,187,.56);font-size:11px;font-style:normal;} body.tm-phase8-formal .hy-thread-scroll-v5{min-height:0;overflow:auto;padding:13px 14px 16px;scrollbar-color:rgba(126,184,167,.44) rgba(0,0,0,.22);}',
       'body.tm-phase8-formal .hy-filterbar-v5{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;} body.tm-phase8-formal .hy-filterbar-v5 button{min-height:26px;padding:3px 9px;border:1px solid rgba(126,184,167,.18);color:#d9eddf;background:rgba(255,245,210,.035);font-family:inherit;font-size:11px;cursor:pointer;} body.tm-phase8-formal .hy-filterbar-v5 button.active{border-color:rgba(126,184,167,.46);background:linear-gradient(180deg,rgba(58,104,86,.44),rgba(13,24,22,.66));}',
       'body.tm-phase8-formal .hy-letter-card-v5{position:relative;display:grid;grid-template-columns:42px minmax(0,1fr);gap:10px;margin-bottom:10px;padding:11px;border:1px solid rgba(126,184,167,.16);background:linear-gradient(180deg,rgba(255,245,210,.052),rgba(0,0,0,.12)),rgba(15,18,16,.74);box-shadow:0 8px 18px rgba(0,0,0,.20);} body.tm-phase8-formal .hy-letter-card-v5.out{margin-left:42px;border-right:2px solid rgba(126,184,167,.58);} body.tm-phase8-formal .hy-letter-card-v5.in{margin-right:42px;border-left:2px solid rgba(213,92,64,.48);} body.tm-phase8-formal .hy-letter-card-v5.lost,body.tm-phase8-formal .hy-letter-card-v5.intercepted{border-color:rgba(213,92,64,.38);background:rgba(126,31,24,.14);} body.tm-phase8-formal .hy-letter-card-v5.transit{border-color:rgba(126,184,167,.30);background:rgba(69,120,100,.10);}',
       'body.tm-phase8-formal .hy-letter-stamp-v5{width:38px;height:38px;display:grid;place-items:center;border:1px solid rgba(126,184,167,.32);border-radius:50%;color:#dff2e1;background:radial-gradient(circle,rgba(126,184,167,.22),rgba(13,24,22,.94));font-size:16px;} body.tm-phase8-formal .hy-letter-main-v5{min-width:0;} body.tm-phase8-formal .hy-letter-main-v5 header{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr) auto;gap:8px;align-items:start;} body.tm-phase8-formal .hy-letter-main-v5 header b{color:#f0d892;font-size:13px;} body.tm-phase8-formal .hy-letter-main-v5 header span{color:rgba(232,220,187,.62);font-size:11px;white-space:normal;overflow:visible;text-overflow:clip;line-height:1.35;} body.tm-phase8-formal .hy-letter-main-v5 header em{color:#a8dcc5;font-size:11px;font-style:normal;}',
-      'body.tm-phase8-formal .hy-letter-meta-v5{display:flex;flex-wrap:wrap;gap:5px;margin:7px 0;} body.tm-phase8-formal .hy-letter-meta-v5 span{display:inline-flex;align-items:center;min-height:18px;padding:1px 6px;border:1px solid rgba(126,184,167,.16);color:rgba(224,237,222,.72);background:rgba(255,245,210,.035);font-size:10px;} body.tm-phase8-formal .hy-fulltext-v5{display:block;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;max-width:100%;} body.tm-phase8-formal .hy-letter-body-v5{white-space:pre-wrap;overflow:visible;color:rgba(242,231,202,.86);font-size:13px;line-height:1.75;padding:9px 10px;border-top:1px solid rgba(126,184,167,.12);border-bottom:1px solid rgba(126,184,167,.10);background:rgba(0,0,0,.10);} body.tm-phase8-formal .hy-letter-reply-v5{margin-top:8px;padding:9px 10px;border:1px solid rgba(201,160,69,.18);background:rgba(201,160,69,.07);} body.tm-phase8-formal .hy-letter-reply-v5 b{display:block;color:#f0d892;font-size:12px;} body.tm-phase8-formal .hy-letter-reply-v5 p{white-space:pre-wrap;margin:5px 0 0;color:rgba(242,231,202,.82);font-size:12.5px;line-height:1.65;}',
-      'body.tm-phase8-formal .hy-actions-v5{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px;} body.tm-phase8-formal .hy-letter-empty-v5{padding:18px;border:1px dashed rgba(126,184,167,.24);color:rgba(232,220,187,.68);background:rgba(0,0,0,.12);} body.tm-phase8-formal .hy-letter-empty-v5 b{display:block;color:#f0d892;font-size:14px;} body.tm-phase8-formal .hy-letter-empty-v5 p{margin:7px 0 0;font-size:12.5px;line-height:1.7;}',
+      'body.tm-phase8-formal .hy-letter-meta-v5{display:flex;flex-wrap:wrap;gap:5px;margin:7px 0;} body.tm-phase8-formal .hy-letter-meta-v5 span{display:inline-flex;align-items:center;min-height:18px;padding:1px 6px;border:1px solid rgba(126,184,167,.16);color:rgba(224,237,222,.72);background:rgba(255,245,210,.035);font-size:10px;} body.tm-phase8-formal .hy-fulltext-v5{display:block;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;max-width:100%;} body.tm-phase8-formal .hy-letter-body-v5{white-space:pre-wrap;overflow:visible;color:rgba(242,231,202,.93);font-size:13px;line-height:1.8;padding:9px 10px;border-top:1px solid rgba(126,184,167,.12);border-bottom:1px solid rgba(126,184,167,.10);background:rgba(0,0,0,.10);} body.tm-phase8-formal .hy-letter-reply-v5{margin-top:8px;padding:9px 10px;border:1px solid rgba(201,160,69,.18);background:rgba(201,160,69,.07);} body.tm-phase8-formal .hy-letter-reply-v5 b{display:block;color:#f0d892;font-size:12px;} body.tm-phase8-formal .hy-letter-reply-v5 p{white-space:pre-wrap;margin:5px 0 0;color:rgba(242,231,202,.82);font-size:12.5px;line-height:1.65;}',
+      'body.tm-phase8-formal .hy-actions-v5{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px;} body.tm-phase8-formal .hy-letter-empty-v5{padding:20px 18px;border:1px dashed rgba(126,184,167,.36);color:rgba(232,220,187,.78);background:rgba(0,0,0,.12);text-align:center;} body.tm-phase8-formal .hy-letter-empty-v5 b{display:block;color:#f4dc97;font-size:15px;letter-spacing:.06em;} body.tm-phase8-formal .hy-letter-empty-v5 p{margin:7px 0 0;font-size:12.5px;line-height:1.7;}',
       'body.tm-phase8-formal .hy-inbox-pane-v5{display:grid;grid-template-rows:auto auto minmax(0,1fr);padding:12px;overflow:hidden;} body.tm-phase8-formal .hy-inbox-summary-v5{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px;} body.tm-phase8-formal .hy-inbox-summary-v5 span{padding:7px 8px;border:1px solid rgba(126,184,167,.14);color:rgba(232,220,187,.62);background:rgba(0,0,0,.14);font-size:11px;} body.tm-phase8-formal .hy-inbox-summary-v5 b{color:#f0d892;font-size:14px;} body.tm-phase8-formal .hy-inbox-scroll-v5{min-height:0;overflow:auto;padding-right:4px;scrollbar-color:rgba(126,184,167,.44) rgba(0,0,0,.22);}',
       'body.tm-phase8-formal .hy-inbox-item-v5{margin-bottom:10px;padding:9px;border:1px solid rgba(126,184,167,.16);background:linear-gradient(180deg,rgba(255,245,210,.050),rgba(0,0,0,.12)),rgba(10,14,13,.68);} body.tm-phase8-formal .hy-inbox-item-v5.unread{border-color:rgba(213,92,64,.32);box-shadow:inset 3px 0 0 rgba(213,92,64,.58);} body.tm-phase8-formal .hy-inbox-open-v5{width:100%;display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:8px;align-items:start;border:0;background:transparent;color:#eadfbd;text-align:left;font-family:inherit;cursor:pointer;padding:0;} body.tm-phase8-formal .hy-inbox-seal-v5{width:32px;height:32px;display:grid;place-items:center;border:1px solid rgba(126,184,167,.30);border-radius:50%;color:#dff2e1;background:radial-gradient(circle,rgba(126,184,167,.22),rgba(13,24,22,.94));} body.tm-phase8-formal .hy-inbox-open-v5 b{display:block;color:#f0d892;font-size:12.5px;white-space:normal;overflow:visible;text-overflow:clip;line-height:1.35;} body.tm-phase8-formal .hy-inbox-open-v5 em{display:block;margin-top:3px;color:rgba(232,220,187,.58);font-size:10.5px;font-style:normal;white-space:normal;overflow:visible;text-overflow:clip;line-height:1.35;} body.tm-phase8-formal .hy-inbox-open-v5 i{padding:2px 6px;border:1px solid rgba(126,184,167,.18);border-radius:999px;color:#a8dcc5;font-size:10px;font-style:normal;background:rgba(0,0,0,.16);}',
-      'body.tm-phase8-formal .hy-inbox-meta-v5{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0 6px;} body.tm-phase8-formal .hy-inbox-meta-v5 span{padding:1px 6px;border:1px solid rgba(126,184,167,.14);color:rgba(224,237,222,.68);background:rgba(255,245,210,.035);font-size:10px;} body.tm-phase8-formal .hy-inbox-body-v5{white-space:pre-wrap;color:rgba(242,231,202,.80);font-size:12px;line-height:1.62;padding:7px 8px;border-top:1px solid rgba(126,184,167,.10);border-bottom:1px solid rgba(126,184,167,.08);background:rgba(0,0,0,.10);}',
+      'body.tm-phase8-formal .hy-inbox-meta-v5{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0 6px;} body.tm-phase8-formal .hy-inbox-meta-v5 span{padding:1px 6px;border:1px solid rgba(126,184,167,.14);color:rgba(224,237,222,.68);background:rgba(255,245,210,.035);font-size:10px;} body.tm-phase8-formal .hy-inbox-body-v5{white-space:pre-wrap;color:rgba(242,231,202,.90);font-size:12px;line-height:1.7;padding:7px 8px;border-top:1px solid rgba(126,184,167,.10);border-bottom:1px solid rgba(126,184,167,.08);background:rgba(0,0,0,.10);}',
       'body.tm-phase8-formal .records-cabinet-v4{display:grid;grid-template-columns:118px minmax(0,1fr);padding:16px;border:1px solid rgba(214,177,88,.36);background:radial-gradient(ellipse at 18% 0,rgba(214,177,88,.10),transparent 40%),linear-gradient(180deg,rgba(42,30,20,.98),rgba(11,9,7,.96));}',
       'body.tm-phase8-formal .records-spine-v4{padding:12px 8px;border-right:1px solid rgba(214,177,88,.22);} body.tm-phase8-formal .records-tab-v4{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:center;min-height:82px;margin-bottom:8px;padding:8px 7px;writing-mode:vertical-rl;text-align:center;background:linear-gradient(180deg,rgba(88,55,24,.72),rgba(18,12,8,.72));}',
       'body.tm-phase8-formal .records-tab-v4 em{color:rgba(224,211,171,.48);font-style:normal;font-size:10px;} body.tm-phase8-formal .records-toolbar-v4{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-bottom:12px;} body.tm-phase8-formal .records-grid-v4,body.tm-phase8-formal .bn-active-grid-v4{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;} body.tm-phase8-formal .records-section-v4{margin-bottom:14px;}',
@@ -1109,7 +1172,13 @@
 
   function actionBtn(label, action, data, cls){
     data = data || {};
-    var attrs = Object.keys(data).map(function(k){ return ' data-' + attr(k) + '="' + attr(data[k]) + '"'; }).join('');
+    var attrs = Object.keys(data).map(function(k){
+      // camelCase key → kebab data 属性·使 el.dataset 读回同名驼峰 (letterAction→data-letter-action→dataset.letterAction)·
+      // 否则 HTML 会把 data-letterAction 小写成 data-letteraction → dataset.letterAction 为 undefined·
+      // handleDeskAction 的 data.letterAction 判定全落空·往来信札动作(追回/重发/核实/回书/摘入/星标/绕封锁)点了不执行 (修复 2026-05-29)
+      var kebab = k.replace(/[A-Z]/g, function(m){ return '-' + m.toLowerCase(); });
+      return ' data-' + attr(kebab) + '="' + attr(data[k]) + '"';
+    }).join('');
     return '<button type="button" class="' + attr(cls || 'tm-mini-btn') + '" data-desk-action="' + attr(action) + '"' + attrs + '>' + esc(label) + '</button>';
   }
 
@@ -1472,108 +1541,314 @@
     }, 0);
   }
 
+  function installEdictYuanStyles(){
+    var st = document.getElementById('tm-edict-yuan-style');
+    if (!st) { st = document.createElement('style'); st.id = 'tm-edict-yuan-style'; document.head.appendChild(st); }
+    st.textContent = ''
++ '.ed-yuan{--silk-hi:#fffdf3;--silk:#f6efda;--silk-lo:#ece1c6;--silk-edge:#dcc99c;--silk-shadow:rgba(120,90,36,0.1);--ink:#241d15;--ink-soft:#574733;--ink-faint:#9c8b6b;--gold-hi:#d8b96a;--gold:#a8833a;--gold-d:#7d5e22;--cinnabar:#a83228;--cinnabar-hi:#c64a3e;--cinnabar-d:#7a2018;--wood-1:#6b4a28;--wood-edge:#2a1b0c;--knob:#241810;--jade:#557f6f;--jade-hi:#6fa291;--font:"STKaiti","KaiTi","楷体","Noto Serif SC","Source Han Serif CN","STSong",serif;'
++ 'position:relative;height:100%;box-sizing:border-box;display:flex;flex-direction:column;padding:24px 26px;overflow:hidden;color:var(--ink);font-family:var(--font);border-radius:7px;'
++ 'background:radial-gradient(46% 34% at 50% -4%,rgba(255,238,196,0.5),transparent 70%),radial-gradient(60% 50% at 20% 26%,rgba(120,100,70,0.13),transparent 60%),radial-gradient(52% 60% at 84% 74%,rgba(80,60,40,0.16),transparent 55%),radial-gradient(120% 120% at 50% 28%,#dccca6,#c6b083 54%,#a78f68 100%);}'
++ '.ed-yuan *{box-sizing:border-box;}'
++ '.ed-yuan::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;opacity:0.6;background:radial-gradient(60% 42% at 50% 0%,rgba(255,236,188,0.34),transparent 66%),radial-gradient(150% 120% at 50% 42%,transparent 54%,rgba(58,42,22,0.5) 100%),repeating-linear-gradient(91deg,rgba(92,68,40,0.05) 0 2px,transparent 2px 7px);}'
++ '.ed-yuan .scroll-wrap{position:relative;z-index:1;flex:1;min-height:0;display:flex;align-items:stretch;justify-content:center;}'
++ '.ed-yuan .roller-v{flex:0 0 30px;align-self:stretch;position:relative;border-radius:16px;z-index:3;background:linear-gradient(90deg,rgba(255,240,200,0) 38%,rgba(255,240,200,0.22) 47%,rgba(255,240,200,0) 56%),url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'44\' height=\'260\'%3E%3Cfilter id=\'wd\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.6 0.015\' numOctaves=\'3\' seed=\'4\' stitchTiles=\'stitch\'/%3E%3CfeColorMatrix type=\'saturate\' values=\'0\'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type=\'linear\' slope=\'0.4\'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23wd)\'/%3E%3C/svg%3E"),linear-gradient(90deg,var(--wood-edge) 0%,var(--wood-1) 26%,#8c6234 48%,var(--wood-1) 70%,var(--wood-edge) 100%),repeating-linear-gradient(90deg,rgba(0,0,0,0.14) 0 1px,transparent 1px 6px);background-size:auto,44px 260px,auto,auto;background-blend-mode:screen,multiply,normal,normal;box-shadow:inset 2px 0 1px rgba(255,225,165,0.2),inset -3px 0 6px rgba(0,0,0,0.45),0 12px 28px rgba(50,32,14,0.45);animation:edy-rollerSettle .5s cubic-bezier(.2,.7,.3,1) both;}'
++ '.ed-yuan .roller-v::before,.ed-yuan .roller-v::after{content:"";position:absolute;left:-5px;right:-5px;height:28px;border-radius:9px;z-index:1;background:radial-gradient(ellipse at 40% 32%,#4a3826,var(--knob) 55%,#0f0a05 100%);box-shadow:0 4px 12px rgba(0,0,0,0.55),inset 0 2px 0 rgba(190,150,95,0.4),inset 0 -3px 4px rgba(0,0,0,0.5);}'
++ '.ed-yuan .roller-v::before{top:-16px;}.ed-yuan .roller-v::after{bottom:-16px;}'
++ '.ed-yuan .silk{flex:1;min-height:0;position:relative;z-index:1;display:flex;flex-direction:column;margin:0 -4px;background:radial-gradient(80% 26% at 50% 0%,rgba(255,255,255,0.62),transparent 62%),radial-gradient(40% 52% at 17% 28%,rgba(198,162,98,0.10),transparent 70%),radial-gradient(46% 56% at 84% 74%,rgba(150,116,60,0.11),transparent 72%),linear-gradient(90deg,transparent calc(33.3% - 1.2px),rgba(110,82,38,0.08) calc(33.3% - 0.4px),rgba(255,252,240,0.5) calc(33.3% + 0.4px),transparent calc(33.3% + 1.2px)),linear-gradient(90deg,transparent calc(66.6% - 1.2px),rgba(110,82,38,0.08) calc(66.6% - 0.4px),rgba(255,252,240,0.5) calc(66.6% + 0.4px),transparent calc(66.6% + 1.2px)),linear-gradient(180deg,var(--silk-hi),var(--silk) 36%,var(--silk-lo) 100%);border-left:1px solid var(--silk-edge);border-right:1px solid var(--silk-edge);box-shadow:0 18px 48px rgba(50,32,14,0.34),inset 0 1px 0 rgba(255,255,255,0.55),inset 6px 0 16px -8px rgba(70,48,20,0.4),inset -6px 0 16px -8px rgba(70,48,20,0.4),inset 0 0 120px var(--silk-shadow);padding:16px 30px 16px;transform-origin:center;animation:edy-unroll .62s cubic-bezier(.2,.72,.28,1) both;overflow:hidden;}'
++ '.ed-yuan .silk::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:0.5;mix-blend-mode:multiply;background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'240\' height=\'240\'%3E%3Cfilter id=\'fib\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.012 0.55\' numOctaves=\'3\' seed=\'7\' stitchTiles=\'stitch\'/%3E%3CfeColorMatrix type=\'saturate\' values=\'0\'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type=\'linear\' slope=\'0.55\'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23fib)\'/%3E%3C/svg%3E"),repeating-linear-gradient(0deg,rgba(120,90,40,0.045) 0 1px,transparent 1px 4px);background-size:240px 240px,auto;}'
++ '.ed-yuan .silk::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;opacity:0.5;background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'96\' height=\'96\'%3E%3Cg fill=\'%23b8923f\'%3E%3Ccircle cx=\'12\' cy=\'18\' r=\'1.4\' fill-opacity=\'0.5\'/%3E%3Ccircle cx=\'46\' cy=\'9\' r=\'1\' fill-opacity=\'0.4\'/%3E%3Ccircle cx=\'73\' cy=\'26\' r=\'1.7\' fill-opacity=\'0.45\'/%3E%3Ccircle cx=\'60\' cy=\'54\' r=\'1.3\' fill-opacity=\'0.5\'/%3E%3Ccircle cx=\'17\' cy=\'75\' r=\'1.5\' fill-opacity=\'0.45\'/%3E%3Ccircle cx=\'84\' cy=\'69\' r=\'1\' fill-opacity=\'0.4\'/%3E%3C/g%3E%3C/svg%3E");background-size:96px 96px;animation:edy-fleck 9s ease-in-out infinite alternate;}'
++ '.ed-yuan .silk>*{position:relative;z-index:1;}'
++ '.ed-yuan .silk-head{flex:0 0 auto;position:relative;display:flex;align-items:center;min-height:44px;padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid rgba(168,131,58,0.4);animation:edy-headDrop .55s ease .3s both;}'
++ '.ed-yuan .silk-head::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent,rgba(216,185,106,0.7) 22%,rgba(216,185,106,0.7) 78%,transparent);}'
++ '.ed-yuan .head-center{position:absolute;left:50%;top:0;transform:translateX(-50%);text-align:center;pointer-events:none;}'
++ '.ed-yuan .head-center::before{content:"";position:absolute;left:50%;top:50%;width:88px;height:88px;transform:translate(-50%,-54%);pointer-events:none;z-index:0;opacity:0.5;background:no-repeat center/contain;background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Cg fill=\'none\' stroke=\'%23a8833a\'%3E%3Ccircle cx=\'50\' cy=\'50\' r=\'44\' stroke-width=\'1.4\' stroke-opacity=\'0.5\'/%3E%3Ccircle cx=\'50\' cy=\'50\' r=\'37\' stroke-width=\'2.6\' stroke-opacity=\'0.34\'/%3E%3Ccircle cx=\'50\' cy=\'50\' r=\'30\' stroke-width=\'1\' stroke-opacity=\'0.4\' stroke-dasharray=\'2 4\'/%3E%3C/g%3E%3C/svg%3E");}'
++ '.ed-yuan .head-center .hc-main{position:relative;z-index:1;font-size:25px;font-weight:bold;color:var(--ink);letter-spacing:0.18em;line-height:1.05;text-shadow:0 1px 0 rgba(255,255,255,0.7),0 -1px 0 rgba(120,90,36,0.3),0 2px 4px rgba(120,90,36,0.28),0 0 16px rgba(216,185,106,0.26);}'
++ '.ed-yuan .head-center .hc-main .hc-sep{display:inline-block;width:0.9em;}'
++ '.ed-yuan .head-center .hc-main::before,.ed-yuan .head-center .hc-main::after{content:"";display:inline-block;width:22px;height:1px;vertical-align:0.34em;margin:0 13px;background:linear-gradient(90deg,transparent,var(--gold));}'
++ '.ed-yuan .head-center .hc-main::after{background:linear-gradient(90deg,var(--gold),transparent);}'
++ '.ed-yuan .head-center .hc-sub{font-size:12px;color:var(--ink-faint);letter-spacing:0.32em;margin-top:3px;}'
++ '.ed-yuan .tab-switch{position:relative;z-index:2;display:inline-flex;border:1px solid var(--gold-d);border-radius:6px;overflow:hidden;background:rgba(255,253,243,0.6);box-shadow:0 1px 4px rgba(80,56,24,0.12);}'
++ '.ed-yuan .ed-tab{font-family:var(--font);font-size:13px;letter-spacing:0.1em;color:var(--ink-soft);cursor:pointer;padding:7px 15px;transition:all .15s;border:0;background:transparent;}'
++ '.ed-yuan .ed-tab.active{color:#fff;background:linear-gradient(160deg,var(--cinnabar),var(--cinnabar-d));}'
++ '.ed-yuan .ed-tab:not(.active):hover{color:var(--ink);background:rgba(168,131,58,0.12);}'
++ '.ed-yuan .head-right{position:relative;z-index:2;margin-left:auto;}'
++ '.ed-yuan .link-btn{font-family:var(--font);font-size:12.5px;letter-spacing:0.06em;cursor:pointer;padding:7px 13px;border-radius:5px;border:1px solid var(--gold-d);background:#fbf4e2;color:var(--gold-d);transition:all .15s;display:inline-flex;align-items:center;gap:6px;box-shadow:0 1px 3px rgba(80,56,24,0.12);}'
++ '.ed-yuan .link-btn:hover{background:#fff;border-color:var(--gold);color:var(--ink);}'
++ '.ed-yuan .silk-body{flex:1;min-height:0;display:flex;gap:18px;}'
++ '.ed-yuan .col-sug{flex:0 0 226px;min-height:0;position:relative;display:flex;flex-direction:column;border:1px solid rgba(168,131,58,0.35);border-radius:5px;background:rgba(255,253,243,0.45);padding:11px 12px 12px;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,0.5),0 2px 10px rgba(80,56,24,0.07);animation:edy-colInL .55s cubic-bezier(.2,.7,.3,1) .44s both;}'
++ '.ed-yuan[data-tab="xinglu"] .col-sug{display:none;}'
++ '.ed-yuan .col-sug-t{flex:0 0 auto;position:relative;z-index:1;font-size:15px;color:var(--cinnabar-d);letter-spacing:0.18em;font-weight:bold;margin-bottom:9px;}'
++ '.ed-yuan .col-sug-t small{font-size:11px;color:var(--ink-faint);letter-spacing:0.04em;font-weight:normal;margin-left:6px;}'
++ '.ed-yuan .sug-list{flex:1;min-height:0;overflow-y:auto;position:relative;z-index:1;scrollbar-width:none;-ms-overflow-style:none;padding-right:2px;}'
++ '.ed-yuan .sug-list::-webkit-scrollbar{width:0;height:0;display:none;}'
++ '.ed-yuan .col-sug::after{content:"";position:absolute;left:1px;right:1px;bottom:1px;height:24px;pointer-events:none;z-index:2;border-radius:0 0 5px 5px;background:linear-gradient(180deg,rgba(255,253,243,0) 0%,rgba(250,243,224,0.92) 78%);}'
++ '.ed-yuan .edict-sug-v2{position:relative;display:grid;grid-template-columns:46px minmax(0,1fr);gap:11px;margin-bottom:9px;padding:10px 11px 10px 12px;border:1px solid rgba(168,131,58,0.24);border-radius:5px;color:var(--ink);background:linear-gradient(165deg,#fffefa,#fbf4e1);box-shadow:0 1px 2px rgba(80,56,24,0.07);transition:transform .18s,box-shadow .18s,border-color .18s;}'
++ '.ed-yuan .edict-sug-v2::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:5px 0 0 5px;opacity:0.7;background:linear-gradient(180deg,var(--jade-hi),var(--jade));}'
++ '.ed-yuan .edict-sug-v2:hover{border-color:rgba(168,131,58,0.55);box-shadow:0 6px 16px rgba(80,56,24,0.16);transform:translateY(-2px);}'
++ '.ed-yuan .edict-sug-portrait-wrap{width:46px;height:56px;position:relative;overflow:hidden;border-radius:3px;border:1px solid var(--gold-d);background:radial-gradient(circle at 50% 28%,rgba(201,160,69,0.2),#e7d6ad 70%);color:var(--gold-d);font-size:18px;display:grid;place-items:center;box-shadow:0 2px 5px rgba(80,56,24,0.24),inset 0 0 0 2px rgba(255,253,243,0.55);}'
++ '.ed-yuan .edict-sug-portrait-wrap:after{content:attr(data-glyph);display:none;font-family:var(--font);}'
++ '.ed-yuan .edict-sug-portrait-wrap.fallback:after{display:block;}'
++ '.ed-yuan .edict-sug-portrait{width:100%;height:100%;object-fit:cover;object-position:center top;display:block;}'
++ '.ed-yuan .edict-sug-v2 b{display:block;color:var(--jade);font-size:11px;letter-spacing:0.08em;margin-bottom:3px;font-weight:normal;}'
++ '.ed-yuan .edict-sug-v2 p{margin:0 0 4px;color:var(--ink-soft);font-size:12px;line-height:1.55;}'
++ '.ed-yuan .edict-sug-footer{display:flex;align-items:center;justify-content:space-between;gap:7px;margin-top:7px;}'
++ '.ed-yuan .edict-sug-adopt{flex:1;position:relative;overflow:hidden;font-family:var(--font);font-size:12.5px;letter-spacing:0.2em;cursor:pointer;padding:6px 10px;border-radius:3px;color:#fff;border:1px solid var(--gold-d);background:linear-gradient(160deg,var(--cinnabar-hi),var(--cinnabar) 55%,var(--cinnabar-d));box-shadow:inset 0 1px 0 rgba(255,255,255,0.22),inset 0 0 0 1px rgba(216,185,106,0.32),0 2px 5px rgba(122,32,24,0.32);}'
++ '.ed-yuan .edict-sug-adopt:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,0.3),inset 0 0 0 1px rgba(216,185,106,0.6),0 4px 11px rgba(122,32,24,0.42);}'
++ '.ed-yuan .edict-sug-delete{flex:0 0 auto;width:26px;height:26px;cursor:pointer;font-family:var(--font);font-size:15px;line-height:1;border:1px solid rgba(140,124,96,0.5);background:transparent;color:var(--ink-faint);border-radius:4px;transition:all .15s;}'
++ '.ed-yuan .edict-sug-delete:hover{border-color:var(--cinnabar);color:var(--cinnabar);background:rgba(168,50,40,0.08);}'
++ '.ed-yuan .tm-chip{display:inline-flex;align-items:center;min-height:18px;padding:1px 7px;border:1px solid rgba(85,127,111,0.4);border-radius:999px;color:var(--jade);background:transparent;font-size:10.5px;}'
++ '.ed-yuan .tm-chip.hot{color:var(--cinnabar);border-color:rgba(168,50,40,0.45);background:rgba(168,50,40,0.05);}'
++ '.ed-yuan .tm-chip.green{color:var(--jade);border-color:rgba(85,127,111,0.4);}'
++ '.ed-yuan .col-main{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;}'
++ '.ed-yuan .ed-tab-panel{flex:1;min-height:0;display:none;flex-direction:column;}'
++ '.ed-yuan[data-tab="edict"] .ed-tab-panel.edict{display:flex;}'
++ '.ed-yuan[data-tab="xinglu"] .ed-tab-panel.xinglu{display:flex;}'
++ '.ed-yuan .edict-col{flex:1;min-height:0;display:flex;flex-direction:column;}'
++ '.ed-yuan .erow{flex:1;min-height:0;position:relative;display:flex;gap:14px;padding:7px 6px 9px 10px;border-radius:6px;opacity:0;animation:edy-catIn .42s ease forwards;transition:background .22s ease;}'
++ '.ed-yuan .erow[data-cat="政"]{--sc:#5a6fae;--sc-glow:rgba(90,111,174,0.16);}.ed-yuan .erow[data-cat="军"]{--sc:#a83228;--sc-glow:rgba(168,50,40,0.16);}.ed-yuan .erow[data-cat="外"]{--sc:#3f7a68;--sc-glow:rgba(63,122,104,0.16);}.ed-yuan .erow[data-cat="经"]{--sc:#9a7730;--sc-glow:rgba(154,119,48,0.18);}.ed-yuan .erow[data-cat="他"]{--sc:#7a6a52;--sc-glow:rgba(122,106,82,0.14);}'
++ '.ed-yuan .erow::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:2px;background:var(--sc,var(--gold));opacity:0;transform:scaleY(0.35);transform-origin:center;transition:opacity .22s,transform .22s;}'
++ '.ed-yuan .erow:focus-within::before{opacity:0.82;transform:scaleY(1);}'
++ '.ed-yuan .erow:focus-within{background:radial-gradient(135% 135% at 0% 50%,var(--sc-glow,rgba(168,131,58,0.08)),transparent 70%);}'
++ '.ed-yuan .erow:not(:last-child)::after{content:"";position:absolute;left:78px;right:8px;bottom:0;height:1px;background:linear-gradient(90deg,transparent,rgba(168,131,58,0.28) 12%,rgba(168,131,58,0.28) 88%,transparent);}'
++ '.ed-yuan .seal-col{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:2px;width:52px;}'
++ '.ed-yuan .seal-hint{font-size:9.5px;line-height:1.3;color:var(--ink-faint);text-align:center;opacity:0.78;transition:color .2s,opacity .2s;}'
++ '.ed-yuan .erow:focus-within .seal-hint{color:var(--sc);opacity:1;}'
++ '.ed-yuan .cell-seal{flex:0 0 auto;position:relative;width:50px;height:50px;}'
++ '.ed-yuan .cell-seal::before{content:"";position:absolute;inset:4px;border:1.5px solid var(--sc,var(--gold-d));border-radius:4px;transform:rotate(45deg);background:rgba(255,253,243,0.4);box-shadow:inset 0 0 0 3px rgba(255,255,255,0.45),0 1px 2px rgba(80,56,24,0.18),0 0 10px var(--sc-glow,transparent);}'
++ '.ed-yuan .cell-seal .cs-1{position:absolute;top:6px;left:7px;font-size:23px;line-height:1;color:var(--sc,var(--gold-d));font-weight:bold;text-shadow:0 1px 0 rgba(255,255,255,0.5);}'
++ '.ed-yuan .cell-seal .cs-2{position:absolute;bottom:6px;right:7px;font-size:13px;line-height:1;color:var(--sc,var(--gold-d));font-weight:bold;opacity:0.92;}'
++ '.ed-yuan .erow:focus-within .cell-seal::before{box-shadow:inset 0 0 0 3px rgba(255,255,255,0.5),0 1px 2px rgba(80,56,24,0.18),0 0 16px var(--sc-glow,transparent);}'
++ '.ed-yuan .cell-seal.inked::before{background:var(--sc,var(--gold-d));border-radius:4px 5px 4px 5px;background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'40\' height=\'40\'%3E%3Cfilter id=\'ik\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.85\' numOctaves=\'2\' seed=\'3\'/%3E%3CfeColorMatrix type=\'saturate\' values=\'0\'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type=\'linear\' slope=\'0.45\'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23ik)\'/%3E%3C/svg%3E");background-size:30px 30px;background-blend-mode:soft-light;box-shadow:inset 0 0 0 3px rgba(255,255,255,0.32),0 1px 4px rgba(80,56,24,0.32),0 0 14px var(--sc-glow,transparent);}'
++ '.ed-yuan .cell-seal.inked .cs-1,.ed-yuan .cell-seal.inked .cs-2{color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.32);}'
++ '.ed-yuan .erow-body{flex:1;min-height:0;display:flex;flex-direction:column;}'
++ '.ed-yuan .cat-field{flex:1;min-height:44px;width:100%;font-family:var(--font);font-size:15px;line-height:1.95;color:var(--ink);background:repeating-linear-gradient(180deg,rgba(0,0,0,0) 0 29px,rgba(168,131,58,0.085) 29px 30px);background-position:0 9px;border:none;border-radius:3px;padding:2px 6px;resize:none;outline:none;overflow-y:auto;scrollbar-width:none;transition:background .18s;}'
++ '.ed-yuan .cat-field::-webkit-scrollbar{width:0;height:0;display:none;}'
++ '.ed-yuan .cat-field::placeholder{color:rgba(140,124,96,0.6);line-height:1.6;}'
++ '.ed-yuan .cat-field:focus{background-color:rgba(255,255,255,0.45);}'
++ '.ed-yuan .ed-forecast{flex:0 0 auto;position:relative;font-size:11.5px;line-height:1.45;color:#3c6053;letter-spacing:0.02em;padding:3px 6px 0 16px;}'
++ '.ed-yuan .ed-forecast::before{content:"批";position:absolute;left:0;top:3px;font-size:9px;color:var(--cinnabar);border:1px solid var(--cinnabar);border-radius:2px;padding:0 1px;line-height:1.3;opacity:0.78;transform:rotate(-6deg);}'
++ '.ed-yuan .ed-polish-bar{flex:0 0 auto;display:flex;align-items:center;gap:10px;margin:8px 2px 6px;}'
++ '.ed-yuan .ed-polish-bar .lbl{font-size:12.5px;color:var(--ink-soft);letter-spacing:0.14em;}'
++ '.ed-yuan .ed-polish-bar select{appearance:none;-webkit-appearance:none;font-family:var(--font);font-size:12.5px;padding:6px 28px 6px 12px;color:var(--ink);border:1px solid var(--gold-d);border-radius:5px;cursor:pointer;background:linear-gradient(180deg,#fffdf3,#f6edd6),url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'7\'%3E%3Cpath d=\'M1 1l4 4 4-4\' fill=\'none\' stroke=\'%237d5e22\' stroke-width=\'1.6\' stroke-linecap=\'round\'/%3E%3C/svg%3E") no-repeat;background-position:0 0,right 10px center;box-shadow:inset 0 1px 0 rgba(255,255,255,0.6);}'
++ '.ed-yuan #edict-polished{flex:0 0 auto;}'
++ '.ed-yuan #edict-polished:not(:empty){margin:4px 2px 2px;padding:14px 16px;border-radius:5px;background:linear-gradient(180deg,#fffefa,#f3e8cc);border:1px solid var(--gold);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.5),inset 0 0 0 4px rgba(168,131,58,0.13),0 8px 22px rgba(50,32,14,0.2);color:var(--ink);font-size:14.5px;line-height:2;}'
++ '.ed-yuan .ed-tab-panel.xinglu{gap:16px;flex-direction:row;}'
++ '.ed-yuan .xinglu-main{flex:1.7;min-height:0;display:flex;flex-direction:column;}'
++ '.ed-yuan .xinglu-main .xm-hd{flex:0 0 auto;display:flex;align-items:baseline;gap:10px;margin-bottom:10px;}'
++ '.ed-yuan .xinglu-main .xm-title{font-size:17px;color:var(--ink);letter-spacing:0.18em;}'
++ '.ed-yuan .xinglu-main .xm-desc{font-size:12px;color:var(--ink-faint);}'
++ '.ed-yuan .x-field{flex:1;min-height:0;width:100%;font-family:var(--font);font-size:15px;line-height:2;color:var(--ink);background:repeating-linear-gradient(180deg,transparent 0 33px,rgba(120,90,36,0.08) 33px 34px);background-position:0 6px;border:none;border-radius:2px;padding:4px 8px;resize:none;outline:none;overflow-y:auto;scrollbar-width:none;}'
++ '.ed-yuan .x-field::-webkit-scrollbar{width:0;display:none;}'
++ '.ed-yuan .x-field::placeholder{color:rgba(140,124,96,0.6);}'
++ '.ed-yuan .x-field:focus{background-color:rgba(255,255,255,0.4);}'
++ '.ed-yuan .xinglu-hist{flex:1;min-height:0;display:flex;flex-direction:column;border-left:1px solid rgba(168,131,58,0.32);padding-left:16px;}'
++ '.ed-yuan .xinglu-hist .xh-t{flex:0 0 auto;font-size:14px;color:var(--gold-d);letter-spacing:0.16em;margin-bottom:8px;}'
++ '.ed-yuan .xinglu-hist .xh-list{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;}'
++ '.ed-yuan .x-hist-item{font-size:13px;color:var(--ink-soft);padding:8px 0;border-bottom:1px dotted rgba(140,124,96,0.35);line-height:1.7;}'
++ '.ed-yuan .x-hist-item .t{color:var(--cinnabar);margin-right:8px;font-size:12px;}'
++ '.ed-yuan .col-actions{flex:0 0 84px;min-height:0;display:flex;flex-direction:column;align-items:stretch;gap:10px;animation:edy-colInR .55s cubic-bezier(.2,.7,.3,1) .52s both;}'
++ '.ed-yuan .act-polish{flex:0 0 auto;position:relative;overflow:hidden;font-family:var(--font);font-size:15px;letter-spacing:0.18em;line-height:1.6;cursor:pointer;padding:34px 7px 14px;border-radius:9px;border:1px solid var(--gold-d);color:var(--gold-d);transition:color .2s,box-shadow .2s,transform .1s;background:linear-gradient(162deg,#fefaef,#f1e2bd),repeating-linear-gradient(92deg,rgba(168,131,58,0.05) 0 2px,transparent 2px 7px);box-shadow:0 2px 7px rgba(80,56,24,0.16),inset 0 1px 0 rgba(255,255,255,0.7),inset 0 0 0 1px rgba(216,185,106,0.3);}'
++ '.ed-yuan .act-polish::before{content:"";position:absolute;left:0;right:0;bottom:0;height:0;z-index:0;pointer-events:none;transition:height .26s cubic-bezier(.3,.7,.3,1);background:linear-gradient(180deg,var(--gold-hi),var(--gold) 60%,var(--gold-d));}'
++ '.ed-yuan .act-polish::after{content:"";position:absolute;top:8px;left:50%;transform:translateX(-50%);width:13px;height:21px;z-index:1;background:linear-gradient(180deg,#6b4a28 0 32%,#2f2113 33%,#1c130a);clip-path:polygon(50% 0,100% 18%,72% 100%,50% 86%,28% 100%,0 18%);box-shadow:0 1px 3px rgba(40,24,10,0.4);}'
++ '.ed-yuan .act-polish .al{position:relative;z-index:1;display:block;}'
++ '.ed-yuan .act-polish:hover{color:#fff8e6;box-shadow:0 6px 16px rgba(168,131,58,0.42),inset 0 1px 0 rgba(255,255,255,0.4);}'
++ '.ed-yuan .act-polish:hover::before{height:100%;}'
++ '.ed-yuan .act-polish:active{transform:translateY(1px);}'
++ '.ed-yuan[data-tab="xinglu"] .act-polish{display:none;}'
++ '.ed-yuan .act-spacer{flex:1;min-height:0;position:relative;}'
++ '.ed-yuan .act-spacer::before{content:"";position:absolute;left:50%;top:4px;bottom:4px;width:3px;transform:translateX(-50%);border-radius:2px;opacity:0.55;background:linear-gradient(180deg,rgba(168,50,40,0) 0%,var(--cinnabar) 16%,var(--cinnabar-d) 84%,rgba(168,50,40,0) 100%);}'
++ '.ed-yuan .act-spacer::after{content:"";position:absolute;left:50%;top:50%;width:16px;height:16px;transform:translate(-50%,-50%) rotate(45deg);border-radius:3px;background:radial-gradient(circle at 34% 28%,var(--jade-hi),var(--jade) 70%,#3d5d51);border:1px solid rgba(255,255,255,0.35);box-shadow:0 2px 7px rgba(40,24,10,0.35),inset 0 0 0 3px rgba(255,255,255,0.12),inset 0 -2px 4px rgba(0,0,0,0.25);}'
++ '.ed-yuan .act-seal{flex:0 0 auto;position:relative;overflow:hidden;font-family:var(--font);font-size:19px;letter-spacing:0.2em;line-height:1.55;cursor:pointer;padding:36px 7px 16px;border-radius:9px;color:var(--gold-hi);border:1px solid #14110a;transition:filter .15s,transform .1s,box-shadow .2s;background:linear-gradient(160deg,#46301a,#241810 60%,#191007),repeating-linear-gradient(0deg,rgba(0,0,0,0.16) 0 1px,transparent 1px 6px),repeating-linear-gradient(90deg,rgba(0,0,0,0.10) 0 1px,transparent 1px 9px);box-shadow:0 6px 18px rgba(40,24,10,0.55),inset 0 1px 0 rgba(206,166,108,0.4),inset 0 0 0 1px rgba(125,94,34,0.5),inset 0 0 0 4px rgba(40,28,14,0.55),inset 0 0 0 5px rgba(168,131,58,0.28);}'
++ '.ed-yuan .act-seal .al{position:relative;z-index:1;display:block;text-shadow:0 1px 3px rgba(0,0,0,0.55),0 0 10px rgba(168,131,58,0.22);}'
++ '.ed-yuan .act-seal::after{content:"印";position:absolute;top:9px;left:50%;transform:translateX(-50%) rotate(-2deg);width:25px;height:25px;z-index:2;display:flex;align-items:center;justify-content:center;font-family:var(--font);font-size:13px;color:#fff5ec;border-radius:4px 5px 4px 5px;background:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'40\' height=\'40\'%3E%3Cfilter id=\'cz\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'2\' seed=\'9\'/%3E%3CfeColorMatrix type=\'saturate\' values=\'0\'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type=\'linear\' slope=\'0.5\'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23cz)\'/%3E%3C/svg%3E"),radial-gradient(circle at 36% 28%,var(--cinnabar-hi),var(--cinnabar) 58%,var(--cinnabar-d));background-size:40px 40px,auto;background-blend-mode:soft-light,normal;box-shadow:inset 0 1px 0 rgba(255,255,255,0.42),inset 0 -2px 3px rgba(90,16,10,0.6),0 2px 5px rgba(0,0,0,0.45),0 0 0 1px rgba(216,185,106,0.4);}'
++ '.ed-yuan .act-seal::before{content:"";position:absolute;top:30px;left:50%;width:80px;height:80px;transform:translate(-50%,0) scale(0.2);border-radius:50%;z-index:0;opacity:0;pointer-events:none;background:radial-gradient(circle,rgba(200,74,62,0.5),rgba(168,50,40,0.26) 46%,transparent 70%);}'
++ '.ed-yuan .act-seal:hover{filter:brightness(1.1);box-shadow:0 8px 22px rgba(40,24,10,0.6),inset 0 1px 0 rgba(206,166,108,0.5),inset 0 0 0 1px rgba(125,94,34,0.6),inset 0 0 0 4px rgba(40,28,14,0.55),inset 0 0 0 5px rgba(168,131,58,0.46);}'
++ '.ed-yuan .act-seal:active{transform:translateY(1px);}'
++ '.ed-yuan .act-seal.stamped{animation:edy-stampPulse .5s ease;}'
++ '.ed-yuan .act-seal.stamped::before{animation:edy-inkBloom .6s ease-out;}'
++ '.ed-yuan .arc-modal{position:absolute;inset:0;z-index:20;display:none;align-items:center;justify-content:center;}'
++ '.ed-yuan .arc-modal.show{display:flex;animation:edy-fadeIn .2s ease;}'
++ '.ed-yuan .arc-scrim{position:absolute;inset:0;background:rgba(40,28,14,0.5);}'
++ '.ed-yuan .arc-card{position:relative;z-index:1;width:min(88%,620px);max-height:84%;display:flex;flex-direction:column;border-radius:6px;background:linear-gradient(180deg,#fffdf3,#f1e6cc);border:1px solid var(--gold);box-shadow:0 24px 70px rgba(40,24,10,0.5);animation:edy-popIn .25s ease;}'
++ '.ed-yuan .arc-card-hd{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:14px 22px 12px;border-bottom:1px solid rgba(168,131,58,0.3);font-size:18px;color:var(--ink);letter-spacing:0.22em;}'
++ '.ed-yuan .arc-card-hd .ah-l{display:flex;align-items:center;gap:11px;}'
++ '.ed-yuan .arc-card-hd .ah-seal{width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,var(--cinnabar-hi),var(--cinnabar-d));color:#fff;font-size:15px;border-radius:4px;}'
++ '.ed-yuan .arc-x{cursor:pointer;color:var(--ink-faint);font-size:22px;line-height:1;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:50%;transition:all .15s;}'
++ '.ed-yuan .arc-x:hover{background:var(--cinnabar);color:#fff;}'
++ '.ed-yuan .arc-body{flex:1;min-height:0;overflow-y:auto;padding:14px 24px 20px;}'
++ '.ed-yuan .arc-turn{font-size:13.5px;color:var(--cinnabar-d);letter-spacing:0.1em;margin:13px 0 8px;font-weight:bold;}'
++ '.ed-yuan .arc-turn:first-child{margin-top:0;}'
++ '.ed-yuan .arc-item{position:relative;font-size:13.5px;line-height:1.65;color:var(--ink-soft);padding:8px 10px 8px 18px;margin-left:6px;border-left:1px solid rgba(168,131,58,0.25);}'
++ '.ed-yuan .arc-item::before{content:"";position:absolute;left:-5px;top:13px;width:9px;height:9px;border-radius:50%;background:var(--st-c,var(--ink-faint));box-shadow:0 0 6px var(--st-c,transparent);}'
++ '.ed-yuan .arc-item .a-cat{color:var(--ink-faint);font-size:12px;letter-spacing:0.08em;}'
++ '.ed-yuan .arc-item .a-mark{margin-right:5px;}'
++ '.ed-yuan .arc-item .a-assignee{color:var(--jade);font-size:12px;}'
++ '.ed-yuan .arc-item .a-fb{color:var(--ink-faint);font-size:12.5px;font-style:italic;margin-top:4px;padding-left:4px;}'
++ '@keyframes edy-unroll{0%{opacity:0;transform:scaleX(0.62);filter:brightness(1.12);}60%{opacity:1;}100%{opacity:1;transform:scaleX(1);filter:none;}}'
++ '@keyframes edy-rollerSettle{0%{opacity:0;transform:translateY(-10px) scaleY(0.9);}100%{opacity:1;transform:none;}}'
++ '@keyframes edy-headDrop{from{opacity:0;transform:translateY(-12px);}to{opacity:1;transform:none;}}'
++ '@keyframes edy-colInL{from{opacity:0;transform:translateX(-22px);}to{opacity:1;transform:none;}}'
++ '@keyframes edy-colInR{from{opacity:0;transform:translateX(22px);}to{opacity:1;transform:none;}}'
++ '@keyframes edy-fleck{0%{opacity:0.38;background-position:0 0;}100%{opacity:0.55;background-position:18px 26px;}}'
++ '@keyframes edy-catIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}'
++ '@keyframes edy-stampPulse{0%{transform:scale(1);}40%{transform:scale(0.97);}100%{transform:scale(1);}}'
++ '@keyframes edy-inkBloom{0%{opacity:0;transform:translate(-50%,0) scale(0.2);}28%{opacity:1;}100%{opacity:0;transform:translate(-50%,0) scale(1.3);}}'
++ '@keyframes edy-fadeIn{from{opacity:0;}to{opacity:1;}}'
++ '@keyframes edy-popIn{from{opacity:0;transform:scale(0.95) translateY(8px);}to{opacity:1;transform:none;}}'
++ '@media (max-width:980px){.ed-yuan{padding:14px 12px;}.ed-yuan .roller-v{display:none;}.ed-yuan .silk{margin:0;}.ed-yuan .silk-body{flex-direction:column;}.ed-yuan .col-sug{flex:0 0 auto;max-height:200px;}.ed-yuan .col-actions{flex-direction:row;flex:0 0 auto;}.ed-yuan .act-spacer{display:none;}.ed-yuan .ed-tab-panel.xinglu{flex-direction:column;}}'
+// ── 纳入选类菜单·御案米金覆盖 (真实 showFormalEdictAdoptMenu 建 #_edictAdoptMenu·内联深色 var(--color-elevated)+5 个无类 button·!important 翻浅底+nth-child 分色) ──
++ '#_edictAdoptMenu{background:linear-gradient(180deg,#fffdf3,#f6edd6) !important;border:1px solid #7d5e22 !important;border-radius:6px !important;box-shadow:0 14px 34px rgba(40,24,10,0.42) !important;padding:5px !important;min-width:120px !important;font-family:"STKaiti","KaiTi","楷体",serif !important;animation:edy-popIn .16s ease;}'
++ '#_edictAdoptMenu button{position:relative;display:flex !important;align-items:center;gap:9px;width:100% !important;margin-bottom:3px;padding:8px 12px 8px 26px !important;border:1px solid rgba(168,131,58,0.2) !important;border-radius:4px !important;background:#fffefa !important;color:#241d15 !important;font-family:inherit !important;font-size:13.5px !important;letter-spacing:0.1em;text-align:left;cursor:pointer;transition:background .12s,border-color .12s;}'
++ '#_edictAdoptMenu button:last-child{margin-bottom:0;}'
++ '#_edictAdoptMenu button:hover{background:rgba(168,131,58,0.13) !important;border-color:rgba(168,131,58,0.5) !important;}'
++ '#_edictAdoptMenu button::before{content:"";position:absolute;left:11px;top:50%;width:8px;height:8px;border-radius:2px;transform:translateY(-50%) rotate(45deg);box-shadow:0 1px 2px rgba(40,24,10,0.25);}'
++ '#_edictAdoptMenu button:nth-child(1)::before{background:#5a6fae;}'
++ '#_edictAdoptMenu button:nth-child(2)::before{background:#a83228;}'
++ '#_edictAdoptMenu button:nth-child(3)::before{background:#3f7a68;}'
++ '#_edictAdoptMenu button:nth-child(4)::before{background:#9a7730;}'
++ '#_edictAdoptMenu button:nth-child(5)::before{background:#7a6a52;}'
+// ── 有司润色卡·御案米金 (真实 _renderPolishedEdict 写 #edict-polished 内 .ed-scroll*·原无 CSS·从零给浅绢主题) ──
++ '.ed-yuan #edict-polished{display:block !important;margin-top:6px;}'
++ '.ed-yuan .ed-scroll{position:relative;padding:16px 96px 14px 18px;border-radius:5px;border:1px solid var(--gold);background:linear-gradient(180deg,#fffefa,#f3e8cc);box-shadow:0 12px 30px rgba(50,32,14,0.26),inset 0 0 0 1px rgba(255,255,255,0.5),inset 0 0 0 4px rgba(168,131,58,0.13);animation:edy-popIn .22s ease;}'
++ '.ed-yuan .ed-scroll-title{position:absolute;right:18px;top:16px;writing-mode:vertical-rl;color:#7d5e22;letter-spacing:0.35em;font-size:18px;text-shadow:0 1px 0 rgba(255,255,255,0.6);}'
++ '.ed-yuan .ed-scroll-text{width:100%;min-height:150px;border:1px solid rgba(168,131,58,0.25);border-radius:4px;background:linear-gradient(180deg,rgba(255,255,255,0.55),rgba(246,239,218,0.45));color:#241d15;font-family:"STKaiti","KaiTi","楷体",serif;font-size:15px;line-height:2;padding:12px 14px;resize:vertical;box-shadow:inset 0 1px 0 rgba(255,255,255,0.5);text-indent:2em;}'
++ '.ed-yuan .ed-scroll-text:focus{outline:none;background:rgba(255,255,255,0.6);}'
++ '.ed-yuan .ed-scroll-seal{position:absolute;right:26px;bottom:54px;width:46px;height:46px;display:grid;place-items:center;align-content:center;border-radius:5px;border:1px solid rgba(168,50,40,0.55);color:#fff5ec;font-size:11px;line-height:1.2;text-align:center;background:radial-gradient(circle at 36% 28%,var(--cinnabar-hi),var(--cinnabar) 58%,var(--cinnabar-d));box-shadow:inset 0 1px 0 rgba(255,255,255,0.3),0 2px 6px rgba(90,16,10,0.4);}'
++ '.ed-yuan .ed-scroll-seal .main{font-size:13px;font-weight:bold;letter-spacing:0.06em;}'
++ '.ed-yuan .ed-scroll-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}'
++ '.ed-yuan .ed-scroll-btn{font-family:"STKaiti","KaiTi","楷体",serif;font-size:13px;letter-spacing:0.12em;cursor:pointer;padding:7px 15px;border-radius:5px;border:1px solid var(--gold-d);background:#fbf4e2;color:var(--gold-d);transition:all .15s;}'
++ '.ed-yuan .ed-scroll-btn:hover{background:#fff;color:var(--ink);border-color:var(--gold);}'
++ '.ed-yuan .ed-scroll-btn.primary{color:#fff8e6;border-color:var(--gold-d);background:linear-gradient(160deg,var(--gold-hi),var(--gold) 55%,var(--gold-d));box-shadow:inset 0 1px 0 rgba(255,255,255,0.35),0 2px 5px rgba(125,94,34,0.3);}'
++ '.ed-yuan .ed-scroll-btn.primary:hover{filter:brightness(1.07);color:#fff;}'
+// ── 议事清册卡·优先级修正 (renderEdictSuggestionItem 吐 .edict-sug-* · installActionPanelExactStyles 的 body.tm-phase8-formal .edict-sug-* (0,2,2) 浅字盖过我的 .ed-yuan (0,2,1) → 浅底浅字看不清 · 用 body.tm-phase8-formal .ed-yuan (0,3,x)+!important 强制浅底深字) ──
++ 'body.tm-phase8-formal .ed-yuan .edict-sug-v2{background:linear-gradient(165deg,#fffefa,#fbf4e1) !important;border:1px solid rgba(168,131,58,0.24) !important;border-radius:5px !important;}'
++ 'body.tm-phase8-formal .ed-yuan .edict-sug-v2 b{color:#3c6053 !important;font-weight:normal;}'
++ 'body.tm-phase8-formal .ed-yuan .edict-sug-v2 p{color:#574733 !important;}'
++ 'body.tm-phase8-formal .ed-yuan .edict-sug-v2 p:first-of-type{color:#7d5e22 !important;}'
++ 'body.tm-phase8-formal .ed-yuan .edict-sug-portrait-wrap{border:1px solid #7d5e22 !important;background:radial-gradient(circle at 50% 28%,rgba(201,160,69,.2),#e7d6ad 70%) !important;color:#7d5e22 !important;}'
++ 'body.tm-phase8-formal .ed-yuan .tm-chip{color:#3c6053 !important;border:1px solid rgba(85,127,111,0.4) !important;background:rgba(85,127,111,0.06) !important;}'
++ 'body.tm-phase8-formal .ed-yuan .tm-chip.hot{color:#a83228 !important;border-color:rgba(168,50,40,0.45) !important;background:rgba(168,50,40,0.06) !important;}'
++ 'body.tm-phase8-formal .ed-yuan .edict-sug-adopt{min-height:30px !important;padding:6px 14px !important;color:#fff8e6 !important;border:1px solid #7d5e22 !important;border-radius:4px !important;font-size:12.5px !important;letter-spacing:0.18em;background:linear-gradient(160deg,#c64a3e,#a83228 55%,#7a2018) !important;box-shadow:inset 0 1px 0 rgba(255,255,255,0.22),inset 0 0 0 1px rgba(216,185,106,0.32),0 2px 5px rgba(122,32,24,0.3) !important;cursor:pointer;}'
++ 'body.tm-phase8-formal .ed-yuan .edict-sug-adopt:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,0.3),inset 0 0 0 1px rgba(216,185,106,0.6),0 4px 11px rgba(122,32,24,0.42) !important;}'
++ 'body.tm-phase8-formal .ed-yuan .edict-sug-delete{min-width:28px !important;min-height:28px !important;color:#9c8b6b !important;border:1px solid rgba(140,124,96,0.5) !important;border-radius:4px !important;background:transparent !important;font-size:15px !important;cursor:pointer;}'
++ 'body.tm-phase8-formal .ed-yuan .edict-sug-delete:hover{color:#a83228 !important;border-color:#a83228 !important;background:rgba(168,50,40,0.08) !important;}'
+// ── footer 布局修 (renderEdictSuggestionItem 用裸 <span> 包按钮·display:inline → 内含 block 按钮塌成 w0·看不见。强制 footer flex + 按钮 span flex + 按钮 inline-flex 自然撑开) ──
++ 'body.tm-phase8-formal .ed-yuan .edict-sug-footer{display:flex !important;flex-wrap:wrap !important;align-items:center;justify-content:flex-start;gap:8px;margin-top:8px;}'
++ 'body.tm-phase8-formal .ed-yuan .edict-sug-footer>.tm-chip-row{display:flex !important;flex-wrap:wrap;align-items:center;gap:5px;min-width:0;flex:1 1 auto;}'
++ 'body.tm-phase8-formal .ed-yuan .edict-sug-footer>span:last-of-type{display:flex !important;align-items:center;gap:7px;flex:0 0 auto;margin-left:auto;}'
++ 'body.tm-phase8-formal .ed-yuan .edict-sug-adopt{display:inline-flex !important;align-items:center;justify-content:center;flex:0 0 auto !important;width:auto !important;white-space:nowrap;}'
++ 'body.tm-phase8-formal .ed-yuan .edict-sug-delete{display:inline-flex !important;align-items:center;justify-content:center;flex:0 0 auto;width:28px !important;white-space:nowrap;}';
+  }
+
   function renderFormalEdictPanel(){
     restoreFormalDraftsFromGM(false);
+    installEdictYuanStyles();
     var gm = window.GM || {};
     var role = '天子';
     var sc = (typeof window.findScenarioById === 'function') ? window.findScenarioById(gm.sid) : null;
     if (sc && sc.role) role = sc.role;
     var icon = typeof window.tmIcon === 'function' ? window.tmIcon : function(){ return ''; };
     var cats = [
-      {id:'edict-pol', keys:['policy','political'], label:'政 令', badge:'政', cls:'ed-c-pol', hint:'改革官制·任免官员·降旨安抚',  placeholder:'诏谕天下，如：改革官制、降旨安抚、任免官员……'},
-      {id:'edict-mil', keys:['military'], label:'军 令', badge:'军', cls:'ed-c-mil', hint:'调兵遣将·加强边防·讨伐叛贼',  placeholder:'调兵遣将，如：调动军队、加强边防、讨伐叛贼……'},
-      {id:'edict-dip', keys:['diplomatic','diplomacy'], label:'外 交', badge:'外', cls:'ed-c-dip', hint:'遣使和亲·结盟讨伐·册封藩属',  placeholder:'纵横捭阖，如：遣使和亲、结盟讨伐、册封藩属……'},
-      {id:'edict-eco', keys:['finance','economic','economy'], label:'经 济', badge:'经', cls:'ed-c-eco', hint:'减税轻赋·开仓放粮·兴修水利',  placeholder:'经纶民生，如：减税轻赋、开仓放粮、兴修水利……'},
-      {id:'edict-oth', keys:['other','private'], label:'其 他', badge:'他', cls:'ed-c-oth', hint:'大赦·科举·建造·礼仪', placeholder:'其他旨意，如：大赦天下、科举取士、建造宫殿……'}
+      {id:'edict-pol', keys:['policy','political'], cat:'政', cs1:'政', cs2:'令', hint:'朝政·吏治', placeholder:'请输入政令诏书内容……\n例如：着吏部澄清铨选、起复废籍贤良、纠劾贪墨之吏，以正朝纲。'},
+      {id:'edict-mil', keys:['military'], cat:'军', cs1:'军', cs2:'令', hint:'边镇·粮饷', placeholder:'请输入军令诏书内容……\n例如：诏蓟辽督师整饬关宁防务、缮治城堡、核实兵额，毋得虚冒。'},
+      {id:'edict-dip', keys:['diplomatic','diplomacy'], cat:'外', cs1:'外', cs2:'交', hint:'藩属·和战', placeholder:'请输入外交诏书内容……\n例如：谕宣大抚镇羁縻插汉诸部、慎启边衅，以市赏怀远人。'},
+      {id:'edict-eco', keys:['finance','economic','economy'], cat:'经', cs1:'经', cs2:'济', hint:'税赋·漕运', placeholder:'请输入经济诏书内容……\n例如：诏免被灾州县积逋钱粮、开常平仓平粜、停不急之征。'},
+      {id:'edict-oth', keys:['other','private'], cat:'他', cs1:'其', cs2:'他', hint:'礼制·恩典', placeholder:'请输入其他诏书内容……\n例如：诏修两朝实录、旌表忠孝节义、蠲免逋负、肆赦天下。'}
     ];
     var suggestions = getEdictSuggestionRows();
-    var html = '<section class="edict-old-panel">';
-    html += '<aside class="edict-old-sug"><h3 class="edict-old-sug-title">议事清册 <small>' + esc(suggestions.length) + ' 条</small></h3><div class="edict-old-sug-list">';
-    html += suggestions.map(renderEdictSuggestionItem).join('') || '<article class="edict-sug-v2"><div><b>暂无御案建议</b><p>召开朝议、问对或处理奏疏后，可摘入诏书草拟。</p></div></article>';
-    html += '</div></aside>';
-    html += '<main class="edict-old-main">';
-    html += '<div class="ed-yubi-title">';
-    html += '<div class="seal">' + esc(role) + '</div>';
-    html += '<div class="main">' + esc(role) + ' 御 笔</div>';
-    html += '<div class="sub">奉天承运皇帝　　诏曰</div>';
-    html += '</div>';
-    html += '<div class="ed-cards">';
-    cats.forEach(function(cat){
-      html += '<div class="ed-card ' + cat.cls + '">';
-      html += '<div class="ed-card-hdr">';
-      html += '<span class="ed-cat-icon">' + esc(cat.badge) + '</span>';
-      html += '<span class="ed-cat-label">' + esc(cat.label) + '</span>';
-      html += '<span class="ed-cat-hint">' + esc(cat.hint) + '</span>';
-      html += '</div>';
-      html += '<textarea id="' + attr(cat.id) + '" rows="2" class="edict-input paper-texture" data-desk-edict-cat="' + attr(cat.keys[0]) + '" data-label="' + attr(cat.label) + '" placeholder="' + attr(cat.placeholder) + '" oninput="var s=window.TM_PHASE8_FORMAL||(window.TM_PHASE8_FORMAL={});var d=s.edictDrafts||(s.edictDrafts={});d[&quot;' + attr(cat.keys[0]) + '&quot;]=this.value;if(window._edictLiveForecast)window._edictLiveForecast(&quot;' + attr(cat.id) + '&quot;)">' + esc(legacyEdictDraftValue(cat.id, cat.keys)) + '</textarea>';
-      html += '<div id="' + attr(cat.id) + '-forecast" class="ed-forecast" style="display:none;"></div>';
-      html += '</div>';
-    });
-    html += '</div>';
-    html += '<div class="ed-polish-bar">';
-    html += '<span class="ed-polish-label">文 风 选 择</span>';
-    html += '<select id="edict-polish-style" style="font-size:12px;padding:6px 12px;background:var(--color-elevated);border:1px solid var(--color-border-subtle);color:var(--color-foreground);border-radius:2px;font-family:var(--font-serif);cursor:pointer;">';
-    html += '<option value="elegant">典雅骈文</option>';
-    html += '<option value="concise">简洁明快</option>';
-    html += '<option value="ornate">华丽文藻</option>';
-    html += '<option value="plain">白话文言</option>';
-    html += '</select>';
-    html += '<button class="ed-polish-btn" onclick="if(window._polishEdicts)window._polishEdicts();else if(window.toast)toast(\'诏书润色模块尚未载入\')">有 司 润 色</button>';
-    html += '</div>';
-    html += '<div id="edict-polished" style="display:none;margin-top:var(--space-3);"></div>';
-    html += '<div class="ed-section-divider"><span class="label">主 角 行 止</span></div>';
-    html += '<div class="ed-xinglu-card">';
-    html += '<div class="ed-xinglu-hdr"><span class="title">本 回 合 行 动</span><span class="desc">——你这段时间做了什么</span></div>';
-    html += '<textarea id="xinglu-pub" rows="4" class="edict-input paper-texture" data-desk-player-action="1" placeholder="如：召见某臣、校阅三军、微服私访、夜读史书、祖庙祭祀、宴请群臣……" oninput="(window.TM_PHASE8_FORMAL||(window.TM_PHASE8_FORMAL={})).playerAction=this.value">' + esc(deskValue('#xinglu-pub', state.playerAction || '')) + '</textarea>';
-    var recentXinglu = firstArray(gm.qijuHistory).filter(function(q){ return q && q.xinglu && Number(q.turn || 0) < Number(gm.turn || 1); }).slice(-5).reverse();
-    if (recentXinglu.length) {
-      html += '<details class="ed-xinglu-hist"><summary>近期行止记录 <span style="color:var(--ink-300);margin-left:6px;font-size:10px;">' + esc(recentXinglu.length) + ' 条</span></summary>';
-      html += '<div style="margin-top:10px;max-height:200px;overflow-y:auto;">';
-      recentXinglu.forEach(function(q){
-        html += '<div class="ed-xinglu-hist-item"><span class="turn">T' + esc(q.turn) + '</span>' + esc(q.xinglu) + '</div>';
-      });
-      html += '</div></details>';
-    }
-    html += '</div>';
-    html += '<div class="ed-tyrant-block">';
-    html += '<div class="ed-tyrant-toggle" onclick="var p=document.getElementById(&quot;tyrant-panel&quot;);if(p){p.style.display=p.style.display===&quot;none&quot;?&quot;block&quot;:&quot;none&quot;;this.classList.toggle(&quot;open&quot;);if(p.style.display!==&quot;none&quot;&amp;&amp;window.TyrantActivitySystem)TyrantActivitySystem.renderPanel();}">';
-    html += '帝 王 私 行';
-    html += '<span class="sub">—— 点击展开（后妃·游猎·丹药·密访）</span>';
-    html += '</div>';
-    html += '<div id="tyrant-panel" style="display:none;max-height:300px;overflow-y:auto;padding:var(--space-2);margin-top:var(--space-2);"></div>';
-    html += '</div>';
+    var nf = '奉天承运皇帝<i class="hc-sep"></i>诏曰：';
+    var subDate = (typeof window.getTSText === 'function') ? window.getTSText(Number(gm.turn || 1)) : ('第 ' + (gm.turn || 1) + ' 回合');
+    // 往期诏令档案 → 历史诏书弹窗 (与议事清册拆开·删 details 改 modal)
+    var archiveHtml = '';
+    var archiveCount = 0;
     if (gm._edictTracker && gm._edictTracker.length > 0) {
       var allEdicts = gm._edictTracker.filter(function(e){ return e && Number(e.turn || 0) < Number(gm.turn || 1); });
+      archiveCount = allEdicts.length;
       if (allEdicts.length > 0) {
         var byTurn = {};
         allEdicts.forEach(function(e){ (byTurn[e.turn] || (byTurn[e.turn] = [])).push(e); });
         var turns = Object.keys(byTurn).sort(function(a, b){ return Number(b) - Number(a); });
-        html += '<details class="ed-archive"><summary>往 期 诏 令 档 案 · ' + esc(allEdicts.length) + ' 条</summary>';
-        html += '<div style="margin-top:var(--space-2);max-height:400px;overflow-y:auto;">';
         turns.forEach(function(turn){
           var turnText = typeof window.getTSText === 'function' ? window.getTSText(parseInt(turn, 10)) : 'T' + turn;
-          html += '<div class="ed-archive-group"><div class="ed-archive-group-title">第' + esc(turn) + '回合 · ' + esc(turnText) + '</div>';
+          archiveHtml += '<div class="arc-turn">第 ' + esc(turn) + ' 回合 · ' + esc(turnText) + '</div>';
           byTurn[turn].forEach(function(e){
-            var color = e.status === 'completed' ? 'var(--celadon-400)' : e.status === 'obstructed' ? 'var(--vermillion-400)' : e.status === 'partial' ? '#e67e22' : e.status === 'pending_delivery' ? 'var(--amber-400)' : 'var(--ink-300)';
-            var mark = { completed:'✅', obstructed:'❌', partial:'⚠️', executing:'⏳', pending:'⭕', pending_delivery:'📨' }[e.status] || '';
-            html += '<div style="font-size:var(--text-xs);padding:2px 0;border-bottom:1px solid var(--color-border-subtle);">';
-            html += '<span style="color:' + color + ';">' + mark + '</span> ';
-            html += '<span style="color:var(--color-foreground-muted);">' + esc(e.category || '') + '</span> ';
-            html += esc(e.content || '');
-            if (e.assignee) html += ' <span style="color:var(--ink-300);">[执行:' + esc(e.assignee) + ']</span>';
-            if (e.feedback) html += '<div style="color:var(--color-foreground-secondary);padding-left:1rem;">' + esc(e.feedback) + '</div>';
-            html += '</div>';
+            var color = e.status === 'completed' ? '#557f6f' : e.status === 'obstructed' ? '#a83228' : e.status === 'partial' ? '#c67e22' : e.status === 'pending_delivery' ? '#b58324' : '#9c8b6b';
+            var mark = { completed:'✅', obstructed:'❌', partial:'⚠️', executing:'⏳', pending:'⭕', pending_delivery:'📨' }[e.status] || '·';
+            archiveHtml += '<div class="arc-item" style="--st-c:' + color + ';"><span class="a-mark">' + mark + '</span><span class="a-cat">' + esc(e.category || '') + '</span> ' + esc(e.content || '');
+            if (e.assignee) archiveHtml += ' <span class="a-assignee">[执行:' + esc(e.assignee) + ']</span>';
+            if (e.feedback) archiveHtml += '<div class="a-fb">' + esc(e.feedback) + '</div>';
+            archiveHtml += '</div>';
           });
-          html += '</div>';
         });
-        html += '</div></details>';
       }
     }
-    html += '<div class="ed-action-bar">';
-    html += '<button class="bt bp" id="btn-end" onclick="if(window.confirmEndTurn)window.confirmEndTurn()" style="padding:var(--space-3) var(--space-8);font-size:var(--text-md);letter-spacing:0.15em;border:2px solid var(--gold-400);box-shadow:0 2px 12px rgba(184,154,83,0.2);">' + icon('end-turn',16) + ' 诏付有司</button>';
-    html += '<button class="bt" title="地形图·山川城池分布（决策辅助）·与【军事·地图总览】数据源不同" onclick="if(window.TM&amp;&amp;TM.Map&amp;&amp;TM.Map.open)TM.Map.open(&quot;terrain&quot;)" style="padding:var(--space-3) var(--space-6);font-size:var(--text-md);">' + icon('map',16) + ' 查看地图</button>';
+    if (!archiveHtml) archiveHtml = '<div class="arc-turn">尚无往期诏令</div><div class="arc-item" style="--st-c:#9c8b6b;">诏付有司、过回合后，历次诏令的承办与回执将归档于此。</div>';
+
+    var html = '<section class="ed-yuan" data-tab="edict">';
+    html += '<div class="scroll-wrap"><div class="roller-v"></div>';
+    html += '<div class="silk">';
+    // ── 抬头：拟诏/主角行止 tab · 居中御笔 · 历史诏书入口 ──
+    html += '<div class="silk-head">';
+    html += '<div class="tab-switch">';
+    html += '<button type="button" class="ed-tab active" data-tab="edict" onclick="var p=this.closest(&quot;.ed-yuan&quot;);p.setAttribute(&quot;data-tab&quot;,&quot;edict&quot;);p.querySelectorAll(&quot;.ed-tab&quot;).forEach(function(t){t.classList.toggle(&quot;active&quot;,t.getAttribute(&quot;data-tab&quot;)===&quot;edict&quot;);});">拟诏</button>';
+    html += '<button type="button" class="ed-tab" data-tab="xinglu" onclick="var p=this.closest(&quot;.ed-yuan&quot;);p.setAttribute(&quot;data-tab&quot;,&quot;xinglu&quot;);p.querySelectorAll(&quot;.ed-tab&quot;).forEach(function(t){t.classList.toggle(&quot;active&quot;,t.getAttribute(&quot;data-tab&quot;)===&quot;xinglu&quot;);});">主角行止</button>';
     html += '</div>';
-    html += '</main></section>';
+    html += '<div class="head-center"><div class="hc-main">' + nf + '</div><div class="hc-sub">' + esc(subDate) + '</div></div>';
+    html += '<div class="head-right"><button type="button" class="link-btn" onclick="this.closest(&quot;.ed-yuan&quot;).querySelector(&quot;.arc-modal&quot;).classList.add(&quot;show&quot;);"><span>🗞</span>历史诏书<span class="n">' + esc(archiveCount) + '</span></button></div>';
+    html += '</div>';
+    // ── 三栏主体 ──
+    html += '<div class="silk-body">';
+    // 左：议事清册 (常驻·复用 renderEdictSuggestionItem·含立绘/纳入选类/删除)
+    html += '<aside class="col-sug"><div class="col-sug-t">议 事 清 册 <small>' + esc(suggestions.length) + ' 条</small></div><div class="sug-list">';
+    html += suggestions.map(renderEdictSuggestionItem).join('') || '<article class="edict-sug-v2"><div><b>暂无御案建议</b><p>召开朝议、问对或处理奏疏后，可摘入诏书草拟。</p></div></article>';
+    html += '</div></aside>';
+    // 中：拟诏 / 主角行止
+    html += '<div class="col-main">';
+    // 拟诏 tab
+    html += '<div class="ed-tab-panel edict"><div class="edict-col">';
+    cats.forEach(function(cat, i){
+      var v0 = legacyEdictDraftValue(cat.id, cat.keys);
+      var inked = String(v0 || '').trim() ? ' inked' : '';
+      html += '<div class="erow" data-cat="' + attr(cat.cat) + '" style="animation-delay:' + (0.06 * (i + 1)).toFixed(2) + 's">';
+      html += '<div class="seal-col"><div class="cell-seal' + inked + '" data-cat="' + attr(cat.cat) + '"><span class="cs-1">' + esc(cat.cs1) + '</span><span class="cs-2">' + esc(cat.cs2) + '</span></div><span class="seal-hint">' + esc(cat.hint) + '</span></div>';
+      html += '<div class="erow-body">';
+      html += '<textarea id="' + attr(cat.id) + '" class="cat-field" data-cat="' + attr(cat.cat) + '" data-desk-edict-cat="' + attr(cat.keys[0]) + '" data-label="' + attr(cat.cat) + '" placeholder="' + attr(cat.placeholder) + '" oninput="var s=window.TM_PHASE8_FORMAL||(window.TM_PHASE8_FORMAL={});var d=s.edictDrafts||(s.edictDrafts={});d[&quot;' + attr(cat.keys[0]) + '&quot;]=this.value;if(window._edictLiveForecast)window._edictLiveForecast(&quot;' + attr(cat.id) + '&quot;);var er=this.closest(&quot;.erow&quot;);if(er){var sl=er.querySelector(&quot;.cell-seal&quot;);if(sl)sl.classList.toggle(&quot;inked&quot;,!!this.value.trim());}">' + esc(v0) + '</textarea>';
+      html += '<div id="' + attr(cat.id) + '-forecast" class="ed-forecast" style="display:none;"></div>';
+      html += '</div></div>';
+    });
+    // 文风选择 (保留 #edict-polish-style 供 _polishEdicts 读) + 润色结果容器
+    html += '<div class="ed-polish-bar"><span class="lbl">文 风</span>';
+    html += '<select id="edict-polish-style"><option value="elegant">典雅骈文</option><option value="concise">简洁明快</option><option value="ornate">华丽文藻</option><option value="plain">白话文言</option></select></div>';
+    html += '<div id="edict-polished" style="display:none;"></div>';
+    html += '</div></div>';
+    // 主角行止 tab
+    html += '<div class="ed-tab-panel xinglu">';
+    html += '<div class="xinglu-main"><div class="xm-hd"><span class="xm-title">本 回 合 行 动</span><span class="xm-desc">—— 私事不入诏书·仅影响人物·皇威·民心</span></div>';
+    html += '<textarea id="xinglu-pub" class="x-field" data-desk-player-action="1" placeholder="如：召见某臣、校阅三军、微服私访、夜读史书、祖庙祭祀、宴请群臣、命人查办旧案……" oninput="(window.TM_PHASE8_FORMAL||(window.TM_PHASE8_FORMAL={})).playerAction=this.value">' + esc(deskValue('#xinglu-pub', state.playerAction || '')) + '</textarea></div>';
+    var recentXinglu = firstArray(gm.qijuHistory).filter(function(q){ return q && q.xinglu && Number(q.turn || 0) < Number(gm.turn || 1); }).slice(-6).reverse();
+    html += '<div class="xinglu-hist"><div class="xh-t">近 期 行 止 记 录 · ' + esc(recentXinglu.length) + ' 条</div><div class="xh-list">';
+    if (recentXinglu.length) {
+      recentXinglu.forEach(function(q){ html += '<div class="x-hist-item"><span class="t">T' + esc(q.turn) + '</span>' + esc(q.xinglu) + '</div>'; });
+    } else {
+      html += '<div class="x-hist-item">暂无近期行止记录。</div>';
+    }
+    html += '</div></div>';
+    html += '</div>';
+    html += '</div>';
+    // 右：竖排操作 有司润色 / 诏付有司
+    html += '<div class="col-actions">';
+    html += '<button type="button" class="act-polish" onclick="if(window._polishEdicts)window._polishEdicts();else if(window.toast)toast(\'诏书润色模块尚未载入\')"><span class="al">有<br>司<br>润<br>色</span></button>';
+    html += '<div class="act-spacer"></div>';
+    html += '<button type="button" class="act-seal" id="btn-end" onclick="var b=this;b.classList.remove(&quot;stamped&quot;);void b.offsetWidth;b.classList.add(&quot;stamped&quot;);if(window.confirmEndTurn)window.confirmEndTurn();"><span class="al">诏<br>付<br>有<br>司</span></button>';
+    html += '</div>';
+    html += '</div>';     // /silk-body
+    // 历史诏书弹窗
+    html += '<div class="arc-modal"><div class="arc-scrim" onclick="this.closest(&quot;.arc-modal&quot;).classList.remove(&quot;show&quot;);"></div>';
+    html += '<div class="arc-card"><div class="arc-card-hd"><span class="ah-l"><span class="ah-seal">史</span>历 史 诏 书</span><span class="arc-x" onclick="this.closest(&quot;.arc-modal&quot;).classList.remove(&quot;show&quot;);">×</span></div>';
+    html += '<div class="arc-body">' + archiveHtml + '</div></div></div>';
+    html += '</div>';     // /silk
+    html += '<div class="roller-v"></div></div>';     // /scroll-wrap
+    html += '</section>';
     return html;
   }
 
@@ -1603,10 +1878,12 @@
     state.memorialReplies = state.memorialReplies || {};
     if (Object.prototype.hasOwnProperty.call(state.memorialReplies, replyId)) reply = state.memorialReplies[replyId];
     var btnData = function(decision){ return { id:m.id || '', decision:decision, replyid:replyId }; };
+    // 侨置决策·承接旧 renderMemorials·仅当奏疏挂 _qiaozhiTarget(领土丢失后生成)·入口 openQiaozhiPanel·此前 desk 卡缺此上下文动作 → 侨置在御案 UI 够不着 (修复 2026-05-29)
+    var qzBtn = (m.raw && m.raw._qiaozhiTarget) ? actionBtn('侨置决策', 'memorial-qiaozhi-desk', { id:m.id || '' }, 'tm-mini-btn hot') : '';
     return '<article class="memorial-card-v4 ' + cls + '">' +
       '<div class="memorial-card-head-v4"><span class="memorial-avatar-v4">' + esc((m.from || m.sender || '奏').slice(0, 1)) + '</span><span><b>' + esc(m.title || m.topic || '奏疏') + '</b><span>' + esc(meta) + '</span></span><span class="tm-chip-row">' + actionChip(key === 'urgent' ? '急奏' : key === 'done' ? '已批' : key === 'held' ? '留中' : '待批', key === 'urgent' ? 'hot' : key === 'done' ? 'green' : '') + '</span></div>' +
       '<div class="memorial-body-v4">' + bodyHtml + '</div>' +
-      '<div class="memorial-reply-v4"><textarea id="' + attr(replyId) + '" class="tm-textarea" data-desk-memorial-reply placeholder="朱批意见">' + esc(reply) + '</textarea><div class="memorial-actions-v4">' + actionBtn('准奏', 'memorial-decision-desk', btnData('approved'), 'tm-mini-btn green') + actionBtn('驳回', 'memorial-decision-desk', btnData('rejected'), 'tm-mini-btn hot') + actionBtn('批示', 'memorial-decision-desk', btnData('annotated'), 'tm-mini-btn') + actionBtn('转有司', 'memorial-decision-desk', btnData('referred'), 'tm-mini-btn') + actionBtn('发廷议', 'memorial-decision-desk', btnData('court_debate'), 'tm-mini-btn') + (key === 'held' ? '' : actionBtn('留中', 'memorial-decision-desk', btnData('hold'), 'tm-mini-btn')) + actionBtn('摘入', 'memorial-edict-desk', { id:m.id || '' }, 'tm-mini-btn') + actionBtn('传召问询', 'memorial-summon-desk', { id:m.id || '' }, 'tm-mini-btn') + '</div></div>' +
+      '<div class="memorial-reply-v4"><textarea id="' + attr(replyId) + '" class="tm-textarea" data-desk-memorial-reply placeholder="朱批意见">' + esc(reply) + '</textarea><div class="memorial-actions-v4">' + actionBtn('准奏', 'memorial-decision-desk', btnData('approved'), 'tm-mini-btn green') + actionBtn('驳回', 'memorial-decision-desk', btnData('rejected'), 'tm-mini-btn hot') + actionBtn('批示', 'memorial-decision-desk', btnData('annotated'), 'tm-mini-btn') + actionBtn('转有司', 'memorial-decision-desk', btnData('referred'), 'tm-mini-btn') + actionBtn('发廷议', 'memorial-decision-desk', btnData('court_debate'), 'tm-mini-btn') + (key === 'held' ? '' : actionBtn('留中', 'memorial-decision-desk', btnData('hold'), 'tm-mini-btn')) + actionBtn('摘入', 'memorial-edict-desk', { id:m.id || '' }, 'tm-mini-btn') + actionBtn('传召问询', 'memorial-summon-desk', { id:m.id || '' }, 'tm-mini-btn') + qzBtn + '</div></div>' +
       '</article>';
   }
 
@@ -1740,6 +2017,7 @@
     if (s === 'delivered') return '已送达';
     if (s === 'replying') return '回函在途';
     if (s === 'returned') return '已有回函';
+    if (s === 'blocked') return '中书阻滞';
     if (s === 'intercepted') return '信使失踪';
     if (s === 'intercepted_forging') return '回函在途';
     if (s === 'blocked') return '流转受阻';
@@ -1842,10 +2120,11 @@
     ].filter(Boolean);
     var actions = '';
     if (outgoing && l.raw && l.raw.status === 'traveling') actions += actionBtn('追回', 'letter-thread-action-desk', { id:l.id || '', letterAction:'recall' }, 'tm-mini-btn');
-    if (outgoing && l.raw && /intercepted|blocked/.test(String(l.raw.status || ''))) {
+    if (outgoing && l.raw && /intercepted/.test(String(l.raw.status || ''))) {
       actions += actionBtn('重发·密使', 'letter-thread-action-desk', { id:l.id || '', letterAction:'resend-secret' }, 'tm-mini-btn');
       actions += actionBtn('重发·加急', 'letter-thread-action-desk', { id:l.id || '', letterAction:'resend-fast' }, 'tm-mini-btn hot');
     }
+    if (outgoing && l.raw && String(l.raw.status) === 'blocked') actions += actionBtn('绕封锁·改密旨', 'letter-thread-action-desk', { id:l.id || '', letterAction:'bypass' }, 'tm-mini-btn hot');
     if (!outgoing && l.raw && l.raw._npcInitiated) actions += actionBtn('回书', 'letter-thread-action-desk', { id:l.id || '', letterAction:'reply' }, 'tm-mini-btn green');
     actions += actionBtn('遣使核实', 'letter-thread-action-desk', { id:l.id || '', letterAction:'verify' }, 'tm-mini-btn');
     actions += actionBtn('摘入', 'letter-thread-action-desk', { id:l.id || '', letterAction:'excerpt' }, 'tm-mini-btn');
@@ -1869,6 +2148,9 @@
     var targetName = (window.GM && GM._pendingLetterTo) || state.letterTarget || (people[0] && people[0].name) || '臣工';
     var target = people.find(function(p){ return String(p.name) === String(targetName) || String(p.id) === String(targetName); }) || people[0];
     state.letterTarget = target.name;
+    if (!Array.isArray(state.letterMultiTargets)) state.letterMultiTargets = [];
+    var multiOn = !!state.letterMultiMode;          // 群发态·点名册多选·一并遣使
+    var multiTargets = state.letterMultiTargets;
     var visiblePeople = people;
     var grouped = {};
     visiblePeople.forEach(function(p){ (grouped[p.region] || (grouped[p.region] = [])).push(p); });
@@ -1878,8 +2160,9 @@
       if (!grouped[region] || !grouped[region].length) return '';
       return '<div class="hy-region-group-v5"><h4 class="hy-region-v4">' + esc(region) + '</h4>' + grouped[region].map(function(p){
         var active = String(p.name) === String(target.name);
+        var multiSel = multiOn && multiTargets.indexOf(p.name) >= 0;
         var counts = letterPersonCounts(p.name, letters);
-        return '<button type="button" class="hy-person-v5 ' + (active ? 'active' : '') + '" data-desk-action="letter-target-desk" data-name="' + attr(p.name) + '" data-letter-search-text="' + attr([p.name, p.role, p.region, p.location, p.faction].join(' ')) + '"><img class="hy-face-v5" src="' + attr(p.portrait) + '" alt=""><span class="hy-person-main-v5"><b>' + esc(p.name) + '</b><span data-hy-contact-role="1">' + esc(p.role) + '</span><i data-hy-contact-location="1">' + esc(p.location) + '</i></span><span class="hy-person-counts-v5">' + (counts.unread ? '<em class="hot">' + esc(counts.unread) + '</em>' : '') + (counts.road ? '<em>' + esc(counts.road) + '</em>' : '') + (active ? '<em class="on">今</em>' : '') + '</span></button>';
+        return '<button type="button" class="hy-person-v5 ' + (active && !multiOn ? 'active ' : '') + (multiSel ? 'multi-sel' : '') + '" data-desk-action="letter-target-desk" data-name="' + attr(p.name) + '" data-letter-search-text="' + attr([p.name, p.role, p.region, p.location, p.faction].join(' ')) + '"><img class="hy-face-v5" src="' + attr(p.portrait) + '" alt=""><span class="hy-person-main-v5"><b>' + esc(p.name) + '</b><span data-hy-contact-role="1">' + esc(p.role) + '</span><i data-hy-contact-location="1">' + esc(p.location) + '</i></span><span class="hy-person-counts-v5">' + (multiOn ? '<em class="msel' + (multiSel ? ' on' : '') + '">' + (multiSel ? '✓' : '○') + '</em>' : ((counts.unread ? '<em class="hot">' + esc(counts.unread) + '</em>' : '') + (counts.road ? '<em>' + esc(counts.road) + '</em>' : '') + (active ? '<em class="on">今</em>' : ''))) + '</span></button>';
       }).join('') + '</div>';
     }).join('') + '<div class="tm-desk-empty hy-search-empty-v5" style="display:none">没有匹配的通信对象。</div>';
     var targetLetters = letters.filter(function(l){ return String(l.from) === String(target.name) || String(l.to) === String(target.name); });
@@ -1903,8 +2186,8 @@
     var unreadInbox = inboxRows.filter(function(x){ return x.unread; }).length;
     var inbox = inboxRows.length ? inboxRows.slice(0, 20).map(renderFormalInboxItem).join('') : '<article class="hy-letter-empty-v5"><b>暂无来信</b><p>NPC 主动来函与已返回的回书会集中显示在这里。</p></article>';
     return '<section class="hy-office-v5">' +
-      '<aside class="hy-contact-pane-v5"><div class="tm-panel-v4-title"><span class="seal">雁</span><span><b>鸿雁传书</b><span>人物 / 搜索 / 未读 / 在途</span></span></div><div class="hy-search-v5"><input class="tm-input" data-desk-letter-search value="' + attr(state.letterSearch || '') + '" placeholder="检索姓名、官职、党派、地点"></div><div class="hy-roster-scroll-v5">' + roster + '</div></aside>' +
-      '<main class="hy-letter-desk-v5"><section class="hy-compose-card-v5"><header><img src="' + attr(target.portrait) + '" alt=""><span><b>致 ' + esc(target.name) + '</b><em>' + esc(target.role) + ' / ' + esc(target.location) + '</em></span><span class="tm-chip-row">' + actionChip('往来 ' + selectedCounts.total, 'green') + (selectedCounts.unread ? actionChip('未读 ' + selectedCounts.unread, 'hot') : '') + (selectedCounts.road ? actionChip('在途 ' + selectedCounts.road) : '') + '</span></header><div class="hy-route-v5">' + fullHongyanText(route, '驿路平稳，暂无阻断。', 'hy-route-full-v5') + '</div><div class="hy-compose-grid-v5"><label><span>收信人</span><input class="tm-input" data-desk-letter-to data-letter-draft-field="to" value="' + attr(target.name) + '"></label><label><span>书信类型</span><select class="tm-select" data-desk-letter-type data-letter-draft-field="type"><option value="secret_decree"' + (type === 'secret_decree' ? ' selected' : '') + '>密旨</option><option value="military_order"' + (type === 'military_order' ? ' selected' : '') + '>征调令</option><option value="greeting"' + (type === 'greeting' ? ' selected' : '') + '>问安函</option><option value="personal"' + (type === 'personal' ? ' selected' : '') + '>私函</option><option value="formal_edict"' + (type === 'formal_edict' ? ' selected' : '') + '>正式诏令</option><option value="proclamation"' + (type === 'proclamation' ? ' selected' : '') + '>檄文</option></select></label><label><span>驿递缓急</span><select class="tm-select" data-desk-letter-urgency data-letter-draft-field="urgency"><option value="normal"' + (urgency === 'normal' ? ' selected' : '') + '>普通驿递</option><option value="urgent"' + (urgency === 'urgent' ? ' selected' : '') + '>加急驿递</option><option value="extreme"' + (urgency === 'extreme' ? ' selected' : '') + '>八百里加急</option></select></label><label><span>加密方式</span><select class="tm-select" data-desk-letter-cipher data-letter-draft-field="cipher"><option value="none"' + (cipher === 'none' ? ' selected' : '') + '>不加密</option><option value="yinfu"' + (cipher === 'yinfu' ? ' selected' : '') + '>阴符</option><option value="yinshu"' + (cipher === 'yinshu' ? ' selected' : '') + '>阴书</option><option value="wax_ball"' + (cipher === 'wax_ball' ? ' selected' : '') + '>蜡丸密函</option><option value="silk_sewn"' + (cipher === 'silk_sewn' ? ' selected' : '') + '>帛书缝衣</option></select></label><label><span>信使方式</span><select class="tm-select" data-desk-letter-sendmode data-letter-draft-field="sendMode"><option value="normal"' + (sendMode === 'normal' ? ' selected' : '') + '>普通信使</option><option value="multi_courier"' + (sendMode === 'multi_courier' ? ' selected' : '') + '>多路信使</option><option value="secret_agent"' + (sendMode === 'secret_agent' ? ' selected' : '') + '>密使</option></select></label></div><textarea class="tm-textarea hy-compose-paper-v5" data-desk-letter-body data-letter-draft-field="body" placeholder="致书' + attr(target.name) + '……">' + esc(body) + '</textarea><div class="hy-compose-actions-v5">' + actionBtn('遣使送出', 'letter-send-desk', {}, 'tm-action-primary') + actionBtn('存为草稿', 'letter-draft-desk', {}, 'tm-action-ghost') + actionBtn('入人物记忆', 'letter-memory-desk', {}, 'tm-action-ghost') + '</div></section>' +
+      '<aside class="hy-contact-pane-v5"><div class="tm-panel-v4-title"><span class="seal">雁</span><span><b>鸿雁传书</b><span>人物 / 搜索 / 未读 / 在途</span></span></div><div class="hy-search-v5"><input class="tm-input" data-desk-letter-search value="' + attr(state.letterSearch || '') + '" placeholder="检索姓名、官职、党派、地点"><div class="hy-multi-bar-v5">' + actionBtn(multiOn ? ('群发中 · ' + multiTargets.length + ' 人') : '群发', 'letter-multi-toggle-desk', {}, 'tm-mini-btn hy-multi-toggle-v5' + (multiOn ? ' hot' : '')) + (multiOn ? '<span class="hy-multi-hint-v5">点名册勾选/取消，写完正文按「遣使送出」一并发出</span>' : '') + '</div></div><div class="hy-roster-scroll-v5">' + roster + '</div></aside>' +
+      '<main class="hy-letter-desk-v5"><section class="hy-compose-card-v5"><header><img src="' + attr(target.portrait) + '" alt=""><span><b>致 ' + esc(target.name) + '</b><em>' + esc(target.role) + ' / ' + esc(target.location) + '</em></span><span class="tm-chip-row">' + actionChip('往来 ' + selectedCounts.total, 'green') + (selectedCounts.unread ? actionChip('未读 ' + selectedCounts.unread, 'hot') : '') + (selectedCounts.road ? actionChip('在途 ' + selectedCounts.road) : '') + '</span></header><div class="hy-route-v5">' + fullHongyanText(route, '驿路平稳，暂无阻断。', 'hy-route-full-v5') + '</div>' + (multiOn ? '<div class="hy-multi-banner-v5"><b>群发 ' + multiTargets.length + ' 人</b>' + (multiTargets.length ? '：' + esc(multiTargets.join('、')) : '（请在左侧名册勾选收件人）') + '<small>正文与类型/缓急/加密对所有人一致；下方「收信人」栏在群发态忽略。</small></div>' : '') + '<div class="hy-compose-grid-v5"><label><span>收信人</span><input class="tm-input" data-desk-letter-to data-letter-draft-field="to" value="' + attr(target.name) + '"></label><label><span>书信类型</span><select class="tm-select" data-desk-letter-type data-letter-draft-field="type"><option value="secret_decree"' + (type === 'secret_decree' ? ' selected' : '') + '>密旨</option><option value="military_order"' + (type === 'military_order' ? ' selected' : '') + '>征调令</option><option value="greeting"' + (type === 'greeting' ? ' selected' : '') + '>问安函</option><option value="personal"' + (type === 'personal' ? ' selected' : '') + '>私函</option><option value="formal_edict"' + (type === 'formal_edict' ? ' selected' : '') + '>正式诏令</option><option value="proclamation"' + (type === 'proclamation' ? ' selected' : '') + '>檄文</option></select></label><label><span>驿递缓急</span><select class="tm-select" data-desk-letter-urgency data-letter-draft-field="urgency"><option value="normal"' + (urgency === 'normal' ? ' selected' : '') + '>普通驿递</option><option value="urgent"' + (urgency === 'urgent' ? ' selected' : '') + '>加急驿递</option><option value="extreme"' + (urgency === 'extreme' ? ' selected' : '') + '>八百里加急</option></select></label><label><span>加密方式</span><select class="tm-select" data-desk-letter-cipher data-letter-draft-field="cipher"><option value="none"' + (cipher === 'none' ? ' selected' : '') + '>不加密</option><option value="yinfu"' + (cipher === 'yinfu' ? ' selected' : '') + '>阴符</option><option value="yinshu"' + (cipher === 'yinshu' ? ' selected' : '') + '>阴书</option><option value="wax_ball"' + (cipher === 'wax_ball' ? ' selected' : '') + '>蜡丸密函</option><option value="silk_sewn"' + (cipher === 'silk_sewn' ? ' selected' : '') + '>帛书缝衣</option></select></label><label><span>信使方式</span><select class="tm-select" data-desk-letter-sendmode data-letter-draft-field="sendMode"><option value="normal"' + (sendMode === 'normal' ? ' selected' : '') + '>普通信使</option><option value="multi_courier"' + (sendMode === 'multi_courier' ? ' selected' : '') + '>多路信使</option><option value="secret_agent"' + (sendMode === 'secret_agent' ? ' selected' : '') + '>密使</option></select></label></div><textarea class="tm-textarea hy-compose-paper-v5" data-desk-letter-body data-letter-draft-field="body" placeholder="致书' + attr(target.name) + '……">' + esc(body) + '</textarea><div class="hy-compose-actions-v5">' + actionBtn('遣使送出', 'letter-send-desk', {}, 'tm-action-primary') + actionBtn('存为草稿', 'letter-draft-desk', {}, 'tm-action-ghost') + actionBtn('入人物记忆', 'letter-memory-desk', {}, 'tm-action-ghost') + '</div></section>' +
       '<section class="hy-thread-card-v5"><header><span><b>往来信札</b><em>' + esc(target.name) + ' · ' + esc(filter === 'all' ? '全部' : filter) + '</em></span><div class="hy-filterbar-v5">' + filterBtns + '</div></header><div class="hy-thread-scroll-v5">' + thread + '</div></section></main>' +
       '<aside class="hy-inbox-pane-v5"><div class="tm-panel-v4-title"><span class="seal">函</span><span><b>来信</b><span>主动来函 / 回书 / 未阅</span></span></div><div class="hy-inbox-summary-v5"><span>总来信 <b>' + esc(inboxRows.length) + '</b></span><span>未阅 <b>' + esc(unreadInbox) + '</b></span></div><div class="hy-inbox-scroll-v5">' + inbox + '</div></aside>' +
       '</section>';
@@ -2029,6 +2312,11 @@
 
   // ── public API attach (Wave 4·drafts) ─────────────────────────────
   bridge.drafts = bridge.drafts || {};
+  // 导出本地 helper 实现·让 bridge._actionBtn/_actionChip/_renderActionStats 的 shim (及 records/rightrail 的别名) 真正解析到实现·
+  // 此前缺失 → shim 返回空串 → 御案面板按钮/印记/统计条集体不渲染 (修复 2026-05-29)
+  bridge.drafts.actionBtn = actionBtn;
+  bridge.drafts.actionChip = actionChip;
+  bridge.drafts.renderActionStats = renderActionStats;
   bridge.drafts.installDeskPanelExactStyles = installDeskPanelExactStyles;
   bridge.drafts.installActionPanelExactStyles = installActionPanelExactStyles;
   bridge.drafts.closeDeskOverlay = closeDeskOverlay;

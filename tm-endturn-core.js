@@ -275,6 +275,9 @@ async function _endTurnCore(){
   // （因 AI 推演/各 engine.tick 都可能修改 division.population.mouths，需重新累计）
   try { if (typeof IntegrationBridge !== 'undefined' && typeof IntegrationBridge.aggregateRegionsToVariables === 'function') IntegrationBridge.aggregateRegionsToVariables(); } catch(_aggFinalE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_aggFinalE, 'endTurn] final aggregate') : console.warn('[endTurn] final aggregate', _aggFinalE); }
 
+  // 回合末·按统帅死活校正各军主帅引用：摘掉挂着死人(赐死/AI死/战死各路)的帅、留空缺待补任。须在赐死(applyEdictActions)+AI死(applyCharacterDeaths)都跑完之后
+  try { if (typeof TM !== 'undefined' && TM.AIChange && TM.AIChange.Army && typeof TM.AIChange.Army.reconcileArmyCommanders === 'function') TM.AIChange.Army.reconcileArmyCommanders(); } catch(_recACE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_recACE, 'endTurn] reconcileArmyCommanders') : console.warn('[endTurn] reconcileArmyCommanders', _recACE); }
+
   GM.busy=false;
   GM._endTurnBusy=false;
   } catch (error) {

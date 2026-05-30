@@ -317,6 +317,16 @@ function applyEdictActions(actions) {
       if (typeof AffinityMap !== 'undefined') AffinityMap.add(a.character, P.playerInfo.characterName || '玩家', 5, '被委以重任');
     }
   });
+  // 下诏任免主帅·确定性补绑：含军职(督师/总兵/提督…)的任命，额外把 army.commander 绑到对应部队（不取代官制任命·在其上补绑兵权）
+  try {
+    if (typeof TM !== 'undefined' && TM.AIChange && TM.AIChange.Army && typeof TM.AIChange.Army.bindCommanderFromAppointment === 'function') {
+      actions.appointments.forEach(function(_ap) {
+        if (_ap && _ap.character && _ap.position) {
+          try { TM.AIChange.Army.bindCommanderFromAppointment(_ap.character, _ap.position, { source: 'edict.appoint_commander' }); } catch (_bcOneE) {}
+        }
+      });
+    }
+  } catch (_bcE) {}
   // 免职——双路径：postSystem + officeTree
   actions.dismissals.forEach(function(a) {
     var char = findCharByName(a.character);
@@ -356,6 +366,12 @@ function applyEdictActions(actions) {
     if (typeof recordCharacterArc === 'function') recordCharacterArc(a.character, 'dismissal', '奉诏免职');
     addEB('人事', a.character + '被免职', { credibility: didAny ? 'high' : 'medium' });
     if (typeof AffinityMap !== 'undefined') AffinityMap.add(a.character, P.playerInfo.characterName || '玩家', -10, '被免职');
+    // 免职即解兵权：被免者若正挂某军主帅，确定性摘帅留空缺（角色仍在世·按死活扫的 reconciler 抓不到这条，须显式摘）
+    try {
+      if (typeof TM !== 'undefined' && TM.AIChange && TM.AIChange.Army && typeof TM.AIChange.Army.vacateArmiesByCommander === 'function') {
+        TM.AIChange.Army.vacateArmiesByCommander(a.character, { moraleHit: 10, markLost: true, eb: '{army}主帅{name}奉诏去职、兵权交卸，军中暂缺主将，待下诏补任' });
+      }
+    } catch (_vcE) {}
   });
   // 赐死
   actions.deaths.forEach(function(a) {

@@ -298,6 +298,9 @@
           }
           changed = true;
         }
+        // 补绑/改帅后复位 linkage 标记：有帅 → 在任、清掉「出缺」标记（使日后再死能再触发一次士气惩罚）；空帅 → 标记出缺
+        if (String(commanderInput).trim()) { army.commanderAlive = true; army._commanderLost = false; }
+        else { army.commanderAlive = false; army.commanderTitle = ''; }
       }
       if (qualityInput !== null) {
         var oldQuality = String(army.quality || army.grade || army.eliteLevel || '').trim();
@@ -512,6 +515,110 @@
     return count;
   }
 
+  // ── 部队统帅 linkage：摘帅校正 / 罢兵权 / 诏令补绑（钉死范式·回合末从「统帅死活」反推，不逐路打补丁）──
+
+  // 把一支兵的主帅引用清空：清全部 12 个别名 + commanderTitle，按需扣士气/标记/发邸报
+  function _vacateArmyCommand(army, formerName, opts) {
+    if (!army) return;
+    opts = opts || {};
+    _syncArmyCommanderAliases(army, '', formerName || '');
+    army.commanderTitle = '';
+    army.commanderAlive = false;
+    if (opts.moraleHit) army.morale = Math.max(0, (Number(army.morale) || 50) - opts.moraleHit);
+    if (opts.markLost) { army._commanderLost = true; army._commanderLostTurn = (global.GM && global.GM.turn) || 0; }
+    if (opts.eb && typeof global.addEB === 'function') {
+      global.addEB('军事', String(opts.eb).replace('{army}', army.name || '某军').replace('{name}', formerName || ''));
+    }
+  }
+
+  // 按统帅姓名摘掉其名下所有兵的帅位（供「免职即解兵权」等 alive-but-removed 路径显式调用）
+  function vacateArmiesByCommander(commanderName, opts) {
+    var G = global.GM; opts = opts || {};
+    if (!G || !Array.isArray(G.armies) || !commanderName) return 0;
+    var n = String(commanderName).trim(); if (!n) return 0;
+    var cnt = 0;
+    G.armies.forEach(function(army) {
+      if (_armyCurrentCommander(army) === n) { _vacateArmyCommand(army, n, opts); cnt += 1; }
+    });
+    return cnt;
+  }
+
+  // 回合末校正：扫所有兵，主帅角色已死(alive===false/dead)或查无此人 → 摘帅留空缺。
+  //   death-agnostic：赐死(edict)/AI character_deaths/战死(commanderFate) 各路死法都兜得住。
+  //   士气-15 + 邸报只在「主字段 commander 仍挂着死者 且 未扣过」时一次性触发——
+  //   防与 tm-ai-apply-deaths.js:79 的 AI 死亡级联(已清 commander 但只清主字段)重复扣士气；别名残留则静默清齐。
+  function reconcileArmyCommanders(opts) {
+    var G = global.GM; opts = opts || {};
+    if (!G || !Array.isArray(G.armies)) return 0;
+    var findChar = (typeof global.findCharByName === 'function') ? global.findCharByName : null;
+    var fuzzy = (typeof global._fuzzyFindChar === 'function') ? global._fuzzyFindChar : null;
+    var n = 0;
+    G.armies.forEach(function(army) {
+      var anyName = _armyCurrentCommander(army);          // 含别名
+      if (!anyName) return;                                // 已空缺
+      var primary = String(army.commander || '').trim();   // 主字段（士气惩罚只认它）
+      var ch = (fuzzy && fuzzy(anyName)) || (findChar && findChar(anyName)) || null;
+      var dead = ch ? (ch.alive === false || ch.dead === true) : false;
+      var missing = !ch;
+      if (!dead && !missing) return;                       // 在任且活着——不动
+      if (dead && primary === anyName && !army._commanderLost) {
+        _vacateArmyCommand(army, anyName, {
+          moraleHit: 15, markLost: true,
+          eb: '{army}主帅{name}' + (ch && ch.deathReason ? ('（' + ch.deathReason + '）') : '') + '殁，军中无主、士气骤降，亟待下诏补任'
+        });
+      } else {
+        _vacateArmyCommand(army, anyName, {});             // 别名残留/查无此人/已扣过——静默清齐、不再扣士气
+      }
+      n += 1;
+    });
+    return n;
+  }
+
+  // 确定性「下诏任免主帅」：含军职(督师/总兵/提督…)的官制任命，额外把 army.commander 绑到对应部队。
+  //   不取代官制任命(officeTree)，是在其之上补绑兵权。部队解析顺序：官职/防区名直接命中 → 名称或驻地含防区 → 玩家仅一支兵则默认。
+  //   定不到部队就不硬绑(发低可信邸报提示在诏书写明部队名)——绝不替玩家把帅绑到错的兵上。
+  function bindCommanderFromAppointment(charName, position, opts) {
+    var G = global.GM; opts = opts || {};
+    if (!G || !Array.isArray(G.armies) || !charName || !position) return false;
+    var pos = String(position);
+    var ROLE = '督师|经略|总兵官|总兵|提督|总督|镇守|节制|挂印|大将军|戎政|练兵|督理军务|协理京营';
+    if (!(new RegExp(ROLE)).test(pos)) return false;     // 非军事统帅类官职——不绑
+    // 朝无此人 / 已殁 → 不绑：免得把幽灵或死人挂成主帅（死人还会被回合末 reconciler 当死帅倒扣 15 士气）。与官制任命路(edict:209「朝无此人」)同口径。
+    var _findCh = (typeof global.findCharByName === 'function') ? global.findCharByName : null;
+    if (_findCh) {
+      var _ch = _findCh(String(charName).trim());
+      if (!_ch || _ch.alive === false || _ch.dead === true) {
+        if (typeof global.addEB === 'function') global.addEB('军事', '诏任' + charName + '为' + pos + '·然朝无此人或已殁，主帅未绑定', { credibility: 'low' });
+        return false;
+      }
+    }
+    var hintM = pos.match(new RegExp('^([\\u4e00-\\u9fa5]{2,6}?)(?:' + ROLE + ')'));
+    var hint = (hintM && hintM[1]) ? hintM[1] : '';
+    var army = _findArmyForAIChange(G, pos) || (hint ? _findArmyForAIChange(G, hint) : null) || null;
+    if (!army && hint) {
+      army = G.armies.find(function(a) {
+        var an = String(a.name || ''), loc = String(a.location || a.garrison || '');
+        return (an && (an.indexOf(hint) >= 0 || hint.indexOf(an) >= 0)) || (loc && (loc.indexOf(hint) >= 0 || hint.indexOf(loc) >= 0));
+      }) || null;
+    }
+    if (!army) {
+      // 单支兵默认：仅对「明确统兵」的强军职放行——避免漕运/河道总督等文职在玩家仅一支兵时被误绑
+      var STRONG = /(督师|经略|总兵官|总兵|提督|挂印|大将军|戎政|练兵|督理军务|协理京营|总督军务)/;
+      if (STRONG.test(pos)) {
+        var pf = (global.P && global.P.playerInfo && global.P.playerInfo.factionName) || '';
+        var mine = G.armies.filter(function(a) { return !a.faction || a.faction === pf; });
+        if (mine.length === 1) army = mine[0];
+      }
+    }
+    if (!army) {
+      if (typeof global.addEB === 'function') global.addEB('军事', '诏任' + charName + '为' + pos + '·未能定位部队，主帅未自动绑定（可在诏书写明部队名）', { credibility: 'low' });
+      return false;
+    }
+    if (_armyCurrentCommander(army) === String(charName).trim()) return false; // 已是该帅
+    applyAIArmyChange({ armyName: army.name, commander: charName, reason: opts.reason || ('奉诏任' + pos) }, { source: opts.source || 'edict.appoint_commander' });
+    return _armyCurrentCommander(army) === String(charName).trim();
+  }
+
   // ── Export ──
   var TM = global.TM = global.TM || {};
   TM.AIChange = TM.AIChange || {};
@@ -526,6 +633,9 @@
     armyNarrativeAliases: _armyNarrativeAliases,
     resolveNarrativeCommanderName: _resolveNarrativeCommanderName,
     applyNarrativeArmyCommanderFallback: _applyNarrativeArmyCommanderFallback,
+    reconcileArmyCommanders: reconcileArmyCommanders,
+    vacateArmiesByCommander: vacateArmiesByCommander,
+    bindCommanderFromAppointment: bindCommanderFromAppointment,
   };
 
   if (typeof module !== 'undefined' && module.exports) {
