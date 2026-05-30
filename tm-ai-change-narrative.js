@@ -21,6 +21,7 @@
   var _PathUtils = (global.TM && global.TM.AIChange && global.TM.AIChange.PathUtils) || null;
   if (!_PathUtils) console.warn('[ai-change-narrative] TM.AIChange.PathUtils not loaded·narrative calls may noop');
   var _findDivisionByNameOrId = _PathUtils && _PathUtils.findDivisionByNameOrId;
+  var _findDivisionByNameFuzzy = (_PathUtils && _PathUtils.findDivisionByNameFuzzy) || _findDivisionByNameOrId;
   var _recordCharChange       = _PathUtils && _PathUtils.recordCharChange;
 
   // ── 从 Army 拿到的 helper ──
@@ -381,7 +382,7 @@
   function _setRegionScalarMirrors(G, rec, fields, value, reason) {
     if (!G || !rec || !fields || !fields.length || !isFinite(value)) return false;
     var mapRegion = rec.mapRegion || _mapRegionByNameOrId(G, rec.id || rec.name);
-    var div = rec.adminDiv || _findDivisionByNameOrId(G, rec.name || rec.id);
+    var div = rec.adminDiv || _findDivisionByNameFuzzy(G, rec.name || rec.id);
     var changed = false;
     var oldValue = mapRegion ? mapRegion[fields[0]] : (div ? div[fields[0]] : undefined);
     function write(obj) {
@@ -395,6 +396,21 @@
     }
     write(mapRegion);
     write(div);
+    // 真值源并账：minxinLocal/corruptionLocal 只供叙事/面板显示，而聚合(integration-bridge·G.minxin.trueIndex
+    //   读 div.minxin)、民变判级、财政读的是 div.minxin / div.corruption 真值源。只写 *Local 则 AI 叙事的地方
+    //   民心/腐败改进不了真值 = 蒸发(民心三刀同病)。故同名规则一并把绝对值落到 div 真值源。
+    if (div) {
+      if (fields.indexOf('minxinLocal') >= 0) {
+        if (div.minxin !== value) { div.minxin = value; changed = true; }
+        if (div.minxinDetails && typeof div.minxinDetails === 'object' && div.minxinDetails.trueIndex !== value) {
+          div.minxinDetails.trueIndex = value;
+        }
+      }
+      if (fields.indexOf('corruptionLocal') >= 0 && div.corruption !== value) {
+        div.corruption = value;
+        changed = true;
+      }
+    }
     if (G.provinceStats && typeof G.provinceStats === 'object') {
       Object.keys(G.provinceStats).forEach(function(k) {
         var st = G.provinceStats[k];

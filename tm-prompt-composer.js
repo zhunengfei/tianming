@@ -60,7 +60,7 @@
     var s = '你是历史模拟AI。剧本:' + _str(sc.name) +
             '时代:' + _str(sc.era) +
             '角色:' + _str(sc.role) +
-            '\n难度:' + _str(P.conf && P.conf.difficulty) +
+            '\n难度:' + ({narrative:'叙事',standard:'标准',hardcore:'硬核'}[P.conf && P.conf.difficulty] || _str(P.conf && P.conf.difficulty)) +
             '文风:' + _str(P.conf && P.conf.style);
     if (ctx.gameModeDesc) s += ctx.gameModeDesc;
     if (ctx.historicalCharLimit) s += ctx.historicalCharLimit;

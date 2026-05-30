@@ -254,7 +254,7 @@ function openSettings(){
 
 
     "<div class=\"settings-section\"><h4>\u96BE\u5EA6</h4>"+
-    "<select onchange=\"P.conf.difficulty=this.value\"><option "+(P.conf.difficulty==="\u7B80\u5355"?"selected":"")+">\u7B80\u5355</option><option "+(P.conf.difficulty==="\u666E\u901A"?"selected":"")+">\u666E\u901A</option><option "+(P.conf.difficulty==="\u56F0\u96BE"?"selected":"")+">\u56F0\u96BE</option></select></div>"+
+    "<select onchange=\"P.conf.difficulty=this.value\"><option value=\"narrative\" "+(/^(narrative|\u7B80\u5355|\u53D9\u4E8B)$/.test(P.conf.difficulty||"")?"selected":"")+">\u53D9\u4E8B\u00B7\u6E29\u548C</option><option value=\"standard\" "+(!/^(narrative|\u7B80\u5355|\u53D9\u4E8B|hardcore|\u56F0\u96BE|\u5730\u72F1|\u786C\u6838)$/.test(P.conf.difficulty||"")?"selected":"")+">\u6807\u51C6</option><option value=\"hardcore\" "+(/^(hardcore|\u56F0\u96BE|\u5730\u72F1|\u786C\u6838)$/.test(P.conf.difficulty||"")?"selected":"")+">\u786C\u6838</option></select></div>"+
 
     // 1.6: Token消耗统计
     "<div class=\"settings-section\"><h4>AI \u8C03\u7528\u7EDF\u8BA1</h4>"+

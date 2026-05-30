@@ -294,16 +294,29 @@
                   // 确定性护栏：AI 叙事可提鼓噪，但该省民心若仍安定(div.minxin>=阈值)，不坐实为引擎民变——
                   //   防「AI 推演不认数值」(E.B 报：全国/各省民心 98 仍冒叛军)。解析不到该省真值则照旧放行(不误拦)。
                   var _PUr = (typeof TM !== 'undefined' && TM.AIChange && TM.AIChange.PathUtils) || null;
-                  var _rdiv = (_PUr && typeof _PUr.findDivisionByNameOrId === 'function') ? _PUr.findDivisionByNameOrId(GM, r.region) : null;
-                  var _rmx = (_rdiv && typeof _rdiv.minxin === 'number') ? _rdiv.minxin : null;
-                  var P_AI_REVOLT_MX = 50; // 该省民心≥此值·AI 叙事的起事不坐实为真民变·可调
+                  // 省名容错(陕西→陕西布政使司)·模糊优先·退回精确
+                  var _rdiv = _PUr ? (
+                    (typeof _PUr.findDivisionByNameFuzzy === 'function' && _PUr.findDivisionByNameFuzzy(GM, r.region)) ||
+                    (typeof _PUr.findDivisionByNameOrId === 'function' && _PUr.findDivisionByNameOrId(GM, r.region)) || null
+                  ) : null;
+                  // 解析到该省→读该省 div.minxin；解析不到→退回全国 trueIndex 作闸
+                  //   (防命名空间不齐导致护栏被绕过·E.B：全国民心 98 仍冒叛军)
+                  var _rmx = (_rdiv && typeof _rdiv.minxin === 'number') ? _rdiv.minxin
+                           : (GM.minxin && typeof GM.minxin.trueIndex === 'number') ? GM.minxin.trueIndex : null;
+                  var _qd = ({narrative:'narrative',standard:'standard',hardcore:'hardcore','简单':'narrative','普通':'standard','中等':'standard','困难':'hardcore','地狱':'hardcore'})[(typeof P!=='undefined'&&P.conf&&P.conf.difficulty)||'']||'standard';
+                  var P_AI_REVOLT_MX = _qd==='narrative'?35:(_qd==='hardcore'?65:50); // 民心≥此·AI起事不坐实·按难度:叙事35(更多省受护·少凭空民变)/标准50/硬核65(更多危机)·可调
                   if (_rmx != null && _rmx >= P_AI_REVOLT_MX) {
                     if (typeof addEB === 'function') addEB('民变', (r.region||'某地') + '虽有鼓噪，然民心 ' + Math.round(_rmx) + ' 尚安，未成气候（确定性护栏·未坐实）');
                   } else {
+                    // AI 报的叛军规模确定性封顶·不许凭空 30 万：按该省人口比例卡上限(解析不到走绝对上限)
+                    var P_AI_REVOLT_SCALE_FRAC = 0.05, P_AI_REVOLT_SCALE_ABS = 80000;
+                    var _mouths = (_rdiv && _rdiv.populationDetail && typeof _rdiv.populationDetail.mouths === 'number') ? _rdiv.populationDetail.mouths : null;
+                    var _scaleCap = _mouths != null ? Math.max(2000, Math.round(_mouths * P_AI_REVOLT_SCALE_FRAC)) : P_AI_REVOLT_SCALE_ABS;
+                    var _scale = Math.min(Number(r.scale) || 1000, _scaleCap);
                     GM.minxin.revolts.push({
                       region: r.region,
                       leader: r.leader || '',
-                      scale: r.scale || 1000,
+                      scale: _scale,
                       startedTurn: GM.turn || 0,
                       status: 'ongoing',
                       _autoFromReconcile: true
@@ -467,17 +480,35 @@
               // 谋反·政变 补录
               _patch.conspiracy_events.forEach(function(e) {
                 if (!GM._conspiracies) GM._conspiracies = [];
-                GM._conspiracies.push({ turn: GM.turn||0, action: e.action, instigator: e.instigator, target: e.target||'', outcome: e.outcome||'suppressed', conspirators: e.conspirators||[], reason: e.reason||'', _autoFromReconcile: true });
-                // 主谋通常应受惩·登记 NPC 状态
+                // P-QAM·政变/弑君得逞硬门：AI 凭空坐实"政变成功/弑君/宫变"前，确定性读皇权皇威——
+                //   君威正盛(皇权或皇威≥阈值)时这类得逞不合理 → 降为"未遂(suppressed/coup_failed)"、主谋下狱、邸报留痕。
+                //   不夺 AI 编情节自由(失败/败露的阴谋照常坐实)，只挡"凭空得逞"。阈值机制参数·owner 可调。
+                var _action = e.action, _outcome = e.outcome || 'suppressed';
+                var _isSuccess = (_outcome === 'succeeded') || _action === 'coup_succeeded' || _action === 'regicide' || _action === 'palace_coup';
+                var _qamGated = false;
+                if (_isSuccess) {
+                  var _hq = (GM.huangquan && typeof GM.huangquan.index === 'number') ? GM.huangquan.index : 50;
+                  var _hw = (GM.huangwei && typeof GM.huangwei.index === 'number') ? GM.huangwei.index : 50;
+                  var _qdC = ({narrative:'narrative',standard:'standard',hardcore:'hardcore','简单':'narrative','普通':'standard','中等':'standard','困难':'hardcore','地狱':'hardcore'})[(typeof P!=='undefined'&&P.conf&&P.conf.difficulty)||'']||'standard';
+                  var P_QAM_COUP_HQ = _qdC==='narrative'?45:(_qdC==='hardcore'?75:60), P_QAM_COUP_HW = P_QAM_COUP_HQ; // 皇权或皇威≥此驳回凭空政变·按难度:叙事45(稍强即拦护玩家)/标准60/硬核75(更易政变)
+                  if (_hq >= P_QAM_COUP_HQ || _hw >= P_QAM_COUP_HW) {
+                    _qamGated = true;
+                    _action = 'coup_failed';
+                    _outcome = 'suppressed';
+                    if (typeof addEB === 'function') addEB('谋反', (e.instigator||'某人') + ' 谋' + ({coup_succeeded:'变',regicide:'弑君',palace_coup:'宫变'}[e.action]||'逆') + '，然皇权 ' + Math.round(_hq) + '·皇威 ' + Math.round(_hw) + ' 正盛，事败就擒（确定性护栏·未遂）');
+                  }
+                }
+                GM._conspiracies.push({ turn: GM.turn||0, action: _action, instigator: e.instigator, target: e.target||'', outcome: _outcome, conspirators: e.conspirators||[], reason: e.reason||'', _autoFromReconcile: true, _qamGated: _qamGated || undefined });
+                // 主谋通常应受惩·登记 NPC 状态（被门降级的得逞→按未遂同样下狱）
                 var inst = (GM.chars||[]).find(function(c){return c && c.name === e.instigator;});
-                if (inst && (e.outcome === 'suppressed' || e.action === 'plot_failed' || e.action === 'coup_failed')) {
+                if (inst && (_outcome === 'suppressed' || _action === 'plot_failed' || _action === 'coup_failed')) {
                   inst._imprisoned = true;
                   inst._conspiracyConvicted = true;
                   inst._imprisonedTurn = GM.turn||0;
                 }
                 if (!GM.turnChanges) GM.turnChanges = {};
                 if (!GM.turnChanges.variables) GM.turnChanges.variables = [];
-                GM.turnChanges.variables.push({ path: '_conspiracies', label: '谋反·' + e.instigator + '·' + e.action + '/' + (e.outcome||''), delta: 1, reason: e.reason || '一致性补录' });
+                GM.turnChanges.variables.push({ path: '_conspiracies', label: '谋反·' + e.instigator + '·' + _action + '/' + _outcome, delta: 1, reason: e.reason || '一致性补录' });
               });
               // 货币·币值 补录
               _patch.currency_events.forEach(function(e) {

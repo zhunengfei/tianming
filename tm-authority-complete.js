@@ -89,7 +89,7 @@
     Object.keys(mx.byRegion || {}).forEach(function(rid) {
       var reg = mx.byRegion[rid];
       if (!reg) return;
-      var div = (_PUm && typeof _PUm.findDivisionByNameOrId === 'function') ? _PUm.findDivisionByNameOrId(G, rid) : null;
+      var div = (_PUm && typeof _PUm.findDivisionByNameFuzzy === 'function') ? _PUm.findDivisionByNameFuzzy(G, rid) : ((_PUm && typeof _PUm.findDivisionByNameOrId === 'function') ? _PUm.findDivisionByNameOrId(G, rid) : null); // fuzzy 优先(认"陕西↔陕西布政使司")·OrId 兜底
       if (div && typeof div.minxin === 'number') {
         var prev = reg.index;
         reg.index = Math.max(0, Math.min(100, div.minxin));
@@ -246,8 +246,9 @@
   function _localMinxinForRegion(G, regionRef, fallback) {
     try {
       var PU = global.TM && global.TM.AIChange && global.TM.AIChange.PathUtils;
-      if (PU && typeof PU.findDivisionByNameOrId === 'function' && regionRef != null && regionRef !== '') {
-        var d = PU.findDivisionByNameOrId(G, regionRef);
+      if (PU && regionRef != null && regionRef !== '') {
+        var _fn = (typeof PU.findDivisionByNameFuzzy === 'function') ? PU.findDivisionByNameFuzzy : ((typeof PU.findDivisionByNameOrId === 'function') ? PU.findDivisionByNameOrId : null); // fuzzy 优先(认"陕西↔陕西布政使司")·OrId 兜底
+        var d = _fn ? _fn(G, regionRef) : null;
         if (d && typeof d.minxin === 'number') return d.minxin;
       }
     } catch (_e) {}

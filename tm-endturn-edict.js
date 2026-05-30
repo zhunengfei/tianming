@@ -15,8 +15,8 @@
 // ============================================================
 
 function extractEdictActions(edictText) {
-  if (!edictText || edictText.length < 4) return { appointments: [], dismissals: [], deaths: [] };
-  var actions = { appointments: [], dismissals: [], deaths: [] };
+  if (!edictText || edictText.length < 4) return { appointments: [], dismissals: [], deaths: [], rewards: [] };
+  var actions = { appointments: [], dismissals: [], deaths: [], rewards: [] };
   var text = edictText.replace(/\s+/g, '');
 
   // 预构建已知姓名集（含字号）——用于扫名优先
@@ -130,6 +130,30 @@ function extractEdictActions(edictText) {
     actions.appointments.forEach(function(a){ if (a && a.character) _appointedNames[a.character] = true; });
     actions.dismissals = actions.dismissals.filter(function(d){ return !(d && d.character && _appointedNames[d.character]); });
   }
+
+  // ═══ 赏赐/犒赏/封赏/加俸 模式（玩家亲自施恩·确定性抬该员 loyalty+affinity·不靠 AI 心情）═══
+  //   动词避开"赐死/赐自尽"等致死语(那是 deaths)·只认明确的恩赏词；名靠 knownChars salvage 兜回主名
+  var rewardVerbs = '(?:犒赏|犒劳|犒军|赏赐|赐赏|颁赏|封赏|加俸|增俸|厚俸|进秩|进阶|加衔|加官进爵|恩赏|厚赏|优叙|嘉奖|褒奖|嘉勉|赉|赍)';
+  var rewardPatterns = [
+    new RegExp(rewardVerbs + '([\\u4e00-\\u9fa5]{2,8}?)(?:[，。、！；以银金帛钞田宅爵物功]|$)', 'g'),
+    new RegExp('([\\u4e00-\\u9fa5]{2,6}?)(?:受赏|获赏|蒙赏|受犒|获犒|蒙恩赏|加俸|进秩|进阶)', 'g')
+  ];
+  var _rewardSet = {};
+  rewardPatterns.forEach(function(pat) {
+    var m;
+    while ((m = pat.exec(text)) !== null) {
+      var rawName = m[1].replace(/[，。、的之]/g, '');
+      var char = rawName;
+      if (knownChars.length) {
+        for (var i = 0; i < knownChars.length; i++) {
+          if (rawName.indexOf(knownChars[i]) >= 0) { char = knownMap[knownChars[i]]; break; }
+        }
+      }
+      if (char.length < 2 || _rewardSet[char]) continue;
+      _rewardSet[char] = true;
+      actions.rewards.push({ character: char });
+    }
+  });
 
   // ═══ 赐死模式 ═══
   var deathPatterns = [
@@ -317,6 +341,26 @@ function applyEdictActions(actions) {
       if (typeof AffinityMap !== 'undefined') AffinityMap.add(a.character, P.playerInfo.characterName || '玩家', 5, '被委以重任');
     }
   });
+  // 1a·奉诏任命/委以重任 → 确定性小幅抬该员 loyalty（被信用则效忠·君恩进"驱动抗命"的那本账·与 affinity 同步累积）
+  try {
+    if (typeof adjustCharacterLoyalty === 'function') actions.appointments.forEach(function(_ap) {
+      var _ac = (_ap && _ap.character) ? findCharByName(_ap.character) : null;
+      if (_ac) adjustCharacterLoyalty(_ac, 3, '奉诏委以重任·君恩', { source: 'edict-appointment-loyalty', oncePerTurn: true });
+    });
+  } catch (_apLoyE) {}
+  // 1b·奉诏犒赏/封赏/加俸 → 玩家亲自施恩确定性抬该员 loyalty + affinity（让"发钱真有用"·不再全靠 AI 看心情演 reward）
+  try {
+    var _pNameRw = (P.playerInfo && P.playerInfo.characterName) || '玩家';
+    (actions.rewards || []).forEach(function(_rw) {
+      var _rc = (_rw && _rw.character) ? findCharByName(_rw.character) : null;
+      if (!_rc) return;
+      if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(_rc, 4, '奉诏受赏·君恩', { source: 'edict-reward-loyalty', oncePerTurn: true });
+      else _rc.loyalty = Math.min(100, ((typeof _rc.loyalty === 'number' && isFinite(_rc.loyalty)) ? _rc.loyalty : 50) + 4);
+      if (typeof AffinityMap !== 'undefined') AffinityMap.add(_rw.character, _pNameRw, 8, '奉诏受赏');
+      if (typeof recordCharacterArc === 'function') recordCharacterArc(_rw.character, 'reward', '奉诏受赏·君恩');
+      addEB('人事', _rw.character + ' 奉诏受赏，感恩戴德', { credibility: 'high' });
+    });
+  } catch (_rwLoyE) {}
   // 下诏任免主帅·确定性补绑：含军职(督师/总兵/提督…)的任命，额外把 army.commander 绑到对应部队（不取代官制任命·在其上补绑兵权）
   try {
     if (typeof TM !== 'undefined' && TM.AIChange && TM.AIChange.Army && typeof TM.AIChange.Army.bindCommanderFromAppointment === 'function') {
@@ -383,6 +427,14 @@ function applyEdictActions(actions) {
     char.deathReason = '赐死';
     if (typeof recordCharacterArc === 'function') recordCharacterArc(a.character, 'death', '被赐死');
     addEB('人事', a.character + '被赐死');
+        // P-QAM·诛逆确定性 floor：赐死的若是【系统已定罪的逆党】(char._conspiracyConvicted·镇压谋反时 apply 标记)，确定性给小额皇威——
+        //   诛除已坐实奸党正法是立威之举·此为不含糊的质判定(已定罪 yes/no)·小额保底；其余 赐死(可能忠良/未定罪)不在此硬给·忠奸交 AI 经 record_sentiment_changes 判。系统每回合 ±5 净封顶兜住与 AI 的叠加。
+        try {
+          if (char._conspiracyConvicted) {
+            var _AEx = (typeof AuthorityEngines !== 'undefined' && AuthorityEngines) || (typeof window !== 'undefined' && window.AuthorityEngines) || null;
+            if (_AEx && typeof _AEx.adjustHuangwei === 'function') _AEx.adjustHuangwei('executeRebelMinister', 3, '诛除已定罪逆党 ' + a.character + '·正法立威');
+          }
+        } catch (_exHwE) {}
         // 赐死某人会让其亲近者对玩家产生怨恨
         if (typeof AffinityMap !== 'undefined') {
           var deadRels = AffinityMap.getRelations(a.character);

@@ -308,6 +308,44 @@
     return null;
   }
 
+  // 省名容错解析：先精确(id/name)，再去常见行政后缀后严格相等匹配——
+  // 解决 AI 报「陕西」而行政区真名「陕西布政使司」对不上(命名空间不齐)、按省名查真值失败的坑。
+  // 只做"去后缀后相等"(不做前缀/包含·避免「山」误中「山西/山东」)；多个命中时优先返回有数值 minxin 的节点(供民变/民心闸用)。
+  var _ADMIN_SUFFIXES = ['承宣布政使司','布政使司','布政司','都指挥使司','行都指挥使司','都司','宣慰司','宣抚司','省'];
+  function _stripAdminSuffix(s) {
+    s = String(s == null ? '' : s);
+    for (var i = 0; i < _ADMIN_SUFFIXES.length; i++) {
+      var suf = _ADMIN_SUFFIXES[i];
+      if (s.length > suf.length && s.slice(-suf.length) === suf) return s.slice(0, -suf.length);
+    }
+    return s;
+  }
+  function _findDivisionByNameFuzzy(G, key) {
+    if (!G || !G.adminHierarchy || key == null) return null;
+    var exact = _findDivisionByNameOrId(G, key);
+    if (exact) return exact;
+    var nk = _stripAdminSuffix(key);
+    if (!nk || nk.length < 2) return null; // 太短不模糊匹配·防误中
+    var best = null, bestHasMx = false;
+    function walk(divs) {
+      for (var i = 0; i < (divs || []).length; i++) {
+        var d = divs[i];
+        if (!d) continue;
+        if (_stripAdminSuffix(d.name) === nk) {
+          var hasMx = typeof d.minxin === 'number';
+          if (!best || (hasMx && !bestHasMx)) { best = d; bestHasMx = hasMx; }
+        }
+        if (d.children) walk(d.children);
+      }
+    }
+    var fkeys = Object.keys(G.adminHierarchy);
+    for (var fi = 0; fi < fkeys.length; fi++) {
+      var tree = G.adminHierarchy[fkeys[fi]];
+      if (tree && tree.divisions) walk(tree.divisions);
+    }
+    return best;
+  }
+
   function _recordCharChange(path, oldVal, newVal, reason) {
     // 若路径是 chars.<name>.<field> —— 记录到 turnChanges.characters
     var m = String(path).match(/^chars\.([^.]+)\.(\w+)$/);
@@ -496,6 +534,7 @@
     syncCoreVarSideEffects: _syncCoreVarSideEffects,
     deriveLabel: _deriveLabel,
     findDivisionByNameOrId: _findDivisionByNameOrId,
+    findDivisionByNameFuzzy: _findDivisionByNameFuzzy,
     findInTreeDeep: _findInTreeDeep,
     recordCharChange: _recordCharChange,
     recordToTurnChanges: _recordToTurnChanges,

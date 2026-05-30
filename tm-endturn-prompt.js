@@ -1016,7 +1016,18 @@
     tp += '    · 结盟·串联·拜门·密谋\n';
     tp += '    · 挂冠·致仕·归隐\n';
     tp += '    · 上疏抗辩·伏阙请命·集体抗疏\n';
-    tp += '※ 这些行为须经过合理动机链条（忠诚低+派系冲突+利益受损 → 抵制；野心高+机会窗口 → 结党）·不是为了戏剧性而戏剧性。\n\n';
+    tp += '※ 这些行为须经过合理动机链条（忠诚低+派系冲突+利益受损 → 抵制；野心高+机会窗口 → 结党）·不是为了戏剧性而戏剧性。\n';
+    tp += '※ 【臣僚向背·按忠诚 + 累积受恩一并权衡】判任一臣僚是否抗命/怠政/贪墨/叛附前，须同时掂量其【忠诚】与【对陛下累积受恩】(见人物档「受恩/积怨」值)——二者俱高者向背门槛显著抬高，多至忠勤任事、知恩图报，绝不轻易反噬刚施大恩、又委以信用的君上；唯忠诚低且素无君恩(或积怨)者，方易离心、阳奉阴违、中饱私囊。受恩是累积的人情账，不是一次性的——刚受厚赏者转头就反、屡受君恩者照样唱反调，皆不合人情，禁止。\n';
+    tp += '※ 【重大负面事件·相称性硬约束（P-QAM·与玩家诏令同受一道合理性门·甚至更严，因系凭空生出）】AI 安排的重大祸事，烈度必须与当前皇权/皇威/相关者忠诚/该省民心的【真实数值】相称，不得无视硬前提顶格凭空坐实：\n';
+    tp += '    · 弑君 / 政变得逞 / 宫变 / 重臣谋反得逞：仅当皇权与皇威【双双衰微（皆 <60）】方可能得逞；二者尚在常望以上时，至多"谋逆事泄 / 政变未遂 / 就擒下狱"——确定性层会驳回并强制降为未遂，勿白费笔墨编"得逞"。\n';
+    tp += '    · 劫狱劫囚 / 放出重犯：重兵看押、皇权正盛时不得轻易得手·至多"劫狱未遂 / 越狱被擒"；重犯能否脱身须与看押方实力、皇权强弱相称，不得无视看押强度凭空放人。\n';
+    tp += '    · 公然抗命 / 罢工 / 暗卡钦命粮草：须与该员忠诚、是否新近受恩、皇权皇威相称——皇权皇威正盛 + 该员忠诚高 / 刚受犒赏时，不得当面公然抗旨卡粮·至多"私下怠工 / 阳奉阴违打折"；唯忠诚低 + 皇权弱时方可能公然抗命。\n';
+    tp += '    · 总原则：盛世强君之下，祸事多为"未遂 / 暗流 / 打折"；末世弱君之下，方有"得逞 / 公然 / 失控"。负面烈度随皇权皇威忠诚民心的真实数值滑动，不可凭空顶格——这与"不得让清明盛世遍地抗旨"是同一条原则的两面。\n';
+    tp += '※ 【皇威正向·长脸事也须记功（与上面负面相称是一体两面·别只会扣不会加）】皇帝/朝廷立威长脸的大事，应相称地【上调】皇威，经 record_sentiment_changes（target:"huangwei"）适度记功（系统每回合自动夹在净 ±5、单条 ±3 内，按此幅度给即可）：\n';
+    tp += '    · 诛除巨奸/权阉/逆党正法、平反昭雪沉冤、受四夷朝贡/万国来朝、开疆拓土/收复失地、受献俘告庙、大婚/大典/册立国本 → 按分量 +1~3（灭国级凯旋/万国来朝/册立国本等取高段，寻常取低段）。\n';
+    tp += '    · 反向：冤杀忠良/自毁长城、丧师失地、藩属叛离、城下之盟受辱 → 相称地 -1~3。\n';
+    tp += '    · 诛杀对象是奸党逆贼则升皇威、冤杀忠良则降——由你按其人忠奸、罪证、朝野公论判定，这是该你（AI）定的量。\n';
+    tp += '    · 【勿重复记功】平定民变、对外军事胜负 系统已确定性自动结算皇威（前者经平乱、后者经 battleResult.huangweiDelta），不要再在 record_sentiment_changes 里重复给这两类，以免双计。\n\n';
 
     // 朝议记录注入（让AI知道本回合谁在朝议中主张了什么——叙事必须保持一致）
     //   targetTurn == GM.turn 的记录算"影响本回合"：
@@ -1757,7 +1768,7 @@
           gameModeDesc: gameModeDesc,
           historicalCharLimit: historicalCharLimit
         })
-      : (P.ai.prompt||"\u4F60\u662F\u5386\u53F2\u6A21\u62DFAI\u3002\u5267\u672C:"+(sc?sc.name:"")+"\u65F6\u4EE3:"+(sc?sc.era:"")+"\u89D2\u8272:"+(sc?sc.role:"")+"\n\u96BE\u5EA6:"+P.conf.difficulty+"\u6587\u98CE:"+P.conf.style+gameModeDesc+historicalCharLimit);
+      : (P.ai.prompt||"\u4F60\u662F\u5386\u53F2\u6A21\u62DFAI\u3002\u5267\u672C:"+(sc?sc.name:"")+"\u65F6\u4EE3:"+(sc?sc.era:"")+"\u89D2\u8272:"+(sc?sc.role:"")+"\n\u96BE\u5EA6:"+({narrative:'\u53D9\u4E8B',standard:'\u6807\u51C6',hardcore:'\u786C\u6838'}[P.conf.difficulty]||P.conf.difficulty||'\u6807\u51C6')+"\u6587\u98CE:"+P.conf.style+gameModeDesc+historicalCharLimit);
 
     // [slice 3b.2+3b.4\u00B72026-05-07] \u6D88\u8D39 EndTurnHooks \u6CE8\u518C\u7684 prompt fragments
     // \u6309 position \u62C6 prefix/suffix\u00B7prefix \u6CE8\u5165\u5728 sysP \u524D(\u6E38\u620F\u6A21\u5F0F hook 11 \u7528)\u00B7suffix \u9ED8\u8BA4
@@ -2487,12 +2498,20 @@
       sysP += '\n所有活跃故事线都应推进，重要的线占更多篇幅，次要的线少写几句但不可遗漏。被冷落的线（0%）应至少提及进展。';
     }
 
-    // 6.6: 叙事张力建议（5回合阈值）
+    // 难度归一（值域统一）：新建档存英文(narrative/standard/hardcore)，设置面板/旧档存中文(简单/普通/中等/困难/地狱)——
+    //   两套都映射到 narrative/standard/hardcore 一套，防设置面板把难度 clobber 成下游认不出的值。未知默认 standard。
+    var _DIFF_NORM = { narrative:'narrative', standard:'standard', hardcore:'hardcore',
+      '简单':'narrative', '叙事':'narrative', '普通':'standard', '中等':'standard', '标准':'standard', '困难':'hardcore', '地狱':'hardcore', '硬核':'hardcore' };
+    var _diffNorm = (P.conf && _DIFF_NORM[P.conf.difficulty]) || 'standard';
+
+    // 6.6: 叙事张力建议（5回合阈值）——黑天鹅闸：只有硬核档才在太平时撺掇 AI 制造冲突/转折；
+    //   叙事/标准档不撺（治 E.B「治得越太平越被强行降祸」、黑天鹅毁体验）。给喘息(_allHigh)对所有档都留。
     if (GM._tensionHistory && GM._tensionHistory.length >= 5) {
       var _last5 = GM._tensionHistory.slice(-5);
       var _allLow = _last5.every(function(t){ return t.score < 10; });
       var _allHigh = _last5.every(function(t){ return t.score > 80; });
-      if (_allLow) sysP += '\n\n【叙事节奏建议】近5回合局势过于平静(张力<10)，可适当制造冲突或转折（仅为建议，AI可自行判断）。';
+      if (_allLow && _diffNorm === 'hardcore') sysP += '\n\n【叙事节奏建议】近5回合局势过于平静(张力<10)，可适当制造冲突或转折（仅为建议，AI可自行判断）。';
+      else if (_allLow && _diffNorm === 'narrative') sysP += '\n\n【叙事节奏】局势承平，重在治世从容与运筹之乐——勿为戏剧性无故降下灾祸/叛乱/转折，太平本身即玩家治理之成果。';
       if (_allHigh) sysP += '\n\n【叙事节奏建议】近5回合连续高压(张力>80)，可给予喘息空间（仅为建议，AI可自行判断）。';
     }
 
@@ -2503,7 +2522,7 @@
         narrative: '\n\n\u3010\u96BE\u5EA6\uFF1A\u53D9\u4E8B\u6A21\u5F0F\u3011AI\u5E94\u66F4\u6E29\u548C\uFF0C\u51CF\u5C11\u7A81\u53D1\u707E\u96BE\uFF0C\u7ED9\u73A9\u5BB6\u66F4\u591A\u7F13\u51B2\u7A7A\u95F4\u3002NPC\u884C\u4E3A\u504F\u5408\u4F5C\uFF0C\u8F83\u5C11\u4E3B\u52A8\u653B\u51FB\u3002\u91CD\u70B9\u662F\u53D9\u4E8B\u4F53\u9A8C\u800C\u975E\u751F\u5B58\u6311\u6218\u3002',
         hardcore: '\n\n\u3010\u96BE\u5EA6\uFF1A\u786C\u6838\u6A21\u5F0F\u3011AI\u5E94\u66F4\u6FC0\u8FDB\uFF0C\u591A\u5236\u9020\u5371\u673A\u4E8B\u4EF6\u3002NPC\u66F4\u6709\u91CE\u5FC3\uFF0C\u53DB\u4E71\u3001\u5165\u4FB5\u3001\u5929\u707E\u66F4\u9891\u7E41\u3002\u73A9\u5BB6\u7684\u4EFB\u4F55\u5931\u8BEF\u90FD\u5E94\u6709\u4E25\u91CD\u540E\u679C\u3002\u8FD9\u662F\u4E00\u4E2A\u4E0D\u59A5\u534F\u7684\u4E16\u754C\u3002'
       };
-      if (_diffPrompts[P.conf.difficulty]) sysP += _diffPrompts[P.conf.difficulty];
+      if (_diffPrompts[_diffNorm]) sysP += _diffPrompts[_diffNorm];
     }
 
     // P1: 昏君温水煮青蛙——根据荒淫度阶段调整AI叙事基调

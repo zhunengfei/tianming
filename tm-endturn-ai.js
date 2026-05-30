@@ -2153,6 +2153,18 @@
               tp1 += '\n';
             });
           }
+          // 第一刀·补注入 sc1q 语气层(mood/subtext)——替代被摘要化的问对全文·保推演与叙事的语气依据
+          if (_sc1qOut && Array.isArray(_sc1qOut.npc_dialogue_intent) && _sc1qOut.npc_dialogue_intent.length > 0) {
+            tp1 += '\n【本回合 NPC 对话语气·sc1q 推演输出·供推演与叙事还原语气】\n';
+            _sc1qOut.npc_dialogue_intent.slice(0, 12).forEach(function(di) {
+              if (!di || !di.npc) return;
+              tp1 += '  · ' + di.npc;
+              if (di.mood) tp1 += '·情绪：' + di.mood;
+              if (di.subtext) tp1 += '·潜台词：' + String(di.subtext).slice(0, 50);
+              if (di.next_likely_move) tp1 += '·下一步：' + String(di.next_likely_move).slice(0, 40);
+              tp1 += '\n';
+            });
+          }
         } catch(_sc1qInjE) { _dbg('[sc1q inject] fail', _sc1qInjE); }
         var _pendingEdicts = GM._edictTracker.filter(function(e) { return e.turn === GM.turn && e.status === 'pending'; });
         if (_pendingEdicts.length > 0) {
@@ -3402,6 +3414,8 @@
             if (c.location) _p += '@' + c.location;
             if (c.faction) _p += '[' + c.faction + ']';
             _p += ' \u5FE0' + (c.loyalty||50) + '\u00B7\u667A' + (c.intelligence||50) + '\u00B7\u5B66' + (c.scholarship||c.intelligence||50);
+            var _favA = (typeof AffinityMap !== 'undefined' && AffinityMap.get) ? (AffinityMap.get(c.name, (P.playerInfo && P.playerInfo.characterName) || '') || 0) : 0;
+            if (_favA) _p += (_favA > 0 ? '\u00B7\u53D7\u6069' : '\u00B7\u79EF\u6028') + Math.abs(_favA);
             if (Array.isArray(c.traits) && c.traits.length) _p += ' \u7279{' + c.traits.slice(0,3).join(',') + '}';
             return _p;
           });
@@ -3593,6 +3607,8 @@
             if (c.faction) _p += '[' + c.faction + ']';
             if (c.party) _p += '{' + c.party + '}';
             _p += ' \u5FE0' + (c.loyalty||50) + '\u00B7\u5FD7' + (c.ambition||50) + '\u00B7\u5EC9' + (c.integrity||50);
+            var _favC = (typeof AffinityMap !== 'undefined' && AffinityMap.get) ? (AffinityMap.get(c.name, (P.playerInfo && P.playerInfo.characterName) || '') || 0) : 0;
+            if (_favC) _p += (_favC > 0 ? '\u00B7\u53D7\u6069' : '\u00B7\u79EF\u6028') + Math.abs(_favC);
             if (Array.isArray(c.traits) && c.traits.length) _p += ' \u7279{' + c.traits.slice(0,2).join(',') + '}';
             return _p;
           }).join('\n');

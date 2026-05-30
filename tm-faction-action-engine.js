@@ -716,6 +716,22 @@
     var corruption = _adjustProvinceField(st, ['corruptionLocal','corruption'], _safeNum(p.corruptionDelta), 0, 100);
     var unrest = _adjustProvinceField(st, ['unrest','unrestLocal','rebellionRisk'], _safeNum(p.unrestDelta), 0, 100);
     var tax = _adjustProvinceField(st, ['taxRevenue','revenue','annualTaxIncome'], _safeNum(p.taxDelta != null ? p.taxDelta : p.revenueDelta), null, null);
+    // 真值源并账：势力行动改的是 G.provinceStats，但聚合(G.minxin.trueIndex)/民变判级读的是 adminHierarchy 的
+    //   div.minxin / div.corruption。不同步则势力施压的地方民心/腐败进不了推演真值 = 蒸发。把同等增量落到 div。
+    try {
+      var _PU = global.TM && global.TM.AIChange && global.TM.AIChange.PathUtils;
+      var _resolveDiv = _PU && (_PU.findDivisionByNameFuzzy || _PU.findDivisionByNameOrId);
+      var _div = _resolveDiv ? _resolveDiv(G, province) : null;
+      if (_div) {
+        var _mxD = _safeNum(p.minxinDelta);
+        if (_mxD) {
+          _div.minxin = _clamp(_safeNum(_div.minxin != null ? _div.minxin : 60) + _mxD, 0, 100);
+          if (_div.minxinDetails && typeof _div.minxinDetails === 'object') _div.minxinDetails.trueIndex = _div.minxin;
+        }
+        var _coD = _safeNum(p.corruptionDelta);
+        if (_coD) _div.corruption = _clamp(_safeNum(_div.corruption != null ? _div.corruption : 0) + _coD, 0, 100);
+      }
+    } catch (_) {}
     if (minxin) effects.minxin = minxin;
     if (corruption) effects.corruption = corruption;
     if (unrest) effects.unrest = unrest;

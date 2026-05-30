@@ -659,8 +659,10 @@
     if (fiscal.actualRevenue || fiscal.remittedToCenter || fiscal.retainedBudget || fiscal.claimedRevenue) {
       parts.push('fiscal=应' + _fmtAmount(fiscal.claimedRevenue) + '/实' + _fmtAmount(fiscal.actualRevenue) + '/上解' + _fmtAmount(fiscal.remittedToCenter) + '/留' + _fmtAmount(fiscal.retainedBudget));
     }
-    if (d.minxinLocal != null || d.minxin != null) parts.push('minxin=' + (d.minxinLocal != null ? d.minxinLocal : d.minxin));
-    if (d.corruptionLocal != null || d.corruption != null) parts.push('corruption=' + (d.corruptionLocal != null ? d.corruptionLocal : d.corruption));
+    // 喂 AI 读 div 真值源优先(div.minxin/div.corruption)·*Local 仅兜底：聚合/民变/面板/财政都认 div.minxin，
+    //   势力行动改真值后不碰 *Local，若仍 *Local 优先则 AI 推演读到没更新的旧账(E.B「AI 不认数值」根)。
+    if (d.minxin != null || d.minxinLocal != null) parts.push('minxin=' + (d.minxin != null ? d.minxin : d.minxinLocal));
+    if (d.corruption != null || d.corruptionLocal != null) parts.push('corruption=' + (d.corruption != null ? d.corruption : d.corruptionLocal));
     var tags = _truthyKeys(d.tags, 5);
     if (tags.length) parts.push('tags=' + tags.join('/'));
     if (Array.isArray(d.tradeRoutes) && d.tradeRoutes.length) parts.push('routes=' + d.tradeRoutes.slice(0, 3).map(function(x){ return _txt(x, 22); }).join('/'));

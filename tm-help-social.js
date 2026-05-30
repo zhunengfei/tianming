@@ -841,6 +841,10 @@ var AffinityMap = {
   /** 月度亲疏自然衰减（极端关系缓慢趋向中性） */
   monthlyDecay: function() {
     if (!GM.affinityMap) return;
+    // 衰减放缓·每两月才衰减一次（原每月 -1 太快、君恩/积怨归零太速）——让一次大恩/大怨管更久·可调
+    if (typeof GM._affinityDecayTick !== 'number') GM._affinityDecayTick = 0;
+    GM._affinityDecayTick += 1;
+    if (GM._affinityDecayTick % 2 !== 0) return;
     Object.keys(GM.affinityMap).forEach(function(key) {
       var v = GM.affinityMap[key];
       if (v > 0) GM.affinityMap[key] = Math.max(0, v - 1);
