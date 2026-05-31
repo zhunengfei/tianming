@@ -17,7 +17,7 @@
     "chinese-history"
   ],
   "author": "misfit-user",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "prepare-vendor": "node tools/download-bge-model.js",
