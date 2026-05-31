@@ -25,6 +25,12 @@ assert(hongyan.includes("var ta = _edictEl('edict-polished-text');"), 'polished 
 assert(hongyan.includes('window._polishEdicts = _polishEdicts;'), 'polish function is not explicitly exported');
 assert(hongyan.includes('window._applyPolishedEdict = _applyPolishedEdict;'), 'apply-polished function is not explicitly exported');
 assert(hongyan.includes("onclick=\"_hidePolishedEdict()\""), 'polish hide action still uses global duplicate id lookup');
+assert(hongyan.includes("panel.classList.add('show');"), 'polish panel does not enter floating visible state');
+assert(hongyan.includes('ed-polish-card'), 'polish result does not use reusable floating card wrapper');
+assert(hongyan.includes('formalBridge.applyPolishedEdict'), 'polish apply does not sync back to formal edict drafts');
 assert(formal.includes("if(window._polishEdicts)window._polishEdicts();else"), 'formal edict polish button lacks loaded-state feedback');
+assert(formal.includes('class="ed-polish-float"'), 'formal polish result container is not a floating overlay');
+assert(formal.includes('applyFormalPolishedEdict'), 'formal draft bridge lacks polished-edict apply hook');
+assert(!formal.includes(".ed-yuan #edict-polished{display:block !important;margin-top:6px;}"), 'formal polish panel is still forced into the document flow');
 
 console.log(`[smoke-formal-edict-polish-scope] PASS ${passed} assertions`);

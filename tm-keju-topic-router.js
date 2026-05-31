@@ -34,6 +34,24 @@
    *   description    供 LLM prompt 增强用 (议政时背景)
    *   sliceOwner     表示哪个 slice 完成后改 callback (供 grep)
    */
+  function _kjTopicShortText(v, max) {
+    var s = (v == null ? '' : String(v)).replace(/\s+/g, ' ').trim();
+    max = max || 24;
+    return s.length > max ? s.slice(0, max) + '…' : s;
+  }
+
+  function _kjSummarizeParadigmDiff(diff) {
+    if (!diff || typeof diff !== 'object') return '';
+    var keys = Object.keys(diff).filter(function(k) { return diff[k] != null; }).slice(0, 3);
+    return keys.join('、');
+  }
+
+  function _kjReformTopicTitle(td) {
+    td = td || {};
+    var label = td.topic || td.theme || td.l10PresetCanonicalName || _kjSummarizeParadigmDiff(td.paradigmDiff);
+    return '议·科举改革' + (label ? '·' + _kjTopicShortText(label, 28) : '');
+  }
+
   var KEYI_TOPIC_TYPES = {
     activation: {
       title: function(td) { return '议·开科取士制度' + (td && td.mode === 'reform' ? '改革' : ''); },
@@ -76,11 +94,11 @@
       sliceOwner: 'J4'
     },
     reform: {
-      title: function(td) { return '议·科举改革' + (td && td.theme ? '·' + td.theme : ''); },
+      title: _kjReformTopicTitle,
       shortLabel: '科议·改革',
       threshold: 0.6,
       callback: '_kjReformKeyiCallback',  // J3 接
-      description: '本议商议科举改革·8 主题池·accept/reject/defer 三路径·改革派 vs 保守派',
+      description: '本议商议玩家提交的科举改革范式调整·依 paradigmDiff 与廷前奏议决定推行/暂缓/强推',
       sliceOwner: 'J3'
     },
     allocation: {

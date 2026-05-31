@@ -12,6 +12,85 @@
 //   要修改本函数行为·请去 tm-save-lifecycle.js 改·此处仅占位·实际运行版在 save-lifecycle
 // ⚠️⚠️⚠️ 警告：本函数被 tm-save-lifecycle.js (line 1009) generateMemorials=function... 覆盖
 //   要修改本函数行为·请去 tm-save-lifecycle.js 改·此处仅占位·实际运行版在 save-lifecycle
+function _memPlayerNameMap(){
+  var names = {};
+  function add(v) {
+    if (v == null) return;
+    var s = String(v).trim();
+    if (s) names[s] = true;
+  }
+  try {
+    if (typeof P !== 'undefined' && P && P.playerInfo) {
+      add(P.playerInfo.characterName);
+      add(P.playerInfo.emperorName);
+      add(P.playerInfo.rulerName);
+      add(P.playerInfo.name);
+    }
+  } catch(_) {}
+  try {
+    if (typeof GM !== 'undefined' && GM) {
+      add(GM.playerName);
+      add(GM.emperorName);
+      add(GM.rulerName);
+      (GM.chars || []).forEach(function(c) {
+        if (c && (c.isPlayer || c.player || c.playerControlled || c.controlledBy === 'player' || c.owner === 'player' || c.side === 'player')) add(c.name);
+      });
+    }
+  } catch(_) {}
+  return names;
+}
+
+function _memIsPlayerChar(c){
+  if (!c) return false;
+  var name = c.name == null ? '' : String(c.name).trim();
+  var key = '';
+  try {
+    if (typeof personKey === 'function') key = personKey(c);
+  } catch(_) {}
+  var playerNames = _memPlayerNameMap();
+  return !!(
+    c.isPlayer ||
+    c.player ||
+    c.playerControlled ||
+    c.controlledBy === 'player' ||
+    c.owner === 'player' ||
+    c.side === 'player' ||
+    c.id === 'player' ||
+    c.key === 'player' ||
+    key === 'player' ||
+    (name && playerNames[name])
+  );
+}
+
+function _memIsIllegalPresenterName(name){
+  if (name == null) return false;
+  var n = String(name).trim();
+  if (!n || n === '\u6709\u53F8') return false;
+  if (_memPlayerNameMap()[n]) return true;
+  try {
+    if (typeof findCharByName === 'function') return _memIsPlayerChar(findCharByName(n));
+  } catch(_) {}
+  return false;
+}
+
+function _memCanPresent(c){
+  return !!(c && c.alive !== false && !_memIsPlayerChar(c));
+}
+
+function _memSafePresenterName(name){
+  if (name == null) return '';
+  var n = String(name).trim();
+  return _memIsIllegalPresenterName(n) ? '' : n;
+}
+
+function _memMarkIllegalPresenter(m, where){
+  if (!m || !_memIsIllegalPresenterName(m.from)) return false;
+  m._invalidPresenter = true;
+  m.status = 'invalid_presenter';
+  try { console.warn('[memorials] skip illegal presenter at ' + (where || 'unknown') + ':', m.from); } catch(_) {}
+  return true;
+}
+
 function generateMemorials(){
   // tokens 预算 16000·原 2-4 份奏疏利用不足·按 tokens 量力而为生成更多
   // 默认提高到 6-10 份·玩家在编辑器可通过 memorialMin/memorialMax 覆盖
@@ -21,7 +100,7 @@ function generateMemorials(){
   if(!GM.chars || GM.chars.length === 0){ GM.memorials = []; renderMemorials(); return; }
   if(P.ai.key){ genMemorialsAI(count); return; }
   // 无AI时：按忠诚和野心优先选人（不纯随机）
-  var candidates = GM.chars.filter(function(c){ return c.alive !== false; });
+  var candidates = GM.chars.filter(_memCanPresent);
   candidates.sort(function(a, b) {
     var sa = (a.ambition || 50) + (100 - (a.loyalty || 50)); // 野心高+忠诚低→更想上奏
     var sb = (b.ambition || 50) + (100 - (b.loyalty || 50));
@@ -49,7 +128,7 @@ async function genMemorialsAI(count){
     // ★ 首 3 回合·优先从 aiPlanFirstTurnEvents 生成的候选事件池抽取·保证贴剧本开局
     if (GM.turn <= 3 && Array.isArray(GM._candidateEvents) && GM._candidateEvents.length > 0) {
       var _pool = GM._candidateEvents.filter(function(e) {
-        return e && !e._fired && (e.type === 'memorial' || e.type === 'urgent_memorial');
+        return e && !e._fired && (e.type === 'memorial' || e.type === 'urgent_memorial') && !_memIsIllegalPresenterName(e.presenter);
       });
       if (_pool.length > 0) {
         prompt += '\n【首回合候选事件池·优先采用，除非玩家已用诏令解决】\n';
@@ -132,7 +211,8 @@ async function genMemorialsAI(count){
 
     // 角色列表（含特质、目标、忠诚、弧线、亲疏）
     prompt += '\n上奏角色：\n';
-    var candidates = GM.chars.filter(function(c) { return c.alive !== false; });
+    prompt += 'HARD RULE: from must be selected from the presenter list below; never use the player/emperor himself as from.\n';
+    var candidates = GM.chars.filter(_memCanPresent);
     // 按"上奏动机"排序：野心高、忠诚极端、压力高的优先
     candidates.sort(function(a, b) {
       var sa = Math.abs((a.loyalty || 50) - 50) + (a.ambition || 50) + (a.stress || 0) * 0.5;
@@ -391,6 +471,7 @@ async function genMemorialsAI(count){
     var _waitingNpcs = [];
     var _cap3 = GM._capital || '京城';
     (GM._pendingMemorialDeliveries||[]).forEach(function(m) {
+      if (_memIsIllegalPresenterName(m && m.from)) return;
       if (m.status === 'intercepted') {
         // 计算合理往返时间：去程 + 批阅缓冲2回合 + 回程 = deliveryTurns*2 + 2
         var _expectedRound = ((m._deliveryTurn||0) - (m._generatedTurn||0)) * 2 + 2;
@@ -400,6 +481,7 @@ async function genMemorialsAI(count){
     });
     // 检查已到达但未收到批复回传的奏疏
     (GM.memorials||[]).forEach(function(m) {
+      if (_memIsIllegalPresenterName(m && m.from)) return;
       if (m._remoteFrom && m._replyLetterSent && m._replyDeliveryTurn && GM.turn < m._replyDeliveryTurn) {
         _waitingNpcs.push({ name: m.from, waited: 0, awaitingReply: true, location: m._remoteFrom });
       }
@@ -460,8 +542,13 @@ async function genMemorialsAI(count){
         if (!Array.isArray(parsed) || parsed.length < Math.min(count, 2)) return { valid: false, reason: '奏疏数量不足' };
         // 完善·按奏疏 subtype 分别检查字数
         var failed = [];
+        var illegal = [];
         parsed.forEach(function(m, i) {
           if (!m || !m.content) { failed.push((i+1) + '·空奏疏'); return; }
+          if (_memIsIllegalPresenterName(m.from)) {
+            illegal.push((i+1) + '·' + (m.from || '?'));
+            return;
+          }
           var len = m.content.length;
           // subtype 决定字数下限·密折/表 用 memSecret·题本/上疏 用 memNormal 或 memLoyal(若忠臣)
           var subt = m.subtype || '题本';
@@ -478,6 +565,9 @@ async function genMemorialsAI(count){
             failed.push((i+1) + '·' + (m.from||'?') + '·' + len + '/' + minRequired + '字');
           }
         });
+        if (illegal.length > 0) {
+          return { valid: false, reason: '非法上奏人（玩家/皇帝本人不得给自己上奏）：' + illegal.join('；') };
+        }
         // 容许少数(≤1/3) 偏短·超过则视为废稿
         if (failed.length > Math.ceil(parsed.length / 3)) {
           return { valid: false, reason: '奏疏字数不足·失败列：' + failed.join('；') + '·须达对应 subtype 字数下限·有论点+论据+对策' };
@@ -490,7 +580,12 @@ async function genMemorialsAI(count){
       var capital = GM._capital || '京城';
       var localMems = [];
       parsed.slice(0, count).forEach(function(m) {
-        var mem = { id: uid(), from: m.from || '', title: m.title || '', type: m.type || '\u653F\u52A1', subtype: m.subtype || '\u9898\u672C', content: m.content || '', status: 'pending', turn: GM.turn, reply: '', reliability: m.reliability || 'medium', bias: m.bias || 'none', relatedTo: m.relatedTo || '', priority: m.priority || 'normal' };
+        if (!m || _memIsIllegalPresenterName(m.from)) {
+          try { console.warn('[memorials] drop illegal AI memorial presenter:', m && m.from); } catch(_) {}
+          return;
+        }
+        var safeFrom = _memSafePresenterName(m.from || '');
+        var mem = { id: uid(), from: safeFrom, title: m.title || '', type: m.type || '\u653F\u52A1', subtype: m.subtype || '\u9898\u672C', content: m.content || '', status: 'pending', turn: GM.turn, reply: '', reliability: m.reliability || 'medium', bias: m.bias || 'none', relatedTo: m.relatedTo || '', priority: m.priority || 'normal' };
         // 检查上奏者是否在京城
         var ch = findCharByName(mem.from);
         var isRemote = ch && ch.alive !== false && ch.location && !_isSameLocation(ch.location, capital);
@@ -561,7 +656,7 @@ function renderMemorials(){
   var _isYanyi = P.conf && P.conf.gameMode === 'yanyi';
 
   // 在途奏疏提示（保留）
-  var _transitMems = (GM._pendingMemorialDeliveries||[]).filter(function(m) { return m.status === 'in_transit'; });
+  var _transitMems = (GM._pendingMemorialDeliveries||[]).filter(function(m) { return m && m.status === 'in_transit' && !_memMarkIllegalPresenter(m, 'transit'); });
   var _transitHtml = '';
   if (_transitMems.length > 0) {
     _transitHtml = '<div class="mem-transit"><div class="mem-transit-icon">\u9A7F</div>'
@@ -569,7 +664,10 @@ function renderMemorials(){
   }
 
   // 渲染本回合全部奏疏
-  var visible=GM.memorials.filter(function(m){return m.turn===GM.turn || m.status==="pending" || m.status==="pending_review";});
+  var visible=GM.memorials.filter(function(m){
+    if (!m || _memMarkIllegalPresenter(m, 'render')) return false;
+    return m.turn===GM.turn || m.status==="pending" || m.status==="pending_review";
+  });
   if(visible.length===0){
     el.innerHTML=_transitHtml + '<div class="mem-empty">\u6848\u724D\u6E05\u51C0\u3000\u767E\u5B98\u65E0\u4E8B\u542F\u594F</div>';
     return;
@@ -735,6 +833,7 @@ function _memExcerptToEdict(idx) {
 /** 批复远方NPC的奏疏→自动生成回传信件（驿递延迟） */
 function _memorialSendReply(m, actionLabel) {
   if (!m || !m._remoteFrom || !m.from) return;
+  if (_memMarkIllegalPresenter(m, 'reply')) return;
   var ch = findCharByName(m.from);
   if (!ch || !ch.location) return;
   var capital = GM._capital || '京城';
@@ -771,6 +870,7 @@ function _memorialSendReply(m, actionLabel) {
 /** 暂存奏疏决定（允许反复修改，末回合提交才落实 NPC 记忆/回传） */
 function _stageMemorialDecision(m, action, reply, extra) {
   if (!m) return;
+  if (_memMarkIllegalPresenter(m, 'decision')) return;
   m.status = action;
   m.reply = reply || '';
   if (extra && extra._referredTo) m._referredTo = extra._referredTo;
@@ -901,6 +1001,7 @@ function _commitMemorialDecisions() {
   if (!Array.isArray(GM.memorials)) return;
   GM.memorials.forEach(function(m) {
     if (!m || m._commitApplied) return;
+    if (_memMarkIllegalPresenter(m, 'commit')) { m._commitApplied = true; return; }
     // 只 commit 本回合或早期被改决定的
     if (m.turn != null && m.turn > GM.turn) return;
     var status = m.status;
@@ -933,6 +1034,7 @@ function _commitMemorialDecisions() {
 function _summonForMemorial(memIdx){
   var m=GM.memorials[memIdx];
   if(!m||!m.from)return;
+  if (_memMarkIllegalPresenter(m, 'summon')) { renderMemorials(); return; }
   var ch=findCharByName(m.from);
   if(!ch){toast('找不到此人');return;}
   var capital = GM._capital || '京城';

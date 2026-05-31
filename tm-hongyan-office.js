@@ -2387,7 +2387,11 @@ function _edictEl(id) {
 
 function _hidePolishedEdict() {
   var panel = _edictEl('edict-polished');
-  if (panel) panel.style.display = 'none';
+  if (panel) {
+    panel.classList.remove('show');
+    panel.style.display = 'none';
+    panel.innerHTML = '';
+  }
 }
 
 // ── 有司润色：将各类诏令合并为正式诏书 ──
@@ -2409,8 +2413,9 @@ async function _polishEdicts() {
 
   var panel = _edictEl('edict-polished');
   if (!panel) return;
+  panel.classList.add('show');
   panel.style.display = 'block';
-  panel.innerHTML = '<div style="text-align:center;color:var(--color-foreground-muted);padding:var(--space-4);">\u6709\u53F8\u6B63\u5728\u6DA6\u8272\u8BCF\u4E66\u2026\u2026</div>';
+  panel.innerHTML = '<div class="ed-polish-card loading">\u6709\u53F8\u6B63\u5728\u6DA6\u8272\u8BCF\u4E66\u2026\u2026</div>';
 
   // 读取风格选择
   var styleEl = _edictEl('edict-polish-style');
@@ -2467,7 +2472,10 @@ async function _polishEdicts() {
 
 function _renderPolishedEdict(panel, text) {
   // 卷轴式·宣纸底+上下木轴+朱砂御玺+颁行天下
+  panel.classList.add('show');
+  panel.style.display = 'block';
   panel.innerHTML = ''
+    + '<div class="ed-polish-card">'
     + '<div class="ed-scroll">'
     +   '<div class="ed-scroll-title">\u8BCF\u3000\u4E66</div>'
     +   '<textarea id="edict-polished-text" class="ed-scroll-text" rows="12">' + escHtml(text) + '</textarea>'
@@ -2478,6 +2486,7 @@ function _renderPolishedEdict(panel, text) {
     +   '<button class="ed-scroll-btn" onclick="_applyPolishedEdict(\'keep\')" title="\u5B58\u4E3A\u8BCF\u4E66\u624B\u7A3F\u00B7\u5F52\u6863\u8D77\u5C45\u6CE8\u00B7\u672A\u9881\u884C">\u624B \u7A3F \u5165 \u6863</button>'
     +   '<button class="ed-scroll-btn primary" onclick="_applyPolishedEdict(\'replace\')" title="\u8BCF\u4E66\u9881\u884C\u5929\u4E0B\u00B7\u5F55\u5165\u653F\u4EE4\u680F\u00B7\u540C\u65F6\u5F52\u6863\u8D77\u5C45\u6CE8">\u9881 \u884C \u5929 \u4E0B</button>'
     +   '<button class="ed-scroll-btn" onclick="_hidePolishedEdict()">\u6536 \u8D77</button>'
+    + '</div>'
     + '</div>';
 }
 
@@ -2511,11 +2520,22 @@ function _applyPolishedEdict(mode) {
     GM.edicts.forEach(function(e) {
       if (e.turn === _curTurn && e.status === 'promulgated') e.status = 'draft';
     });
-    var polEl = _edictEl('edict-pol');
-    if (polEl) polEl.value = text;
-    ['edict-mil', 'edict-dip', 'edict-eco', 'edict-oth'].forEach(function(id) {
-      var el = _edictEl(id); if (el) el.value = '';
-    });
+    var formalApplied = false;
+    try {
+      var formalBridge = window.TMPhase8FormalBridge && window.TMPhase8FormalBridge.drafts;
+      if (formalBridge && typeof formalBridge.applyPolishedEdict === 'function') {
+        formalApplied = !!formalBridge.applyPolishedEdict(text, mode);
+      } else if (typeof window.applyPhase8FormalPolishedEdict === 'function') {
+        formalApplied = !!window.applyPhase8FormalPolishedEdict(text, mode);
+      }
+    } catch(_) {}
+    if (!formalApplied) {
+      var polEl = _edictEl('edict-pol');
+      if (polEl) polEl.value = text;
+      ['edict-mil', 'edict-dip', 'edict-eco', 'edict-oth'].forEach(function(id) {
+        var el = _edictEl(id); if (el) el.value = '';
+      });
+    }
     toast('\u8BCF\u4E66\u9881\u884C\u5929\u4E0B\u00B7\u5DF2\u5F55\u5165\u653F\u4EE4\u680F');
   } else {
     status = 'draft';

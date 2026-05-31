@@ -74,8 +74,9 @@
   // ════════════════════════════════════════════════════════════════
 
   function _kjpIsLEnabled() {
-    if (typeof P === 'undefined' || !P || !P.conf) return false;
-    return P.conf.useNewKejuL === true;
+    if (typeof P === 'undefined' || !P) return false;
+    if (!P.conf) return true;
+    return P.conf.useNewKejuL !== false;
   }
 
   // ════════════════════════════════════════════════════════════════

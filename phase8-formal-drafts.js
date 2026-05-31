@@ -1385,6 +1385,37 @@
     });
   }
 
+  function writeFormalEdictDraftInput(catId, value){
+    var ta = findFormalEdictDraftInput(catId);
+    if (!ta) return false;
+    ta.value = value || '';
+    try {
+      var row = ta.closest && ta.closest('.erow');
+      if (row) {
+        var seal = row.querySelector('.cell-seal');
+        if (seal) seal.classList.toggle('inked', !!String(value || '').trim());
+      }
+    } catch(_) {}
+    try {
+      if (typeof window._edictLiveForecast === 'function') window._edictLiveForecast(catId);
+    } catch(_) {}
+    return true;
+  }
+
+  function applyFormalPolishedEdict(text, mode){
+    text = String(text || '').trim();
+    if (!text || mode !== 'replace') return false;
+    syncFormalEdictDraft('edict-pol', text);
+    writeFormalEdictDraftInput('edict-pol', text);
+    ['edict-mil', 'edict-dip', 'edict-eco', 'edict-oth'].forEach(function(id){
+      syncFormalEdictDraft(id, '');
+      writeFormalEdictDraftInput(id, '');
+    });
+    saveFormalDraftsToGM(true);
+    syncFormalEdictDraftsToLegacyInputs();
+    return true;
+  }
+
   function formalEdictDraftValue(keys){
     var drafts = ensureFormalEdictDrafts();
     for (var i = 0; i < keys.length; i += 1) {
@@ -1599,7 +1630,7 @@
 + '.ed-yuan .tm-chip{display:inline-flex;align-items:center;min-height:18px;padding:1px 7px;border:1px solid rgba(85,127,111,0.4);border-radius:999px;color:var(--jade);background:transparent;font-size:10.5px;}'
 + '.ed-yuan .tm-chip.hot{color:var(--cinnabar);border-color:rgba(168,50,40,0.45);background:rgba(168,50,40,0.05);}'
 + '.ed-yuan .tm-chip.green{color:var(--jade);border-color:rgba(85,127,111,0.4);}'
-+ '.ed-yuan .col-main{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;}'
++ '.ed-yuan .col-main{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;position:relative;}'
 + '.ed-yuan .ed-tab-panel{flex:1;min-height:0;display:none;flex-direction:column;}'
 + '.ed-yuan[data-tab="edict"] .ed-tab-panel.edict{display:flex;}'
 + '.ed-yuan[data-tab="xinglu"] .ed-tab-panel.xinglu{display:flex;}'
@@ -1630,8 +1661,9 @@
 + '.ed-yuan .ed-polish-bar{flex:0 0 auto;display:flex;align-items:center;gap:10px;margin:8px 2px 6px;}'
 + '.ed-yuan .ed-polish-bar .lbl{font-size:12.5px;color:var(--ink-soft);letter-spacing:0.14em;}'
 + '.ed-yuan .ed-polish-bar select{appearance:none;-webkit-appearance:none;font-family:var(--font);font-size:12.5px;padding:6px 28px 6px 12px;color:var(--ink);border:1px solid var(--gold-d);border-radius:5px;cursor:pointer;background:linear-gradient(180deg,#fffdf3,#f6edd6),url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'7\'%3E%3Cpath d=\'M1 1l4 4 4-4\' fill=\'none\' stroke=\'%237d5e22\' stroke-width=\'1.6\' stroke-linecap=\'round\'/%3E%3C/svg%3E") no-repeat;background-position:0 0,right 10px center;box-shadow:inset 0 1px 0 rgba(255,255,255,0.6);}'
-+ '.ed-yuan #edict-polished{flex:0 0 auto;}'
-+ '.ed-yuan #edict-polished:not(:empty){margin:4px 2px 2px;padding:14px 16px;border-radius:5px;background:linear-gradient(180deg,#fffefa,#f3e8cc);border:1px solid var(--gold);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.5),inset 0 0 0 4px rgba(168,131,58,0.13),0 8px 22px rgba(50,32,14,0.2);color:var(--ink);font-size:14.5px;line-height:2;}'
++ '.ed-yuan #edict-polished{position:absolute;inset:14px;z-index:18;display:none;align-items:center;justify-content:center;pointer-events:none;}'
++ '.ed-yuan #edict-polished.show{display:flex !important;pointer-events:auto;}'
++ '.ed-yuan #edict-polished::before{content:"";position:absolute;inset:0;border-radius:10px;background:rgba(40,28,14,0.42);backdrop-filter:blur(1px);}'
 + '.ed-yuan .ed-tab-panel.xinglu{gap:16px;flex-direction:row;}'
 + '.ed-yuan .xinglu-main{flex:1.7;min-height:0;display:flex;flex-direction:column;}'
 + '.ed-yuan .xinglu-main .xm-hd{flex:0 0 auto;display:flex;align-items:baseline;gap:10px;margin-bottom:10px;}'
@@ -1708,14 +1740,16 @@
 + '#_edictAdoptMenu button:nth-child(4)::before{background:#9a7730;}'
 + '#_edictAdoptMenu button:nth-child(5)::before{background:#7a6a52;}'
 // ── 有司润色卡·御案米金 (真实 _renderPolishedEdict 写 #edict-polished 内 .ed-scroll*·原无 CSS·从零给浅绢主题) ──
-+ '.ed-yuan #edict-polished{display:block !important;margin-top:6px;}'
-+ '.ed-yuan .ed-scroll{position:relative;padding:16px 96px 14px 18px;border-radius:5px;border:1px solid var(--gold);background:linear-gradient(180deg,#fffefa,#f3e8cc);box-shadow:0 12px 30px rgba(50,32,14,0.26),inset 0 0 0 1px rgba(255,255,255,0.5),inset 0 0 0 4px rgba(168,131,58,0.13);animation:edy-popIn .22s ease;}'
++ '.ed-yuan #edict-polished.show{display:flex !important;}'
++ '.ed-yuan .ed-polish-card{position:relative;z-index:1;width:min(780px,calc(100% - 36px));max-height:calc(100% - 36px);display:flex;flex-direction:column;padding:16px;border-radius:8px;border:1px solid var(--gold);background:linear-gradient(180deg,#fffdf3,#f2e5c7);box-shadow:0 24px 70px rgba(40,24,10,0.5),inset 0 0 0 1px rgba(255,255,255,0.55);animation:edy-popIn .22s ease;}'
++ '.ed-yuan .ed-polish-card.loading{min-height:150px;align-items:center;justify-content:center;color:var(--ink-soft);font-size:15px;letter-spacing:0.08em;}'
++ '.ed-yuan .ed-scroll{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;padding:16px 96px 14px 18px;border-radius:5px;border:1px solid var(--gold);background:linear-gradient(180deg,#fffefa,#f3e8cc);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.5),inset 0 0 0 4px rgba(168,131,58,0.13);}'
 + '.ed-yuan .ed-scroll-title{position:absolute;right:18px;top:16px;writing-mode:vertical-rl;color:#7d5e22;letter-spacing:0.35em;font-size:18px;text-shadow:0 1px 0 rgba(255,255,255,0.6);}'
 + '.ed-yuan .ed-scroll-text{width:100%;min-height:150px;border:1px solid rgba(168,131,58,0.25);border-radius:4px;background:linear-gradient(180deg,rgba(255,255,255,0.55),rgba(246,239,218,0.45));color:#241d15;font-family:"STKaiti","KaiTi","楷体",serif;font-size:15px;line-height:2;padding:12px 14px;resize:vertical;box-shadow:inset 0 1px 0 rgba(255,255,255,0.5);text-indent:2em;}'
 + '.ed-yuan .ed-scroll-text:focus{outline:none;background:rgba(255,255,255,0.6);}'
 + '.ed-yuan .ed-scroll-seal{position:absolute;right:26px;bottom:54px;width:46px;height:46px;display:grid;place-items:center;align-content:center;border-radius:5px;border:1px solid rgba(168,50,40,0.55);color:#fff5ec;font-size:11px;line-height:1.2;text-align:center;background:radial-gradient(circle at 36% 28%,var(--cinnabar-hi),var(--cinnabar) 58%,var(--cinnabar-d));box-shadow:inset 0 1px 0 rgba(255,255,255,0.3),0 2px 6px rgba(90,16,10,0.4);}'
 + '.ed-yuan .ed-scroll-seal .main{font-size:13px;font-weight:bold;letter-spacing:0.06em;}'
-+ '.ed-yuan .ed-scroll-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}'
++ '.ed-yuan .ed-scroll-actions{flex:0 0 auto;display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}'
 + '.ed-yuan .ed-scroll-btn{font-family:"STKaiti","KaiTi","楷体",serif;font-size:13px;letter-spacing:0.12em;cursor:pointer;padding:7px 15px;border-radius:5px;border:1px solid var(--gold-d);background:#fbf4e2;color:var(--gold-d);transition:all .15s;}'
 + '.ed-yuan .ed-scroll-btn:hover{background:#fff;color:var(--ink);border-color:var(--gold);}'
 + '.ed-yuan .ed-scroll-btn.primary{color:#fff8e6;border-color:var(--gold-d);background:linear-gradient(160deg,var(--gold-hi),var(--gold) 55%,var(--gold-d));box-shadow:inset 0 1px 0 rgba(255,255,255,0.35),0 2px 5px rgba(125,94,34,0.3);}'
@@ -1819,7 +1853,6 @@
     // 文风选择 (保留 #edict-polish-style 供 _polishEdicts 读) + 润色结果容器
     html += '<div class="ed-polish-bar"><span class="lbl">文 风</span>';
     html += '<select id="edict-polish-style"><option value="elegant">典雅骈文</option><option value="concise">简洁明快</option><option value="ornate">华丽文藻</option><option value="plain">白话文言</option></select></div>';
-    html += '<div id="edict-polished" style="display:none;"></div>';
     html += '</div></div>';
     // 主角行止 tab
     html += '<div class="ed-tab-panel xinglu">';
@@ -1834,6 +1867,7 @@
     }
     html += '</div></div>';
     html += '</div>';
+    html += '<div id="edict-polished" class="ed-polish-float" aria-live="polite"></div>';
     html += '</div>';
     // 右：竖排操作 有司润色 / 诏付有司
     html += '<div class="col-actions">';
@@ -2331,6 +2365,7 @@
   bridge.drafts.getFormalEdictDraftSnapshot = getFormalEdictDraftSnapshot;
   bridge.drafts.clearFormalEdictDrafts = clearFormalEdictDrafts;
   bridge.drafts.syncFormalEdictDraftsToLegacyInputs = syncFormalEdictDraftsToLegacyInputs;
+  bridge.drafts.applyPolishedEdict = applyFormalPolishedEdict;
 
   // ── re-attach bridge.X exports that previously came from bridge.js ──
   bridge.openZhao = openZhaoPreviewPanel;
@@ -2342,6 +2377,7 @@
   bridge.getEdictDraftSnapshot = getFormalEdictDraftSnapshot;
   bridge.clearEdictDrafts = clearFormalEdictDrafts;
   bridge.syncEdictDraftsToLegacy = syncFormalEdictDraftsToLegacyInputs;
+  bridge.applyPolishedEdict = applyFormalPolishedEdict;
   bridge._openHongyanPreviewPanel = openHongyanPreviewPanel;
   bridge._openShiluPreviewPanel = openShiluPreviewPanel;
 
@@ -2352,5 +2388,6 @@
   window.openShilu = openShiluPreviewPanel;
   window.syncPhase8FormalEdictDrafts = syncFormalEdictDraftsToLegacyInputs;
   window.getPhase8FormalEdictDraftSnapshot = getFormalEdictDraftSnapshot;
+  window.applyPhase8FormalPolishedEdict = applyFormalPolishedEdict;
 
 })();

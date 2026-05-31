@@ -1749,6 +1749,41 @@ if (typeof window !== 'undefined') {
 
 var KEYI_STATE = null;  // { attendees, speakers, round, phase:'discuss'|'vote'|'decide', speeches, stances, support, abort }
 
+function _keyiGetActiveProposal() {
+  return (KEYI_STATE && KEYI_STATE._pendingProposal) || (GM.keju && GM.keju._pendingProposal) || null;
+}
+
+function _keyiTopicTitle(pending, fallback) {
+  var t = (pending && pending.topic) || fallback || '\u7B79\u529E\u79D1\u4E3E\u516C\u8BAE';
+  return String(t).replace(/^\u8BAE\u00B7?/, '');
+}
+
+function _keyiTopicSubject(pending) {
+  var topicType = (pending && pending.topicType) || 'kaike';
+  if (topicType === 'reform') return '\u79D1\u4E3E\u6539\u9769';
+  if (topicType === 'kaike') return '\u79D1\u4E3E\u7B79\u529E';
+  return _keyiTopicTitle(pending, '\u79D1\u8BAE\u8BAE\u9898');
+}
+
+function _keyiMethodLabels(topicType) {
+  if (topicType === 'reform') {
+    return { council:'\u4F9D\u8BAE\u63A8\u884C\u6539\u9769', edict:'\u4E0B\u8BCF\u5F3A\u63A8\u6539\u9769', defy:'\u9006\u4F17\u8BAE\u5F3A\u63A8\u6539\u9769' };
+  }
+  return { council:'\u4F9D\u8BAE\u5F00\u79D1', edict:'\u4E0B\u8BCF\u5F3A\u63A8', defy:'\u9006\u4F17\u8BAE\u5F3A\u63A8' };
+}
+
+function _keyiDecisionContent(method, topicType) {
+  if (topicType === 'reform') {
+    if (method === 'council') return '\u4F9D\u8BAE\u63A8\u884C\u79D1\u4E3E\u6539\u9769\u00B7\u541B\u81E3\u5171\u8BAE';
+    if (method === 'edict') return '\u4E0D\u987E\u8BAE\u51B3\u00B7\u4E0B\u8BCF\u5F3A\u63A8\u79D1\u4E3E\u6539\u9769';
+    if (method === 'defy') return '\u9006\u4F17\u8BAE\u5F3A\u63A8\u00B7\u72EC\u65AD\u6539\u5236';
+  }
+  if (method === 'council') return '\u4F9D\u8BAE\u5F00\u79D1\u4E3E\u00B7\u541B\u81E3\u5171\u8BDB';
+  if (method === 'edict') return '\u4E0D\u987E\u8BAE\u51B3\u00B7\u4E0B\u8BCF\u5F3A\u63A8\u79D1\u4E3E';
+  if (method === 'defy') return '\u9006\u4F17\u8BAE\u5F3A\u63A8\u00B7\u72EC\u65AD\u5F00\u79D1';
+  return '';
+}
+
 /** 入口：打开科议（v2·自动邀请·无选人页） */
 function openKeyiSession(opts) {
   // v7.1·B3·接参化·支持 9 议题路由·不传 opts 时 fallback 走 kaike (向后兼容)
@@ -1760,7 +1795,8 @@ function openKeyiSession(opts) {
     : { topicType: 'kaike', title: '筹办科举', shortLabel: '科议·筹办', threshold: 0.5, callback: null, callbackName: 'startKejuByMethod', sliceOwner: 'B3' };
 
   if (!GM.keju) GM.keju = {};
-  if (!GM.keju._pendingProposal) GM.keju._pendingProposal = {
+  var pendingProposal = {
+    proposalId: 'keyi_' + (GM.turn || 0) + '_' + Date.now() + '_' + Math.floor(Math.random() * 100000),
     topic: resolved.title,
     topicType: resolved.topicType,
     topicData: topicData,
@@ -1786,8 +1822,9 @@ function openKeyiSession(opts) {
   if (attendees.length < 3) { toast('\u4EAC\u4E2D\u5B98\u5458\u4E0D\u8DB3\u4E09\u4EBA\u00B7\u65E0\u6CD5\u5F00\u79D1\u8BAE'); return; }
 
   // 弹确认窗·不再挑人
-  if (!confirm('\u5F00\u79D1\u8BAE\uFF1F\n\u5C06\u53EC\u96C6 ' + attendees.length + ' \u540D\u5728\u4EAC\u5B98\u5458\u8BAE\u7B79\u529E\u79D1\u4E3E\u00B7\u8017\u7CBE\u529B 15\u3002')) return;
+  if (!confirm('\u5F00\u79D1\u8BAE\uFF1F\n\u5C06\u53EC\u96C6 ' + attendees.length + ' \u540D\u5728\u4EAC\u5B98\u5458\u8BAE\u300C' + _keyiTopicTitle(pendingProposal, '\u79D1\u8BAE\u8BAE\u9898') + '\u300D\u00B7\u8017\u7CBE\u529B 15\u3002')) return;
   if (typeof _spendEnergy === 'function' && !_spendEnergy(15, '\u79D1\u8BAE')) { toast('\u7CBE\u529B\u4E0D\u8DB3'); return; }
+  GM.keju._pendingProposal = pendingProposal;
 
   KEYI_STATE = {
     attendees: attendees.map(function(c){ return { name: c.name, title: c.officialTitle || c.title || '', party: c.party || '', loyalty: c.loyalty || 50, _ch: c }; }),
@@ -1800,6 +1837,12 @@ function openKeyiSession(opts) {
     support: 0,
     abort: false,
     _discussDone: false,
+    _pendingProposal: pendingProposal,
+    _topicType: resolved.topicType,
+    _topicData: topicData,
+    _topicTitle: resolved.title,
+    _topicThreshold: resolved.threshold,
+    _callbackName: resolved.callbackName,
     playerStance: null,
     playerSpeeches: []
   };
@@ -1846,7 +1889,7 @@ function _renderKeyiModal() {
   modal.innerHTML =
     '<div style="background:var(--bg-1);border:1px solid var(--gold-d);border-radius:12px;width:90%;max-width:880px;max-height:86vh;display:flex;flex-direction:column;overflow:hidden;">'+
       '<div style="padding:0.7rem 1.2rem;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;">'+
-        '<div style="font-size:1.05rem;font-weight:700;color:var(--gold);letter-spacing:0.08em;">\u3014 \u79D1 \u8BAE \u3015\u00B7' + (((GM.keju && GM.keju._pendingProposal && GM.keju._pendingProposal.topic) || '\u7B79\u529E\u79D1\u4E3E\u516C\u8BAE').replace(/^\u8BAE\u00B7?/, '')) + '</div>'+
+        '<div style="font-size:1.05rem;font-weight:700;color:var(--gold);letter-spacing:0.08em;">\u3014 \u79D1 \u8BAE \u3015\u00B7' + _keyiTopicTitle(_keyiGetActiveProposal(), '\u7B79\u529E\u79D1\u4E3E\u516C\u8BAE') + '</div>'+
         '<button class="bt bs bsm" onclick="closeKeyi()">\u2715</button>'+
       '</div>'+
       '<div id="keyi-body" style="flex:1;overflow-y:auto;padding:1rem 1.2rem;"></div>'+
@@ -2041,8 +2084,9 @@ async function _keyiStreamRound() {
     var hasPlayerRecent = KEYI_STATE.speeches.slice(-6).some(function(x){ return x._isPlayer; });
 
     // L4\u00B7d\u00B7\u6309 topicType \u6D3E topicLabel + \u6CE8\u5165 reform topicData
-    var _topicType = (GM.keju && GM.keju._pendingProposal && GM.keju._pendingProposal.topicType) || 'kaike';
-    var _topicData = (GM.keju && GM.keju._pendingProposal && GM.keju._pendingProposal.topicData) || {};
+    var _activeProposal = _keyiGetActiveProposal();
+    var _topicType = (_activeProposal && _activeProposal.topicType) || 'kaike';
+    var _topicData = (_activeProposal && _activeProposal.topicData) || {};
     var _topicLabel = (typeof _kjGetTopicShortLabel === 'function')
       ? _kjGetTopicShortLabel(_topicType) || '\u5F00\u79D1\u4E3E'
       : '\u5F00\u79D1\u4E3E';
@@ -2344,7 +2388,8 @@ function _keyiRenderVote(body, footer) {
   var bd = KEYI_STATE._breakdown || {};
   var pct = Math.round((KEYI_STATE.support || 0) * 100);
   var libu = _kejuQueryLibuStance();
-  var threshold = libu === 'support' ? 30 : libu === 'oppose' ? 70 : 50;
+  var baseThreshold = Math.round((((KEYI_STATE && KEYI_STATE._topicThreshold) || 0.5) * 100));
+  var threshold = libu === 'support' ? Math.max(30, baseThreshold - 20) : libu === 'oppose' ? Math.min(85, baseThreshold + 20) : baseThreshold;
   var passed = pct >= threshold;
   KEYI_STATE._passed = passed;
   KEYI_STATE._threshold = threshold;
@@ -2391,10 +2436,19 @@ function _keyiProceedToDecide() {
 /** 阶段 3·皇帝决策 */
 function _keyiRenderDecide(body, footer) {
   var passed = KEYI_STATE._passed;
+  var pending = _keyiGetActiveProposal();
+  var topicType = (pending && pending.topicType) || 'kaike';
+  var methodLabels = _keyiMethodLabels(topicType);
+  var passText = topicType === 'reform'
+    ? '\u8BAE\u5DF2\u901A\u8FC7\u00B7\u53EF\u4F9D\u8BAE\u63A8\u884C\u6539\u9769\u3002'
+    : '\u8BAE\u5DF2\u901A\u8FC7\u00B7\u53EF\u4F9D\u8BAE\u5F00\u79D1\u3002';
+  var failText = topicType === 'reform'
+    ? '\u8BAE\u672A\u901A\u8FC7\u00B7\u82E5\u8981\u63A8\u884C\u6539\u9769\u00B7\u9700\u4E0B\u8BCF\u5F3A\u63A8\u3002\u9038\u60E9\u7F5A\uFF1A'
+    : '\u8BAE\u672A\u901A\u8FC7\u00B7\u82E5\u8981\u5F00\u79D1\u00B7\u9700\u4E0B\u8BCF\u5F3A\u63A8\u3002\u9038\u60E9\u7F5A\uFF1A';
   var html = '<div style="background:linear-gradient(135deg,rgba(184,154,83,0.08),transparent);border:1px solid var(--gold-d);padding:0.8rem;border-radius:6px;margin-top:0.6rem;">'+
     '<div style="font-weight:700;color:var(--gold);margin-bottom:0.5rem;">\u9661\u4E0B\u88C1\u51B3</div>'+
     '<div style="font-size:0.82rem;color:var(--txt-s);line-height:1.8;">'+
-    (passed ? '\u8BAE\u5DF2\u901A\u8FC7\u00B7\u53EF\u4F9D\u8BAE\u5F00\u79D1\u3002' : '\u8BAE\u672A\u901A\u8FC7\u00B7\u82E5\u8981\u5F00\u79D1\u00B7\u9700\u4E0B\u8BCF\u5F3A\u63A8\u3002\u9038\u60E9\u7F5A\uFF1A') +
+    (passed ? passText : failText) +
     (!passed ? '<br>\u00B7 \u4E0B\u8BCF\u5F3A\u63A8\uFF1A\u7687\u5A01-10\u00B7\u7687\u6743-5\u00B7\u53CD\u5BF9\u5927\u81E3\u597D\u611F-8' : '') +
     (!passed ? '<br>\u00B7 \u9006\u4F17\u8BAE\u5F3A\u63A8\uFF1A\u7687\u5A01-20\u00B7\u7687\u6743-10\u00B7\u6C11\u5FC3-5\u00B7\u53CD\u5BF9\u515A\u6D3E-8\u00B7\u597D\u611F-15' : '') +
     '</div></div>';
@@ -2413,10 +2467,10 @@ function _keyiRenderDecide(body, footer) {
 
   var btns = '<div style="display:flex;gap:0.5rem;justify-content:center;flex-wrap:wrap;">';
   if (passed) {
-    btns += '<button class="bt bp" onclick="_keyiConfirmStart(\'council\')">\uD83D\uDCDC \u4F9D\u8BAE\u5F00\u79D1</button>';
+    btns += '<button class="bt bp" onclick="_keyiConfirmStart(\'council\')">\uD83D\uDCDC ' + methodLabels.council + '</button>';
   } else {
-    btns += '<button class="bt bp" onclick="_keyiConfirmStart(\'edict\')">\u4E0B\u8BCF\u5F3A\u63A8</button>';
-    btns += '<button class="bt" style="color:var(--vermillion-400);" onclick="_keyiConfirmStart(\'defy\')">\u9006\u4F17\u8BAE\u5F3A\u63A8</button>';
+    btns += '<button class="bt bp" onclick="_keyiConfirmStart(\'edict\')">' + methodLabels.edict + '</button>';
+    btns += '<button class="bt" style="color:var(--vermillion-400);" onclick="_keyiConfirmStart(\'defy\')">' + methodLabels.defy + '</button>';
   }
   btns += '<button class="bt" onclick="_keyiAbort()">\u6682\u7F13</button></div>';
   footer.innerHTML = btns;
@@ -2434,7 +2488,7 @@ function _keyiConfirmStart(method) {
   _keyiMemoryEffects(method);
 
   // v7.1·B3·按 topicType 调对应 callback (kaike 仍走 startKejuByMethod 现 paradigm)
-  var pending = GM.keju && GM.keju._pendingProposal;
+  var pending = _keyiGetActiveProposal();
   var topicType = (pending && pending.topicType) || 'kaike';
   var callbackName = (pending && pending.callbackName) || 'startKejuByMethod';
 
@@ -2465,13 +2519,17 @@ function _keyiConfirmStart(method) {
       console.error('[keyi·B3] callback 执行失败·topicType=' + topicType, e);
     }
   }
+  if (pending) pending.resolved = true;
   closeKeyi();
 }
 
 /** 科议结果持久化（参照 _persistCourtRecord 格式） */
 function _keyiPersistToCourtRecords(method) {
   if (!GM._courtRecords) GM._courtRecords = [];
-  var methodLabel = { council:'\u4F9D\u8BAE\u5F00\u79D1', edict:'\u4E0B\u8BCF\u5F3A\u63A8', defy:'\u9006\u4F17\u8BAE\u5F3A\u63A8' }[method] || method;
+  var pendingForTopic = _keyiGetActiveProposal();
+  var topicTypeForRec = (pendingForTopic && pendingForTopic.topicType) || 'kaike';
+  var methodLabel = (_keyiMethodLabels(topicTypeForRec)[method]) || method;
+  var topicSubject = _keyiTopicSubject(pendingForTopic);
   var stances = {};
   Object.keys(KEYI_STATE.stances).forEach(function(k){
     var s = KEYI_STATE.stances[k];
@@ -2483,26 +2541,25 @@ function _keyiPersistToCourtRecords(method) {
   // 皇帝最终裁决作为 "adopted"
   var adoptedArr = method === 'council' ? [{
     author: (P.playerInfo && P.playerInfo.characterName) || '\u9661\u4E0B',
-    content: '\u4F9D\u8BAE\u5F00\u79D1\u4E3E\u00B7\u541B\u81E3\u5171\u8BDB',
+    content: _keyiDecisionContent(method, topicTypeForRec),
     stance: 'support'
   }] : method === 'edict' ? [{
     author: (P.playerInfo && P.playerInfo.characterName) || '\u9661\u4E0B',
-    content: '\u4E0D\u987E\u8BAE\u51B3\u00B7\u4E0B\u8BCF\u5F3A\u63A8\u79D1\u4E3E',
+    content: _keyiDecisionContent(method, topicTypeForRec),
     stance: 'support'
   }] : method === 'defy' ? [{
     author: (P.playerInfo && P.playerInfo.characterName) || '\u9661\u4E0B',
-    content: '\u9006\u4F17\u8BAE\u5F3A\u63A8\u00B7\u72EC\u65AD\u5F00\u79D1',
+    content: _keyiDecisionContent(method, topicTypeForRec),
     stance: 'support'
   }] : [];
 
   // v7.1\u00B7B3\u00B7topic \u5B57\u6BB5\u6D3E\u751F\u00B7\u5411\u540E\u517C\u5BB9 (kaike \u65F6\u4ECD\u8D70"\u79D1\u8BAE\u00B7\u7B79\u529E..." paradigm)
-  var pendingForTopic = GM.keju && GM.keju._pendingProposal;
-  var topicTypeForRec = (pendingForTopic && pendingForTopic.topicType) || 'kaike';
   var topicLabel;
   if (topicTypeForRec === 'kaike') {
-    topicLabel = '\u79D1\u8BAE\u00B7\u7B79\u529E' + ((P.keju.currentExam && P.keju.currentExam.type === 'enke') ? '\u6069\u79D1' : '\u79D1\u4E3E');
+    var currentExam = P.keju && P.keju.currentExam;
+    topicLabel = '\u79D1\u8BAE\u00B7\u7B79\u529E' + ((currentExam && currentExam.type === 'enke') ? '\u6069\u79D1' : '\u79D1\u4E3E');
   } else {
-    topicLabel = (pendingForTopic && pendingForTopic.topic) || '\u79D1\u8BAE\u00B7' + topicTypeForRec;
+    topicLabel = '\u79D1\u8BAE\u00B7' + _keyiTopicTitle(pendingForTopic, topicTypeForRec);
   }
 
   var record = {
@@ -2519,6 +2576,7 @@ function _keyiPersistToCourtRecords(method) {
     _keyiMeta: {
       method: method,
       methodLabel: methodLabel,
+      topicData: pendingForTopic && pendingForTopic.topicData,
       support: KEYI_STATE.support,
       breakdown: KEYI_STATE._breakdown,
       threshold: KEYI_STATE._threshold,
@@ -2536,11 +2594,11 @@ function _keyiPersistToCourtRecords(method) {
   if (!GM._edictTracker) GM._edictTracker = [];
   GM._edictTracker.push({
     id: 'keyi_' + GM.turn + '_' + method,
-    content: '\u79D1\u8BAE\u51B3\u8BAE\uFF1A' + methodLabel + '\u00B7\u79D1\u4E3E\u7B79\u529E',
+    content: '\u79D1\u8BAE\u51B3\u8BAE\uFF1A' + methodLabel + '\u00B7' + topicSubject,
     category: '\u79D1\u8BAE\u00B7' + methodLabel,
     turn: GM.turn,
     status: 'pending',
-    assignee: (P.keju.currentExam && P.keju.currentExam.chiefExaminer) || '',
+    assignee: (topicTypeForRec === 'kaike' && P.keju && P.keju.currentExam && P.keju.currentExam.chiefExaminer) || '',
     feedback: '',
     progressPercent: 0
   });
@@ -2551,7 +2609,7 @@ function _keyiPersistToCourtRecords(method) {
     var bd = KEYI_STATE._breakdown || {};
     GM.qijuHistory.unshift({
       turn: GM.turn, date: dateStr,
-      content: '\u3010\u79D1\u8BAE\u3011\u7B79\u529E\u79D1\u4E3E\u00B7\u652F\u6301 ' + (bd.support||0) + '/\u53CD\u5BF9 ' + (bd.oppose||0) + '/\u89C2\u671B ' + (bd.abstain||0) + '\u00B7\u9661\u4E0B' + methodLabel + '\u3002'
+      content: '\u3010\u79D1\u8BAE\u3011' + topicSubject + '\u00B7\u652F\u6301 ' + (bd.support||0) + '/\u53CD\u5BF9 ' + (bd.oppose||0) + '/\u89C2\u671B ' + (bd.abstain||0) + '\u00B7\u9661\u4E0B' + methodLabel + '\u3002'
     });
   }
 
@@ -2560,10 +2618,10 @@ function _keyiPersistToCourtRecords(method) {
   var detail = '\u652F\u6301 ' + (bdSum.support||0) + '\u00B7\u53CD\u5BF9 ' + (bdSum.oppose||0) + '\u00B7\u89C2\u671B ' + (bdSum.abstain||0);
   var oppNames = (KEYI_STATE._opposingMinisters||[]).slice(0,5).join('\u3001');
   if (oppNames) detail += '\u00B7\u53CD\u5BF9\u8005\uFF1A' + oppNames;
-  _kejuWriteJishi('\u79D1\u8BAE\u7B79\u529E', methodLabel, detail);
+  _kejuWriteJishi(topicTypeForRec === 'reform' ? '\u79D1\u8BAE\u6539\u9769' : '\u79D1\u8BAE\u7B79\u529E', methodLabel, detail);
 
   // 事件栏
-  if (typeof addEB === 'function') addEB('\u79D1\u4E3E', '\u79D1\u8BAE\u00B7' + methodLabel + '\u00B7\u652F\u6301\u7387 ' + Math.round((KEYI_STATE.support||0)*100) + '%');
+  if (typeof addEB === 'function') addEB('\u79D1\u4E3E', '\u79D1\u8BAE\u00B7' + topicSubject + '\u00B7' + methodLabel + '\u00B7\u652F\u6301\u7387 ' + Math.round((KEYI_STATE.support||0)*100) + '%');
 }
 
 /** 通用·写科举事件到纪事 */
@@ -2580,7 +2638,10 @@ function _kejuWriteJishi(kind, summary, detail) {
 
 /** 科议 NPC 记忆+人际影响 */
 function _keyiMemoryEffects(method) {
-  var methodLabel = { council:'\u4F9D\u8BAE', edict:'\u4E0B\u8BCF\u5F3A\u63A8', defy:'\u9006\u4F17\u8BAE\u5F3A\u63A8' }[method] || method;
+  var pending = _keyiGetActiveProposal();
+  var topicType = (pending && pending.topicType) || 'kaike';
+  var methodLabel = (_keyiMethodLabels(topicType)[method]) || method;
+  var topicSubject = _keyiTopicSubject(pending);
   var active = KEYI_STATE.attendees.filter(function(a){ return !a._excluded; });
   var playerName = (P.playerInfo && P.playerInfo.characterName) || '\u9661\u4E0B';
 
@@ -2600,7 +2661,7 @@ function _keyiMemoryEffects(method) {
         emo = s.stance === 'oppose' ? '\u6012' : s.stance === 'support' ? '\u5E73' : '\u5FE7';
       }
       NpcMemorySystem.remember(a.name,
-        '\u79D1\u8BAE\u4E2D' + stanceLabel + '\u5F00\u79D1\u00B7\u7687\u5E1D' + methodLabel + '\u00B7' + (s.reason || '').slice(0, 30),
+        '\u79D1\u8BAE\u4E2D' + stanceLabel + topicSubject + '\u00B7\u7687\u5E1D' + methodLabel + '\u00B7' + (s.reason || '').slice(0, 30),
         emo, method === 'defy' ? 8 : 6, playerName);
     }
 
@@ -2615,14 +2676,19 @@ function _keyiMemoryEffects(method) {
 
 /** 缓议 */
 function _keyiAbort() {
-  if (GM.keju && GM.keju._pendingProposal) GM.keju._pendingProposal.resolved = true;
+  var pending = _keyiGetActiveProposal();
+  if (pending) pending.resolved = true;
   toast('\u79D1\u8BAE\u6682\u7F13');
   closeKeyi();
 }
 
 /** 关闭科议 */
 function closeKeyi() {
+  var pending = _keyiGetActiveProposal();
   var modal = document.getElementById('keyi-modal'); if (modal) modal.remove();
+  if (GM.keju && GM.keju._pendingProposal && pending && GM.keju._pendingProposal.proposalId === pending.proposalId) {
+    delete GM.keju._pendingProposal;
+  }
   KEYI_STATE = null;
 }
 
