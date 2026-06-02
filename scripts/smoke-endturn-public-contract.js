@@ -74,7 +74,7 @@ assert(aiInferLines.length >= 200 && aiInferLines.length <= 280,
 const aiModulePath = path.join(ROOT, 'tm-endturn-ai.js');
 assert(fs.existsSync(aiModulePath), 'tm-endturn-ai.js exists');
 const aiModuleLines = fs.readFileSync(aiModulePath, 'utf8').split('\n').length;
-assert(aiModuleLines >= 2600 && aiModuleLines <= 4300, 'tm-endturn-ai.js line count 2600-4300, actual ' + aiModuleLines);  // 12 项补完后 ~4123·上限 4300
+assert(aiModuleLines >= 2600 && aiModuleLines <= 4500, 'tm-endturn-ai.js line count 2600-4500, actual ' + aiModuleLines);  // MemoryContextCompiler bridge 后 ~4426·拆分 backlog 继续受限
 
 const applyModulePath = path.join(ROOT, 'tm-endturn-apply.js');
 assert(fs.existsSync(applyModulePath), 'tm-endturn-apply.js exists');

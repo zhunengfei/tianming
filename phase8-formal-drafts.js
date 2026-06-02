@@ -344,6 +344,65 @@
     } catch(_) {}
   }
 
+  function emitDeskPlayerActionSignal(payload){
+    var recorded = false;
+    try {
+      if (window.TM && TM.PlayerActionSignals && typeof TM.PlayerActionSignals.record === 'function') {
+        TM.PlayerActionSignals.record(GM, payload);
+        recorded = true;
+      }
+    } catch (_) {}
+    try {
+      if (window.TM && TM.PartyClassLlmCalibrator && typeof TM.PartyClassLlmCalibrator.notifyPlayerAction === 'function') {
+        TM.PartyClassLlmCalibrator.notifyPlayerAction(Object.assign({}, payload, { skipSignalRecord: recorded }));
+      }
+    } catch (_) {}
+  }
+
+  function recordDeskActionSignal(action, data, extraText, options){
+    try {
+      if (!window.GM) return null;
+      data = data || {};
+      options = options || {};
+      var text = [
+        'formal-desk',
+        action,
+        extraText,
+        data.buttonText,
+        data.ariaLabel,
+        data.id,
+        data.decision,
+        data.choice,
+        data.topic,
+        data.target,
+        data.name,
+        data.letterType,
+        data.urgency,
+        data.sendMode
+      ].filter(Boolean).join(' ');
+      var payload = {
+        root: GM,
+        source: 'phase8-desk',
+        action: action || '',
+        kind: options.kind || data.kind || action || '',
+        topic: options.topic || data.topic || data.title || data.buttonText || '',
+        target: options.target || data.target || data.name || '',
+        targetId: options.targetId || data.targetId || data.id || data.name || '',
+        decision: options.decision || data.decision || '',
+        linkedIssue: options.linkedIssue || data.linkedIssue || data.issueId || data.chaoyiTrackId || '',
+        text: text,
+        intensity: options.intensity,
+        policyTags: options.policyTags || null,
+        evidence: [data.buttonText, data.ariaLabel, options.evidence, extraText].filter(Boolean),
+        mirrorSocialPolitical: options.mirrorSocialPolitical
+      };
+      emitDeskPlayerActionSignal(payload);
+      return payload;
+    } catch (_) {
+      return null;
+    }
+  }
+
   function deskRecord(type, title, text, tags){
     var gm = deskGM();
     var turn = Number(gm.turn || 1);
@@ -466,6 +525,19 @@
     deskArray(gm, '_edictTracker').push(entry);
     deskRecord('诏令', title, body, ['诏书', typeText, edictType]);
     deskDecision('edict', body, '已进入诏令追踪，后续过回合推演会读取执行与阻力');
+    recordDeskActionSignal('publish-edict-desk', {
+      id: entry.id,
+      topic: title,
+      target: receiver,
+      targetId: entry.id
+    }, [typeText, edictType, receiver, body, state.playerAction].filter(Boolean).join(' '), {
+      kind: 'edict',
+      topic: title,
+      target: receiver,
+      targetId: entry.id,
+      intensity: 0.78,
+      policyTags: ['edict']
+    });
     state.edictDraft = [];
     state.edictDrafts = {};
     state.playerAction = '';
@@ -540,6 +612,38 @@
     if (decision !== 'hold') deskRemember(m.from, '奏疏已得朱批：' + reply, decision === 'rejected' ? '忧' : '敬', 5);
     deskRefreshLegacy();
     toast(decision === 'approved' ? '已准奏，过回合前生效' : decision === 'rejected' ? '已驳回，过回合前生效' : decision === 'court_debate' ? '已发交廷议' : decision === 'referred' ? '已转交有司' : decision === 'hold' ? '已留中' : '已批示');
+    recordDeskActionSignal('memorial-decision-desk', {
+      id: m.id || id || '',
+      decision: decision || '',
+      topic: m.title || m.topic || '',
+      target: m.from || m.sender || '',
+      targetId: m.id || id || '',
+      linkedIssue: m._fromIssueId || m.issueId || m.linkedIssue || ''
+    }, [reply, m.title, m.topic, m.from, m.sender, m.dept, m.office, m.type, m.content, m.text, m.body].filter(Boolean).join(' '), {
+      kind: 'memorial',
+      topic: m.title || m.topic || '',
+      target: m.from || m.sender || '',
+      targetId: m.id || id || '',
+      linkedIssue: m._fromIssueId || m.issueId || m.linkedIssue || '',
+      decision: decision || '',
+      intensity: decision === 'hold' ? 0.35 : 0.74,
+      policyTags: ['memorial', 'court']
+    });
+    try {
+      if (window.TM && TM.MinxinPressureActions && typeof TM.MinxinPressureActions.recordPlayerResponse === 'function') {
+        TM.MinxinPressureActions.recordPlayerResponse(gm, {
+          channel: 'memorial',
+          decision: decision || '',
+          linkedIssue: m._minxinPressureActionId || m.linkedIssue || m.issueId || m._fromIssueId || '',
+          actor: 'player',
+          target: m.from || m.sender || '',
+          text: [reply, m.title, m.topic, m.content, m.text, m.body].filter(Boolean).join(' ')
+        }, {
+          turn: gm.turn || 1,
+          source: 'phase8-memorial-decision'
+        });
+      }
+    } catch (_) {}
     if (replyId && state.memorialReplies) delete state.memorialReplies[replyId];
     saveFormalDraftsToGM(false);
     openYueZouPreviewPanel();
@@ -682,6 +786,52 @@
       }
     });
     var toNames = toList.join('、');
+    if (!draftOnly) {
+      recordDeskActionSignal('letter-send-desk', {
+        target: toNames,
+        targetId: toNames,
+        topic: typeLabel,
+        letterType: letterType,
+        urgency: urgency,
+        sendMode: sendMode,
+        cipher: cipher
+      }, [toNames, typeLabel, letterUrgencyLabelFormal(urgency), letterCipherLabelFormal(cipher), letterSendModeLabelFormal(sendMode), body].filter(Boolean).join(' '), {
+        kind: 'letter',
+        topic: typeLabel,
+        target: toNames,
+        targetId: toNames,
+        intensity: urgency === 'extreme' ? 0.82 : urgency === 'urgent' ? 0.7 : 0.56,
+        policyTags: ['letter']
+      });
+      try {
+        if (window.TM && TM.MinxinPressureActions && typeof TM.MinxinPressureActions.recordPlayerResponse === 'function') {
+          TM.MinxinPressureActions.recordPlayerResponse(gm, {
+            channel: 'hongyan',
+            decision: 'sent',
+            actor: 'player',
+            target: toNames,
+            to: toNames,
+            text: [toNames, typeLabel, body].filter(Boolean).join(' ')
+          }, {
+            turn: gm.turn || 1,
+            source: 'phase8-letter-send'
+          });
+        }
+      } catch (_) {}
+      try {
+        if (window.TM && TM.MinxinResponsibilityChain && typeof TM.MinxinResponsibilityChain.recordPlayerIntervention === 'function') {
+          TM.MinxinResponsibilityChain.recordPlayerIntervention(gm, {
+            channel: 'hongyan',
+            target: toNames,
+            to: toNames,
+            text: [toNames, typeLabel, body].filter(Boolean).join(' ')
+          }, {
+            turn: gm.turn || 1,
+            source: 'phase8-letter-send'
+          });
+        }
+      } catch (_) {}
+    }
     if (!draftOnly && Array.isArray(gm.qijuHistory)) {
       gm.qijuHistory.unshift({ turn: gm.turn || 1, date: deskDateText(gm.turn || 1), content: '【鸿雁传书】遣' + letterUrgencyLabelFormal(urgency) + '致' + toNames + '（' + typeLabel + (cipher !== 'none' ? '·' + letterCipherLabelFormal(cipher) : '') + (multiCount ? '·群发' + multiCount + '函' : '') + '）。内容：' + body });
     }
@@ -935,7 +1085,29 @@
       else openModule('wendui');
     } else if (action === 'shizheng-choice-desk') {
       if (typeof window._chooseIssueOption === 'function') {
-        window._chooseIssueOption(data.id || '', Number(data.choice || 0));
+        var choiceIssue = getIssues().find(function(x){ return String(x.id || '') === String(data.id || ''); });
+        var choiceIndex = Number(data.choice || 0);
+        var choiceRow = choiceIssue && Array.isArray(choiceIssue.choices) ? choiceIssue.choices[choiceIndex] : null;
+        recordDeskActionSignal('shizheng-choice-desk', {
+          id: data.id || '',
+          choice: String(choiceIndex),
+          topic: (choiceIssue && (choiceIssue.title || choiceIssue.topic)) || '',
+          target: (choiceIssue && (choiceIssue.title || choiceIssue.topic)) || '',
+          linkedIssue: data.id || ''
+        }, [
+          choiceIssue && (choiceIssue.title || choiceIssue.topic),
+          choiceIssue && (choiceIssue.text || choiceIssue.narrative || choiceIssue.detail),
+          choiceRow && (choiceRow.text || choiceRow.title || choiceRow.label),
+          choiceRow && (choiceRow.desc || choiceRow.description || choiceRow.effect)
+        ].filter(Boolean).join(' '), {
+          kind: 'court',
+          topic: (choiceIssue && (choiceIssue.title || choiceIssue.topic)) || '',
+          target: (choiceIssue && (choiceIssue.title || choiceIssue.topic)) || '',
+          linkedIssue: data.id || '',
+          intensity: 0.7,
+          policyTags: ['court']
+        });
+        window._chooseIssueOption(data.id || '', choiceIndex);
         state.shizhengIssue = data.id || state.shizhengIssue || '';
         setTimeout(openShizhengPreviewPanel, 0);
       } else {
@@ -2360,6 +2532,8 @@
   bridge.drafts.openYueZouPreviewPanel = openYueZouPreviewPanel;
   bridge.drafts.openHongyanPreviewPanel = openHongyanPreviewPanel;
   bridge.drafts.openShiluPreviewPanel = openShiluPreviewPanel;
+  bridge.drafts.handleDeskAction = handleDeskAction;
+  bridge.drafts.recordDeskActionSignal = recordDeskActionSignal;
   bridge.drafts.showFormalEdictAdoptMenu = showFormalEdictAdoptMenu;
   bridge.drafts.dismissFormalEdictSuggestion = dismissFormalEdictSuggestion;
   bridge.drafts.getFormalEdictDraftSnapshot = getFormalEdictDraftSnapshot;

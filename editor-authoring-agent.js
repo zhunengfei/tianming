@@ -369,6 +369,28 @@
     return url.indexOf('anthropic.com') >= 0 || url.indexOf('api.anthropic') >= 0;
   }
 
+  // OpenAI 兼容端点规整：裸域名→/v1/chat/completions·.../v1→/chat/completions·完整端点原样。
+  // 让第三方中转的各种 URL 写法都能拼对（成功调用中转的常见坑）。
+  function _openaiEndpoint(url) {
+    if (/\/(chat\/completions|messages|responses)(\?|#|$)/.test(url)) return url;
+    if (/\/v\d+(beta)?$/.test(url)) return url + '/chat/completions';
+    if (/^https?:\/\/[^/]+\/?$/.test(url)) return url.replace(/\/+$/, '') + '/v1/chat/completions';
+    return url + '/chat/completions';
+  }
+
+  // 把调用失败归类成可操作的中文提示（中转最常见的 CORS/网络/鉴权/路径错误）。
+  function _classifyApiError(e) {
+    if (!e) return '未知错误';
+    if (!e.status && ((e.name === 'TypeError') || /failed to fetch|networkerror|err_|load failed/i.test(e.message || ''))) {
+      return '无法连接到 API：网络不通、地址错误，或第三方中转未开启 CORS 跨域。桌面客户端内一般不受 CORS 限制；浏览器内需中转支持跨域。';
+    }
+    if (e.status === 401 || e.status === 403) return 'API Key 无效或无权限（HTTP ' + e.status + '）。';
+    if (e.status === 404) return 'API 地址不对（HTTP 404）：检查 URL 是否缺 /v1 或 /chat/completions。';
+    if (e.status === 429) return 'API 限流（HTTP 429），已自动重试仍失败，请稍后再试。';
+    if (e.status >= 500) return 'API 服务端错误（HTTP ' + e.status + '）。';
+    return (e.message || String(e));
+  }
+
   // ── 抽象 conversation → provider 消息 ──
   // conversation 项：{role:'user',text} | {role:'assistant',text,toolCalls:[{id,name,input}]} | {role:'tool',toolResults:[{id,name,content}]}
   function _genId(i) { return 'call_' + Date.now().toString(36) + '_' + i; }
@@ -535,7 +557,7 @@
       headers = { 'Content-Type': 'application/json', 'x-api-key': cfg.key, 'anthropic-version': '2023-06-01' };
       body = _toAnthropic(conversation, system, tools, maxTok, cfg.model);
     } else {
-      endpoint = (cfg.url.indexOf('/chat/completions') < 0 && cfg.url.indexOf('/messages') < 0) ? cfg.url + '/chat/completions' : cfg.url;
+      endpoint = _openaiEndpoint(cfg.url);
       headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.key };
       body = _toOpenAI(conversation, system, tools, maxTok, cfg.model, cfg.temp);
     }
@@ -560,8 +582,35 @@
       return parsed; // 纯文本无工具 → 交给 loop 判 noToolCalls
     }).catch(function(e) {
       if (e && e.status === 400) return fallbackTextCall(); // 端点多半拒绝 tools 参数 → 文本兜底
-      throw e;
+      var err = new Error(_classifyApiError(e));            // 网络/CORS/鉴权/路径 → 可操作中文提示
+      err.status = e && e.status; err.cause = e;
+      throw err;
     });
+  }
+
+  /**
+   * 中转连通性自检：用最小 ping 工具做一次真实调用，返回 {ok, detail}。
+   * 给"成功调用中转第三方 api"一个可点验证入口（区分 CORS/鉴权/路径错误）。
+   * @returns {Promise<{ok:boolean, detail:string, provider?:string, model?:string, status?:number}>}
+   */
+  function testConnection(opts) {
+    opts = opts || {};
+    var cfg = opts.cfg || loadEditorApiConfig();
+    if (!cfg.key) return Promise.resolve({ ok: false, detail: '未配置 API Key（请先在设置面板填写）' });
+    if (!cfg.url) return Promise.resolve({ ok: false, detail: '未配置 API 地址' });
+    var ping = [{ name: 'ping', description: '连通性测试·回声', parameters: { type: 'object', properties: { ok: { type: 'boolean', description: '固定填 true' } }, required: ['ok'] } }];
+    return callWithTools('调用 ping 工具，参数 ok=true，确认连通。', ping, { cfg: cfg, maxTok: 64, maxRetries: 1, timeoutMs: 30000 })
+      .then(function(r) {
+        return {
+          ok: true,
+          provider: _isAnthropic(cfg.url) ? 'anthropic' : 'openai-compat',
+          model: cfg.model,
+          detail: '连通成功 · ' + (r.fallback ? '端点不支持原生 tools，已用文本兜底（仍可用）' : '原生 tool-calling 可用')
+        };
+      })
+      .catch(function(e) {
+        return { ok: false, status: e && e.status, detail: (e && e.message) || String(e) };
+      });
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -611,6 +660,13 @@
       } }
     },
     {
+      name: 'listGaps',
+      description: '列出"游戏运行时必需但剧本里缺失"的字段（规格缺口）。改之前先 listGaps 看缺什么，与用户需求相关的缺口顺手补齐，让剧本完整可玩。',
+      parameters: { type: 'object', properties: {
+        includeOptional: { type: 'boolean', description: '是否一并列出可选缺口（默认只列必需缺口）' }
+      } }
+    },
+    {
       name: 'finish',
       description: '剧本已按要求改好且校验通过时调用，结束本次编辑。',
       parameters: { type: 'object', properties: {
@@ -654,8 +710,32 @@
     ].join('\n');
   }
 
+  // ── 刀A · 懂规格·知缺口 ──
+  // 读"游戏运行时要什么"的规格：新编辑器 RUNTIME_FIELD_SURFACES（{field,moduleId,required,title}）。
+  // 优先 opts.fieldSurfaces；否则读运行时全局；都没有则空（旧编辑器 / node 下优雅降级）。
+  function _getFieldSurfaces(opts) {
+    if (opts && Array.isArray(opts.fieldSurfaces)) return opts.fieldSurfaces;
+    try {
+      var app = global.TM_SCENARIO_EDITOR_RESET_APP;
+      if (app && Array.isArray(app.runtimeFieldSurfaces)) return app.runtimeFieldSurfaces;
+    } catch (e) {}
+    return [];
+  }
+
+  // 算规格缺口：规格里标 required/optional 的顶层字段，在草稿里缺失的。
+  function _computeGaps(draft, surfaces) {
+    draft = draft || {};
+    var reqMiss = [], optMiss = [];
+    (surfaces || []).forEach(function(s) {
+      if (!s || !s.field || (s.field in draft)) return;
+      var label = s.title ? (s.field + '(' + s.title + ')') : s.field;
+      if (s.required) reqMiss.push(label); else optMiss.push(label);
+    });
+    return { requiredMissing: reqMiss, optionalMissing: optMiss };
+  }
+
   /** 派发单个工具调用到 S1 工具，返回喂回模型的结果对象。 */
-  function dispatchTool(draft, name, input) {
+  function dispatchTool(draft, name, input, surfaces) {
     input = input || {};
     switch (name) {
       case 'applyEdit': return applyEdit(draft, input.path, input.value, { reason: input.reason });
@@ -668,6 +748,15 @@
       }
       case 'searchEntities': return _searchEntities(draft, input.collection, input.query);
       case 'validateDraft': return validateDraft(draft, input.group);
+      case 'listGaps': {
+        var gaps = _computeGaps(draft, surfaces || _getFieldSurfaces());
+        if (!gaps.requiredMissing.length && !gaps.optionalMissing.length) {
+          return { ok: true, requiredMissing: [], note: '无可用规格或无缺口（剧本必需字段已齐）' };
+        }
+        var out = { ok: true, requiredMissing: gaps.requiredMissing };
+        if (input.includeOptional) out.optionalMissing = gaps.optionalMissing;
+        return out;
+      }
       case 'finish': return { ok: true, finish: true, summary: input.summary || '' };
       default: return { ok: false, reason: '未知工具: ' + name };
     }
@@ -748,7 +837,8 @@
     var maxFinishAttempts = opts.maxFinishAttempts || 3;
     var blockingChecks = opts.blockingChecks || ['admin-population', 'faction-refs'];
     var system = _buildSystemPrompt();
-    var conversation = [{ role: 'user', text: _buildInitialUser(draft, userRequest) }];
+    var surfaces = _getFieldSurfaces(opts);   // 刀A · 规格（游戏运行时要什么）
+    var conversation = [{ role: 'user', text: _buildInitialUser(draft, userRequest, surfaces) }];
     var transcript = [];
     var iterations = 0, finishAttempts = 0;
     var tokensUsed = _estimateTokens(system) + _estimateTokens(conversation[0].text);
@@ -786,7 +876,7 @@
               if (!blocking.length) { result = { ok: true, finish: true, summary: (c.input && c.input.summary) || '' }; finishAccepted = true; }
               else { finishAttempts++; result = { ok: false, finish: false, reason: '草稿仍有 ' + blocking.length + ' 项必修违规，禁止结束，请先修复', violations: blocking }; }
             } else {
-              result = dispatchTool(draft, c.name, c.input);
+              result = dispatchTool(draft, c.name, c.input, surfaces);
             }
             record(c.name, c.input, result);
             toolResults.push({ id: c.id, name: c.name, content: _resultToText(result) });
@@ -905,6 +995,7 @@
     // S2
     loadEditorApiConfig: loadEditorApiConfig,
     callWithTools: callWithTools,
+    testConnection: testConnection,
     AGENT_TOOLS: AGENT_TOOLS,
     dispatchTool: dispatchTool,
     runAuthoringLoop: runAuthoringLoop,

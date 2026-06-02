@@ -1038,10 +1038,1204 @@
     return rightIssueNum(x, keys, fallback == null ? 50 : fallback);
   }
 
+  function rightSocialName(row){
+    return String(row && (row.name || row.label || row.id || row.className || row.partyName) || '').trim();
+  }
+
+  function rightSocialSameName(a, b){
+    a = String(a || '').replace(/\s+/g, '').toLowerCase();
+    b = String(b || '').replace(/\s+/g, '').toLowerCase();
+    return !!(a && b && a === b);
+  }
+
+  function rightSocialPushCause(out, cause){
+    if (!cause || !cause.text) return;
+    var sig = [cause.source || '', cause.turn || '', cause.text || ''].join('|');
+    if (out.some(function(x){ return [x.source || '', x.turn || '', x.text || ''].join('|') === sig; })) return;
+    out.push(cause);
+  }
+
+  function rightSocialCauseTextFromChange(ch){
+    if (!ch) return '';
+    var field = ch.field ? String(ch.field) + ' ' : '';
+    var delta = '';
+    var oldN = Number(ch.oldValue);
+    var newN = Number(ch.newValue);
+    if (isFinite(oldN) && isFinite(newN) && oldN !== newN) delta = ' ' + (newN > oldN ? '+' : '') + Math.round((newN - oldN) * 100) / 100;
+    return [field + delta, ch.reason].filter(Boolean).join(' · ');
+  }
+
+  function rightSocialTurnChanges(actorType, name, out){
+    var gm = window.GM || {};
+    var bucket = gm.turnChanges && gm.turnChanges[actorType === 'party' ? 'parties' : 'classes'];
+    (Array.isArray(bucket) ? bucket : []).forEach(function(row){
+      if (!row || !rightSocialSameName(row.name, name)) return;
+      (Array.isArray(row.changes) ? row.changes : []).slice(-3).forEach(function(ch){
+        var text = rightSocialCauseTextFromChange(ch);
+        if (text) rightSocialPushCause(out, { source: '回合变化', text: text });
+      });
+    });
+  }
+
+  function rightSocialClassCauses(row, out){
+    (Array.isArray(row._socialPoliticalHistory) ? row._socialPoliticalHistory : []).slice(-3).forEach(function(h){
+      rightSocialPushCause(out, {
+        turn: h.turn,
+        source: h.sourceSystem || h.source || '系统信号',
+        text: [h.kind, h.reason].filter(Boolean).join(' · ')
+      });
+    });
+    (Array.isArray(row.partyOutcomeHistory) ? row.partyOutcomeHistory : []).slice(-3).forEach(function(h){
+      var refs = (Array.isArray(h.refs) ? h.refs : []).map(function(r){ return r && r.partyName; }).filter(Boolean).join('/');
+      rightSocialPushCause(out, {
+        turn: h.turn,
+        source: '廷议回响',
+        text: [(refs ? refs : ''), h.outcome || h.status, h.satisfactionDelta != null ? ('满意 ' + h.satisfactionDelta) : ''].filter(Boolean).join(' · ')
+      });
+    });
+    var gm = window.GM || {};
+    (Array.isArray(gm._partyClassCourtIssueLinks) ? gm._partyClassCourtIssueLinks : []).slice(-8).forEach(function(x){
+      if (!x || !rightSocialSameName(x.className, rightSocialName(row))) return;
+      rightSocialPushCause(out, {
+        turn: x.turn,
+        source: '议题牵连',
+        text: [(x.party || ''), x.topic || '', x.goalText || ''].filter(Boolean).join(' · ')
+      });
+    });
+  }
+
+  function rightSocialPartyCauses(row, out){
+    (Array.isArray(row._socialPoliticalHistory) ? row._socialPoliticalHistory : []).slice(-3).forEach(function(h){
+      rightSocialPushCause(out, {
+        turn: h.turn,
+        source: h.sourceSystem || h.source || '系统信号',
+        text: [h.kind, h.reason].filter(Boolean).join(' · ')
+      });
+    });
+    (Array.isArray(row.agenda_history) ? row.agenda_history : []).slice(-3).forEach(function(h){
+      rightSocialPushCause(out, {
+        turn: h.turn,
+        source: h.source || '议程变动',
+        text: [h.reason, h.currentAgenda, h.shortGoal, h.text].filter(Boolean).join(' · ')
+      });
+    });
+    var gm = window.GM || {};
+    (Array.isArray(gm._partyClassCourtIssueLinks) ? gm._partyClassCourtIssueLinks : []).slice(-8).forEach(function(x){
+      if (!x || !rightSocialSameName(x.party, rightSocialName(row))) return;
+      rightSocialPushCause(out, {
+        turn: x.turn,
+        source: '议题牵连',
+        text: [(x.className || ''), x.topic || '', x.goalText || ''].filter(Boolean).join(' · ')
+      });
+    });
+  }
+
+  function rightSocialNearCauses(actorType, row){
+    var out = [];
+    var name = rightSocialName(row);
+    rightSocialTurnChanges(actorType, name, out);
+    if (actorType === 'party') rightSocialPartyCauses(row, out);
+    else rightSocialClassCauses(row, out);
+    return out.filter(function(x){ return x && x.text; }).slice(-4).reverse();
+  }
+
+  function rightSocialSignalCauses(actorType, row){
+    var api = window.TM && window.TM.SocialPoliticalSignals;
+    if (!api || typeof window.TM.SocialPoliticalSignals.getRecentCauses !== 'function') return [];
+    try {
+      return window.TM.SocialPoliticalSignals.getRecentCauses(window.GM || {}, actorType, rightSocialName(row), { limit: 4 }) || [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function renderRightSocialSignalCauses(actorType, row){
+    var causes = rightSocialSignalCauses(actorType, row);
+    if (!causes.length) return '';
+    return '<div class="tmrp-social-cause tmrp-signal-cause"><b>近因</b>' + causes.map(function(c){
+      var head = [(c.turn ? ('T' + c.turn) : ''), c.sourceLabel || c.sourceSystem || '信号', c.kind || ''].filter(Boolean).join(' · ');
+      var detail = [c.summary || '', c.linkedIssue ? ('议题 ' + c.linkedIssue) : '', c.reason || ''].filter(Boolean).join(' · ');
+      var title = [head, detail].filter(Boolean).join(' · ');
+      return '<span class="tmrp-cause-row" title="' + attr(title) + '"><em class="tmrp-cause-source">' + esc(head) + '</em><small>' + esc(detail || '暂无细节') + '</small></span>';
+    }).join('') + '</div>';
+  }
+
+  function renderRightSocialCauses(actorType, row){
+    var signalHtml = renderRightSocialSignalCauses(actorType, row);
+    var causes = rightSocialNearCauses(actorType, row);
+    if (!causes.length) return signalHtml || '<div class="tmrp-social-cause empty"><b>近因</b><span>暂无可追溯变化</span></div>';
+    return signalHtml + '<div class="tmrp-social-cause"><b>近因</b>' + causes.map(function(c){
+      return '<span title="' + attr(c.text || '') + '">' + esc((c.turn ? ('T' + c.turn + ' · ') : '') + (c.source || '来源') + ' · ' + c.text) + '</span>';
+    }).join('') + '</div>';
+  }
+
+  function rightSocialFirstText(v){
+    var arr = Array.isArray(v) ? v : [v];
+    for (var i = 0; i < arr.length; i += 1) {
+      var x = arr[i];
+      if (x == null) continue;
+      if (typeof x === 'object') x = x.text || x.name || x.party || x.class || x.goal || x.agenda || x.demand || '';
+      x = String(x || '').trim();
+      if (x) return x;
+    }
+    return '';
+  }
+
+  function rightSocialClassParties(row){
+    var out = [];
+    function add(v){
+      if (!v) return;
+      if (typeof v === 'object') v = v.party || v.partyName || v.class || v.name || v.id || '';
+      v = String(v || '').trim();
+      if (v && out.indexOf(v) < 0) out.push(v);
+    }
+    [row.supportingParties, row.supporting_parties, row.parties, row.linkedParties].forEach(function(list){
+      (Array.isArray(list) ? list : [list]).forEach(add);
+    });
+    var gm = window.GM || {};
+    var idx = gm._partyGoalRelationIndex;
+    var name = rightSocialName(row);
+    if (idx && idx.classParties && idx.classParties[name]) (Array.isArray(idx.classParties[name]) ? idx.classParties[name] : [idx.classParties[name]]).forEach(add);
+    (Array.isArray(gm._partyClassCourtIssueLinks) ? gm._partyClassCourtIssueLinks : []).forEach(function(x){
+      if (x && rightSocialSameName(x.className, name)) add(x.party);
+    });
+    return out.slice(0, 3);
+  }
+
+  function rightSocialRelationEdges(actorType, row){
+    var gm = window.GM || {};
+    var name = rightSocialName(row);
+    var edges = [];
+    var state = gm.partyClassRelations && gm.partyClassRelations.edges;
+    if (state && typeof state === 'object') {
+      Object.keys(state).forEach(function(k){
+        var edge = state[k];
+        if (!edge) return;
+        if (actorType === 'party') {
+          if (!rightSocialSameName(edge.partyName, name)) return;
+        } else if (!rightSocialSameName(edge.className, name)) return;
+        edges.push(edge);
+      });
+    }
+    var idx = gm._partyGoalRelationIndex;
+    if (idx && Array.isArray(idx.evidence)) {
+      idx.evidence.forEach(function(e){
+        if (!e) return;
+        if (actorType === 'party') {
+          if (!rightSocialSameName(e.partyName, name)) return;
+        } else if (!rightSocialSameName(e.className, name)) return;
+        var exists = edges.some(function(edge){
+          return rightSocialSameName(edge.className, e.className) && rightSocialSameName(edge.partyName, e.partyName);
+        });
+        if (!exists) edges.push({
+          className: e.className,
+          partyName: e.partyName,
+          affinity: e.affinity,
+          trust: e.trust,
+          grievance: e.grievance,
+          status: e.status || e.source || '',
+          lastSource: e.source || '',
+          lastReason: e.detail || ''
+        });
+      });
+    }
+    return edges.sort(function(a, b){
+      var aa = Number(a && a.affinity);
+      var bb = Number(b && b.affinity);
+      if (!isFinite(aa)) aa = 0;
+      if (!isFinite(bb)) bb = 0;
+      return bb - aa;
+    }).slice(0, 4);
+  }
+
+  function rightSocialEcologySignals(actorType, row){
+    var gm = window.GM || {};
+    var name = rightSocialName(row);
+    var store = gm._partyClassEcology || {};
+    return (Array.isArray(store.signalHistory) ? store.signalHistory : []).filter(function(s){
+      if (!s) return false;
+      var list = actorType === 'party' ? s.affectedParties : s.affectedClasses;
+      return (Array.isArray(list) ? list : []).some(function(x){ return rightSocialSameName(x, name); });
+    }).slice(-3).reverse();
+  }
+
+  function rightRelationClassRisk(className){
+    var cls = rightFindSocialActor('class', className);
+    return cls ? rightSocialRisk('class', cls) : '风险待察';
+  }
+
+  function rightRelationRouteForecast(edge){
+    edge = edge || {};
+    var className = edge.className || '';
+    var partyName = edge.partyName || '';
+    var demand = rightClassDemandByName(className) || '阶层诉求';
+    var risk = rightRelationClassRisk(className);
+    var grievance = Number(edge.grievance);
+    if (!isFinite(grievance)) grievance = 45;
+    var affinity = Number(edge.affinity);
+    var highRisk = /民变|罢工|请愿|风险/.test(risk) || grievance >= 66 || (isFinite(affinity) && affinity < 30);
+    return '预期：通过诏书/奏疏/问对/朝议/鸿雁处理「' + demand + '」会牵动' +
+      (partyName || '相关党派') + '/' + (className || '相关阶层') + '关系 · 风险：' + risk +
+      (highRisk ? ' · 建议廷议' : '');
+  }
+
+  function renderRightSocialEcology(actorType, row){
+    var edges = rightSocialRelationEdges(actorType, row);
+    var signals = rightSocialEcologySignals(actorType, row);
+    if (!edges.length && !signals.length) return '';
+    function edgeRow(edge){
+      edge = edge || {};
+      var peer = actorType === 'party' ? edge.className : edge.partyName;
+      if (!peer) return '';
+      var status = edge.status || 'latent';
+      var aff = edge.affinity != null && isFinite(Number(edge.affinity)) ? Math.round(Number(edge.affinity)) : '—';
+      var trust = edge.trust != null && isFinite(Number(edge.trust)) ? Math.round(Number(edge.trust)) : '—';
+      var grievance = edge.grievance != null && isFinite(Number(edge.grievance)) ? Math.round(Number(edge.grievance)) : '—';
+      var source = edge.lastSource || edge.source || '';
+      var reason = edge.lastReason || edge.reason || '';
+      var chainKind = actorType === 'party' ? 'demand' : 'party';
+      var routeForecast = rightRelationRouteForecast(edge);
+      return '<div class="tmrp-ecology-edge ' + attr(String(status).toLowerCase()) + '">' +
+        '<button type="button" class="tmrp-ecology-link" data-right-action="social-chain" data-chain-kind="' + attr(chainKind) + '" data-actor-type="' + attr(actorType) + '" data-name="' + attr(rightSocialName(row)) + '" data-target="' + attr(peer) + '" data-topic="' + attr(reason || peer) + '">' + esc(peer) + '</button>' +
+        '<span>' + esc(status) + '</span>' +
+        '<small>亲和 ' + esc(aff) + ' · 信 ' + esc(trust) + ' · 怨 ' + esc(grievance) + '</small>' +
+        (source || reason ? '<em title="' + attr([source, reason].filter(Boolean).join(' · ')) + '">' + esc([source, reason].filter(Boolean).join(' · ')) + '</em>' : '') +
+        '<div class="tmrp-ecology-forecast" title="' + attr(routeForecast) + '">' + esc(routeForecast) + '</div>' +
+        '</div>';
+    }
+    function signalRow(s){
+      var cats = Array.isArray(s.categories) ? s.categories.join('/') : '';
+      return '<div class="tmrp-ecology-signal"><b>T' + esc(s.turn || '') + ' ' + esc(s.kind || 'signal') + '</b><span>' + esc([s.source || '', cats].filter(Boolean).join(' · ')) + '</span></div>';
+    }
+    return '<div class="tmrp-ecology"><div class="tmrp-ecology-head"><b>生态关系</b><small>' + esc(edges.length ? '动态亲和' : '信号来源') + '</small></div>' +
+      (edges.length ? '<div class="tmrp-ecology-list">' + edges.map(edgeRow).filter(Boolean).join('') + '</div>' : '') +
+      (signals.length ? '<div class="tmrp-ecology-signals">' + signals.map(signalRow).join('') + '</div>' : '') +
+      '</div>';
+  }
+
+  function rightClassMinxinKey(row){
+    try {
+      if (window.TM && TM.ClassMinxinBridge && typeof TM.ClassMinxinBridge._classKeyOf === 'function') {
+        return TM.ClassMinxinBridge._classKeyOf(row || {});
+      }
+    } catch(_) {}
+    var explicit = row && (row.classKey || row.key || row.id || row.classId);
+    if (explicit) return String(explicit || '').replace(/\s+/g, '').toLowerCase().trim();
+    return String(rightSocialName(row) || '').replace(/[\s\u3000'"`.,;:!?()[\]{}<>\/\\|_-]+/g, '').toLowerCase().trim();
+  }
+
+  function rightClassMinxinBridgeRows(row){
+    var gm = window.GM || {};
+    var byClass = gm.minxin && gm.minxin.byClass;
+    if (!byClass || typeof byClass !== 'object') return '';
+    var key = rightClassMinxinKey(row);
+    var name = rightSocialName(row);
+    var mx = byClass[key] || null;
+    if (!mx) {
+      Object.keys(byClass).some(function(k){
+        var candidate = byClass[k];
+        if (!candidate) return false;
+        if (rightSocialSameName(candidate.className, name) || rightSocialSameName(k, key)) {
+          mx = candidate;
+          key = k;
+          return true;
+        }
+        return false;
+      });
+    }
+    var ledger = rightPcArray(gm._classMinxinBridgeLedger).filter(function(x){
+      return x && (rightSocialSameName(x.classKey, key) || rightSocialSameName(x.className, name));
+    }).slice(-3).reverse();
+    if (!mx && !ledger.length) return '';
+    var rows = '';
+    if (mx) {
+      var trueIdx = Number(mx.true != null ? mx.true : mx.index);
+      var perceived = Number(mx.perceived != null ? mx.perceived : trueIdx);
+      rows += '<div class="tmrp-ecology-edge ' + attr(String(mx.unrestPhase || 'calm').toLowerCase()) + '">' +
+        '<span>民心</span>' +
+        '<small>真实 ' + esc(isFinite(trueIdx) ? Math.round(trueIdx) : '—') + ' · 感知 ' + esc(isFinite(perceived) ? Math.round(perceived) : '—') + ' · ' + esc(mx.unrestPhase || 'calm') + '</small>' +
+        (mx.lastPressure && mx.lastPressure.reason ? '<em title="' + attr(mx.lastPressure.reason) + '">' + esc(rightPcText(mx.lastPressure.reason, 90)) + '</em>' : '') +
+        '</div>';
+    }
+    ledger.forEach(function(x){
+      var regs = rightPcArray(x.appliedRegions).map(function(r){ return r && (r.region || r.name || r.id || r); }).filter(Boolean).slice(0, 3).join(' / ');
+      rows += '<div class="tmrp-ecology-signal"><b>T' + esc(x.turn || '') + ' ' + esc(x.sourceSystem || 'class-minxin') + '</b><span>' +
+        esc([x.linkedIssue || '', regs || '', x.reason || ''].filter(Boolean).join(' · ')).slice(0, 160) +
+        '</span></div>';
+    });
+    return '<div class="tmrp-ecology"><div class="tmrp-ecology-head"><b>阶层民心</b><small>class-minxin bridge</small></div><div class="tmrp-ecology-list">' + rows + '</div></div>';
+  }
+
+  function rightSocialIssueLinks(actorType, row){
+    var gm = window.GM || {};
+    var name = rightSocialName(row);
+    var out = [];
+    function add(raw, source){
+      if (!raw) return;
+      var topic = raw.topic || raw.title || raw.goalText || raw.reason || '';
+      if (!topic) return;
+      var id = raw.issueId || raw.id || raw.topicId || raw.chaoyiTrackId || topic;
+      var sig = String(id || topic);
+      if (out.some(function(x){ return String(x.id || x.topic) === sig; })) return;
+      out.push({ id: id, topic: topic, source: source || raw.source || '', party: raw.party || raw.sourceParty || '', className: raw.className || raw.sourceClass || '' });
+    }
+    (Array.isArray(gm._partyClassCourtIssueLinks) ? gm._partyClassCourtIssueLinks : []).forEach(function(x){
+      if (!x) return;
+      if (actorType === 'party' && rightSocialSameName(x.party, name)) add(x, 'goal-link');
+      if (actorType !== 'party' && rightSocialSameName(x.className, name)) add(x, 'goal-link');
+    });
+    (Array.isArray(gm._pendingTinyiTopics) ? gm._pendingTinyiTopics : []).forEach(function(x){
+      if (!x) return;
+      if (actorType === 'party' && (rightSocialSameName(x.party, name) || rightSocialSameName(x.sourceParty, name))) add(x, 'pending');
+      if (actorType !== 'party' && (rightSocialSameName(x.className, name) || rightSocialSameName(x.sourceClass, name))) add(x, 'pending');
+    });
+    return out.slice(0, 3);
+  }
+
+  function rightSocialRecentRuling(actorType, row, issues){
+    var gm = window.GM || {};
+    var name = rightSocialName(row);
+    var issueTopics = (issues || []).map(function(x){ return String(x.topic || x.id || ''); });
+    var rows = []
+      .concat(Array.isArray(gm.tinyiSeals) ? gm.tinyiSeals : [])
+      .concat(Array.isArray(gm._courtRecords) ? gm._courtRecords : []);
+    for (var i = rows.length - 1; i >= 0; i -= 1) {
+      var r = rows[i] || {};
+      var topic = r.topic || r.title || '';
+      var actorHit = actorType === 'party'
+        ? (rightSocialSameName(r.sourceParty, name) || rightSocialSameName(r.party, name))
+        : (rightSocialSameName(r.sourceClass, name) || rightSocialSameName(r.className, name));
+      var issueHit = topic && issueTopics.some(function(t){ return t && (String(topic).indexOf(t) >= 0 || String(t).indexOf(topic) >= 0); });
+      if (actorHit || issueHit) return { topic: topic, status: r.sealStatus || r.status || r.result || r.decision || '', grade: r.grade || '' };
+    }
+    return null;
+  }
+
+  function rightSocialRisk(actorType, row){
+    if (actorType === 'party') {
+      var cohesion = rightSocNum(row, ['cohesion','unity'], 50);
+      var inf = rightSocNum(row, ['influence','power','weight'], 50);
+      if (cohesion < 45) return '凝聚偏低，易分裂';
+      if (inf > 70) return '党势偏盛，易阻挠';
+      return row.shortGoal || row.currentAgenda ? '目标推进中' : '暂无明显风险';
+    }
+    var sat = rightSocNum(row, ['satisfaction','support','mood','loyalty'], 50);
+    var unrest = row && row.unrestLevels || {};
+    var strike = Number(unrest.strike || 0);
+    var revolt = Number(unrest.revolt || 0);
+    if (sat < 30 || revolt >= 70) return '民变苗头';
+    if (strike >= 60) return '罢工/聚众风险';
+    if (sat < 45) return '请愿升温';
+    return '风险平稳';
+  }
+
+  function rightSocialChainButton(kind, label, target, topic, actorType, row){
+    if (!label) return '';
+    return '<button type="button" class="tmrp-chain-step" data-right-action="social-chain" data-chain-kind="' + attr(kind) + '" data-actor-type="' + attr(actorType) + '" data-name="' + attr(rightSocialName(row)) + '" data-target="' + attr(target || '') + '" data-topic="' + attr(topic || label) + '">' + esc(label) + '</button>';
+  }
+
+  function renderRightSocialChain(actorType, row){
+    var name = rightSocialName(row);
+    var issues = rightSocialIssueLinks(actorType, row);
+    var demand = actorType === 'party'
+      ? rightSocialFirstText(row.shortGoal || row.currentAgenda || row.agenda)
+      : rightSocialFirstText(row.currentDemand || row.demands);
+    var parties = actorType === 'party' ? [name] : rightSocialClassParties(row);
+    var issue = issues[0] || null;
+    var ruling = rightSocialRecentRuling(actorType, row, issues);
+    var risk = rightSocialRisk(actorType, row);
+    var html = '';
+    html += rightSocialChainButton('demand', demand || (actorType === 'party' ? '近期目标' : '阶层诉求'), demand, issue && issue.topic, actorType, row);
+    html += rightSocialChainButton('party', parties[0] || (actorType === 'party' ? name : '待形成支持党派'), parties[0] || '', issue && issue.topic, actorType, row);
+    html += rightSocialChainButton('issue', issue ? issue.topic : '待付廷议', issue && issue.id, issue && issue.topic || demand, actorType, row);
+    html += rightSocialChainButton('ruling', ruling ? ((ruling.status || '裁决') + (ruling.grade ? ' ' + ruling.grade : '')) : '暂无裁决', ruling && ruling.topic, ruling && ruling.topic || demand, actorType, row);
+    html += rightSocialChainButton('risk', risk, risk, issue && issue.topic || demand, actorType, row);
+    return '<div class="tmrp-social-chain">' + html + '</div>';
+  }
+
+  function rightActorActionRows(actorType, row){
+    var gm = window.GM || {};
+    var name = rightSocialName(row);
+    var source = actorType === 'party' ? gm.party_actions : gm.class_actions;
+    var embedded = row && (actorType === 'party' ? row.party_actions : row.class_actions);
+    var seen = {};
+    return (rightPcArray(source).concat(rightPcArray(embedded))).filter(function(a){
+      if (!a || a.actorType !== actorType || !rightSocialSameName(a.actorId, name)) return false;
+      if (/expired|resolved|cancelled|canceled/i.test(String(a.status || ''))) return false;
+      var key = a.id || [a.actorType, a.actorId, a.actionType, a.linkedIssue, a.turn].join('|');
+      if (seen[key]) return false;
+      seen[key] = true;
+      return true;
+    }).slice(-4).reverse();
+  }
+
+  function rightActorTinyiForAction(action){
+    var gm = window.GM || {};
+    var key = action && (action.id || [action.actorType, action.actorId, action.actionType, action.linkedIssue, action.agenda || action.grievance, action.turn].join('|'));
+    var issue = action && action.linkedIssue;
+    var rows = Array.isArray(gm._pendingTinyiTopics) ? gm._pendingTinyiTopics : [];
+    for (var i = 0; i < rows.length; i += 1) {
+      var topic = rows[i] || {};
+      var linked = Array.isArray(topic.linkedActions) ? topic.linkedActions : [];
+      if (key && linked.some(function(x){ return String(x) === String(key); })) return topic;
+      if (issue && String(topic.issueId || topic.id || topic.topicId || topic.linkedIssue || '') === String(issue)) return topic;
+    }
+    return null;
+  }
+
+  function renderRightActorActions(actorType, row){
+    var actions = rightActorActionRows(actorType, row);
+    if (!actions.length) return '';
+    return '<div class="tmrp-actor-action"><b>正在行动</b>' + actions.map(function(a){
+      var tinyi = rightActorTinyiForAction(a);
+      var head = ['T' + (a.turn || ''), a.actionType || 'action', a.status || 'planned'].filter(Boolean).join(' · ');
+      var body = [a.agenda || a.grievance || '', tinyi && tinyi.topic ? ('廷议 ' + tinyi.topic) : (a.linkedIssue ? ('issue ' + a.linkedIssue) : ''), a.source || ''].filter(Boolean).join(' · ');
+      return '<span title="' + attr([head, body].filter(Boolean).join(' · ')) + '"><em>' + esc(head) + '</em><small>' + esc(body || 'autonomous pressure') + '</small></span>';
+    }).join('') + '</div>';
+  }
+
+  function renderRightSocialActions(actorType, row){
+    var name = rightSocialName(row);
+    var safeName = attr(name);
+    var firstLabel = actorType === 'party' ? '召党魁' : '召代表';
+    var edictLabel = actorType === 'party' ? '拟平衡诏' : '拟安抚诏';
+    return '<div class="tmrp-action-row tmrp-social-actions">' +
+      '<button type="button" class="tmrp-btn" data-right-action="social-action" data-actor-type="' + attr(actorType) + '" data-name="' + safeName + '" data-social-command="audience">' + firstLabel + '</button>' +
+      '<button type="button" class="tmrp-btn primary" data-right-action="social-action" data-actor-type="' + attr(actorType) + '" data-name="' + safeName + '" data-social-command="chaoyi">付廷议</button>' +
+      '<button type="button" class="tmrp-btn" data-right-action="social-action" data-actor-type="' + attr(actorType) + '" data-name="' + safeName + '" data-social-command="edict">' + edictLabel + '</button>' +
+      '</div>';
+  }
+
+  function rightPcArray(v){
+    if (v === undefined || v === null || v === '') return [];
+    return Array.isArray(v) ? v.slice() : [v];
+  }
+
+  function rightPcText(v, n){
+    var text = '';
+    if (v && typeof v === 'object') {
+      text = v.text || v.reason || v.summary || v.topic || v.title || v.goalText || v.agenda || v.name || v.id || '';
+    } else {
+      text = v == null ? '' : String(v);
+    }
+    if (typeof compactText === 'function') return compactText(text, n || 140);
+    text = String(text || '').replace(/\s+/g, ' ').trim();
+    return text.length > (n || 140) ? text.slice(0, n || 140) : text;
+  }
+
+  function rightPcJson(v){
+    try { return JSON.stringify(v || {}); } catch (_) { return ''; }
+  }
+
+  function rightPcRow(title, body, tags){
+    tags = rightPcArray(tags).filter(Boolean).slice(0, 5);
+    return '<div class="tmrp-pcdebug-row"><b>' + esc(title || 'entry') + '</b>' +
+      '<span>' + esc(body || '') + '</span>' +
+      (tags.length ? '<div class="tmrp-pcdebug-tags">' + tags.map(function(t){ return '<i class="tmrp-pcdebug-tag">' + esc(t) + '</i>'; }).join('') + '</div>' : '') +
+      '</div>';
+  }
+
+  function rightPcSection(title, small, rows, emptyText){
+    rows = rightPcArray(rows).filter(Boolean);
+    return '<section class="tmrp-card tmrp-pcdebug-section"><div class="tmrp-card-title"><span>' + esc(title) + '</span><small>' + esc(small || '') + '</small></div>' +
+      (rows.length ? '<div class="tmrp-pcdebug-list">' + rows.join('') + '</div>' : '<div class="tmrp-empty">' + esc(emptyText || 'No entries') + '</div>') +
+      '</section>';
+  }
+
+  function rightPcSignalRows(gm){
+    return rightPcArray(gm && gm._socialPoliticalSignals && gm._socialPoliticalSignals.items).slice(-8).reverse().map(function(s){
+      return rightPcRow(
+        'T' + (s.turn || '') + ' ' + (s.sourceSystem || 'signal') + '/' + (s.kind || ''),
+        rightPcText(s.reason || '', 140),
+        [
+          s.linkedIssue || '',
+          'intensity ' + (s.intensity != null ? s.intensity : ''),
+          'confidence ' + (s.confidence != null ? s.confidence : ''),
+          s.resolved ? 'resolved' : (s.escalated ? 'escalated' : (s.applied ? 'applied' : 'pending'))
+        ]
+      );
+    });
+  }
+
+  function rightPcMaintenanceRows(gm){
+    var signalRows = rightPcArray(gm && gm._socialPoliticalSignalMaintenance).slice(-4).reverse().map(function(x){
+      return rightPcRow('T' + (x.turn || '') + ' signal maintenance', rightPcJson(x.summary), [x.source || '']);
+    });
+    var actorRows = rightPcArray(gm && gm._partyClassActorMaintenance).slice(-4).reverse().map(function(x){
+      return rightPcRow('T' + (x.turn || '') + ' actor maintenance', rightPcJson(x.summary), [x.source || '']);
+    });
+    var escalationRows = rightPcArray(gm && gm._socialPoliticalSignalEscalations).slice(-5).reverse().map(function(x){
+      return rightPcRow('T' + (x.turn || '') + ' escalation', rightPcText(x.reason || x.kind || '', 140), [x.linkedIssue || '', rightPcArray(x.affectedClasses).join('/'), x.kind || '']);
+    });
+    return signalRows.concat(actorRows).concat(escalationRows);
+  }
+
+  function rightPcActorMemoryRows(gm){
+    return rightPcArray(gm && gm._partyClassActorMemory && gm._partyClassActorMemory.items).slice(-10).reverse().map(function(m){
+      return rightPcRow(
+        'T' + (m.turn || '') + ' ' + (m.actorType || '') + ' ' + (m.actorId || ''),
+        rightPcText((m.agenda || '') + ' / ' + (m.grievance || '') + ' / ' + (m.belief || ''), 180),
+        [m.source || '', m.linkedIssue || '', m.status || (m.resolved ? 'resolved' : (m.expired ? 'expired' : 'active')), 'confidence ' + (m.confidence != null ? m.confidence : '')]
+      );
+    });
+  }
+
+  function rightPcActionRows(gm){
+    var partyRows = rightPcArray(gm && gm.party_actions).slice(-6).reverse().map(function(a){
+      return rightPcRow('party_actions ' + (a.actorId || ''), rightPcText((a.actionType || '') + ' / ' + (a.agenda || ''), 160), [a.linkedIssue || '', a.status || '', 'T' + (a.turn || '')]);
+    });
+    var classRows = rightPcArray(gm && gm.class_actions).slice(-6).reverse().map(function(a){
+      return rightPcRow('class_actions ' + (a.actorId || ''), rightPcText((a.actionType || '') + ' / ' + (a.agenda || ''), 160), [a.linkedIssue || '', a.status || '', 'T' + (a.turn || '')]);
+    });
+    return partyRows.concat(classRows);
+  }
+
+  function rightPcTinyiRows(gm){
+    var pendingRows = rightPcArray(gm && gm._pendingTinyiTopics).slice(-7).reverse().map(function(t){
+      return rightPcRow('Tinyi Queue ' + (t.topic || t.title || ''), rightPcText((t.goalText || t.demandText || t.reason || ''), 150), [t.sourceType || t.source || '', t.party || t.sourceParty || '', t.sourceClass || t.className || '', t.issueId || t.linkedIssue || '']);
+    });
+    var linkRows = rightPcArray(gm && gm._partyClassCourtIssueLinks).slice(-6).reverse().map(function(l){
+      return rightPcRow('Issue Link ' + (l.topic || l.issueId || ''), rightPcText(l.goalText || l.reason || '', 150), [l.party || '', l.className || '', 'T' + (l.turn || '')]);
+    });
+    var courtRows = rightPcArray(gm && gm._courtRecords).concat(rightPcArray(gm && gm.tinyiSeals)).slice(-8).reverse().map(function(r){
+      var status = (r.sealStatus || r.status || r.result || '') + (r.grade ? ' ' + r.grade : '');
+      return rightPcRow('Court Records ' + (r.topic || r.title || ''), rightPcText(r.demandText || r.body || r.reason || '', 150), [status, r.sourceParty || r.party || '', r.sourceClass || r.className || '', r.issueId || r.chaoyiTrackId || '']);
+    });
+    return pendingRows.concat(linkRows).concat(courtRows);
+  }
+
+  function rightPcClassMinxinBridge(){
+    var tm = window.TM || {};
+    return tm.ClassMinxinBridge || null;
+  }
+
+  function rightPcClassMinxinDiagnostics(gm){
+    gm = gm || window.GM || {};
+    var api = rightPcClassMinxinBridge();
+    if (api && typeof api.diagnostics === 'function') {
+      try { return api.diagnostics(gm, { limit: 8 }); } catch (_) {}
+    }
+    var mx = gm.minxin || {};
+    var byClass = [];
+    Object.keys(mx.byClass || {}).forEach(function(key){
+      var row = mx.byClass[key] || {};
+      byClass.push({
+        classKey: key,
+        className: row.className || key,
+        true: row.true != null ? row.true : row.index,
+        perceived: row.perceived,
+        unrestPhase: row.unrestPhase,
+        demand: row.demand,
+        lastPressure: row.lastPressure
+      });
+    });
+    return {
+      audit: gm._classMinxinBridgeAudit || null,
+      warnings: [],
+      maintenance: gm._classMinxinBridgeMaintenance || null,
+      ledger: rightPcArray(gm._classMinxinBridgeLedger).slice(-8).reverse(),
+      byClass: byClass.slice(0, 8),
+      courtTopics: rightPcArray(gm._pendingTinyiTopics).filter(function(t){
+        return t && (t.from === 'class-minxin-bridge' || t.sourceType === 'class_pressure' || (t.origin && t.origin.sourceType === 'class_minxin_bridge'));
+      }).slice(0, 8),
+      uprisingCandidates: rightPcArray(mx.uprisingCandidates).slice(-8).reverse()
+    };
+  }
+
+  function rightPcRegionText(row){
+    var names = [];
+    rightPcArray(row && row.appliedRegions).forEach(function(r){
+      var name = r && (r.region || r.name || r.id || r);
+      if (name && names.indexOf(String(name)) < 0) names.push(String(name));
+    });
+    rightPcArray(row && row.regionWeights).forEach(function(r){
+      var name = r && (r.region || r.name || r.id || r);
+      if (name && names.indexOf(String(name)) < 0) names.push(String(name));
+    });
+    return names.join('/');
+  }
+
+  function rightPcClassMinxinRows(gm){
+    var diag = rightPcClassMinxinDiagnostics(gm);
+    var rows = [];
+    var audit = diag.audit || {};
+    var counts = audit.counts || {};
+    if (diag.audit) {
+      rows.push(rightPcRow(
+        'audit ' + (audit.ok ? 'OK' : 'FAIL'),
+        rightPcText((diag.warnings && diag.warnings.length ? diag.warnings.join(' / ') : rightPcJson(counts)), 220),
+        ['duplicates ' + (counts.duplicates || 0), 'drifts ' + (counts.drifts || 0), 'blind ' + (counts.blindRegionWrites || 0), audit.source || '']
+      ));
+    }
+    if (diag.maintenance) {
+      rows.push(rightPcRow(
+        'T' + (diag.maintenance.turn || '') + ' maintenance',
+        rightPcJson({ courtIssues: diag.maintenance.courtIssues || 0, uprisingCandidates: diag.maintenance.uprisingCandidates || 0, auditOk: diag.maintenance.auditOk !== false }),
+        [diag.maintenance.source || '', diag.maintenance.auditOk === false ? 'audit FAIL' : 'audit OK']
+      ));
+    }
+    rightPcArray(diag.byClass).slice(0, 6).forEach(function(c){
+      var lp = c.lastPressure || {};
+      rows.push(rightPcRow(
+        'byClass ' + (c.className || c.classKey || ''),
+        rightPcText('true ' + (c.true != null ? c.true : c.index) + ' perceived ' + (c.perceived != null ? c.perceived : '') + ' / ' + (c.unrestPhase || '') + ' / ' + (lp.reason || c.demand || ''), 180),
+        [c.classKey || '', lp.linkedIssue || '', lp.delta != null ? ('delta ' + lp.delta) : '']
+      ));
+    });
+    rightPcArray(diag.ledger).slice(0, 6).forEach(function(row){
+      var regions = rightPcRegionText(row);
+      rows.push(rightPcRow(
+        'ledger ' + (row.className || row.classKey || ''),
+        rightPcText([row.reason || row.sourceSystem || '', regions].filter(Boolean).join(' / '), 180),
+        [row.linkedIssue || '', row.sourceSystem || '', row.delta != null ? ('delta ' + row.delta) : '', regions]
+      ));
+    });
+    rightPcArray(diag.courtTopics).slice(0, 5).forEach(function(t){
+      rows.push(rightPcRow(
+        'Court Topic ' + (t.topic || t.title || t.id || ''),
+        rightPcText(t.demandText || t.reason || '', 160),
+        [t.from || t.sourceType || '', t.sourceClass || t.className || '', t.linkedIssue || t.issueId || '']
+      ));
+    });
+    rightPcArray(diag.uprisingCandidates).slice(0, 5).forEach(function(c){
+      rows.push(rightPcRow(
+        'Uprising Candidates ' + (c.id || ''),
+        rightPcText([c.cause || '', c.region || ''].filter(Boolean).join(' / '), 160),
+        [c.className || c.classKey || '', c.linkedIssue || '', c.level != null ? ('level ' + c.level) : '', c.momentum != null ? ('momentum ' + c.momentum) : '']
+      ));
+    });
+    return rows;
+  }
+
+  function rightPcMinxinLedgerApi(){
+    var tm = window.TM || {};
+    return tm.MinxinLedger || null;
+  }
+
+  function rightPcMinxinLedgerSnapshot(gm){
+    gm = gm || window.GM || {};
+    var api = rightPcMinxinLedgerApi();
+    if (api && typeof api.snapshot === 'function') {
+      try { return api.snapshot(gm, { limit: 8 }); } catch (_) {}
+    }
+    var ledger = gm._minxinLedger || {};
+    var mx = gm.minxin || {};
+    return {
+      trueIndex: mx.trueIndex,
+      perceivedIndex: mx.perceivedIndex,
+      visibilityTier: mx.visibilityTier,
+      recent: rightPcArray(ledger.items).slice(-8).reverse(),
+      uprisingChain: rightPcArray(mx.uprisingChain),
+      byRegion: mx.byRegion || {},
+      byClass: mx.byClass || {}
+    };
+  }
+
+  function rightPcMinxinLedgerRows(gm){
+    var snap = rightPcMinxinLedgerSnapshot(gm);
+    var rows = [];
+    if (!snap) return rows;
+    rows.push(rightPcRow(
+      'truth / court view',
+      rightPcText('true ' + (snap.trueIndex != null ? snap.trueIndex : '') + ' perceived ' + (snap.perceivedIndex != null ? snap.perceivedIndex : '') + ' visibility ' + (snap.visibilityTier || ''), 180),
+      ['Minxin Ledger']
+    ));
+    rightPcArray(snap.recent).slice(0, 6).forEach(function(row){
+      var classes = rightPcArray(row.targetClasses).map(function(c){ return c.name || c.classKey || c; }).filter(Boolean).join('/');
+      var regions = rightPcArray(row.targetRegions).map(function(r){ return r.region || r.name || r.id || r; }).filter(Boolean).join('/');
+      rows.push(rightPcRow(
+        'T' + (row.turn || '') + ' ' + (row.kind || row.sourceSystem || 'signal'),
+        rightPcText([row.reason || '', regions, classes].filter(Boolean).join(' / '), 190),
+        [row.deltaTrue != null ? ('delta ' + row.deltaTrue) : '', row.linkedIssue || '', row.policyActionId || row.courtIssueId || '']
+      ));
+    });
+    Object.keys(snap.byRegion || {}).slice(0, 5).forEach(function(key){
+      var r = snap.byRegion[key] || {};
+      rows.push(rightPcRow(
+        'region ' + (r.regionName || key),
+        rightPcText('true ' + (r.true != null ? r.true : r.index) + ' perceived ' + (r.perceived != null ? r.perceived : '') + ' phase ' + (r.phase || ''), 170),
+        [r.visibilityTier || '', key]
+      ));
+    });
+    Object.keys(snap.byClass || {}).slice(0, 5).forEach(function(key){
+      var c = snap.byClass[key] || {};
+      rows.push(rightPcRow(
+        'class ' + (c.className || key),
+        rightPcText('true ' + (c.true != null ? c.true : c.index) + ' perceived ' + (c.perceived != null ? c.perceived : '') + ' cause ' + (c.lastReason || ''), 170),
+        [c.linkedIssue || '', key]
+      ));
+    });
+    rightPcArray(snap.uprisingChain).slice(0, 5).forEach(function(c){
+      rows.push(rightPcRow(
+        'uprising chain ' + (c.region || c.regionName || c.id || ''),
+        rightPcText(c.cause || c.reason || '', 170),
+        [c.className || c.classKey || '', c.level != null ? ('level ' + c.level) : '', c.momentum != null ? ('momentum ' + c.momentum) : '']
+      ));
+    });
+    return rows;
+  }
+
+  function rightPcMinxinLedgerCopyText(gm){
+    gm = gm || window.GM || {};
+    var api = rightPcMinxinLedgerApi();
+    if (api && typeof api.diagnosticsText === 'function') {
+      try { return api.diagnosticsText(gm, { limit: 12 }); } catch (_) {}
+    }
+    return '=== Minxin Ledger Diagnostics ===\n' + rightPcJson(rightPcMinxinLedgerSnapshot(gm));
+  }
+
+  function rightPcMinxinPressureRows(gm){
+    gm = gm || window.GM || {};
+    var api = window.TM && TM.MinxinPressureActions;
+    var snap = null;
+    if (api && typeof api.snapshot === 'function') {
+      try { snap = api.snapshot(gm, { limit: 8 }); } catch (_) {}
+    }
+    if (!snap) {
+      var store = gm._minxinPressureActions || {};
+      snap = {
+        active: rightPcArray(store.items).filter(function(x){ return x && x.status === 'active'; }).slice(-8).reverse(),
+        recent: rightPcArray(store.items).slice(-8).reverse(),
+        responses: rightPcArray(store.responses).slice(-8).reverse(),
+        maintenance: gm._minxinPressureActionsMaintenance || null
+      };
+    }
+    var rows = [];
+    if (snap.maintenance) {
+      rows.push(rightPcRow(
+        'maintenance T' + (snap.maintenance.turn || ''),
+        rightPcText('scanned ' + (snap.maintenance.scanned || 0) + ' spawned ' + (snap.maintenance.spawned || 0) + ' active ' + (snap.maintenance.active || 0), 160),
+        [snap.maintenance.source || '']
+      ));
+    }
+    rightPcArray(snap.active || snap.recent).slice(0, 6).forEach(function(item){
+      rows.push(rightPcRow(
+        'pressure ' + (item.regionName || '') + ' / ' + (item.className || ''),
+        rightPcText([item.reason || '', item.demandText || ''].filter(Boolean).join(' / '), 190),
+        [item.severity || '', item.true != null ? ('true ' + item.true) : '', item.status || '', item.id || '']
+      ));
+    });
+    rightPcArray(snap.responses).slice(0, 5).forEach(function(r){
+      rows.push(rightPcRow(
+        'response ' + (r.channel || '') + ' / ' + (r.decision || ''),
+        rightPcText(r.text || '', 180),
+        [r.linkedIssue || '', r.deltaTrue != null ? ('delta ' + r.deltaTrue) : '', 'T' + (r.turn || '')]
+      ));
+    });
+    return rows;
+  }
+
+  function rightPcMinxinPressureCopyText(gm){
+    gm = gm || window.GM || {};
+    var api = window.TM && TM.MinxinPressureActions;
+    if (api && typeof api.diagnosticsText === 'function') {
+      try { return api.diagnosticsText(gm, { limit: 12 }); } catch (_) {}
+    }
+    return '=== Minxin Pressure Actions Diagnostics ===\n' + rightPcJson(gm._minxinPressureActions || {});
+  }
+
+  function rightPcMinxinCommitmentRows(gm){
+    gm = gm || window.GM || {};
+    var api = window.TM && TM.MinxinCommitmentTracker;
+    var snap = null;
+    if (api && typeof api.snapshot === 'function') {
+      try { snap = api.snapshot(gm, { limit: 8 }); } catch (_) {}
+    }
+    if (!snap) {
+      var store = gm._minxinCommitments || {};
+      snap = {
+        maintenance: gm._minxinCommitmentsMaintenance || null,
+        active: rightPcArray(store.items).filter(function(x){ return x && (x.status === 'active' || x.status === 'stalled'); }).slice(-8).reverse(),
+        recent: rightPcArray(store.items).slice(-8).reverse(),
+        settlements: rightPcArray(store.settlements).slice(-8).reverse()
+      };
+    }
+    var rows = [];
+    if (snap.maintenance) {
+      rows.push(rightPcRow(
+        'maintenance T' + (snap.maintenance.turn || ''),
+        rightPcText('active ' + (snap.maintenance.active || 0) + ' stalled ' + (snap.maintenance.stalled || 0) + ' resolved ' + (snap.maintenance.resolved || 0) + ' settled ' + (snap.maintenance.settled || 0), 180),
+        [snap.maintenance.source || '']
+      ));
+    }
+    rightPcArray(snap.active || snap.recent).slice(0, 6).forEach(function(item){
+      rows.push(rightPcRow(
+        'commitment ' + (item.regionName || '') + ' / ' + (item.className || ''),
+        rightPcText([item.text || '', 'measures ' + rightPcArray(item.measures).join('/')].filter(Boolean).join(' / '), 190),
+        [item.status || '', item.progress != null ? ('progress ' + item.progress) : '', item.dueTurn ? ('due ' + item.dueTurn) : '', item.id || '']
+      ));
+    });
+    rightPcArray(snap.settlements).slice(0, 5).forEach(function(s){
+      rows.push(rightPcRow(
+        'settlement ' + (s.status || ''),
+        rightPcText(s.reason || '', 190),
+        [s.commitmentId || '', s.deltaTrue != null ? ('delta ' + s.deltaTrue) : '', s.progress != null ? ('progress ' + s.progress) : '']
+      ));
+    });
+    return rows;
+  }
+
+  function rightPcMinxinCommitmentCopyText(gm){
+    gm = gm || window.GM || {};
+    var api = window.TM && TM.MinxinCommitmentTracker;
+    if (api && typeof api.diagnosticsText === 'function') {
+      try { return api.diagnosticsText(gm, { limit: 12 }); } catch (_) {}
+    }
+    return '=== Minxin Commitments Diagnostics ===\n' + rightPcJson(gm._minxinCommitments || {});
+  }
+
+  function rightPcMinxinResponsibilityRows(gm){
+    gm = gm || window.GM || {};
+    var api = window.TM && TM.MinxinResponsibilityChain;
+    var snap = null;
+    if (api && typeof api.snapshot === 'function') {
+      try { snap = api.snapshot(gm, { limit: 8 }); } catch (_) {}
+    }
+    if (!snap) {
+      var store = gm._minxinResponsibilityChain || {};
+      snap = {
+        maintenance: gm._minxinResponsibilityMaintenance || null,
+        assignments: rightPcArray(store.assignments).slice(-8).reverse(),
+        officialReports: rightPcArray(store.officialReports).slice(-8).reverse(),
+        rumors: rightPcArray(store.rumors).slice(-8).reverse(),
+        interventions: rightPcArray(store.interventions).slice(-8).reverse(),
+        accountability: rightPcArray(store.accountability).slice(-8).reverse()
+      };
+    }
+    var rows = [];
+    if (snap.maintenance) {
+      rows.push(rightPcRow(
+        'maintenance T' + (snap.maintenance.turn || ''),
+        rightPcText('assigned ' + (snap.maintenance.assigned || 0) + ' reports ' + (snap.maintenance.reports || 0) + ' rumors ' + (snap.maintenance.rumors || 0) + ' accountability ' + (snap.maintenance.accountability || 0), 180),
+        [snap.maintenance.source || '']
+      ));
+    }
+    rightPcArray(snap.assignments).slice(0, 5).forEach(function(a){
+      rows.push(rightPcRow(
+        'assignment ' + (a.regionName || '') + ' / ' + (a.className || ''),
+        rightPcText('agency ' + (a.agency || '') + ' executor ' + (a.executor && a.executor.name || ''), 190),
+        [a.commitmentId || '', a.falseReportRisk != null ? ('risk ' + a.falseReportRisk) : '']
+      ));
+    });
+    rightPcArray(snap.officialReports).slice(0, 5).forEach(function(r){
+      rows.push(rightPcRow(
+        'official report ' + (r.executorName || ''),
+        rightPcText((r.regionName || '') + ' / ' + (r.className || '') + ' reported ' + (r.reportedProgress || 0) + ' actual ' + (r.actualProgress || 0), 190),
+        [r.commitmentId || '', r.falseReportRisk != null ? ('risk ' + r.falseReportRisk) : '']
+      ));
+    });
+    rightPcArray(snap.rumors).slice(0, 5).forEach(function(r){
+      rows.push(rightPcRow(
+        'rumor ' + (r.severity || ''),
+        rightPcText(r.text || '', 190),
+        [r.commitmentId || '', r.falseReportRisk != null ? ('risk ' + r.falseReportRisk) : '', r.trueProgress != null ? ('true ' + r.trueProgress) : '']
+      ));
+    });
+    rightPcArray(snap.accountability).slice(0, 5).forEach(function(a){
+      rows.push(rightPcRow(
+        'accountability',
+        rightPcText(a.reason || '', 190),
+        [a.commitmentId || '', a.memorialId || '', a.tinyiId || '']
+      ));
+    });
+    return rows;
+  }
+
+  function rightPcMinxinResponsibilityCopyText(gm){
+    gm = gm || window.GM || {};
+    var api = window.TM && TM.MinxinResponsibilityChain;
+    if (api && typeof api.diagnosticsText === 'function') {
+      try { return api.diagnosticsText(gm, { limit: 12 }); } catch (_) {}
+    }
+    return '=== Minxin Responsibility Chain Diagnostics ===\n' + rightPcJson(gm._minxinResponsibilityChain || {});
+  }
+
+  function rightPcMinxinHardLinkRows(gm){
+    gm = gm || window.GM || {};
+    var api = window.TM && TM.MinxinHardLinks;
+    var snap = null;
+    if (api && typeof api.snapshot === 'function') {
+      try { snap = api.snapshot(gm, { limit: 8 }); } catch (_) {}
+    }
+    if (!snap) {
+      var store = gm._minxinHardLinks || {};
+      snap = {
+        summary: store.summary || {
+          fiscal: gm.fiscal && gm.fiscal.minxinHardLinks || {},
+          military: gm.military && gm.military.minxinHardLinks || {},
+          hukou: gm.hukou && gm.hukou.minxinHardLinks || {},
+          localExecution: gm.localExecution && gm.localExecution.minxinHardLinks || {}
+        },
+        regionImpacts: rightPcArray(store.regionImpacts).slice(-8).reverse(),
+        ledger: rightPcArray(store.ledger).slice(-8).reverse()
+      };
+    }
+    var rows = [];
+    var summary = snap.summary || {};
+    var fiscal = summary.fiscal || {};
+    var military = summary.military || {};
+    var hukou = summary.hukou || {};
+    var local = summary.localExecution || {};
+    rows.push(rightPcRow(
+      'fiscal / conscription / hukou',
+      rightPcText('actual ' + (fiscal.actualRevenue || 0) + ' claimed ' + (fiscal.claimedRevenue || 0) + ' gap ' + (fiscal.revenueGap || 0) + ' recruits ' + (military.availableRecruits || 0), 190),
+      ['hidden ' + (hukou.hiddenHouseholds || 0), 'refugees ' + (hukou.refugees || 0), 'exec ' + (local.avgExecutionRate || 0)]
+    ));
+    rightPcArray(snap.regionImpacts).slice(0, 6).forEach(function(row){
+      rows.push(rightPcRow(
+        'hard link ' + (row.regionName || ''),
+        rightPcText('fiscal ' + ((row.fiscal && row.fiscal.actualRevenue) || 0) + '/' + ((row.fiscal && row.fiscal.claimedRevenue) || 0) + ' draft ' + ((row.conscription && row.conscription.recruitmentEfficiency) || 0) + ' hukou ' + ((row.hukou && row.hukou.hiddenHouseholds) || 0), 190),
+        ['minxin ' + (row.trueMinxin || 0), 'execution ' + (row.localExecutionRate || 0), row.reason || '']
+      ));
+    });
+    rightPcArray(snap.ledger).slice(0, 4).forEach(function(e){
+      rows.push(rightPcRow(
+        'coercive ' + (e.regionName || ''),
+        rightPcText(e.reason || e.kind || '', 190),
+        ['delta ' + (e.deltaTrue || 0), 'recruits ' + (e.shortTermRecruits || 0), 'T' + (e.turn || '')]
+      ));
+    });
+    return rows;
+  }
+
+  function rightPcMinxinHardLinkCopyText(gm){
+    gm = gm || window.GM || {};
+    var api = window.TM && TM.MinxinHardLinks;
+    if (api && typeof api.diagnosticsText === 'function') {
+      try { return api.diagnosticsText(gm, { limit: 12 }); } catch (_) {}
+    }
+    return '=== Minxin Hard Links Diagnostics ===\n' + rightPcJson(gm._minxinHardLinks || {});
+  }
+
+  function rightPcMinxinHardLinkConsumerRows(gm){
+    gm = gm || window.GM || {};
+    var api = window.TM && TM.MinxinHardLinkConsumers;
+    var snap = null;
+    if (api && typeof api.snapshot === 'function') {
+      try { snap = api.snapshot(gm, { limit: 8 }); } catch (_) {}
+    }
+    if (!snap) {
+      var store = gm._minxinHardLinkConsumers || {};
+      snap = {
+        summary: store.summary || {},
+        events: rightPcArray(store.events).slice(-8).reverse()
+      };
+    }
+    var rows = [];
+    var summary = snap.summary || {};
+    var fiscal = summary.fiscal || {};
+    var military = summary.military || {};
+    var hukou = summary.hukou || {};
+    var execution = summary.execution || {};
+    rows.push(rightPcRow(
+      'consumer caps',
+      rightPcText('income ' + (fiscal.actualIncome || 0) + '/' + (fiscal.plannedIncome || 0) + ' recruits ' + (military.approvedRecruits || 0) + '/' + (military.requestedRecruits || 0), 190),
+      ['taxbase ' + (hukou.effectiveTaxHouseholds || 0), 'exec ' + (execution.effectiveExecutionRate || 0)]
+    ));
+    rightPcArray(snap.events).slice(0, 6).forEach(function(e){
+      var p = e.payload || {};
+      rows.push(rightPcRow(
+        e.type || 'consumer',
+        rightPcText(rightPcJson(p), 190),
+        ['T' + (e.turn || '')]
+      ));
+    });
+    return rows;
+  }
+
+  function rightPcMinxinHardLinkConsumerCopyText(gm){
+    gm = gm || window.GM || {};
+    var api = window.TM && TM.MinxinHardLinkConsumers;
+    if (api && typeof api.diagnosticsText === 'function') {
+      try { return api.diagnosticsText(gm, { limit: 12 }); } catch (_) {}
+    }
+    return '=== Minxin Hard Link Consumers Diagnostics ===\n' + rightPcJson(gm._minxinHardLinkConsumers || {});
+  }
+
+  function rightPcHujiRuntimeBridgeRows(gm){
+    gm = gm || window.GM || {};
+    var api = window.TM && TM.HujiRuntimeBridge;
+    var snap = null;
+    if (api && typeof api.snapshot === 'function') {
+      try { snap = api.snapshot(gm, { limit: 8 }); } catch (_) {}
+    }
+    if (!snap) {
+      var store = gm._hujiRuntimeBridge || {};
+      snap = store.snapshot || {};
+      snap.operations = rightPcArray(store.operations).slice(-8).reverse();
+    }
+    var rows = [];
+    var hukou = snap.hukou || {};
+    var corvee = (snap.corvee && snap.corvee.summary) || {};
+    var military = snap.military || {};
+    var hujiHardEffects = snap.hardEffects || gm._hujiHardEffects || {};
+    var hardFiscal = hujiHardEffects.fiscal || {};
+    var hardMilitary = hujiHardEffects.military || {};
+    var hardCorvee = hujiHardEffects.corvee || {};
+    rows.push(rightPcRow(
+      'hukouLedger',
+      rightPcText('registered ' + (hukou.registeredHouseholds || 0) + ' households / ' + (hukou.registeredMouths || 0) + ' mouths / ' + (hukou.registeredDing || 0) + ' ding', 190),
+      ['hidden ' + (hukou.hiddenCount || 0), 'fugitives ' + (hukou.fugitives || 0), 'taxbase ' + (hukou.effectiveTaxHouseholds || 0)]
+    ));
+    rows.push(rightPcRow(
+      'corveeLedger',
+      rightPcText('demand ' + (corvee.totalDemandDays || 0) + ' fulfilled ' + (corvee.fulfilledDays || 0) + ' gap ' + (corvee.gapDays || 0), 190),
+      ['burden ' + (corvee.burden || 0), 'commute ' + (corvee.commutationRate || 0), 'regions ' + (corvee.regionCount || 0)]
+    ));
+    rows.push(rightPcRow(
+      'militaryServicePool',
+      rightPcText('active ' + (military.activeSoldiers || 0) + ' available ' + (military.availableRecruits || 0) + ' requested ' + (military.requestedRecruits || 0), 190),
+      ['eligible ' + (military.eligibleDing || 0), 'shortfall ' + (military.shortfall || 0), 'eff ' + (military.avgRecruitmentEfficiency || 0)]
+    ));
+    if (hujiHardEffects && (hujiHardEffects.fiscal || hujiHardEffects.military || hujiHardEffects.corvee)) {
+      rows.push(rightPcRow(
+        'hujiHardEffects',
+        rightPcText('fiscal x' + (hardFiscal.collectionMultiplier || 0) + ' loss ' + (hardFiscal.revenueLoss || 0) + ' · draft shortfall ' + (hardMilitary.shortfall || 0) + ' · minxin ' + (hardCorvee.minxinDelta || 0), 190),
+        ['taxbase ' + (hardFiscal.taxBaseRatio || 0), 'morale -' + (hardMilitary.moralePenalty || 0), 'tinyi ' + ((hujiHardEffects.tinyi && hujiHardEffects.tinyi.totalPending) || 0)]
+      ));
+    }
+    rightPcArray(hujiHardEffects.ledger).slice(-4).reverse().forEach(function(e){
+      var s = e.summary || {};
+      rows.push(rightPcRow(
+        'hardEffectLedger',
+        rightPcText((e.stage || '') + '/' + (e.kind || '') + ' loss ' + (s.revenueLoss != null ? s.revenueLoss : '') + ' shortfall ' + (s.shortfall != null ? s.shortfall : '') + ' minxin ' + (s.minxinDelta != null ? s.minxinDelta : ''), 190),
+        ['T' + (e.turn || ''), 'adjust ' + (s.adjustment != null ? s.adjustment : ''), e.source || '']
+      ));
+    });
+    rightPcArray(snap.operations).slice(0, 5).forEach(function(op){
+      rows.push(rightPcRow(
+        'playerHujiOperation',
+        rightPcText(op.text || op.reason || '', 190),
+        ['T' + (op.turn || ''), rightPcArray(op.tags).join('/'), op.linkedIssue || '']
+      ));
+    });
+    return rows;
+  }
+
+  function rightPcHujiRuntimeBridgeCopyText(gm){
+    gm = gm || window.GM || {};
+    var api = window.TM && TM.HujiRuntimeBridge;
+    if (api && typeof api.diagnosticsText === 'function') {
+      try { return api.diagnosticsText(gm, { limit: 12 }); } catch (_) {}
+    }
+    return '=== Huji Runtime Bridge Diagnostics ===\n' + rightPcJson(gm._hujiRuntimeBridge || {});
+  }
+
+  function rightPcHujiGovernanceRows(gm){
+    gm = gm || window.GM || {};
+    var api = window.TM && TM.HujiGovernanceLoop;
+    var snap = null;
+    if (api && typeof api.snapshot === 'function') {
+      try { snap = api.snapshot(gm, { limit: 8 }); } catch (_) {}
+    }
+    if (!snap) {
+      var store = gm._hujiGovernanceLoop || {};
+      snap = {
+        commitments: rightPcArray(gm._hujiCommitments).slice(-8).reverse(),
+        events: rightPcArray(store.events).slice(-8).reverse(),
+        stats: store.stats || {}
+      };
+    }
+    var rows = [];
+    rows.push(rightPcRow(
+      'governanceSummary',
+      rightPcText('active ' + (snap.active || 0) + ' completed ' + (snap.completed || 0) + ' total ' + (snap.count || rightPcArray(snap.commitments).length), 190),
+      ['created ' + ((snap.stats && snap.stats.created) || 0), 'ticked ' + ((snap.stats && snap.stats.ticked) || 0)]
+    ));
+    rightPcArray(snap.commitments).slice(0, 6).forEach(function(c){
+      var executorOffice = c.executorOffice || c.executorDept || '';
+      var executorHolder = c.executorHolder || '';
+      var executorLabel = executorOffice + (executorHolder ? '/' + executorHolder : '');
+      rows.push(rightPcRow(
+        c.type || 'commitment',
+        rightPcText((c.status || 'active') + ' progress ' + (c.progress || 0) + ' exec ' + (c.executionRate || 0) + ' court ' + (c.courtDecision || '-')
+          + (executorLabel ? ' executor ' + executorLabel : '')
+          + (c.executorReliability != null ? ' reliability ' + c.executorReliability : '')
+          + ' - ' + (c.target || c.title || ''), 220),
+        ['T' + (c.turn || ''), 'paid ' + (c.paidCost || 0) + '/' + (c.cost || 0), executorLabel || c.linkedIssue || '']
+      ));
+    });
+    rightPcArray(snap.events).slice(0, 4).forEach(function(e){
+      var p = e.payload || {};
+      rows.push(rightPcRow(
+        e.type || 'governanceEvent',
+        rightPcText(rightPcJson(p), 190),
+        ['T' + (e.turn || ''), e.source || '']
+      ));
+    });
+    return rows;
+  }
+
+  function rightPcHujiGovernanceCopyText(gm){
+    gm = gm || window.GM || {};
+    var api = window.TM && TM.HujiGovernanceLoop;
+    if (api && typeof api.diagnosticsText === 'function') {
+      try { return api.diagnosticsText(gm, { limit: 12 }); } catch (_) {}
+    }
+    return '=== Huji Governance Loop Diagnostics ===\n' + rightPcJson({ store: gm._hujiGovernanceLoop || {}, commitments: gm._hujiCommitments || [] });
+  }
+
+  function rightPcClassMinxinCopyText(gm){
+    gm = gm || window.GM || {};
+    var parts = [];
+    var api = rightPcClassMinxinBridge();
+    if (api && typeof api.diagnosticsText === 'function') {
+      try { parts.push(api.diagnosticsText(gm, { limit: 12 })); } catch (_) {}
+    }
+    if (!parts.length) parts.push('=== Class Minxin Bridge Diagnostics ===\n' + rightPcJson(rightPcClassMinxinDiagnostics(gm)));
+    parts.push(rightPcMinxinLedgerCopyText(gm));
+    parts.push(rightPcMinxinPressureCopyText(gm));
+    parts.push(rightPcMinxinCommitmentCopyText(gm));
+    parts.push(rightPcMinxinResponsibilityCopyText(gm));
+    parts.push(rightPcMinxinHardLinkCopyText(gm));
+    parts.push(rightPcMinxinHardLinkConsumerCopyText(gm));
+    parts.push(rightPcHujiRuntimeBridgeCopyText(gm));
+    parts.push(rightPcHujiGovernanceCopyText(gm));
+    return parts.join('\n\n');
+  }
+
+  function rightPcCopyDiagnostics(gm){
+    var text = rightPcClassMinxinCopyText(gm);
+    window._tmLastPartyClassDebugCopy = text;
+    try {
+      var nav = window.navigator || (typeof navigator !== 'undefined' ? navigator : null);
+      if (nav && nav.clipboard && typeof nav.clipboard.writeText === 'function') nav.clipboard.writeText(text);
+    } catch (_) {}
+    toast('Diagnostics copied');
+    return text;
+  }
+
+  function renderPartyClassDebug(){
+    var gm = window.GM || {};
+    var signalCount = rightPcArray(gm._socialPoliticalSignals && gm._socialPoliticalSignals.items).length;
+    var memCount = rightPcArray(gm._partyClassActorMemory && gm._partyClassActorMemory.items).length;
+    var actionCount = rightPcArray(gm.party_actions).length + rightPcArray(gm.class_actions).length;
+    var tinyiCount = rightPcArray(gm._pendingTinyiTopics).length;
+    return '<div class="tmrp-pcdebug">' +
+      '<section class="tmrp-card tmrp-pcdebug-copy"><div class="tmrp-card-title"><span>Class Minxin Bridge</span><small>copy current diagnostics snapshot</small></div><div class="tmrp-action-row"><button type="button" class="tmrp-btn" data-right-action="pcdebug-copy">Copy Diagnostics</button></div></section>' +
+      '<div class="tmrp-summary"><div class="tmrp-stat"><b>' + esc(signalCount) + '</b><span>signals</span></div><div class="tmrp-stat"><b>' + esc(memCount) + '</b><span>memory</span></div><div class="tmrp-stat"><b>' + esc(actionCount) + '</b><span>actions</span></div><div class="tmrp-stat"><b>' + esc(tinyiCount) + '</b><span>tinyi</span></div></div>' +
+      rightPcSection('Minxin Ledger', 'truth / perception / matrix / uprising', rightPcMinxinLedgerRows(gm), 'No minxin ledger records') +
+      rightPcSection('Minxin Pressure Actions', 'memorial / tinyi / wendui / hongyan', rightPcMinxinPressureRows(gm), 'No minxin pressure actions') +
+      rightPcSection('Minxin Commitments', 'execution / cost / backlash', rightPcMinxinCommitmentRows(gm), 'No minxin commitments') +
+      rightPcSection('Minxin Responsibility Chain', 'executor / report / rumor / accountability', rightPcMinxinResponsibilityRows(gm), 'No minxin responsibility records') +
+      rightPcSection('Minxin Hard Links', 'fiscal / draft / hukou / execution', rightPcMinxinHardLinkRows(gm), 'No minxin hard-link records') +
+      rightPcSection('Minxin Hard Link Consumers', 'effective income / recruits / taxbase / edict cap', rightPcMinxinHardLinkConsumerRows(gm), 'No minxin consumer records') +
+      rightPcSection('Huji Runtime Bridge', 'hukou / corvee / service pool / player operations', rightPcHujiRuntimeBridgeRows(gm), 'No huji bridge records') +
+      rightPcSection('Huji Governance Loop', 'formal operations / commitments / execution', rightPcHujiGovernanceRows(gm), 'No huji governance commitments') +
+      rightPcSection('Class Minxin Bridge', 'audit / ledger / court / uprising', rightPcClassMinxinRows(gm), 'No class-minxin bridge records') +
+      rightPcSection('Social Political Signals', 'recent deterministic evidence', rightPcSignalRows(gm), 'No signals') +
+      rightPcSection('Maintenance / Escalation', 'decay, resolve, unresolved pressure', rightPcMaintenanceRows(gm), 'No maintenance records') +
+      rightPcSection('Actor Memory', 'agenda / grievance / belief ledger', rightPcActorMemoryRows(gm), 'No actor memory') +
+      rightPcSection('Actor Actions', 'party_actions / class_actions', rightPcActionRows(gm), 'No actor actions') +
+      rightPcSection('Tinyi Queue / Court Records', 'issue links and rulings', rightPcTinyiRows(gm), 'No tinyi/court records') +
+      '</div>';
+  }
+
   function renderGangRich(){
     var tab = state.rightOutlineTab || 'classes';
     return '<div class="tmrp-outline-shell">' +
       '<div class="tmrp-tabs"><button type="button" class="' + (tab === 'classes' ? 'active' : '') + '" data-right-action="outline-tab" data-tab="classes">阶层</button><button type="button" class="' + (tab === 'parties' ? 'active' : '') + '" data-right-action="outline-tab" data-tab="parties">党派</button></div>' +
+      '<section class="tmrp-card tmrp-pcdebug-entry"><div class="tmrp-action-row"><button type="button" class="tmrp-btn" data-right-action="pcdebug-open">观测账本</button></div></section>' +
       (tab === 'parties' ? renderRightPartyPanel() : renderRightClassPanel()) +
       '</div>';
   }
@@ -1057,6 +2251,12 @@
         return '<section class="tmrp-card ' + (sat < 45 ? 'hot' : (sat > 62 ? 'ok' : '')) + '"><div class="tmrp-card-title"><span>' + esc(c.name || c.label || c.id || '未名阶层') + '</span><small>满意 ' + esc(Math.round(sat)) + ' · 影响 ' + esc(Math.round(inf)) + '</small></div>' +
           rightArmyBar('满意', sat) + rightArmyBar('影响', inf) +
           rightArmyRows([['规模', c.size || c.population || c.scale], ['经济角色', c.economicRole || c.role], ['法律地位', c.status], ['流动性', c.mobility], ['特权', c.privileges], ['义务', c.obligations], ['诉求', c.demands || c.currentDemand]]) +
+          renderRightSocialCauses('class', c) +
+          rightClassMinxinBridgeRows(c) +
+          renderRightSocialEcology('class', c) +
+          renderRightSocialChain('class', c) +
+          renderRightActorActions('class', c) +
+          renderRightSocialActions('class', c) +
           '<div class="tmrp-meta">' + esc(c.description || c.desc || '') + '</div></section>';
       }).join('') + '</div>' : '<section class="tmrp-card empty"><div class="tmrp-empty">暂无阶层数据。</div></section>');
   }
@@ -1074,6 +2274,11 @@
         return '<section class="tmrp-card ' + (/活跃|active/i.test(String(status)) ? 'hot' : '') + '"><div class="tmrp-card-title"><span>' + esc(p.name || p.label || p.id || '未名党派') + '</span><small>' + esc(status) + ' · 影响 ' + esc(Math.round(inf)) + '</small></div>' +
           rightArmyBar('影响', inf) +
           rightArmyRows([['首领', p.leader || p.head], ['立场', p.ideology || p.stance], ['支持群体', p.base || p.supportBase], ['核心成员', p.members], ['当前议程', p.currentAgenda || p.agenda], ['短期目标', p.shortGoal], ['长期追求', p.longGoal]]) +
+          renderRightSocialCauses('party', p) +
+          renderRightSocialEcology('party', p) +
+          renderRightSocialChain('party', p) +
+          renderRightActorActions('party', p) +
+          renderRightSocialActions('party', p) +
           '<div class="tmrp-chip-list">' + stanceHtml + '</div></section>';
       }).join('') + '</div>' : '<section class="tmrp-card empty"><div class="tmrp-empty">暂无党派数据。</div></section>');
   }
@@ -1205,6 +2410,7 @@
 
   var renderers = {
     ol: renderGangRich,
+    pcdebug: renderPartyClassDebug,
     issue: renderZheng,
     policy: renderWenRich,
     office: renderPinnedPeopleRich,
@@ -1216,6 +2422,7 @@
   };
 
   var titles = {
+    pcdebug: 'Party/Class Observability',
     ol: '纲纪总览',
     issue: '政务问对',
     policy: '文事科举',
@@ -1252,6 +2459,33 @@
       turn: GM.turn || 1,
       source: 'phase8-right-issue'
     });
+    try {
+      if (window.TM && TM.MinxinPressureActions && typeof TM.MinxinPressureActions.recordPlayerResponse === 'function') {
+        TM.MinxinPressureActions.recordPlayerResponse(GM, {
+          channel: 'wendui',
+          decision: 'queried',
+          actor: name,
+          target: name,
+          text: text
+        }, {
+          turn: GM.turn || 1,
+          source: 'phase8-wendui'
+        });
+      }
+    } catch (_) {}
+    try {
+      if (window.TM && TM.MinxinResponsibilityChain && typeof TM.MinxinResponsibilityChain.recordPlayerIntervention === 'function') {
+        TM.MinxinResponsibilityChain.recordPlayerIntervention(GM, {
+          channel: 'wendui',
+          target: name,
+          actor: name,
+          text: text
+        }, {
+          turn: GM.turn || 1,
+          source: 'phase8-wendui'
+        });
+      }
+    } catch (_) {}
   }
 
   function rightWenduiCeremonyLabel(kind){
@@ -1259,6 +2493,68 @@
       seat:'赐座', stand:'不赐座', tea:'赐茶', wine:'赐酒',
       confront:'召人对质', suggest:'摘入建议库', reward:'赏', punish:'罚'
     }[kind] || '问对动作';
+  }
+
+  function rightActionData(btn){
+    var data = {};
+    try {
+      Object.keys(btn && btn.dataset || {}).forEach(function(k){ data[k] = btn.dataset[k]; });
+    } catch (_) {}
+    data.buttonText = compactText(btn && (btn.textContent || btn.value || ''), 120);
+    data.ariaLabel = btn && btn.getAttribute ? (btn.getAttribute('aria-label') || btn.getAttribute('title') || '') : '';
+    return data;
+  }
+
+  function emitRightPlayerActionSignal(payload){
+    var recorded = false;
+    try {
+      if (window.TM && TM.PlayerActionSignals && typeof TM.PlayerActionSignals.record === 'function') {
+        TM.PlayerActionSignals.record(GM, payload);
+        recorded = true;
+      }
+    } catch (_) {}
+    try {
+      if (window.TM && TM.PartyClassLlmCalibrator && typeof TM.PartyClassLlmCalibrator.notifyPlayerAction === 'function') {
+        TM.PartyClassLlmCalibrator.notifyPlayerAction(Object.assign({}, payload, { skipSignalRecord: recorded }));
+      }
+    } catch (_) {}
+  }
+
+  function recordRightActionSignal(action, data, extraText){
+    try {
+      if (!window.GM) return;
+      data = data || {};
+      var text = [
+        state.activePanel || state.rightIssueTab || '',
+        action,
+        data.buttonText,
+        data.ariaLabel,
+        data.id,
+        data.name,
+        data.topic,
+        data.kind,
+        data.className,
+        data.partyName,
+        data.method,
+        data.command,
+        data.socialCommand,
+        data.actorType,
+        data.decision,
+        extraText
+      ].filter(Boolean).join(' ');
+      var payload = {
+        root: GM,
+        source: 'phase8-right-rail',
+        action: action || '',
+        kind: action || '',
+        topic: data.topic || data.kind || data.method || data.command || data.socialCommand || data.buttonText || '',
+        target: data.id || data.name || '',
+        targetId: data.id || data.name || '',
+        text: text,
+        evidence: [data.buttonText, extraText].filter(Boolean)
+      };
+      emitRightPlayerActionSignal(payload);
+    } catch (_) {}
   }
 
   function rightAddEdictSuggestion(source, from, topic, content){
@@ -1272,6 +2568,7 @@
       turn: GM.turn || 1,
       used: false
     });
+    recordRightActionSignal('edict-suggestion', { topic: topic || '', name: from || '' }, [source, from, topic, content].filter(Boolean).join(' '));
     try { if (typeof window._renderEdictSuggestions === 'function') window._renderEdictSuggestions(); } catch(_) {}
     return true;
   }
@@ -1502,7 +2799,7 @@
       if (!btn) return;
       e.preventDefault();
       e.stopPropagation();
-      handleRightPanelAction(btn.dataset.rightAction, btn.dataset);
+      handleRightPanelAction(btn.dataset.rightAction, rightActionData(btn));
     });
     document.body.appendChild(fly);
   }
@@ -1555,14 +2852,164 @@
     }
   }
 
+  function rightFindSocialActor(actorType, name){
+    var list = actorType === 'party' ? getParties() : getClasses();
+    name = String(name || '').trim();
+    for (var i = 0; i < list.length; i += 1) {
+      var row = list[i];
+      if (row && rightSocialSameName(rightSocialName(row), name)) return row;
+    }
+    return null;
+  }
+
+  function rightClassDemandByName(className){
+    var cls = rightFindSocialActor('class', className);
+    return cls && (cls.currentDemand || cls.demands || cls.shortGoal || cls.currentAgenda) || '';
+  }
+
+  function rightSocialSummary(actorType, actor){
+    var causes = rightSocialNearCauses(actorType, actor || {});
+    var cause = causes.length ? causes[0].text : '';
+    if (actorType === 'party') {
+      return [actor && (actor.shortGoal || actor.currentAgenda || actor.agenda), cause].filter(Boolean).join('；');
+    }
+    return [actor && (actor.currentDemand || actor.demands), cause].filter(Boolean).join('；');
+  }
+
+  function rightPushSocialCourtTopic(actorType, actor){
+    if (!window.GM || !actor) return false;
+    if (!Array.isArray(GM._pendingTinyiTopics)) GM._pendingTinyiTopics = [];
+    var name = rightSocialName(actor);
+    var summary = rightSocialSummary(actorType, actor);
+    var topic = actorType === 'party'
+      ? ('党议·' + name + '·' + (actor.shortGoal || actor.currentAgenda || actor.agenda || '近期目标') + '·请付廷议')
+      : ('民情·' + name + '·' + (actor.currentDemand || actor.demands || '阶层诉求') + '·请付廷议');
+    var item = {
+      topic: topic,
+      from: 'phase8-social-action',
+      sourceType: actorType === 'party' ? 'party_goal' : 'class_pressure',
+      turn: GM.turn || 1,
+      status: 'pending',
+      priority: actorType === 'party' ? 74 : 78,
+      reason: summary || topic
+    };
+    if (actorType === 'party') {
+      item.party = name;
+      item.sourceParty = name;
+      item.goalText = actor.shortGoal || actor.currentAgenda || actor.agenda || '';
+      item.linkedParties = [name];
+    } else {
+      item.className = name;
+      item.sourceClass = name;
+      item.demandText = actor.currentDemand || actor.demands || '';
+      item.linkedClasses = [name];
+    }
+    GM._pendingTinyiTopics.unshift(item);
+    if (GM._pendingTinyiTopics.length > 80) GM._pendingTinyiTopics = GM._pendingTinyiTopics.slice(0, 80);
+    state.rightIssueTab = 'chaoyi';
+    state.rightChaoyiMode = 'tinyi';
+    state.rightChaoyiTopic = topic;
+    openPanel('issue');
+    return true;
+  }
+
+  function rightSocialEdict(actorType, actor){
+    if (!actor) return false;
+    var name = rightSocialName(actor);
+    var summary = rightSocialSummary(actorType, actor);
+    var topic = actorType === 'party' ? (name + '党势调停') : (name + '阶层安抚');
+    var content = actorType === 'party'
+      ? ('命内阁核议' + name + '近来议程与朋党动向，分别安抚其合理诉求、约束其过激营私，并回奏可行章程。' + (summary ? '近因：' + summary : ''))
+      : ('命有司核实' + name + '近来诉求与地方影响，酌拟安抚、减负、申禁侵扰之策，并限期回奏。' + (summary ? '近因：' + summary : ''));
+    return rightAddEdictSuggestion(actorType === 'party' ? '党派纲纪' : '阶层民情', name, topic, content);
+  }
+
+  function rightSocialAudience(actorType, actor){
+    if (!window.GM || !actor) return false;
+    var name = rightSocialName(actor);
+    var target = actorType === 'party' ? (actor.leader || actor.head || '') : '';
+    if (!target && actorType === 'party') {
+      var people = getPeople();
+      var hit = (Array.isArray(people) ? people : []).find(function(p){
+        return p && rightSocialSameName(p.party || p.faction || p.group, name);
+      });
+      target = hit && (hit.name || personKey(hit));
+    }
+    if (!target) target = name + (actorType === 'party' ? '党中主事' : '代表');
+    GM.wenduiTarget = target;
+    state.rightWenduiPerson = target;
+    state.rightIssueTab = 'wendui';
+    openPanel('issue');
+    toast('已转入问对：' + target);
+    return true;
+  }
+
+  function rightHandleSocialChain(data){
+    data = data || {};
+    var kind = data.chainKind || data.kind || '';
+    var topic = data.topic || data.target || data.name || '';
+    if (kind === 'party') {
+      state.rightOutlineTab = 'parties';
+      openPanel('ol');
+      if (data.target) toast('已跳转党派：' + data.target);
+      return true;
+    }
+    if (kind === 'demand' || kind === 'issue') {
+      state.rightIssueTab = 'chaoyi';
+      state.rightChaoyiMode = 'tinyi';
+      state.rightChaoyiTopic = topic || '';
+      openPanel('issue');
+      return true;
+    }
+    if (kind === 'ruling') {
+      state.rightIssueTab = 'chaoyi';
+      state.rightChaoyiMode = 'tinyi';
+      if (topic) state.rightChaoyiTopic = topic;
+      openPanel('issue');
+      return true;
+    }
+    if (kind === 'risk') {
+      state.rightIssueTab = 'chaoyi';
+      state.rightChaoyiMode = 'tinyi';
+      state.rightChaoyiTopic = topic || '';
+      openPanel('issue');
+      return true;
+    }
+    return false;
+  }
+
+  function rightHandleSocialAction(data){
+    var actorType = data.actorType || data.type || 'class';
+    actorType = actorType === 'party' ? 'party' : 'class';
+    var actor = rightFindSocialActor(actorType, data.name || data.id || data.target);
+    if (!actor) { toast('暂未找到该纲纪对象'); return; }
+    var cmd = data.socialCommand || data.command || 'chaoyi';
+    if (cmd === 'audience') {
+      rightSocialAudience(actorType, actor);
+    } else if (cmd === 'edict') {
+      if (rightSocialEdict(actorType, actor)) toast('已纳入诏书建议：' + rightSocialName(actor));
+    } else {
+      if (rightPushSocialCourtTopic(actorType, actor)) toast('已付廷议：' + rightSocialName(actor));
+    }
+  }
+
   function handleRightPanelAction(action, data){
     data = data || {};
-    if (action === 'issue-tab') {
+    recordRightActionSignal(action, data);
+    if (action === 'pcdebug-open') {
+      openPanel('pcdebug');
+    } else if (action === 'pcdebug-copy') {
+      rightPcCopyDiagnostics(window.GM || {});
+    } else if (action === 'issue-tab') {
       state.rightIssueTab = data.tab || 'wendui';
       openPanel('issue');
     } else if (action === 'outline-tab') {
       state.rightOutlineTab = data.tab || 'classes';
       openPanel('ol');
+    } else if (action === 'social-action') {
+      rightHandleSocialAction(data);
+    } else if (action === 'social-chain') {
+      rightHandleSocialChain(data);
     } else if (action === 'wendui-select') {
       state.rightWenduiPerson = data.id || '';
       openPanel('issue');
@@ -1681,7 +3128,7 @@
       if (!btn) return;
       e.preventDefault();
       e.stopPropagation();
-      handleRightPanelAction(btn.dataset.rightAction, btn.dataset);
+      handleRightPanelAction(btn.dataset.rightAction, rightActionData(btn));
     });
   }
 

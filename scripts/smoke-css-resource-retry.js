@@ -65,7 +65,7 @@ sandbox.window.TM_CSS_RETRY(fakeLink);
 timers.shift().fn();
 assert(/^https:\/\/cdn\.example\/styles\.css\?v=x&cssRetry=12345-3/.test(fakeLink.href), 'third retry should switch to fallback CSS URL');
 
-assert(/tm-tinyi-v3\.css\?v=20260426y/.test(tinyi), 'tm-tinyi-v3.js should still load tinyi css');
+assert(/tm-tinyi-v3\.css\?v=/.test(tinyi), 'tm-tinyi-v3.js should still load tinyi css');
 assert(/TM_CSS_RETRY/.test(tinyi), 'tm-tinyi-v3.js dynamic CSS should bind retry helper');
 assert(/data-css-fallback/.test(tinyi), 'tm-tinyi-v3.js dynamic CSS should declare fallback URL');
 

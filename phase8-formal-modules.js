@@ -91,7 +91,7 @@
       }
       var btn = e.target && e.target.closest ? e.target.closest('[data-module-action]') : null;
       if (!btn) return;
-      handleModuleAction(btn.dataset.moduleAction, btn.dataset);
+      handleModuleAction(btn.dataset.moduleAction, moduleActionData(btn));
     });
     ov.addEventListener('input', function(e){
       if (e.target && e.target.matches && e.target.matches('[data-renwu-search]')) filterRenwuOverlay(ov);
@@ -116,12 +116,72 @@
     openModule(state.activeModule.kind, state.activeModule.options || {});
   }
 
+  function moduleActionData(btn){
+    var data = {};
+    try {
+      Object.keys(btn && btn.dataset || {}).forEach(function(k){ data[k] = btn.dataset[k]; });
+    } catch (_) {}
+    data.buttonText = compactText(btn && (btn.textContent || btn.value || ''), 120);
+    data.ariaLabel = btn && btn.getAttribute ? (btn.getAttribute('aria-label') || btn.getAttribute('title') || '') : '';
+    return data;
+  }
+
+  function emitPlayerActionSignal(payload){
+    var recorded = false;
+    try {
+      if (window.TM && TM.PlayerActionSignals && typeof TM.PlayerActionSignals.record === 'function') {
+        TM.PlayerActionSignals.record(GM, payload);
+        recorded = true;
+      }
+    } catch (_) {}
+    try {
+      if (window.TM && TM.PartyClassLlmCalibrator && typeof TM.PartyClassLlmCalibrator.notifyPlayerAction === 'function') {
+        TM.PartyClassLlmCalibrator.notifyPlayerAction(Object.assign({}, payload, { skipSignalRecord: recorded }));
+      }
+    } catch (_) {}
+  }
+
+  function recordUiActionSignal(action, data, extraText){
+    try {
+      if (!window.GM) return;
+      data = data || {};
+      var text = [
+        state.activeModule && state.activeModule.kind,
+        action,
+        data.buttonText,
+        data.ariaLabel,
+        data.id,
+        data.text,
+        data.topic,
+        data.tab,
+        data.method,
+        data.personAction,
+        extraText
+      ].filter(Boolean).join(' ');
+      var payload = {
+        root: GM,
+        source: 'phase8-formal-module',
+        action: action || '',
+        kind: action || '',
+        topic: data.topic || data.tab || data.method || data.buttonText || '',
+        target: data.id || '',
+        targetId: data.id || '',
+        text: text,
+        evidence: [data.buttonText, extraText].filter(Boolean)
+      };
+      emitPlayerActionSignal(payload);
+    } catch (_) {}
+  }
+
   function handleModuleAction(action, data){
+    recordUiActionSignal(action, data);
     if (action === 'add-edict') {
       var issue = getIssues().find(function(x){ return String(x.id) === String(data.id || ''); });
       if (!issue) return;
+      var draftText = '就“' + issue.title + '”，着有关衙门会同详议，限期具奏。';
+      recordUiActionSignal(action, data, [issue.title, issue.category, issue.severity, issue.proposer, issue.text, draftText].filter(Boolean).join(' '));
       state.edictDraft = state.edictDraft || [];
-      state.edictDraft.push('就“' + issue.title + '”，着有关衙门会同详议，限期具奏。');
+      state.edictDraft.push(draftText);
       rerenderModule();
     } else if (action === 'clear-edict') {
       state.edictDraft = [];

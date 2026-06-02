@@ -67,12 +67,11 @@ assert(sec5[0] > followupRunHead[0] && sec5[0] - followupRunHead[0] <= 120,
 
 assert(aiInferLines.length >= 200 && aiInferLines.length <= 280,
   'ai-infer line count after P7-zeta 200-280, actual ' + aiInferLines.length);
-// 2026-05-22: current dirty endturn AI work expanded shared repair/schema/cache
-// guards past 4.1k lines. Keep a bounded ceiling aligned with public-contract,
-// while topology is still checked
-// by marker/export/bridge assertions below.
-assert(aiLines.length >= 2600 && aiLines.length <= 4300,
-  'tm-endturn-ai.js line count after sc1d split/rescue/cache guards 2600-4300, actual ' + aiLines.length);
+// 2026-06-01: MemoryContextCompiler bridge keeps recall compilation inline for
+// now. Keep a bounded ceiling aligned with public-contract while topology is
+// still checked by marker/export/bridge assertions below.
+assert(aiLines.length >= 2600 && aiLines.length <= 4500,
+  'tm-endturn-ai.js line count after sc1d split/rescue/cache/compiler bridge 2600-4500, actual ' + aiLines.length);
 // 2026-05-22: apply gained dialogue commitment feedback writeback; keep the
 // ceiling aligned with the public-contract smoke while section topology remains
 // checked by marker/export assertions.

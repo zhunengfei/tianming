@@ -473,6 +473,22 @@ console.log('天命游戏脚本开始加载...');
 <script src="tm-utils.js?v=2026050702"></script>
 <script src="tm-prompt-composer.js?v=2026052201"></script>
 <script src="tm-ai-infra.js?v=2026052201"></script>
+<script src="tm-memory-trace.js?v=20260531-traceonly"></script>
+<script src="tm-memory-evidence-registry.js?v=20260531-evidence"></script>
+<script src="tm-memory-source-bound.js?v=20260601-sourcebound"></script>
+<script src="tm-memory-issue-governance.js?v=20260601-issuegov"></script>
+<script src="tm-context-zones.js?v=20260601-zones"></script>
+<script src="tm-memory-envelope.js?v=20260531-envelope"></script>
+<script src="tm-memory-governance.js?v=20260531-governance"></script>
+<script src="tm-memory-writegate.js?v=20260531-writegate"></script>
+<script src="tm-memory-turn-inference.js?v=20260601-turn-inference"></script>
+<script src="tm-memory-turn-archive.js?v=20260601-turn-archive"></script>
+<script src="tm-memory-turn-rollup.js?v=20260601-turn-rollup"></script>
+<script src="tm-memory-turn-backfill.js?v=20260601-turn-backfill"></script>
+<script src="tm-memory-controls.js?v=20260601-controls"></script>
+<script src="tm-memory-retrieval.js?v=20260531-rerank"></script>
+<script src="tm-memory-context-compiler.js?v=20260601-context-compiler"></script>
+<script src="tm-memory-workshop.js?v=20260531-workshop"></script>
 <script src="tm-traits-data.js"></script>
 <script src="tm-chronicle-tracker.js?v=2026042714"></script>
 <script src="tm-chronicle-effects.js?v=2026042714"></script>
@@ -558,6 +574,21 @@ console.log('天命游戏脚本开始加载...');
 <script src="tm-ai-planning.js?v=2026042816"></script>
 <script src="tm-endturn-prep.js?v=2026052810"></script>
 <script src="tm-class-engine.js?v=2026050102"></script>
+<script src="tm-minxin-ledger.js?v=20260601-minxin-ledger"></script>
+<script src="tm-class-minxin-bridge.js?v=20260601-class-minxin-bridge"></script>
+<script src="tm-party-goals.js?v=20260531-party-goals-llm"></script>
+<script src="tm-party-class-tuning.js?v=20260601-party-class-tuning"></script>
+<script src="tm-party-class-ecology.js?v=20260601-party-class-ecology"></script>
+<script src="tm-social-political-signals.js?v=20260531-social-political-signals"></script>
+<script src="tm-player-action-signals.js?v=20260531-player-action-signals"></script>
+<script src="tm-minxin-pressure-actions.js?v=20260601-minxin-pressure-actions"></script>
+<script src="tm-minxin-commitment-tracker.js?v=20260601-minxin-commitment-tracker"></script>
+<script src="tm-minxin-responsibility-chain.js?v=20260601-minxin-responsibility-chain"></script>
+<script src="tm-minxin-hard-links.js?v=20260601-minxin-hard-links"></script>
+<script src="tm-minxin-hard-link-consumers.js?v=20260601-minxin-hard-link-consumers"></script>
+<script src="tm-party-class-actors.js?v=20260601-party-class-actors"></script>
+<script src="tm-party-class-action-scheduler.js?v=20260601-party-class-action-scheduler"></script>
+<script src="tm-party-class-llm-calibrator.js?v=20260531-party-class-llm"></script>
 <!-- R209 (2026-05-04) Phase 7 P7-γ·§1 prompt 从 ai-infer 拆出·prompt 必先 load -->
 <script src="tm-endturn-prompt.js?v=2026052810"></script>
 <script src="tm-endturn-ai.js?v=2026052310"></script>
@@ -565,7 +596,7 @@ console.log('天命游戏脚本开始加载...');
 <script src="tm-endturn-followup.js?v=2026052310"></script>
 <script src="tm-endturn-record.js?v=2026052201"></script>
 <script src="tm-endturn-ai-infer.js?v=2026051801"></script>
-<script src="tm-endturn-core.js?v=2026050703"></script>
+<script src="tm-endturn-core.js?v=20260531-party-class-llm"></script>
 <!-- slice 1·2026-05-07·endTurn 管道执行器骨架·feature flag P.flags.useNewPipeline 触发·见 web/docs/endturn-data-flow.md -->
 <script src="tm-endturn-pipeline-types.js?v=2026050701"></script>
 <script src="tm-endturn-timing-ledger.js?v=2026051801"></script>
@@ -599,7 +630,7 @@ console.log('天命游戏脚本开始加载...');
 <!-- 2026-05-10 Phase H3: in-turn NPC background LLM driver -->
 <script src="tm-faction-npc-in-turn-driver.js?v=2026051001"></script>
 <!-- 2026-05-17: unified faction precision LLM scheduler + dispatch ledger -->
-<script src="tm-faction-npc-dispatcher.js?v=2026051701"></script>
+<script src="tm-faction-npc-dispatcher.js?v=20260531-party-class-llm"></script>
 <!-- 2026-05-10·Layer 2 势力反向索引·必须在 three-systems-ui 之前·game-loop 之后 -->
 <script src="tm-faction-index.js?v=2026051001"></script>
 <!-- 2026-05-10·Layer 3 势力派生健康度·依赖 _facIndex·必须在 index 之后 -->
@@ -675,6 +706,7 @@ console.log('天命游戏脚本开始加载...');
 <script src="tm-topbar-vars.js?v=20260514-phase8-vars-2"></script>
 <!-- R137 (2026-04-25) 拆 shell-extras → shell UI + 时政面板 -->
 <script src="tm-shell-extras.js?v=2026042714"></script>
+<script src="tm-houguong.js?v=20260601-hougong"></script>
 <script src="tm-shizheng-panel.js?v=2026050702"></script>
 <script src="tm-corruption-engine.js?v=2026050406"></script>
 <script src="tm-lizhi-panel.js?v=2026042820"></script>
@@ -706,6 +738,8 @@ console.log('天命游戏脚本开始加载...');
 <script src="tm-huji-engine.js"></script>
 <script src="tm-edict-parser.js"></script>
 <script src="tm-huji-deep-fill.js?v=2026042714"></script>
+<script src="tm-huji-runtime-bridge.js?v=20260601-huji-runtime-bridge"></script>
+<script src="tm-huji-governance-loop.js?v=20260602-huji-governance-loop"></script>
 <script src="tm-edict-complete.js?v=2026050701"></script>
 <script src="tm-env-recovery-fill.js"></script>
 <script src="tm-authority-engines.js?v=2026050701"></script>

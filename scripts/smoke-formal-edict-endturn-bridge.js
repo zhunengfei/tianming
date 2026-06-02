@@ -9,7 +9,9 @@ const assert = (condition, message) => {
 };
 
 // phase8 desk overlay + edict panel split to phase8-formal-drafts.js on 2026-05-26 (Wave 4)
-const phase8 = read('phase8-formal-bridge.js') + '\n' + read('phase8-formal-drafts.js');
+const bridge = read('phase8-formal-bridge.js');
+const drafts = read('phase8-formal-drafts.js');
+const phase8 = bridge + '\n' + drafts;
 const office = read('tm-office-panel.js');
 const prep = read('tm-endturn-prep.js');
 const render = read('tm-endturn-render.js');
@@ -21,9 +23,9 @@ assert(/window\.syncPhase8FormalEdictDrafts\s*=\s*syncFormalEdictDraftsToLegacyI
 assert(/syncEdictDraftsToLegacy:\s*syncFormalEdictDraftsToLegacyInputs/.test(phase8), 'TMPhase8FormalBridge sync method is missing');
 assert(/clearEdictDrafts:\s*clearFormalEdictDrafts/.test(phase8), 'TMPhase8FormalBridge clear method is missing');
 
-const openZhaoIndex = phase8.indexOf('function openZhaoPreviewPanel()');
-const removeHiddenIndex = phase8.indexOf('removeFormalEdictHiddenInputs();', openZhaoIndex);
-const openOverlayIndex = phase8.indexOf('openDeskOverlay(', openZhaoIndex);
+const openZhaoIndex = drafts.indexOf('function openZhaoPreviewPanel()');
+const removeHiddenIndex = drafts.indexOf('removeFormalEdictHiddenInputs();', openZhaoIndex);
+const openOverlayIndex = drafts.indexOf('openDeskOverlay(', openZhaoIndex);
 assert(openZhaoIndex >= 0 && removeHiddenIndex > openZhaoIndex && removeHiddenIndex < openOverlayIndex, 'openZhao must remove bridge inputs before rendering live edict fields');
 
 const ensureIndex = phase8.indexOf('function ensureFormalEdictBridgeInput');

@@ -79,7 +79,7 @@
           '<div class="map-zoom-tools" aria-label="舆图缩放"><button type="button" class="mz-btn" data-map-zoom="1.22" title="放大">+</button><button type="button" class="mz-btn reset" data-map-reset="1" title="复位">◎</button><button type="button" class="mz-btn" data-map-zoom="0.82" title="缩小">−</button></div>' +
           '<div class="ming-map-wash"></div>' +
           '<button type="button" class="renwu-tuzhi-entry" data-tmf-action="renwu" title="人物图志"><img class="renwu-tuzhi-img" src="' + esc(asset('renwu-tuzhi-card-ui.png')) + '" alt="人物图志"></button>' +
-          '<div class="map-tools-dock open" id="map-tools-dock"><button type="button" class="map-tools-toggle" id="map-tools-toggle" data-map-tools-toggle="1" aria-expanded="true"><span>舆图工具</span><span class="map-tools-mode" id="map-tools-mode">势力</span><span class="map-tools-caret">▾</span></button><div class="map-tools-pop" id="map-tools-pop"><div class="map-layer-bar"><button class="map-layer" data-map-mode="mood">民情</button><button class="map-layer" data-map-mode="tax">财赋</button><button class="map-layer" data-map-mode="army">军务</button><button class="map-layer" data-map-mode="office">官守</button><button class="map-layer on" data-map-mode="owner">势力</button></div><div class="map-nav-panel"><div class="map-search-row"><span class="map-search-label">检索</span><input id="map-search" class="map-search" list="map-region-list" autocomplete="off" placeholder="地名 / 势力 / 主官"><datalist id="map-region-list"></datalist></div><div id="map-search-results" class="map-search-results"></div></div></div></div>' +
+          '<div class="map-tools-dock open" id="map-tools-dock"><button type="button" class="map-tools-toggle" id="map-tools-toggle" data-map-tools-toggle="1" aria-expanded="true"><span>舆图工具</span><span class="map-tools-mode" id="map-tools-mode">势力</span><span class="map-tools-caret">▾</span></button><div class="map-tools-pop" id="map-tools-pop"><div class="map-layer-bar"><button class="map-layer" data-map-mode="mood">民情</button><button class="map-layer" data-map-mode="classPressure">阶层</button><button class="map-layer" data-map-mode="tax">财赋</button><button class="map-layer" data-map-mode="army">军务</button><button class="map-layer" data-map-mode="office">官守</button><button class="map-layer on" data-map-mode="owner">势力</button></div><div class="map-nav-panel"><div class="map-search-row"><span class="map-search-label">检索</span><input id="map-search" class="map-search" list="map-region-list" autocomplete="off" placeholder="地名 / 势力 / 主官"><datalist id="map-region-list"></datalist></div><div id="map-search-results" class="map-search-results"></div></div></div></div>' +
           '<div class="map-scale-strip" aria-label="舆图层级"><button type="button" class="map-scale" data-map-scale="realm" aria-pressed="false">天下</button><button type="button" class="map-scale" data-map-scale="region" aria-pressed="true">省道</button><button type="button" class="map-scale" data-map-scale="prefecture" aria-pressed="false">府州</button></div>' +
           '<div class="map-alert-strip"><button type="button" class="map-alert hot" onclick="TMPhase8FormalBridge.openModule(\'memorial\')">待批奏疏</button><button type="button" class="map-alert" onclick="TMPhase8FormalBridge.openPanel(\'issue\')">朝议待核</button><button type="button" class="map-alert ok" onclick="TMPhase8FormalBridge.openPanel(\'finance\')">财赋入库</button></div>' +
           '<div id="tmf-map-legend" class="map-legend tmf-map-legend"></div>' +
@@ -696,11 +696,61 @@
     return t < .34 ? colors[0] : (t < .67 ? colors[1] : colors[2]);
   }
 
+  function classPressureForRegion(r){
+    var gm = window.GM || {};
+    var wanted = regionNameKeys(r).map(regionKeyNorm).filter(Boolean);
+    var rows = [];
+    function regionHit(item){
+      var raw = item && (item.region || item.name || item.id || item);
+      var key = regionKeyNorm(raw);
+      return !!(key && wanted.some(function(w){ return key === w || key.indexOf(w) >= 0 || w.indexOf(key) >= 0; }));
+    }
+    (Array.isArray(gm._classMinxinBridgeLedger) ? gm._classMinxinBridgeLedger : []).forEach(function(row){
+      if (!row) return;
+      var applied = Array.isArray(row.appliedRegions) ? row.appliedRegions : [];
+      var weighted = Array.isArray(row.regionWeights) ? row.regionWeights : [];
+      if (!applied.some(regionHit) && !weighted.some(regionHit)) return;
+      rows.push(row);
+    });
+    var score = 0;
+    var classNames = [];
+    var reasons = [];
+    rows.slice(-8).forEach(function(row){
+      var delta = Number(row.delta);
+      var satDelta = Number(row.satisfactionDelta);
+      var localScore = Math.abs(isFinite(delta) ? delta : 0) * 34 + Math.abs(isFinite(satDelta) && satDelta < 0 ? satDelta : 0) * 2.2;
+      score = Math.max(score, localScore);
+      if (row.className && classNames.indexOf(row.className) < 0) classNames.push(row.className);
+      if (row.reason) reasons.push(row.reason);
+    });
+    try {
+      if (window.TM && TM.ClassMinxinBridge && typeof TM.ClassMinxinBridge.snapshot === 'function') {
+        var snap = TM.ClassMinxinBridge.snapshot(gm, { limit: 12 });
+        Object.keys(snap.byClass || {}).forEach(function(k){
+          var row = snap.byClass[k] || {};
+          var last = row.lastPressure || {};
+          if (!Array.isArray(last.appliedRegions) || !last.appliedRegions.some(regionHit)) return;
+          var truth = Number(row.true != null ? row.true : row.index);
+          if (isFinite(truth) && truth < 45) score = Math.max(score, (45 - truth) * 2.1);
+          if (row.className && classNames.indexOf(row.className) < 0) classNames.push(row.className);
+          if (last.reason) reasons.push(last.reason);
+        });
+      }
+    } catch(_) {}
+    return {
+      score: Math.max(0, Math.min(100, Math.round(score))),
+      count: rows.length,
+      classNames: classNames.slice(0, 3),
+      reason: reasons.slice(-1)[0] || ''
+    };
+  }
+
   function regionColor(r){
     var b = regionBundle(r);
     var data = b.data || {};
     if (state.mapMode === 'tax') return heatColor(firstValue(b.fiscal.actualRevenue, r && r.tax, r && r.development), 0, 3000000, ['#6f8a72','#b8994c','#c65b3d']);
     if (state.mapMode === 'mood') return heatColor(firstValue(data.minxinLocal, r && r.mood, r && r.prosperity), 20, 85, ['#b94a3c','#b69650','#6f9f88']);
+    if (state.mapMode === 'classPressure') return heatColor(classPressureForRegion(r).score, 0, 80, ['#6f9f88','#b8994c','#b94a3c']);
     if (state.mapMode === 'army') return heatColor(firstValue(data.garrison, b.army.troops, data.armyPressure, r && r.troops, r && r.armyPressure), 0, 250000, ['#7b8467','#b98e4c','#b6533f']);
     var f = findFaction(ownerKey(r), r.factionName || r.ownerName);
     return (f && (f.color || f.line)) || r.factionColor || r.color || '#b7914f';
@@ -832,6 +882,7 @@
   }
 
   function mapModeNote(){
+    if (state.mapMode === 'classPressure') return '按阶层民心桥接账本着色';
     return ({
       owner:'按势力归属着色',
       tax:'按财赋压力着色',
@@ -1011,6 +1062,7 @@
   }
 
   function mapModeTitle(){
+    if (state.mapMode === 'classPressure') return '阶层';
     return ({ owner:'势力', tax:'财赋', mood:'民情', army:'军务', office:'官守' })[state.mapMode] || '势力';
   }
 
@@ -1190,6 +1242,7 @@
   var MAP_REGION_TABS = [
     ['overview', '总览'],
     ['mood', '民情'],
+    ['classPressure', '阶层'],
     ['tax', '财赋'],
     ['army', '军务'],
     ['office', '官守'],
@@ -1214,6 +1267,7 @@
     overview: { title: '地块总览', mark: '览', note: '汇总地形、户口、财赋、军务、官守与势力归属，作为点击地块后的默认档案。' },
     owner: { title: '势力归属', mark: '势', note: '显示当前控制者、法理归属和所属势力，用来判断此地听命于谁。' },
     mood: { title: '民情冷暖', mark: '民', note: '显示民心、逃户、灾异与地方不满，用来判断此地是否容易生变。' },
+    classPressure: { title: '阶层民心压力', mark: '阶', note: '显示阶层-民心桥接账本在地方留下的压力，点开地块可追到阶层、近因与议题。' },
     tax: { title: '财赋压力', mark: '赋', note: '显示应征、实征、留用、银粮和税负，用来判断此地能否支撑朝廷。' },
     army: { title: '军务态势', mark: '军', note: '显示驻军、城防、边警和军压，用来判断此地是否需要调兵或拨饷。' },
     office: { title: '官守治理', mark: '官', note: '显示主官、官缺、腐败和政令执行，用来判断地方治理是否失衡。' }
@@ -1753,6 +1807,7 @@
   function modeScore(r, mode){
     var b = regionBundle(r);
     if (mode === 'mood') return firstValue(b.data.minxinLocal, r && r.mood, r && r.prosperity, 50);
+    if (mode === 'classPressure') return classPressureForRegion(r).score;
     if (mode === 'tax') {
       var actual = Number(firstValue(b.fiscal.actualRevenue, r && r.tax, r && r.development, 0));
       var claimed = Number(firstValue(b.fiscal.claimedRevenue, actual || 0));
@@ -1803,6 +1858,11 @@
     var value = '';
     var note = meta.note;
     if (mode === 'mood') value = firstValue(b.data.minxinLocal, r && r.mood, '未记');
+    else if (mode === 'classPressure') {
+      var pressure = classPressureForRegion(r);
+      value = pressure.score ? (pressure.score + ' / 100') : '未见';
+      note = pressure.classNames.length ? ('牵动 ' + pressure.classNames.join('、')) : note;
+    }
     else if (mode === 'tax') value = firstValue(b.fiscal.actualRevenue, r && r.tax, '未记');
     else if (mode === 'army') value = firstValue(b.data.garrison, b.army.troops, b.data.armyPressure, r && r.troops, '未记');
     else if (mode === 'office') value = firstValue(b.data.governor, b.data.officialPosition, b.data.corruptionLocal, '未记');
@@ -1949,6 +2009,20 @@
         ['信仰', data.byFaith],
         ['聚落', data.bySettlement],
         ['宗教场所', data.religiousSites]
+      ]);
+    } else if (mode === 'classPressure') {
+      var cp = classPressureForRegion(r);
+      body = ppZone('阶层民心压力', [
+        ['压力读数', cp.score ? (cp.score + ' / 100') : '未见'],
+        ['牵动阶层', cp.classNames.length ? cp.classNames.join('、') : '未见'],
+        ['账本记录', cp.count],
+        ['最近近因', cp.reason || '未见']
+      ], true) + ppFieldChips([
+        ['地方民心', firstValue(data.minxinLocal, r && r.mood)],
+        ['逃户', b.pop.fugitives],
+        ['税负', firstValue(b.fiscal.taxBurden, data.taxBurden)],
+        ['腐败', firstValue(data.corruptionLocal, data.corruption)],
+        ['现有议题', firstValue(data.threats, r && r.issue)]
       ]);
     } else if (mode === 'tax') {
       body = ppZone('财赋流水', [

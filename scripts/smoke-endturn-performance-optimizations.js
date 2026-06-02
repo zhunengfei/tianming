@@ -98,7 +98,7 @@ assert(!/sc28:\s*true/.test(postJobsSrc), 'sc28 is not always a next-turn blocke
 assert(!/compress_ai_memory:\s*true/.test(postJobsSrc), 'AI memory compression is not a next-turn blocker');
 assert(!/compress_foreshadows:\s*true/.test(postJobsSrc), 'foreshadow compression is not a next-turn blocker');
 assert(!/compress_conversation:\s*true/.test(postJobsSrc), 'conversation compression is not a next-turn blocker');
-assert(/_awaitPostTurnJobsForSave\(\['sc25'/.test(followupSrc + '\n' + read('tm-endturn-render.js')), 'autosave waits only persistence-critical post-turn jobs');
+assert(/_postTurnSaveRequiredIds/.test(followupSrc + '\n' + read('tm-endturn-render.js')), 'autosave waits dynamic persistence-critical post-turn jobs');
 assert(/_queuePostTurnSubcall\('compress_ai_memory'/.test(followupSrc), 'AI memory compression is queued post-turn');
 assert(/_queuePostTurnSubcall\('compress_foreshadows'/.test(followupSrc), 'foreshadow compression is queued post-turn');
 assert(/_queuePostTurnSubcall\('compress_conversation'/.test(followupSrc), 'conversation compression is queued post-turn');

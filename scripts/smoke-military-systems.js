@@ -143,7 +143,8 @@ const renderSource = fs.readFileSync(path.join(ROOT, 'tm-endturn-render.js'), 'u
 const applierSource = fs.readFileSync(path.join(ROOT, 'tm-ai-change-applier.js'), 'utf8');
 // 2026-05-21·Slice 2·applyAIArmyChange 已拆到 tm-ai-change-army.js
 const armySource = fs.readFileSync(path.join(ROOT, 'tm-ai-change-army.js'), 'utf8');
-const phase8FormalSource = fs.readFileSync(path.join(ROOT, 'phase8-formal-bridge.js'), 'utf8');
+const phase8FormalSource = fs.readFileSync(path.join(ROOT, 'phase8-formal-bridge.js'), 'utf8') +
+  '\n' + fs.readFileSync(path.join(ROOT, 'phase8-formal-rightrail.js'), 'utf8');
 check(militarySource.indexOf('a.armyType') >= 0, 'syncMilitarySources should preserve scenario armyType buckets');
 check(renderSource.indexOf("['军','势力','统帅','驻地'") >= 0, 'military risk table should show faction column');
 check(renderSource.indexOf('欠饷≥3月') >= 0, 'military risk warning should use 欠饷 wording');
