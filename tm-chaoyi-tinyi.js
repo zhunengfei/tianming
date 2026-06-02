@@ -385,6 +385,18 @@ async function _ty2_genOneSpeech(name, roundNum, prevSpeeches) {
     if (_partyObj) {
       var _ps = (_partyObj.policyStance || []).slice(0, 5).join('·');
       if (_ps) prompt += '  本党(' + ch.party + ')立场：' + _ps + '\n';
+      var _partyAgendaText = function(v) {
+        if (!v) return '';
+        if (Array.isArray(v)) return v.map(_partyAgendaText).filter(Boolean).slice(0, 3).join(' / ');
+        if (typeof v === 'object') v = v.topic || v.title || v.text || v.agenda || v.goal || v.summary || '';
+        return String(v || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+      };
+      var _agendaBits = [];
+      var _currentAgenda = _partyAgendaText(_partyObj.currentAgenda);
+      var _shortGoal = _partyAgendaText(_partyObj.shortGoal);
+      if (_currentAgenda) _agendaBits.push('当前议程：' + _currentAgenda);
+      if (_shortGoal) _agendaBits.push('短期目标：' + _shortGoal);
+      if (_agendaBits.length) prompt += '  本党近期议程：' + _agendaBits.join('；') + '\n';
       var _fd = (_partyObj.focal_disputes || []).filter(function(d){return d && d.topic;}).slice(0, 3);
       if (_fd.length) {
         prompt += '  本党焦点争议：' + _fd.map(function(d){

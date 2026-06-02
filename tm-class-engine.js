@@ -529,6 +529,25 @@
     return out;
   }
 
+  function sameClassName(a, b) {
+    var na = normalizeText(a);
+    var nb = normalizeText(b);
+    return !!(na && nb && na === nb);
+  }
+
+  function hasSupportEntry(list, partyName) {
+    return toArray(list).some(function(entry) {
+      return resolveSupportingPartyName(entry) === partyName;
+    });
+  }
+
+  function addOutcomeSupport(list, partyName, affinity, source) {
+    if (!partyName || hasSupportEntry(list, partyName)) return;
+    affinity = parseFloat(affinity);
+    if (!isFinite(affinity)) affinity = 0.5;
+    list.push({ party: partyName, affinity: affinity, source: source || 'party-outcome' });
+  }
+
   function buildPartyOutcomeDeltas(root, outcome) {
     outcome = outcome || {};
     var grade = outcome.grade || 'C';
@@ -590,7 +609,25 @@
     var total = 0;
     classes.forEach(function(cls) {
       ensureClassRuntime(cls);
-      var supportList = Array.isArray(cls.supportingParties) ? cls.supportingParties : [];
+      var supportList = Array.isArray(cls.supportingParties) ? cls.supportingParties.slice() : [];
+      var clsName = cls && (cls.name || cls.className || cls.id || '');
+      var outcomeClassName = outcome && (outcome.sourceClass || outcome.className || outcome.class || '');
+      if (outcomeClassName && sameClassName(outcomeClassName, clsName)) {
+        parties.forEach(function(partyName) {
+          addOutcomeSupport(supportList, partyName, partyName === (outcome.sourceParty || outcome.proposerParty || outcome.party || '') ? 1 : defaultAffinity * 0.75, 'direct-outcome-class');
+        });
+      }
+      var relEdges = source.partyClassRelations && source.partyClassRelations.edges;
+      if (relEdges && typeof relEdges === 'object') {
+        Object.keys(relEdges).forEach(function(key) {
+          var edge = relEdges[key];
+          if (!edge || !sameClassName(edge.className, clsName)) return;
+          if (partyDeltas[edge.partyName] === undefined) return;
+          var edgeAffinity = parseFloat(edge.affinity);
+          if (isFinite(edgeAffinity)) edgeAffinity = edgeAffinity / 100;
+          addOutcomeSupport(supportList, edge.partyName, isFinite(edgeAffinity) ? edgeAffinity : defaultAffinity, 'dynamic-relation');
+        });
+      }
       if (!supportList.length) return;
       var classDelta = 0;
       var refs = [];
@@ -618,6 +655,9 @@
         turn: turn,
         outcome: outcome && (outcome.outcome || outcome.sealStatus || outcome.mode) || '',
         grade: outcome && outcome.grade || '',
+        sourceParty: outcome && (outcome.sourceParty || outcome.proposerParty || outcome.party) || '',
+        sourceClass: outcome && (outcome.sourceClass || outcome.className || outcome.class) || '',
+        demandText: outcome && outcome.demandText || '',
         satisfactionDelta: classDelta,
         refs: refs
       });
@@ -632,9 +672,37 @@
         source: options.source || 'party-outcome'
       });
       refreshClassPhase(source, cls);
+      try {
+        if (TM.ClassMinxinBridge && typeof TM.ClassMinxinBridge.applyClassPressure === 'function') {
+          TM.ClassMinxinBridge.applyClassPressure(source, {
+            turn: turn,
+            sourceSystem: options.source || 'party-outcome',
+            sourceId: [
+              'party-outcome',
+              turn,
+              cls.name || '',
+              outcome && (outcome.issueId || outcome.linkedIssue || outcome.topic || outcome.outcome || outcome.sealStatus) || ''
+            ].join('|'),
+            className: cls.name || '',
+            satisfactionDelta: classDelta,
+            linkedIssue: outcome && (outcome.issueId || outcome.linkedIssue || outcome.topicId) || '',
+            reason: outcome && (outcome.reason || outcome.topic || outcome.demandText || outcome.goalText) || 'party outcome changed class mood'
+          });
+        }
+      } catch (_classMinxinBridgePartyE) {}
       applied.push({ className: cls.name || '', oldSatisfaction: oldSat, newSatisfaction: nextSat, delta: classDelta, refs: refs });
       total += classDelta;
     });
+    try {
+      if (TM.PartyGoals && typeof TM.PartyGoals.updateDynamicRelationsFromOutcome === 'function') {
+        TM.PartyGoals.updateDynamicRelationsFromOutcome(source, outcome || {}, {
+          turn: turn,
+          source: options.source || 'class-engine-party-outcome',
+          applied: applied,
+          partyDeltas: partyDeltas
+        });
+      }
+    } catch (_dynamicRelationE) {}
     return { ok: applied.length > 0, applied: applied, totalDelta: total, weight: weight, partyDeltas: partyDeltas };
   }
 
@@ -768,6 +836,26 @@
     cls._lastClassChange = clone(result);
     cls._populationBridgeMode = cls._populationBridgeMode || 'population';
     cls._lastClassUpdateTurn = result.turn;
+    try {
+      if (TM.ClassMinxinBridge && typeof TM.ClassMinxinBridge.applyClassPressure === 'function') {
+        TM.ClassMinxinBridge.applyClassPressure(source, {
+          turn: result.turn,
+          sourceSystem: options && options.source || 'class-engine',
+          sourceId: cc.sourceId || cc.id || [
+            'class-change',
+            result.turn,
+            result.classKey,
+            cc.linkedIssue || cc.issueId || '',
+            cc.reason || ''
+          ].join('|'),
+          className: cls.name || cc.name,
+          satisfactionDelta: result.applied.satisfaction,
+          influenceDelta: result.applied.influence,
+          linkedIssue: cc.linkedIssue || cc.issueId || '',
+          reason: cc.reason || ''
+        });
+      }
+    } catch (_classMinxinBridgeE) {}
     return result;
   }
 
@@ -909,6 +997,14 @@
         if (cls) summary.alerts.push(refreshClassPhase(source, cls));
       });
     }
+    try {
+      if (TM.ClassMinxinBridge && typeof TM.ClassMinxinBridge.syncByClass === 'function') {
+        summary.classMinxin = TM.ClassMinxinBridge.syncByClass(source, {
+          turn: source.turn || (options && options.turn),
+          source: options && options.source || 'class-engine-finalize'
+        });
+      }
+    } catch (_classMinxinFinalizeE) {}
     return summary;
   }
 

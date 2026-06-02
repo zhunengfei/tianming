@@ -52,6 +52,7 @@
     harem_events: 'array', tech_civic_unlocks: 'array', policy_changes: 'array',
     scheme_actions: 'array', timeline_triggers: 'array',
     current_issues_update: 'array',
+    character_memory_updates: 'array',
     // 生灭周期
     party_create: 'array', party_splinter: 'array', party_merge: 'array', party_dissolve: 'array',
     faction_create: 'array', faction_succession: 'array', faction_dissolve: 'array',
@@ -82,6 +83,7 @@
     admin_division_updates: ['action'],
     harem_events: ['type'],
     current_issues_update: ['action'],
+    character_memory_updates: ['actor', 'memory', 'confidence', 'source_refs'],
     party_changes: ['name'],
     class_changes: ['name'],
     class_alert_responses: ['alertId', 'action'],

@@ -233,7 +233,8 @@
     var created = false;
 
     if (!army) {
-      if (delta <= 0) return { ok:false, reason:'army not found', name:name };
+      var _forceCreate = (change.action === 'create' || change.create === true || change.isNewArmy === true);
+      if (delta <= 0 && !_forceCreate) return { ok:false, reason:'army not found', name:name };
       var armyType = change.armyType || change.type || change.branch || change.kind || '募兵';
       var factionName = _playerFactionNameForArmy(G, change);
       army = {
@@ -243,9 +244,9 @@
         branch: change.branch || armyType,
         type: armyType,
         armyType: armyType,
-        soldiers: delta,
-        size: delta,
-        strength: delta,
+        soldiers: Math.max(0, delta),
+        size: Math.max(0, delta),
+        strength: Math.max(0, delta),
         morale: _clampNum((change.morale != null ? change.morale : 60) + (Number(change.morale_delta) || 0), 0, 100),
         supply: _clampNum(change.supply != null ? change.supply : 75, 0, 100),
         training: _clampNum((change.training != null ? change.training : 45) + (Number(change.training_delta) || 0), 0, 100),
@@ -283,7 +284,7 @@
       created = true;
       changed = true;
       G._turnReport.push({ type:'military', armyName:name, field:'soldiers', old:0, new:delta, delta:delta, created:true, reason:reason, source:opts.source || '', turn:G.turn||0 });
-      if (typeof global.addEB === 'function') global.addEB('军事', '新建' + name + '·' + delta + '兵' + (reason ? '：' + reason : ''));
+      if (!opts.silentEB && typeof global.addEB === 'function') global.addEB('军事', '新建' + name + '·' + delta + '兵' + (reason ? '：' + reason : ''));
     } else {
       if (commanderInput !== null) {
         var oldCommander = _armyCurrentCommander(army);

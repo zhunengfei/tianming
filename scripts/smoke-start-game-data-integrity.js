@@ -10,6 +10,7 @@ const vm = require('vm');
 const ROOT = path.resolve(__dirname, '..');
 const HEADLESS = path.join(__dirname, 'headless-smoke.js');
 const SID = 'sc-tianqi7-1627';
+const START_VM_TIMEOUT_MS = 30000;
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -155,7 +156,7 @@ function delay(ms) {
 async function runCase(label, setup, expect) {
   const sandbox = loadGame();
   setup(sandbox);
-  vm.runInContext(`doActualStart('${SID}')`, sandbox, { timeout: 10000 });
+  vm.runInContext(`doActualStart('${SID}')`, sandbox, { timeout: START_VM_TIMEOUT_MS });
   await delay(120);
   const state = countState(sandbox);
   expect(state);

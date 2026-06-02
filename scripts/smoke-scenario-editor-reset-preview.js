@@ -32,6 +32,17 @@ const bridgeJs = fs.readFileSync(bridgeFile, 'utf8');
 const indexHtml = fs.readFileSync(indexFile, 'utf8');
 const launchJs = fs.readFileSync(launchFile, 'utf8');
 const officeEditorJs = fs.readFileSync(officeEditorFile, 'utf8');
+
+function runtimeSurfaceLine(field) {
+  const pattern = new RegExp("runtimeSurface\\('" + field + "',[^\\n]+\\)");
+  const match = appJs.match(pattern);
+  return match ? match[0] : '';
+}
+
+function assertRuntimeSurfacePanel(field, panel, msg) {
+  assert(runtimeSurfaceLine(field).includes("'" + panel + "'"), msg);
+}
+
 const expectedModules = [
   'scenarioOpening',
   'peopleLineages',
@@ -214,6 +225,21 @@ assert(appJs.includes('buildImperialEdictPreview: buildImperialEdictPreview'), '
 assert(appJs.includes('function renderVariableWorkbench'), 'preview app should render a variable table editor');
 assert(appJs.includes('function saveVariableWorkbench'), 'preview app should save variable table rows');
 assert(appJs.includes('function buildVariableUsageIndex'), 'preview app should build a variable usage index');
+const configWorkbenchSource = appJs.slice(
+  appJs.indexOf('function isConfigWorkbenchField'),
+  appJs.indexOf('function isTimeWorkbenchField')
+);
+[
+  'adminConfig', 'authorityConfigDeep', 'neitang_advanced', 'tinyi',
+  'guoku', 'guoku_advanced', 'engineConstants', 'edictConfig', 'mechanics'
+].forEach((field) => {
+  assert(configWorkbenchSource.includes("'" + field + "'"), 'config workbench should include structured config field ' + field);
+});
+const promptWorkbenchSource = appJs.slice(
+  appJs.indexOf('function isPromptWorkbenchField'),
+  appJs.indexOf('function isRuleListField')
+);
+assert(promptWorkbenchSource.includes("'mechanics'"), 'mechanics string field should route to the prompt workbench');
 assert(appJs.includes('data-variable-usage-index'), 'preview app variable workbench should render a usage index');
 assert(appJs.includes('data-editor-command="jump-variable-usage"'), 'preview app should jump from variable usage rows to source fields');
 assert(appJs.includes('buildVariableUsageIndex: buildVariableUsageIndex'), 'preview app facade should expose variable usage indexing');
@@ -232,10 +258,37 @@ assert(appJs.includes('data-event-timeline-row'), 'preview app should expose eve
 assert(appJs.includes('data-event-timeline-marker'), 'preview app should expose event timeline markers');
 assert(appJs.includes('data-editor-command="jump-event-timeline"'), 'preview app should jump from timeline preview rows to event forms');
 assert(appJs.includes('buildEventTimelinePreview: buildEventTimelinePreview'), 'preview app facade should expose event timeline preview helper');
+assert(appJs.includes('function isEventLibraryField'), 'preview app should detect event library fields');
+assert(appJs.includes('function buildEventLibraryPreview'), 'preview app should build editable event library previews');
+assert(appJs.includes('function renderEventLibraryWorkbench'), 'preview app should render an editable event library workbench');
+assert(appJs.includes('function saveEventLibraryWorkbench'), 'preview app should save event library rows');
+assert(appJs.includes('function addEventLibraryRow'), 'preview app should add event library rows');
+assert(appJs.includes("runtimeSurface('events', '事件库', '事件年表', 'eventsChronicle', 'structured-workbench'"),
+  'runtime audit should route events to the structured workbench');
+assert(appJs.includes("runtimeSurface('rigidHistoryEvents', '硬历史事件', '事件年表', 'eventsChronicle', 'structured-workbench'"),
+  'runtime audit should route rigidHistoryEvents to the structured workbench');
+assert(appJs.includes("runtimeSurface('goals', '目标列表', '事件年表', 'eventsChronicle', 'structured-workbench'"),
+  'runtime audit should route goals to the structured workbench');
+assert(appJs.includes('data-structured-kind="event-library"'), 'preview app should mark the event library workbench kind');
+assert(appJs.includes('data-event-library-panel'), 'preview app should mark event library panels');
+assert(appJs.includes('data-event-library-chart'), 'preview app should expose event library charts');
+assert(appJs.includes('data-event-library-row'), 'preview app should expose editable event rows');
+assert(appJs.includes('data-event-library-field'), 'preview app should expose editable event fields');
+assert(appJs.includes('data-editor-command="save-event-library"'), 'preview app should expose event library saving');
+assert(appJs.includes('data-editor-command="add-event-library"'), 'preview app should expose event library row creation');
+assert(appJs.includes('buildEventLibraryPreview: buildEventLibraryPreview'), 'preview app facade should expose event library preview helper');
 assert(appJs.includes('function buildGoalConditionPreview'), 'preview app should build a goal and victory condition model');
 assert(appJs.includes('function renderGoalConditionWorkbench'), 'preview app should render a goal and condition workbench');
 assert(appJs.includes('function saveGoalConditionWorkbench'), 'preview app should save goals, win conditions, and lose conditions together');
 assert(appJs.includes('function addGoalConditionRow'), 'preview app should add goal rows from the condition workbench');
+assertRuntimeSurfacePanel('winCond', 'structured-workbench',
+  'runtime audit should route victory conditions to the goal condition workbench');
+assertRuntimeSurfacePanel('loseCond', 'structured-workbench',
+  'runtime audit should route failure conditions to the goal condition workbench');
+assert(appJs.indexOf('if (isGoalConditionField(field)) return renderGoalConditionWorkbench(field, value);') >= 0 &&
+  appJs.indexOf('if (isGoalConditionField(field)) return renderGoalConditionWorkbench(field, value);') <
+  appJs.indexOf('if (isScenarioFoundationField(field)) return renderScenarioFoundationWorkbench(field);'),
+  'structured workbench should route goal condition fields before the scenario foundation fallback');
 assert(appJs.includes('data-structured-kind="goal-conditions"'), 'preview app should mark the goal condition workbench kind');
 assert(appJs.includes('data-goal-condition-panel'), 'preview app should mark the goal condition panel');
 assert(appJs.includes('data-goal-row'), 'preview app should expose editable goal rows');
@@ -298,6 +351,12 @@ assert(appJs.includes('function buildWorldStatePreview'), 'preview app should bu
 assert(appJs.includes('function renderWorldStateWorkbench'), 'preview app should render era state and world setting workbenches');
 assert(appJs.includes('function saveWorldStateWorkbench'), 'preview app should save era state sliders and world setting notes');
 assert(appJs.includes('function scaffoldWorldStateDefaults'), 'preview app should scaffold missing era/world defaults');
+assertRuntimeSurfacePanel('worldview', 'structured-workbench',
+  'runtime audit should route worldview to the world state workbench');
+assert(appJs.includes("field === 'worldview'"),
+  'world state workbench should recognize worldview as a structured field');
+assert(appJs.includes('data-world-state-section="worldview"'),
+  'world state workbench should expose a dedicated worldview text editor');
 assert(appJs.includes('data-structured-kind="world-state"'), 'preview app should mark era and world setting workbench kind');
 assert(appJs.includes('data-world-state-panel'), 'preview app should mark era and world setting panels');
 assert(appJs.includes('data-world-state-metric'), 'preview app should expose era metric slider controls');
@@ -327,6 +386,8 @@ assert(appJs.includes('data-military-force-row'), 'preview app should expose edi
 assert(appJs.includes('data-military-readiness-chart'), 'preview app should expose military readiness charts');
 assert(appJs.includes('data-editor-command="save-military-forces"'), 'preview app should expose military workbench saving');
 assert(appJs.includes('data-editor-command="add-military-row"'), 'preview app should expose military workbench row creation');
+assert(appJs.includes('data-military-force-empty'), 'military forces empty state should expose a stable starter marker');
+assert(appJs.includes('data-military-force-template-field'), 'military forces empty state should preview starter troop and system fields');
 assert(appJs.includes('buildMilitaryReadinessPreview: buildMilitaryReadinessPreview'), 'preview app facade should expose military readiness preview helper');
 assert(appJs.includes('function buildDiplomacyWarPreview'), 'preview app should build war casus belli and diplomacy treaty previews');
 assert(appJs.includes('function renderDiplomacyWarWorkbench'), 'preview app should render war and diplomacy workbenches');
@@ -338,6 +399,9 @@ assert(appJs.includes('data-diplomacy-war-row'), 'preview app should expose edit
 assert(appJs.includes('data-diplomacy-war-chart'), 'preview app should expose war and diplomacy preview charts');
 assert(appJs.includes('data-editor-command="save-diplomacy-war"'), 'preview app should expose war and diplomacy saving');
 assert(appJs.includes('data-editor-command="add-diplomacy-war-row"'), 'preview app should expose war and diplomacy row creation');
+assert(appJs.includes('data-diplomacy-war-add'), 'war and diplomacy add buttons should carry the target field explicitly');
+assert(appJs.includes('data-diplomacy-war-empty'), 'war and diplomacy empty state should expose a stable starter marker');
+assert(appJs.includes('data-diplomacy-war-template-field'), 'war and diplomacy empty state should preview starter casus belli and treaty fields');
 assert(appJs.includes('buildDiplomacyWarPreview: buildDiplomacyWarPreview'), 'preview app facade should expose war and diplomacy preview helper');
 assert(appJs.includes('function buildEconomyConfigPreview'), 'preview app should build economy config previews');
 assert(appJs.includes('function renderEconomyConfigWorkbench'), 'preview app should render an economy config workbench');
@@ -350,6 +414,8 @@ assert(appJs.includes('data-economy-metric'), 'preview app should expose editabl
 assert(appJs.includes('data-economy-textarea'), 'preview app should expose editable economy text fields');
 assert(appJs.includes('data-editor-command="save-economy-config"'), 'preview app should expose economy config saving');
 assert(appJs.includes('data-editor-command="scaffold-economy-config"'), 'preview app should expose economy config scaffolding');
+assert(appJs.includes('data-economy-config-starter'), 'empty economy config should show an explicit default-starter callout');
+assert(appJs.includes('data-economy-config-template-field'), 'empty economy config starter should preview default economy fields');
 assert(appJs.includes('buildEconomyConfigPreview: buildEconomyConfigPreview'), 'preview app facade should expose economy config preview helper');
 assert(appJs.includes('function buildPopulationConfigPreview'), 'preview app should build population config previews');
 assert(appJs.includes('function renderPopulationConfigWorkbench'), 'preview app should render a population config workbench');
@@ -365,6 +431,8 @@ assert(appJs.includes('data-population-textarea'), 'preview app should expose ed
 assert(appJs.includes('data-editor-command="save-population-config"'), 'preview app should expose population config saving');
 assert(appJs.includes('data-editor-command="scaffold-population-config"'), 'preview app should expose population config scaffolding');
 assert(appJs.includes('data-editor-command="add-population-category"'), 'preview app should expose population category creation');
+assert(appJs.includes('data-population-config-starter'), 'empty population config should show an explicit default-starter callout');
+assert(appJs.includes('data-population-config-template-field'), 'empty population config starter should preview default population fields');
 assert(appJs.includes('buildPopulationConfigPreview: buildPopulationConfigPreview'), 'preview app facade should expose population config preview helper');
 assert(appJs.includes('function buildEnvironmentConfigPreview'), 'preview app should build environment config previews');
 assert(appJs.includes('function renderEnvironmentConfigWorkbench'), 'preview app should render an environment config workbench');
@@ -384,6 +452,157 @@ assert(appJs.includes('data-editor-command="scaffold-environment-config"'), 'pre
 assert(appJs.includes('data-editor-command="add-environment-region"'), 'preview app should expose environment region creation');
 assert(appJs.includes('data-editor-command="add-environment-disaster"'), 'preview app should expose environment disaster creation');
 assert(appJs.includes('buildEnvironmentConfigPreview: buildEnvironmentConfigPreview'), 'preview app facade should expose environment config preview helper');
+assert(appJs.includes('function buildCulturalWorkbenchPreview'), 'preview app should build cultural config and works previews');
+assert(appJs.includes('function renderCulturalWorkbench'), 'preview app should render a cultural config and works workbench');
+assert(appJs.includes('function saveCulturalWorkbench'), 'preview app should save cultural focus, style lists, and work rows');
+assert(appJs.includes('function scaffoldCulturalWorkbench'), 'preview app should scaffold missing cultural config and works defaults');
+assert(appJs.includes('function addCulturalWorkRow'), 'preview app should add cultural work rows');
+assert(appJs.includes('data-structured-kind="cultural-workbench"'), 'preview app should mark the cultural workbench kind');
+assert(appJs.includes('data-cultural-panel'), 'preview app should mark cultural workbench panels');
+assert(appJs.includes('data-cultural-chart'), 'preview app should expose cultural preview charts');
+assert(appJs.includes('data-cultural-metric'), 'preview app should expose editable cultural metrics');
+assert(appJs.includes('data-cultural-work-row'), 'preview app should expose editable cultural work rows');
+assert(appJs.includes('data-cultural-textarea'), 'preview app should expose editable cultural text fields');
+assert(appJs.includes('data-editor-command="save-cultural-workbench"'), 'preview app should expose cultural workbench saving');
+assert(appJs.includes('data-editor-command="scaffold-cultural-workbench"'), 'preview app should expose cultural workbench scaffolding');
+assert(appJs.includes('data-editor-command="add-cultural-work"'), 'preview app should expose cultural work creation');
+assert(appJs.includes('buildCulturalWorkbenchPreview: buildCulturalWorkbenchPreview'), 'preview app facade should expose cultural workbench preview helper');
+assert(appJs.includes('function buildTimeConfigFromGameSettings'), 'preview app should sync time config from gameSettings like the current editor');
+assert(appJs.includes('function buildTimeWorkbenchPreview'), 'preview app should build calendar/time previews');
+assert(appJs.includes('function renderTimeWorkbench'), 'preview app should render a dedicated calendar/time workbench');
+assert(appJs.includes('function saveTimeWorkbench'), 'preview app should save calendar/time fields without raw JSON editing');
+assert(appJs.includes('function scaffoldTimeWorkbench'), 'preview app should scaffold missing calendar/time defaults');
+assert(appJs.includes('function addTimeEraNameRow'), 'preview app should add era-name rows to the calendar workbench');
+assertRuntimeSurfacePanel('startYear', 'structured-workbench',
+  'runtime audit should route top-level startYear to the time calendar workbench');
+assertRuntimeSurfacePanel('startMonth', 'structured-workbench',
+  'runtime audit should route top-level startMonth to the time calendar workbench');
+assert(appJs.includes("return ['time', 'startYear', 'startMonth'].indexOf(field) >= 0"),
+  'time workbench dispatch should recognize top-level startYear/startMonth aliases');
+assert(appJs.includes('state.scenario.startMonth = current.startMonth'),
+  'game settings save should preserve top-level startMonth');
+assert(appJs.includes("if (time.startMonth !== '') state.scenario.startMonth"),
+  'time workbench save should preserve top-level startMonth');
+assert(appJs.includes('data-structured-kind="time-calendar"'), 'preview app should mark the time calendar workbench kind');
+assert(appJs.includes('data-time-calendar-panel'), 'preview app should mark time calendar panels');
+assert(appJs.includes('data-time-calendar-chart'), 'preview app should expose time calendar preview charts');
+assert(appJs.includes('data-time-calendar-metric'), 'preview app should expose editable time calendar metrics');
+assert(appJs.includes('data-time-calendar-list'), 'preview app should expose editable season and era-name lists');
+assert(appJs.includes('data-time-era-row'), 'preview app should expose editable era-name rows');
+assert(appJs.includes('data-editor-command="save-time-workbench"'), 'preview app should expose time calendar saving');
+assert(appJs.includes('data-editor-command="scaffold-time-workbench"'), 'preview app should expose time calendar scaffolding');
+assert(appJs.includes('data-editor-command="add-time-era-name"'), 'preview app should expose time calendar era-name creation');
+assert(appJs.includes('buildTimeWorkbenchPreview: buildTimeWorkbenchPreview'), 'preview app facade should expose time calendar preview helper');
+assert(appJs.includes('function isInstitutionSystemField'), 'preview app should detect institution system fields');
+assert(appJs.includes('function institutionSystemDefaults'), 'preview app should provide institution system defaults');
+assert(appJs.includes('function buildInstitutionSystemPreview'), 'preview app should build institution system previews');
+assert(appJs.includes('function renderInstitutionSystemWorkbench'), 'preview app should render a dedicated institution system workbench');
+assert(appJs.includes('function saveInstitutionSystemWorkbench'), 'preview app should save institution system fields without raw JSON editing');
+assert(appJs.includes('function scaffoldInstitutionSystemWorkbench'), 'preview app should scaffold missing institution system defaults');
+assert(appJs.includes('function addInstitutionSystemRow'), 'preview app should add rows to institution system lists');
+assert(appJs.includes('data-structured-kind="institution-system"'), 'preview app should mark the institution system workbench kind');
+assert(appJs.includes('data-institution-panel'), 'preview app should mark institution system panels');
+assert(appJs.includes('data-institution-chart'), 'preview app should expose institution system preview charts');
+assert(appJs.includes('data-institution-metric'), 'preview app should expose editable institution system metrics');
+assert(appJs.includes('data-institution-row'), 'preview app should expose editable institution system rows');
+assert(appJs.includes('data-institution-textarea'), 'preview app should expose editable institution system text fields');
+assert(appJs.includes('data-editor-command="save-institution-system"'), 'preview app should expose institution system saving');
+assert(appJs.includes('data-editor-command="scaffold-institution-system"'), 'preview app should expose institution system scaffolding');
+assert(appJs.includes('data-editor-command="add-institution-row"'), 'preview app should expose institution system row creation');
+assert(appJs.includes('buildInstitutionSystemPreview: buildInstitutionSystemPreview'), 'preview app facade should expose institution system preview helper');
+assert(appJs.includes('function isScenarioFoundationField'), 'preview app should detect scenario foundation fields');
+assert(appJs.includes('function buildScenarioFoundationPreview'), 'preview app should build scenario foundation previews');
+assert(appJs.includes('function syncScenarioFoundationAliases'), 'preview app should sync old-editor foundation fields with runtime aliases');
+assert(appJs.includes('function renderScenarioFoundationWorkbench'), 'preview app should render a scenario foundation workbench');
+assert(appJs.includes('function saveScenarioFoundationWorkbench'), 'preview app should save scenario foundation fields without hopping across raw field editors');
+assert(appJs.includes('function scaffoldScenarioFoundationWorkbench'), 'preview app should scaffold missing scenario foundation fields');
+[
+  'name', 'era', 'dynasty', 'role', 'emperor', 'background', 'overview', 'opening',
+  'openingText', 'openingHook', 'startLocation', 'suggestions'
+].forEach((field) => {
+  assertRuntimeSurfacePanel(field, 'structured-workbench',
+    'runtime audit should route scenario foundation field to the structured workbench: ' + field);
+});
+assertRuntimeSurfacePanel('scnStyle', 'structured-workbench',
+  'runtime audit should route scenario style to the scenario foundation workbench');
+assertRuntimeSurfacePanel('scnStyleRule', 'structured-workbench',
+  'runtime audit should route scenario style rules to the scenario foundation workbench');
+assert(appJs.includes('data-structured-kind="scenario-foundation"'), 'preview app should mark the scenario foundation workbench kind');
+assert(appJs.includes('data-foundation-panel'), 'preview app should mark scenario foundation panels');
+assert(appJs.includes('data-foundation-field'), 'preview app should expose editable scenario foundation short fields');
+assert(appJs.includes('data-foundation-textarea'), 'preview app should expose editable scenario foundation long fields');
+assert(appJs.includes('data-foundation-meter'), 'preview app should expose scenario foundation readiness meters');
+assert(appJs.includes('data-foundation-alias'), 'preview app should expose old-editor/runtime alias status');
+assert(appJs.includes('data-editor-command="save-scenario-foundation"'), 'preview app should expose scenario foundation saving');
+assert(appJs.includes('data-editor-command="scaffold-scenario-foundation"'), 'preview app should expose scenario foundation scaffolding');
+assert(appJs.includes('buildScenarioFoundationPreview: buildScenarioFoundationPreview'), 'preview app facade should expose scenario foundation preview helper');
+assert(appJs.includes('function isReferenceSourceField'), 'preview app should detect reference/source material fields');
+assert(appJs.includes('function buildReferenceSourcePreview'), 'preview app should build reference/source material previews');
+assert(appJs.includes('function renderReferenceSourceWorkbench'), 'preview app should render a reference/source material workbench');
+assert(appJs.includes('function saveReferenceSourceWorkbench'), 'preview app should save reference text, source files, file bodies, and opening letters');
+assert(appJs.includes('function scaffoldReferenceSourceWorkbench'), 'preview app should scaffold missing reference/source material defaults');
+assert(appJs.includes('function addReferenceSourceRow'), 'preview app should add reference/source material rows');
+assert(appJs.includes('data-structured-kind="reference-source"'), 'preview app should mark the reference/source workbench kind');
+assert(appJs.includes('data-reference-source-panel'), 'preview app should mark reference/source panels');
+assert(appJs.includes('data-reference-source-chart'), 'preview app should expose reference/source preview charts');
+assert(appJs.includes('data-reference-source-field'), 'preview app should expose editable reference/source fields');
+assert(appJs.includes('data-reference-source-textarea'), 'preview app should expose editable reference/source textareas');
+assert(appJs.includes('data-reference-source-row'), 'preview app should expose editable reference/source rows');
+assert(appJs.includes('data-editor-command="save-reference-source"'), 'preview app should expose reference/source saving');
+assert(appJs.includes('data-editor-command="scaffold-reference-source"'), 'preview app should expose reference/source scaffolding');
+assert(appJs.includes('data-editor-command="add-reference-source"'), 'preview app should expose reference/source row creation');
+assert(appJs.includes("document.querySelector('[data-structured-kind=\"reference-source\"]')) saveReferenceSourceWorkbench({ silent: true })"),
+  'preview app should preserve reference/source form edits before adding another row');
+assert(appJs.includes('buildReferenceSourcePreview: buildReferenceSourcePreview'), 'preview app facade should expose reference/source preview helper');
+assert(appJs.includes('function isAiAuthoringField'), 'preview app should detect AI authoring fields');
+assert(appJs.includes('function buildAiAuthoringPreview'), 'preview app should build AI authoring previews');
+assert(appJs.includes('function renderAiAuthoringWorkbench'), 'preview app should render an AI authoring workbench');
+assert(appJs.includes('function saveAiAuthoringWorkbench'), 'preview app should save AI flags, model requirements, prompt text, and presets');
+assert(appJs.includes('function scaffoldAiAuthoringWorkbench'), 'preview app should scaffold missing AI authoring defaults');
+assert(appJs.includes('function addAiPresetRow'), 'preview app should add AI preset rows');
+assert(appJs.includes('data-structured-kind="ai-authoring"'), 'preview app should mark the AI authoring workbench kind');
+assert(appJs.includes('data-ai-authoring-panel'), 'preview app should mark AI authoring panels');
+assert(appJs.includes('data-ai-authoring-chart'), 'preview app should expose AI authoring preview charts');
+assert(appJs.includes('data-ai-authoring-toggle'), 'preview app should expose editable AI authoring toggles');
+assert(appJs.includes('data-ai-authoring-model-field'), 'preview app should expose editable model requirement fields');
+assert(appJs.includes('data-ai-authoring-textarea'), 'preview app should expose editable AI prompt textareas');
+assert(appJs.includes('data-ai-preset-row'), 'preview app should expose editable AI preset rows');
+assert(appJs.includes('data-editor-command="save-ai-authoring"'), 'preview app should expose AI authoring saving');
+assert(appJs.includes('data-editor-command="scaffold-ai-authoring"'), 'preview app should expose AI authoring scaffolding');
+assert(appJs.includes('data-editor-command="add-ai-preset"'), 'preview app should expose AI preset creation');
+assert(appJs.includes('buildAiAuthoringPreview: buildAiAuthoringPreview'), 'preview app facade should expose AI authoring preview helper');
+assert(appJs.includes('function isExternalForceField'), 'preview app should detect external force fields');
+assert(appJs.includes('function buildExternalForcesPreview'), 'preview app should build external force previews');
+assert(appJs.includes('function renderExternalForcesWorkbench'), 'preview app should render an external forces workbench');
+assert(appJs.includes('function saveExternalForcesWorkbench'), 'preview app should save external force rows');
+assert(appJs.includes('function addExternalForceRow'), 'preview app should add external force rows');
+assert(appJs.includes('data-structured-kind="external-forces"'), 'preview app should mark the external forces workbench kind');
+assert(appJs.includes('data-external-forces-panel'), 'preview app should mark external forces panels');
+assert(appJs.includes('data-external-forces-chart'), 'preview app should expose external forces preview charts');
+assert(appJs.includes('data-external-force-row'), 'preview app should expose editable external force rows');
+assert(appJs.includes('data-external-force-field'), 'preview app should expose editable external force fields');
+assert(appJs.includes('data-editor-command="save-external-forces"'), 'preview app should expose external forces saving');
+assert(appJs.includes('data-editor-command="add-external-force"'), 'preview app should expose external force creation');
+assert(appJs.includes('data-external-force-empty'), 'external forces empty state should expose a stable starter marker');
+assert(appJs.includes('data-external-force-template-field'), 'external forces empty state should preview starter force fields');
+assert(appJs.includes('buildExternalForcesPreview: buildExternalForcesPreview'), 'preview app facade should expose external force preview helper');
+assert(appJs.includes('function isRelationSeedField'), 'preview app should detect opening relation seed fields');
+assert(appJs.includes('function buildRelationSeedPreview'), 'preview app should build opening relation seed previews');
+assert(appJs.includes('function renderRelationSeedWorkbench'), 'preview app should render an opening relation seed workbench');
+assert(appJs.includes('function saveRelationSeedWorkbench'), 'preview app should save opening relation seed rows');
+assert(appJs.includes('function addRelationSeedRow'), 'preview app should add opening relation seed rows');
+assert(appJs.includes("runtimeSurface('initialEnYuan',") && appJs.includes("runtimeSurface('initialEnYuan', '初始恩怨', '人物势力', 'peopleLineages', 'structured-workbench'"),
+  'runtime audit should route initialEnYuan to the structured workbench');
+assert(appJs.includes("runtimeSurface('initialPatronNetwork',") && appJs.includes("runtimeSurface('initialPatronNetwork', '初始靠山网络', '人物势力', 'peopleLineages', 'structured-workbench'"),
+  'runtime audit should route initialPatronNetwork to the structured workbench');
+assert(appJs.includes('data-structured-kind="relation-seeds"'), 'preview app should mark the opening relation seed workbench kind');
+assert(appJs.includes('data-relation-seed-panel'), 'preview app should mark opening relation seed panels');
+assert(appJs.includes('data-relation-seed-chart'), 'preview app should expose opening relation seed preview charts');
+assert(appJs.includes('data-relation-seed-row'), 'preview app should expose editable opening relation seed rows');
+assert(appJs.includes('data-relation-seed-field'), 'preview app should expose editable opening relation seed fields');
+assert(appJs.includes('data-editor-command="save-relation-seeds"'), 'preview app should expose opening relation seed saving');
+assert(appJs.includes('data-editor-command="add-relation-seed"'), 'preview app should expose opening relation seed creation');
+assert(appJs.includes('buildRelationSeedPreview: buildRelationSeedPreview'), 'preview app facade should expose opening relation seed preview helper');
 assert(appJs.includes('function collectBudgetDivisions'), 'preview app should collect fiscal/admin divisions for budget preview');
 assert(appJs.includes('function buildFiscalBudgetPreview'), 'preview app should build a fiscal budget preview');
 assert(appJs.includes('function renderFiscalBudgetPreview'), 'preview app should render fiscal budget preview inside config workbench');
@@ -398,6 +617,22 @@ assert(appJs.includes('function saveOfficeGovernanceWorkbench'), 'preview app sh
 assert(appJs.includes('function addOfficeCostVariable'), 'preview app should add office cost variables');
 assert(appJs.includes('function addOfficePositionRow'), 'preview app should add office position rows');
 assert(appJs.includes('function collectOfficePositionRows'), 'preview app should flatten office positions for authoring');
+assert(appJs.includes("if (field === 'officeTree' || field === 'officeConfig') return renderOfficeGovernanceWorkbench(field, value)"),
+  'officeConfig should route to the office governance workbench instead of the generic fallback');
+const officeGovernanceWorkbenchSource = appJs.slice(
+  appJs.indexOf('function renderOfficeGovernanceWorkbench'),
+  appJs.indexOf('function renderMapBindingWorkbench')
+);
+assert(officeGovernanceWorkbenchSource.includes('state.scenario.officeTree'),
+  'officeConfig governance route should still render the saved officeTree hierarchy');
+assert(appJs.includes('function renderPresetRelationsWorkbench'), 'preview app should render a preset relations workbench');
+assert(appJs.includes('function savePresetRelationsWorkbench'), 'preview app should save preset relation edits');
+assert(appJs.includes('function addPresetRelationRow'), 'preview app should add preset relation rows');
+assert(appJs.includes("if (field === 'presetRelations') return renderPresetRelationsWorkbench(value)"),
+  'presetRelations should route to a dedicated preset relations workbench instead of the generic fallback');
+assert(appJs.includes('data-structured-kind="preset-relations"'), 'preset relations workbench should expose a stable structured kind marker');
+assert(appJs.includes("if (field === 'presetRelations') return { npc: [], faction: [] }"),
+  'presetRelations missing-field template should preserve npc/faction relation buckets');
 assert(appJs.includes('function renderMapBindingWorkbench'), 'preview app should render a visual map binding workbench');
 assert(appJs.includes('function saveMapBindings'), 'preview app should save map owner/admin bindings from row controls');
 assert(appJs.includes('function normalizeMapBindings'), 'preview app should smart-fill map bindings');
@@ -438,6 +673,8 @@ assert(appJs.includes('function normalizeRegionBinding'), 'preview app should no
   'add-variable-row',
   'save-tree-workbench',
   'add-tree-node',
+  'save-event-library',
+  'add-event-library',
   'save-goal-conditions',
   'add-goal-condition',
   'save-rigid-triggers',
@@ -469,6 +706,25 @@ assert(appJs.includes('function normalizeRegionBinding'), 'preview app should no
   'scaffold-environment-config',
   'add-environment-region',
   'add-environment-disaster',
+  'save-cultural-workbench',
+  'scaffold-cultural-workbench',
+  'add-cultural-work',
+  'save-time-workbench',
+  'scaffold-time-workbench',
+  'add-time-era-name',
+  'save-institution-system',
+  'scaffold-institution-system',
+  'add-institution-row',
+  'save-scenario-foundation',
+  'scaffold-scenario-foundation',
+  'save-reference-source',
+  'scaffold-reference-source',
+  'add-reference-source',
+  'save-ai-authoring',
+  'scaffold-ai-authoring',
+  'add-ai-preset',
+  'save-external-forces',
+  'add-external-force',
   'save-prompt-workbench',
   'restore-structured-original',
   'save-office-governance',
@@ -480,8 +736,8 @@ assert(appJs.includes('function normalizeRegionBinding'), 'preview app should no
 ].forEach((command) => {
   assert(appJs.includes('data-editor-command="' + command + '"'), 'preview app should expose structured command ' + command);
 });
-['game-settings', 'player-sync', 'relation-matrix', 'character-relations', 'family-lineages', 'trait-dictionary', 'society-influence', 'item-inventory', 'city-registry', 'interest-groups', 'imperial-edicts', 'political-actions', 'narrative-rules', 'world-state', 'court-life', 'military-forces', 'diplomacy-war', 'economy-config', 'population-config', 'environment-config', 'variable-table', 'tree-editor', 'goal-conditions', 'rigid-triggers', 'timeline-editor', 'config-editor', 'prompt-editor', 'office-governance', 'map-binding'].forEach((kind) => {
-  assert(appJs.includes('data-structured-kind="' + kind + '"'), 'preview app should mark structured workbench kind ' + kind);
+['game-settings', 'scenario-foundation', 'reference-source', 'ai-authoring', 'external-forces', 'event-library', 'player-sync', 'relation-matrix', 'character-relations', 'family-lineages', 'trait-dictionary', 'society-influence', 'item-inventory', 'city-registry', 'interest-groups', 'imperial-edicts', 'political-actions', 'narrative-rules', 'world-state', 'court-life', 'military-forces', 'diplomacy-war', 'economy-config', 'population-config', 'environment-config', 'cultural-workbench', 'time-calendar', 'institution-system', 'variable-table', 'tree-editor', 'goal-conditions', 'rigid-triggers', 'timeline-editor', 'config-editor', 'prompt-editor', 'office-governance', 'map-binding'].forEach((kind) => {
+assert(appJs.includes('data-structured-kind="' + kind + '"'), 'preview app should mark structured workbench kind ' + kind);
 });
 ['office-governance-layout', 'office-policy-panel', 'office-position-row', 'office-cost-row'].forEach((className) => {
   assert(html.includes(className), 'preview should include office governance UI class ' + className);
@@ -491,6 +747,9 @@ assert(appJs.includes('function normalizeRegionBinding'), 'preview app should no
 });
 ['event-timeline-panel', 'event-timeline-summary', 'event-timeline-row', 'event-timeline-marker', 'event-timeline-lane'].forEach((className) => {
   assert(html.includes(className), 'preview should include event timeline preview UI class ' + className);
+});
+['event-library-panel', 'event-library-chart', 'event-library-row', 'event-library-fields', 'event-library-chip'].forEach((className) => {
+  assert(html.includes(className), 'preview should include event library workbench UI class ' + className);
 });
 ['goal-condition-panel', 'goal-condition-summary', 'goal-condition-grid', 'goal-condition-row', 'goal-condition-textareas'].forEach((className) => {
   assert(html.includes(className), 'preview should include goal condition workbench UI class ' + className);
@@ -555,6 +814,30 @@ assert(appJs.includes('function normalizeRegionBinding'), 'preview app should no
 ['environment-config-panel', 'environment-config-chart', 'environment-metric', 'environment-region-row', 'environment-disaster-row', 'environment-config-chip'].forEach((className) => {
   assert(html.includes(className), 'preview should include environment config workbench UI class ' + className);
 });
+['cultural-panel', 'cultural-chart', 'cultural-metric', 'cultural-work-row', 'cultural-chip'].forEach((className) => {
+  assert(html.includes(className), 'preview should include cultural workbench UI class ' + className);
+});
+['time-calendar-panel', 'time-calendar-chart', 'time-calendar-metric', 'time-calendar-list', 'time-calendar-chip'].forEach((className) => {
+  assert(html.includes(className), 'preview should include time calendar workbench UI class ' + className);
+});
+['institution-panel', 'institution-chart', 'institution-metric', 'institution-row', 'institution-chip'].forEach((className) => {
+  assert(html.includes(className), 'preview should include institution system workbench UI class ' + className);
+});
+['foundation-panel', 'foundation-chart', 'foundation-field', 'foundation-meter', 'foundation-alias'].forEach((className) => {
+  assert(html.includes(className), 'preview should include scenario foundation workbench UI class ' + className);
+});
+['reference-source-panel', 'reference-source-chart', 'reference-source-field', 'reference-source-row', 'reference-source-chip'].forEach((className) => {
+  assert(html.includes(className), 'preview should include reference/source workbench UI class ' + className);
+});
+['ai-authoring-panel', 'ai-authoring-chart', 'ai-authoring-metric', 'ai-preset-row', 'ai-authoring-chip'].forEach((className) => {
+  assert(html.includes(className), 'preview should include AI authoring workbench UI class ' + className);
+});
+['external-forces-panel', 'external-forces-chart', 'external-force-row', 'external-force-fields', 'external-force-chip'].forEach((className) => {
+  assert(html.includes(className), 'preview should include external forces workbench UI class ' + className);
+});
+['relation-seed-panel', 'relation-seed-chart', 'relation-seed-row', 'relation-seed-fields', 'relation-seed-chip'].forEach((className) => {
+  assert(html.includes(className), 'preview should include opening relation seed workbench UI class ' + className);
+});
 ['map-binding-layout', 'map-mini-svg', 'map-region-row', 'map-legend'].forEach((className) => {
   assert(html.includes(className), 'preview should include map binding UI class ' + className);
 });
@@ -568,6 +851,41 @@ assert(appJs.includes('function saveSpecialistEntity'), 'preview app should save
 assert(appJs.includes('function buildEntityTemplate'), 'preview app should create typed entity templates');
 assert(appJs.includes('function runBatchNormalize'), 'preview app should provide batch normalization');
 assert(appJs.includes('data-specialist-field'), 'preview app specialist forms should expose editable field inputs');
+assert(appJs.includes('function renderSpecialistEmptyState'), 'preview app should render a specialist empty-state starter for blank entity lists');
+const specialistEditorSource = appJs.slice(
+  appJs.indexOf('function renderSpecialistEditor'),
+  appJs.indexOf('function renderReferenceRows')
+);
+assert(specialistEditorSource.includes('renderSpecialistEmptyState(field, value, timelineHtml)'),
+  'specialist editor should route empty arrays to the starter empty state instead of a dead fallback');
+assert(appJs.includes('data-specialist-empty'), 'specialist empty state should expose a stable DOM marker');
+assert(appJs.includes('data-specialist-template-field'), 'specialist empty state should preview editable template fields');
+assert(html.includes('.specialist-empty'), 'preview CSS should style specialist empty-state starters');
+assert(appJs.includes('data-event-library-empty'), 'event library empty state should expose a stable starter marker');
+assert(appJs.includes('data-event-library-template-field'), 'event library empty state should preview its first event template fields');
+assert(appJs.includes('data-goal-condition-empty'), 'goal condition empty state should expose a stable starter marker');
+assert(appJs.includes('data-goal-condition-template-field'), 'goal condition empty state should preview its first goal template fields');
+assert(appJs.includes('data-timeline-empty'), 'timeline empty state should expose a stable starter marker');
+assert(appJs.includes('data-timeline-template-field'), 'timeline empty state should preview its first timeline template fields');
+assert(appJs.includes('data-relation-seed-empty'), 'opening relation seed empty state should expose a stable starter marker');
+assert(appJs.includes('data-relation-seed-template-field'), 'opening relation seed empty state should preview its first relation template fields');
+assert(appJs.includes('data-rigid-trigger-empty'), 'rigid trigger empty state should expose a stable starter marker');
+assert(appJs.includes('data-rigid-trigger-template-field'), 'rigid trigger empty state should preview its first trigger template fields');
+assert(appJs.includes('data-reference-source-empty'), 'reference/source empty state should expose a stable starter marker');
+assert(appJs.includes('data-reference-source-template-field'), 'reference/source empty state should preview starter source and letter fields');
+assert(appJs.includes('data-ai-preset-empty'), 'AI preset empty state should expose a stable starter marker');
+assert(appJs.includes('data-ai-preset-template-field'), 'AI preset empty state should preview starter preset fields');
+assert(html.includes('.event-library-empty'), 'preview CSS should style event library empty-state starters');
+assert(html.includes('.goal-condition-empty'), 'preview CSS should style goal condition empty-state starters');
+assert(html.includes('.timeline-workbench-empty'), 'preview CSS should style timeline empty-state starters');
+assert(html.includes('.relation-seed-empty'), 'preview CSS should style opening relation seed empty-state starters');
+assert(html.includes('.rigid-trigger-empty'), 'preview CSS should style rigid trigger empty-state starters');
+assert(html.includes('.reference-source-empty'), 'preview CSS should style reference/source empty-state starters');
+assert(html.includes('.ai-preset-empty'), 'preview CSS should style AI preset empty-state starters');
+assert(html.includes('.external-force-empty'), 'preview CSS should style external force empty-state starters');
+assert(html.includes('.military-force-empty'), 'preview CSS should style military force empty-state starters');
+assert(html.includes('.diplomacy-war-empty'), 'preview CSS should style war and diplomacy empty-state starters');
+assert(html.includes('.config-default-starter'), 'preview CSS should style config default-starter callouts');
 assert(appJs.includes('data-editor-command="batch-normalize"'), 'preview app should expose a batch normalize command');
 assert(appJs.includes('linkedChars') && appJs.includes('linkedFactions'), 'preview app validation should cover event character/faction links');
 assert(appJs.includes('function renderScenarioDashboard'), 'preview app should render live scenario dashboard metrics');
@@ -1879,6 +2197,10 @@ assert(appJs.includes('function saveMetadataWorkbench'),
   assert(appJs.indexOf("'" + field + "'") >= 0,
     'metadata workbench should recognize field: ' + field);
 });
+['_adaptation', '_buildStatus'].forEach((field) => {
+  assertRuntimeSurfacePanel(field, 'structured-workbench',
+    'runtime audit should route scenario metadata to the metadata workbench: ' + field);
+});
 assert(appJs.includes("if (isMetadataField(field, value)) return renderMetadataWorkbench(field, value)"),
   'structured dispatch should route metadata fields to the workbench');
 assert(appJs.includes("if (command === 'save-metadata-workbench')"),
@@ -2587,7 +2909,7 @@ assert(appJs.includes("'剧本工坊 · 历史模拟剧本总控台'"),
   'runtime brandSub clean state should reflect the new copy');
 
 // Slice 96: English module + field-group titles translated.
-const inventorySource = require('node:fs').readFileSync('web/scripts/editor-reset-inventory.js', 'utf8');
+const inventorySource = fs.readFileSync(path.join(ROOT, 'scripts', 'editor-reset-inventory.js'), 'utf8');
 assert(!/title:\s*'[A-Z][a-z]+\s/.test(inventorySource),
   'editor-reset-inventory should no longer carry English titles starting with a capitalised word');
 assert(inventorySource.includes("title: '剧本总览与玩家开局'"),
@@ -2602,7 +2924,7 @@ assert(inventorySource.includes("title: 'AI 人格与行为'"),
   'character aiPersona group should use the Chinese title');
 assert(inventorySource.includes("title: '继承与终局条件'"),
   'faction succession group should use the Chinese title');
-const bakedData = require('node:fs').readFileSync('web/preview/scenario-editor-reset-data.js', 'utf8');
+const bakedData = fs.readFileSync(dataFile, 'utf8');
 assert(bakedData.includes('"剧本总览与玩家开局"'),
   'baked data should carry the regenerated Chinese module title');
 assert(bakedData.includes('"AI 人格与行为"'),

@@ -327,6 +327,25 @@
       }
     }
 
+    function _recordMemoryTraceSubcall(body, opts, raw, data, started, ok, errorInfo) {
+      try {
+        if (!global.TM || !global.TM.MemoryTrace || typeof global.TM.MemoryTrace.recordSubcall !== 'function') return;
+        global.TM.MemoryTrace.recordSubcall(GM, {
+          id: opts && opts.id || '',
+          label: opts && opts.label || 'endturn',
+          body: body,
+          response: raw || '',
+          usage: data && data.usage,
+          latencyMs: Date.now() - started,
+          ok: ok !== false,
+          error: errorInfo && errorInfo.message,
+          status: errorInfo && errorInfo.status,
+          model: body && body.model || '',
+          finishReason: data && data.choices && data.choices[0] && data.choices[0].finish_reason || ''
+        });
+      } catch(_) {}
+    }
+
     async function _callEndturnAI(body, opts) {
       opts = _mergeCallPolicy(opts && opts.id, opts || {});
       var callUrl = opts.url || url;
@@ -373,6 +392,7 @@
           }
         } catch(_dStatsE) {}
         if (data && data.choices && data.choices[0] && data.choices[0].message) raw = data.choices[0].message.content || '';
+        _recordMemoryTraceSubcall(body, opts, raw, data, started, true, null);
         if (typeof recordAIDiagnostic === 'function') {
           recordAIDiagnostic('call', { id: opts.id || '', label: label, ok: true, ms: Date.now() - started });
         }
@@ -397,6 +417,7 @@
         return { data: data, raw: raw, parsed: null, parse: null };
       } catch(e) {
         var errInfo = _formatAIError(e);
+        _recordMemoryTraceSubcall(body, opts, '', data, started, false, errInfo);
         if (typeof recordAIDiagnostic === 'function') {
           recordAIDiagnostic('call_failed', {
             id: opts.id || '',
@@ -486,6 +507,11 @@
       var p2 = null;
       var p1Summary = '';
       GM._turnAiResults = {}; // 收集所有Sub-call的原始返回值
+      try {
+        if (global.TM && global.TM.MemoryTrace && typeof global.TM.MemoryTrace.ensureTurnTrace === 'function') {
+          global.TM.MemoryTrace.ensureTurnTrace(GM, { source: 'endturn.runMain' });
+        }
+      } catch(_) {}
       GM._subcallTimings = {}; // 收集每个Sub-call的耗时
       if (typeof ensureAIDiagnostics === 'function') ensureAIDiagnostics(GM.turn || 0);
       if (typeof setAIBranchDiagnostic === 'function') setAIBranchDiagnostic('main', 'running', 'sc1 family pending');
@@ -534,7 +560,7 @@
         // tier 1·必含·任何 model cap 都包含·核心账本与叙事 (10 字段)
         core: ['turn_summary', 'shizhengji_basis', 'shilu_text', 'szj_title', 'shizhengji', 'szj_summary', 'player_status', 'events', 'char_updates', 'edict_feedback'],
         // tier 2·高频·standard+·常用业务字段 (10 字段)
-        common: ['fiscal_adjustments', 'personnel_changes', 'office_changes', 'faction_relation_changes', 'faction_relation_shift', 'army_changes', 'province_changes', 'character_deaths', 'npc_actions', 'edict_lifecycle_update'],
+        common: ['fiscal_adjustments', 'personnel_changes', 'office_changes', 'faction_relation_changes', 'faction_relation_shift', 'army_changes', 'province_changes', 'character_deaths', 'npc_actions', 'edict_lifecycle_update', 'character_memory_updates'],
         // tier 3·可选·full·高级业务 (5 字段)
         extended: ['party_changes', 'class_changes', 'class_alert_responses', 'economic_advice', 'table_updates']
       };
@@ -582,6 +608,7 @@
               char_updates: { type: 'array', items: { type: 'object', additionalProperties: true } },
               character_deaths: { type: 'array', items: { type: 'object', additionalProperties: true } },
               npc_actions: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              character_memory_updates: { type: 'array', items: { type: 'object', additionalProperties: true } },
               edict_feedback: { type: 'array', items: { type: 'object', additionalProperties: true } },
               dialogue_commitment_feedback: { type: 'array', items: { type: 'object', additionalProperties: true } },
               fiscal_adjustments: { type: 'array', items: { type: 'object', additionalProperties: true } },
@@ -663,7 +690,8 @@
       }
       function _buildSc1dJsonSchema() {
         return { name: 'sc1d_record', strict: true, schema: { type: 'object', additionalProperties: true, properties: {
-          shilu_text: { type: 'string' }, szj_title: { type: 'string' }, shizhengji: { type: 'string' }, szj_summary: { type: 'string' }
+          shilu_text: { type: 'string' }, szj_title: { type: 'string' }, shizhengji: { type: 'string' }, szj_summary: { type: 'string' },
+          basis_refs: { type: 'array', items: { type: 'object', additionalProperties: true } }
         }, required: [] } };
       }
       function _buildSc15JsonSchema() {
@@ -1263,10 +1291,23 @@
           // gate 节流·跳过整段 SC_RECALL·_recallResults 保持空数组
           throw '__SKIP_RECALL__';
         }
+        var _traceSuppressed = [];
         var _think = aiThinking || '';
         var _thinkJson = extractJSON(_think);
-        if (_thinkJson && Array.isArray(_thinkJson.memoryQueries) && _thinkJson.memoryQueries.length > 0) {
-          var _mqList = _thinkJson.memoryQueries.slice(0, 4);
+        var _baseMemoryQueries = (_thinkJson && Array.isArray(_thinkJson.memoryQueries)) ? _thinkJson.memoryQueries : [];
+        var _mqList = _baseMemoryQueries.slice(0, 4);
+        if (global.TM && global.TM.MemoryRetrieval && typeof global.TM.MemoryRetrieval.buildRecallQueries === 'function') {
+          try {
+            _mqList = global.TM.MemoryRetrieval.buildRecallQueries(GM, _baseMemoryQueries, {
+              turn: GM && GM.turn || 0,
+              sc1q: ctx && ctx.results && ctx.results.sc1q,
+              maxQueries: 6
+            });
+          } catch(_buildMqE) {
+            _mqList = _baseMemoryQueries.slice(0, 4);
+          }
+        }
+        if (_mqList.length > 0) {
           for (var _mqI = 0; _mqI < _mqList.length; _mqI++) {
             var q = _mqList[_mqI];
             if (!q || typeof q !== 'object') continue;
@@ -1276,6 +1317,16 @@
             var keywordRe = keywords.length > 0 ? new RegExp(keywords.map(function(k){return String(k).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}).join('|'), 'i') : null;
 
             // 源 1: NpcMemorySystem 人物记忆（精准）
+            if (global.TM && global.TM.MemoryRetrieval && typeof global.TM.MemoryRetrieval.collectPriorityHits === 'function') {
+              try {
+                var priorityHits = global.TM.MemoryRetrieval.collectPriorityHits(GM, q, {
+                  turn: GM && GM.turn || 0,
+                  sc1q: ctx && ctx.results && ctx.results.sc1q
+                });
+                if (priorityHits && priorityHits.length) allHits = allHits.concat(priorityHits);
+              } catch(_e0) {}
+            }
+
             if (typeof NpcMemorySystem !== 'undefined' && NpcMemorySystem.recallMemory) {
               try {
                 var npcHits = NpcMemorySystem.recallMemory({
@@ -1382,8 +1433,18 @@
                 // 加权总分
                 return vs * 0.45 + imp * 0.20 + rec * 0.15 + sp * 0.15 + dw * 0.05;
               };
-              allHits.forEach(function(h) { h._score = _scoreHit(h); });
-              allHits.sort(function(a, b) { return (b._score||0) - (a._score||0); });
+              if (global.TM && global.TM.MemoryRetrieval && typeof global.TM.MemoryRetrieval.rankHitsDetailed === 'function') {
+                var _rankedRecall = global.TM.MemoryRetrieval.rankHitsDetailed(allHits, { turn: _curT, GM: GM });
+                allHits = _rankedRecall.ranked || [];
+                if (_rankedRecall.suppressed && _rankedRecall.suppressed.length) {
+                  _traceSuppressed = _traceSuppressed.concat(_rankedRecall.suppressed);
+                }
+              } else if (global.TM && global.TM.MemoryRetrieval && typeof global.TM.MemoryRetrieval.rankHits === 'function') {
+                allHits = global.TM.MemoryRetrieval.rankHits(allHits, { turn: _curT, GM: GM });
+              } else {
+                allHits.forEach(function(h) { h._score = _scoreHit(h); });
+                allHits.sort(function(a, b) { return (b._score||0) - (a._score||0); });
+              }
               _recallResults.push({
                 query: q,
                 hits: allHits.slice(0, 12),  // 单查询 top-12 命中（按加权总分降序·KokoroMemo 范式）
@@ -1393,6 +1454,22 @@
           }
 
           if (_recallResults.length > 0) {
+            var _recallBudget = null;
+            try {
+              if (global.TM && global.TM.MemoryRetrieval && typeof global.TM.MemoryRetrieval.packForInjection === 'function') {
+                var _maxRecallTokens = (P && P.conf && P.conf.memoryRecallTokenBudget) || 1200;
+                var _packedRecall = global.TM.MemoryRetrieval.packForInjection(_recallResults, {
+                  maxTokens: _maxRecallTokens,
+                  perHitMaxChars: 100
+                });
+                _recallResults = _packedRecall.recallResults || _recallResults;
+                _recallBudget = { maxTokens: _packedRecall.maxTokens || _maxRecallTokens, tokenEstimate: _packedRecall.tokenEstimate || 0, diagnostics: _packedRecall.diagnostics || null };
+                if (_packedRecall.suppressed && _packedRecall.suppressed.length) {
+                  // budget_exceeded diagnostics are persisted through MemoryTrace.
+                  _traceSuppressed = _traceSuppressed.concat(_packedRecall.suppressed);
+                }
+              }
+            } catch(_packRecallE) {}
             GM._turnAiResults.recallResults = _recallResults;
             var _totalHits = _recallResults.reduce(function(s,r){return s+r.hits.length;},0);
             // 按源分类计数
@@ -1402,16 +1479,36 @@
             });
             var _srcSummary = Object.keys(_bySrc).map(function(k){return k+':'+_bySrc[k];}).join(' ');
             try {
-              if (typeof recordMemoryDiagnostic === 'function') recordMemoryDiagnostic('recall', { status: 'hit', queries: _thinkJson.memoryQueries.length, hits: _totalHits, bySource: _bySrc, gate: _gateDecision, snapshot: (typeof buildMemoryDiagnosticSnapshot === 'function' ? buildMemoryDiagnosticSnapshot(GM) : null) });
+              if (global.TM && global.TM.MemoryTrace && typeof global.TM.MemoryTrace.recordRetrieval === 'function') {
+                var _traceHits = [];
+                _recallResults.forEach(function(r) {
+                  (r.hits || []).forEach(function(h) { _traceHits.push(h); });
+                });
+                global.TM.MemoryTrace.recordRetrieval(GM, {
+                  id: 'SC_RECALL',
+                  status: 'hit',
+                  query: _mqList,
+                  gate: _gateDecision,
+                  sources: _bySrc,
+                  hits: _traceHits,
+                  suppressed: _traceSuppressed,
+                  budget: _recallBudget
+                });
+              }
             } catch(_) {}
-            _dbg('[SC_RECALL] 4 源检索:', _thinkJson.memoryQueries.length, '查询·总命中', _totalHits, '条·分布', _srcSummary);
+            try {
+              if (typeof recordMemoryDiagnostic === 'function') recordMemoryDiagnostic('recall', { status: 'hit', queries: _mqList.length, hits: _totalHits, bySource: _bySrc, gate: _gateDecision, snapshot: (typeof buildMemoryDiagnosticSnapshot === 'function' ? buildMemoryDiagnosticSnapshot(GM) : null) });
+            } catch(_) {}
+            _dbg('[SC_RECALL] 4 源检索:', _mqList.length, '查询·总命中', _totalHits, '条·分布', _srcSummary);
           }
         }
       } catch(_rcE) {
         if (_rcE === '__SKIP_RECALL__') {
+          try { if (global.TM && global.TM.MemoryTrace && typeof global.TM.MemoryTrace.recordRetrieval === 'function') global.TM.MemoryTrace.recordRetrieval(GM, { id: 'SC_RECALL', status: 'skipped', gate: _gateDecision, hits: [] }); } catch(_) {}
           // P10.4A gate 决定跳过·非错误·静默
           try { if (typeof recordMemoryDiagnostic === 'function') recordMemoryDiagnostic('recall', { status: 'skipped', gate: _gateDecision, snapshot: (typeof buildMemoryDiagnosticSnapshot === 'function' ? buildMemoryDiagnosticSnapshot(GM) : null) }); } catch(_) {}
         } else {
+          try { if (global.TM && global.TM.MemoryTrace && typeof global.TM.MemoryTrace.recordRetrieval === 'function') global.TM.MemoryTrace.recordRetrieval(GM, { id: 'SC_RECALL', status: 'fail', gate: _gateDecision, hits: [] }); } catch(_) {}
           try { if (typeof recordMemoryDiagnostic === 'function') recordMemoryDiagnostic('recall', { status: 'fail', error: String(_rcE && _rcE.message || _rcE), gate: _gateDecision }); } catch(_) {}
           _dbg('[SC_RECALL] 失败:', _rcE);
           // Phase 0 H8·失败 push ctx.meta.errors·诊断面板可见
@@ -1557,11 +1654,70 @@
         }
         // —— SC_RECALL 检索结果注入（XML 格式·转义·支持多源 hit 格式：npc/chronicle/shiji/foreshadow/vector）——
         if (_recallResults && _recallResults.length > 0) {
+          var _compiledRecall = null;
+          try {
+            if (global.TM && global.TM.MemoryContextCompiler && typeof global.TM.MemoryContextCompiler.compileRecall === 'function') {
+              _compiledRecall = global.TM.MemoryContextCompiler.compileRecall(_recallResults, {
+                turn: GM && GM.turn,
+                maxTokens: (P && P.conf && (P.conf.memoryRecallZoneTokenBudget || P.conf.memoryRecallTokenBudget)) || 1200,
+                perHitMaxChars: 100,
+                suppressed: _traceSuppressed
+              });
+            }
+          } catch(_compileRecallE) {
+            _compiledRecall = null;
+          }
+          if (_compiledRecall && _compiledRecall.text) {
+            var _compiledRecallStart = _recentHistory.length;
+            _recentHistory += '\n<recall-disclaimer>以下 memory-context 来自历史档案·已按权威、时间、范围与预算编排·若与当前回合硬状态冲突，以当前回合推演为准。</recall-disclaimer>\n';
+            _recentHistory += _compiledRecall.text;
+            try {
+              if (global.TM && global.TM.MemoryTrace && typeof global.TM.MemoryTrace.recordInjection === 'function') {
+                global.TM.MemoryTrace.recordInjection(GM, {
+                  lane: 'memory_context_compiler',
+                  stage: 'sc05-recall-compiler',
+                  text: _recentHistory.slice(_compiledRecallStart),
+                  items: (_compiledRecall.hits || []).map(function(hit) {
+                    return {
+                      id: hit.id || '',
+                      source: hit.source || '',
+                      reason: 'MemoryContextCompiler',
+                      lane: hit.lane || 'L6_retrieved_evidence',
+                      authority: hit.authority || '',
+                      authorityRank: hit.authorityRank,
+                      factStatus: hit.factStatus || '',
+                      confidence: hit.confidence,
+                      sourceRefs: Array.isArray(hit.sourceRefs) ? hit.sourceRefs : [],
+                      basisRefs: Array.isArray(hit.basisRefs) ? hit.basisRefs : []
+                    };
+                  }),
+                  suppressed: _compiledRecall.suppressed || [],
+                  tokenEstimate: _compiledRecall.tokenEstimate || ((typeof _tok === 'function') ? _tok(_compiledRecall.text) : 0)
+                });
+              }
+            } catch(_) {}
+          } else {
+          var _recallTraceStart = _recentHistory.length;
+          var _recallTraceItems = [];
+          var _recallZones = [];
+          var _recallZoneOrder = 10;
           var _xE3 = (typeof _escXML === 'function') ? _escXML : function(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;'); };
+          var _recallRefList = function(list) {
+            return (Array.isArray(list) ? list : []).slice(0, 4).map(function(ref) {
+              if (!ref) return '';
+              var t = String(ref.type || '').replace(/\s+/g, '_').slice(0, 40);
+              var id = String(ref.id || '').replace(/\s+/g, '_').slice(0, 80);
+              return (t && id) ? (t + ':' + id) : '';
+            }).filter(Boolean).join('|');
+          };
           // P10.4D 护栏（KokoroMemo injector.py 范式）：明确告知 AI 这些是历史记忆·可能不完整或过期
           _recentHistory += '\n<recall-disclaimer>以下 recalled-memories 来自历史档案·可能不完整或过期·不能覆盖本回合刚发生的事实·若有冲突以当前回合推演为准。</recall-disclaimer>\n';
           _recentHistory += '\n<recalled-memories>\n';
+          var _recallHeaderText = _recentHistory.slice(_recallTraceStart);
+          var _recallFooterText = '</recalled-memories>\n';
           _recallResults.forEach(function(rr) {
+            var _recallGroupStart = _recentHistory.length;
+            var _recallGroupMeta = { score: 0, sourceRefs: [], basisRefs: [], authority: '', authorityRank: null, visibility: '', factStatus: '', source: 'SC_RECALL' };
             _recentHistory += '  <recall purpose="' + _xE3((rr.query.purpose||'').substring(0,40)) + '">\n';
             rr.hits.slice(0, 8).forEach(function(hit) {
               // 兼容两种 hit 格式：旧 (char/event/importance) + 新多源 (source/text/turn[/char][/importance])
@@ -1570,17 +1726,87 @@
               var _hitSource = hit.source || (hit.char ? 'npc' : 'unknown');
               var _hitImportance = Math.round(hit.importance || 5);
               var _hitStatus = hit.status || '';
+              var _hitSourceRefs = _recallRefList(hit.sourceRefs);
+              var _hitBasisRefs = _recallRefList(hit.basisRefs);
+              if (!_recallGroupMeta.source || _recallGroupMeta.source === 'SC_RECALL') _recallGroupMeta.source = _hitSource;
+              if (!_recallGroupMeta.sourceRefs.length && Array.isArray(hit.sourceRefs)) _recallGroupMeta.sourceRefs = hit.sourceRefs;
+              if (!_recallGroupMeta.basisRefs.length && Array.isArray(hit.basisRefs)) _recallGroupMeta.basisRefs = hit.basisRefs;
+              if (!_recallGroupMeta.authority && hit.authority) _recallGroupMeta.authority = hit.authority;
+              if (_recallGroupMeta.authorityRank == null && hit.authorityRank != null) _recallGroupMeta.authorityRank = hit.authorityRank;
+              if (!_recallGroupMeta.visibility && hit.visibility) _recallGroupMeta.visibility = hit.visibility;
+              if (!_recallGroupMeta.factStatus && hit.factStatus) _recallGroupMeta.factStatus = hit.factStatus;
+              _recallGroupMeta.score = Math.max(_recallGroupMeta.score, typeof hit._score === 'number' ? hit._score : (typeof hit.relevance === 'number' ? hit.relevance : 0.5));
               _recentHistory += '    <hit source="' + _xE3(_hitSource) + '"';
               if (_hitChar) _recentHistory += ' char="' + _xE3(_hitChar) + '"';
               _recentHistory += ' turn="' + (hit.turn||0) + '" importance="' + _hitImportance + '"';
               if (_hitStatus) _recentHistory += ' status="' + _xE3(_hitStatus) + '"';
+              if (hit.authority) _recentHistory += ' authority="' + _xE3(hit.authority) + '"';
+              if (hit.authorityRank != null) _recentHistory += ' authority-rank="' + _xE3(hit.authorityRank) + '"';
+              if (hit.factStatus) _recentHistory += ' fact-status="' + _xE3(hit.factStatus) + '"';
+              if (hit.lane) _recentHistory += ' lane="' + _xE3(hit.lane) + '"';
+              if (_hitSourceRefs) _recentHistory += ' source-refs="' + _xE3(_hitSourceRefs) + '"';
+              if (_hitBasisRefs) _recentHistory += ' basis-refs="' + _xE3(_hitBasisRefs) + '"';
               // P12.3 显示 5 维加权总分（如有）·让 AI 知道哪些命中更可信
               if (typeof hit._score === 'number') _recentHistory += ' score="' + Math.round(hit._score * 100) / 100 + '"';
               _recentHistory += '>' + _xE3(String(_hitText).substring(0, 100)) + '</hit>\n';
+              _recallTraceItems.push({
+                id: hit.id || '',
+                source: _hitSource,
+                reason: 'SC_RECALL',
+                lane: hit.lane || 'L6_retrieved_evidence',
+                authority: hit.authority || '',
+                authorityRank: hit.authorityRank,
+                factStatus: hit.factStatus || '',
+                confidence: hit.confidence,
+                sourceRefs: Array.isArray(hit.sourceRefs) ? hit.sourceRefs : [],
+                basisRefs: Array.isArray(hit.basisRefs) ? hit.basisRefs : []
+              });
             });
             _recentHistory += '  </recall>\n';
+            _recallZones.push({
+              id: 'recall-group-' + (_recallZones.length + 1),
+              lane:'L6_retrieved_evidence',
+              text: _recentHistory.slice(_recallGroupStart),
+              order: _recallZoneOrder++,
+              score: _recallGroupMeta.score,
+              source: _recallGroupMeta.source,
+              reason: 'SC_RECALL',
+              authority: _recallGroupMeta.authority,
+              authorityRank: _recallGroupMeta.authorityRank,
+              visibility: _recallGroupMeta.visibility,
+              factStatus: _recallGroupMeta.factStatus,
+              sourceRefs: _recallGroupMeta.sourceRefs,
+              basisRefs: _recallGroupMeta.basisRefs
+            });
           });
           _recentHistory += '</recalled-memories>\n';
+          var _recallPackedZones = null;
+          if (_recallZones.length && global.TM && global.TM.ContextZones && typeof global.TM.ContextZones.packZones === 'function') {
+            var _recallZoneBudget = (P && P.conf && (P.conf.memoryRecallZoneTokenBudget || P.conf.memoryRecallTokenBudget)) || 1200;
+            _recallPackedZones = global.TM.ContextZones.packZones([
+              { id:'recall-header', lane:'L6_retrieved_evidence', text:_recallHeaderText, mustKeep:true, order:0, source:'SC_RECALL', reason:'recall header' }
+            ].concat(_recallZones).concat([
+              { id:'recall-footer', lane:'L6_retrieved_evidence', text:_recallFooterText, mustKeep:true, order:999999, source:'SC_RECALL', reason:'recall footer' }
+            ]), { maxTokens:_recallZoneBudget });
+            _recentHistory = _recentHistory.slice(0, _recallTraceStart) + (_recallPackedZones.text || '');
+          }
+          try {
+            if (global.TM && global.TM.MemoryTrace && typeof global.TM.MemoryTrace.recordInjection === 'function') {
+              var _recallInjectedText = _recentHistory.slice(_recallTraceStart);
+              if (_recallPackedZones && global.TM.ContextZones && typeof global.TM.ContextZones.recordZoneInjection === 'function') {
+                global.TM.ContextZones.recordZoneInjection(GM, _recallPackedZones, { stage:'sc05-recall' });
+              } else {
+                global.TM.MemoryTrace.recordInjection(GM, {
+                lane: 'L6_retrieved_evidence',
+                stage: 'sc05',
+                text: _recallInjectedText,
+                items: _recallTraceItems,
+                tokenEstimate: (typeof _tok === 'function') ? _tok(_recallInjectedText) : 0
+                });
+              }
+            }
+          } catch(_) {}
+          }
         }
         // —— 因果图近期边（转义）——
         if (GM._causalGraph && Array.isArray(GM._causalGraph.edges) && GM._causalGraph.edges.length > 0) {
@@ -1874,7 +2100,26 @@
         }
       } catch(_consE){ _dbg('[sc1 consolidate inject] fail:', _consE); }
       if (ctx.apply) ctx.apply._hardConstraints = _hardConstraints;
-      var tp1 = _sc28Inject + _stateBoard + _consolidated + _timeRef + _futureC + _wsSnap + _memTblInj + tp + _preAnalysis + _hardConstraints + "\n请仅返回绝JSON，包含:\n"+
+      var _sc1Prefix = _sc28Inject + _stateBoard + _consolidated + _timeRef + _futureC + _wsSnap + _memTblInj;
+      try {
+        if (window.TM && TM.ContextZones && typeof TM.ContextZones.packZones === 'function') {
+          var _sc1ZonePacked = TM.ContextZones.packZones([
+            { id:'sc28_snapshot', lane:'L3_long_term_affair', text:_sc28Inject, mustKeep:true, order:10, source:'sc28', reason:'last turn world snapshot' },
+            { id:'state_board', lane:'L3_long_term_affair', text:_stateBoard, mustKeep:true, order:20, source:'state_board', reason:'last turn state board' },
+            { id:'consolidated_memory', lane:'L5_advisory_context', text:_consolidated, order:30, score:0.8, source:'consolidated', reason:'last turn consolidation' },
+            { id:'time_reference', lane:'L1_world_truth', text:_timeRef, mustKeep:true, order:40, source:'time_ref', reason:'turn chronology' },
+            { id:'future_constraints', lane:'L2_active_law_commitment', text:_futureC, mustKeep:true, order:50, source:'future_constraints', reason:'affects future constraints' },
+            { id:'world_snapshot', lane:'L1_world_truth', text:_wsSnap, mustKeep:true, order:60, source:'world_snapshot', reason:'current world truth' },
+            { id:'memory_tables', lane:'L2_active_law_commitment', text:_memTblInj, mustKeep:true, order:70, source:'mem_tables', reason:'structured memory tables' }
+          ], {
+            maxTokens: (P && P.conf && P.conf.sc1PrefixTokenBudget) || 0,
+            defaultMaxTokens: 0
+          });
+          _sc1Prefix = _sc1ZonePacked.text || _sc1Prefix;
+          if (TM.ContextZones.recordZoneInjection) TM.ContextZones.recordZoneInjection(GM, _sc1ZonePacked, { stage:'sc1-prefix' });
+        }
+      } catch(_czE) { _dbg('[ContextZones sc1-prefix] fail:', _czE); }
+      var tp1 = _sc1Prefix + tp + _preAnalysis + _hardConstraints + "\n请仅返回绝JSON，包含:\n"+
         "{\"turn_summary\":\"一句话概括本回合最重要的变化(30-50字，如:北境叛乱平定，国库因军费骤降三成)\","+
         // 实录：纯文言史官体，仿资治通鉴/历代实录
         "\"shilu_text\":\"实录"+_shiluMin+"-"+_shiluMax+"字——纯文言文(仿《资治通鉴》《明实录》)，以干支月份/日为单位，记事不评论。只记可验证事实：诏令、任免、战事、灾异、人事大变。句式仿实录：'某月某日，上诏……'/'是月，某地……'/'上命某官……'。禁止白话词汇，禁止主观评论。\","+
@@ -2097,6 +2342,7 @@
         "\"route_disruptions\":[{\"route\":\"\u8D77\u70B9-\u7EC8\u70B9\",\"reason\":\"\u963B\u65AD\u539F\u56E0(\u6218\u4E71/\u6D2A\u6C34/\u53DB\u519B\u5360\u636E)\",\"resolved\":false}],"+
         "\"foreshadowing\":[{\"action\":\"plant/resolve\",\"content\":\"\u4F0F\u7B14\u5185\u5BB9\",\"type\":\"threat/opportunity/mystery/romance\",\"resolveCondition\":\"\u56DE\u6536\u6761\u4EF6(plant\u65F6\u586B)\"}],"+
         "\"current_issues_update\":[{\"action\":\"add/resolve/update\",\"title\":\"\u65F6\u653F\u8BAE\u9898\u6807\u9898(\u5982:\u6CB3\u5317\u5175\u997F\u62D6\u6B20\u3001\u6C34\u5229\u5E74\u4E45\u5931\u4FEE\u3001\u67D0\u5DDE\u523A\u53F2\u8D2A\u8150\u88AB\u52BE)\",\"category\":\"\u519B\u653F/\u8D22\u8D4B/\u6C34\u5229/\u5409\u51F6/\u8FB9\u9632/\u5F62\u52BF/\u4EBA\u4E8B/\u6C11\u751F\",\"description\":\"\u534A\u6587\u8A00200-500\u5B57\uFF0C\u7ED3\u5408\u63A8\u6F14\u5B9E\u9645\u7EC6\u5316\u63CF\u8FF0\u5177\u4F53\u65F6\u653F\u95EE\u9898\u7684\u6765\u7531\u3001\u6D89\u53CA\u4EBA\u7269\u3001\u5F53\u524D\u6001\u52BF\",\"id\":\"\u66F4\u65B0/\u89E3\u51B3\u65F6\u586B\u5DF2\u6709\u8981\u52A1id\"}],"+
+        "\"character_memory_updates\":[{\"actor\":\"NPC name\",\"memory_type\":\"commitment/belief/relationship/preference/grudge/favor/fear/intention/reputation\",\"memory\":\"one concrete actor-scoped memory; no hard_state\",\"private\":false,\"confidence\":0.7,\"source_refs\":[{\"type\":\"jishiRecords/courtRecords/events/edictTracker\",\"id\":\"source id\"}]}],"+
         "\"map_changes\":{\"ownership_changes\":[],\"development_changes\":[]},"+
         // ═══ AI 至高权力·v2 新增语义通道（可选·按需使用）═══
         // char_updates 条目可混搭传统 delta 字段 + 以下扩展字段：
@@ -3058,12 +3304,73 @@
       } catch(_tokE) {}
       // ★ 后置强调（depth=0 等价物·LSR 范式）：把表操作规则投到 user prompt 末尾·克服长上下文头部衰减
       if (_memTblRule) tp1 += '\n\n' + _memTblRule;
+      tp1 += '\n\n[Memory output contract]\n';
+      tp1 += 'Optional field character_memory_updates must be an array. Each item must include actor, memory_type, memory, confidence, source_refs. ';
+      tp1 += 'Use it only for durable actor-scoped memory: commitments, beliefs, grudges, favors, intentions, reputation, relationship changes. ';
+      tp1 += 'Do not write hard_state here; deaths, offices, locations, resources, laws, and facts already owned by engine fields must stay in their proper schema fields. ';
+      tp1 += 'memory_type must be one of commitment/belief/relationship/preference/grudge/favor/fear/intention/reputation; confidence is 0-1; source_refs must point to jishiRecords/courtRecords/events/edictTracker or another concrete source.\n';
       // Phase 3 A10·SC1 加 economic_advice 字段·SC17 让位·SC1 直接出经济分析
       // 旧·SC17 单独 LLM 调用产 fiscal_analysis/economic_advice·~$0.02/turn
       // 新·SC1 同 prompt 顺便出 economic_advice·SC17 skip·_specialtySummary.sc17 从 SC1.economic_advice 派生
       tp1 += '\n\n【新增字段·economic_advice (Phase 3 A10·SC17 已让位)】\n';
       tp1 += '  SC1 输出 JSON 需包含 "economic_advice"·string·100-200 字·内容·当前财政完整分析(收入来源/支出压力/盈亏)·通胀压力·下回合资源预测·应该做什么/不应该做什么·\n';
       tp1 += '  无突出经济变化也必须给出·至少给一句"国库平稳·税入正常"\n';
+
+      // Memory Phase·SC1_PRE_CONTEXT：真实主推演前编译 Envelope/rollup 上下文，并写入 trace 供审计。
+      try {
+        if (global.TM && global.TM.MemoryContextCompiler && typeof global.TM.MemoryContextCompiler.compileFromGM === 'function') {
+          var _sc1MemBudgetRaw = (P && P.conf && P.conf.memorySc1ContextTokenBudget != null)
+            ? P.conf.memorySc1ContextTokenBudget
+            : (P && P.conf && P.conf.memoryTurnContextTokenBudget);
+          var _sc1MemBudget = Number(_sc1MemBudgetRaw == null ? 1800 : _sc1MemBudgetRaw);
+          if (_sc1MemBudget > 0) {
+            if (_sc1MemBudget < 300) _sc1MemBudget = 300;
+            var _sc1MemCompileOpts = {
+              turn: GM && GM.turn,
+              audience: 'system',
+              actorScope: 'system',
+              intent: 'turn_inference',
+              maxTokens: _sc1MemBudget,
+              sc1q: (ctx && ctx.results && ctx.results.sc1q) || null
+            };
+            var _sc1CompiledContext = global.TM.MemoryContextCompiler.compileFromGM(GM, _sc1MemCompileOpts);
+            if (_sc1CompiledContext && _sc1CompiledContext.text) {
+              var _sc1MemoryBlock = '<memory-context-disclaimer>以下 SC1_PRE_CONTEXT 来自结构化记忆档案、编年/时政/人物 rollup 与权威账本投影；用于推演依据，不得覆盖本回合硬状态、死亡、任免、资源与显式诏令。</memory-context-disclaimer>\n' + _sc1CompiledContext.text;
+              tp1 += '\n\n=== SC1_PRE_CONTEXT·structured memory context ===\n' + _sc1MemoryBlock;
+              try {
+                var _MT = global.TM && global.TM.MemoryTrace;
+                if (_MT && typeof _MT.recordCompiledContext === 'function') {
+                  _MT.recordCompiledContext(GM, {
+                    id: 'SC1_PRE_CONTEXT',
+                    stage: 'sc1-pre-inference',
+                    lane: 'memory_context_compiler',
+                    compiled: _sc1CompiledContext,
+                    text: _sc1MemoryBlock,
+                    intent: 'turn_inference',
+                    audience: 'system',
+                    actorScope: 'system',
+                    maxTokens: _sc1MemBudget,
+                    compileOpts: _sc1MemCompileOpts
+                  });
+                }
+                if (_MT && typeof _MT.recordInjection === 'function') {
+                  _MT.recordInjection(GM, {
+                    lane: 'memory_context_compiler',
+                    stage: 'sc1-pre-inference',
+                    text: _sc1MemoryBlock,
+                    items: _sc1CompiledContext.hits || [],
+                    suppressed: _sc1CompiledContext.suppressed || [],
+                    tokenEstimate: _sc1CompiledContext.tokenEstimate || 0
+                  });
+                }
+              } catch(_sc1MemTraceE) { _dbg('[SC1_PRE_CONTEXT] trace fail:', _sc1MemTraceE); }
+            }
+          }
+        }
+      } catch(_sc1MemCtxE) {
+        _dbg('[SC1_PRE_CONTEXT] compile fail:', _sc1MemCtxE);
+        try { if (typeof recordSubcallError === 'function') recordSubcallError('sc1', 'memory_context_compile', _sc1MemCtxE); } catch(_) {}
+      }
 
       // Phase 2.5·sc1q.required_sc1_actions LSR·prompt 末尾压住·让 SC1 必须 cover sc1q 给的硬性条目
       try {
@@ -3252,6 +3559,31 @@
       // ★ 应用 12 表更新·三通道兼容（Phase 5.3 修 OpenAI response_format='json_object' 屏蔽 <tableEdit> 的致命 bug）
       try {
         if (window.MemTables) {
+          function _stableMemTableValue(value) {
+            if (value == null) return '';
+            if (typeof value !== 'object') return String(value);
+            if (Array.isArray(value)) return '[' + value.map(_stableMemTableValue).join(',') + ']';
+            return '{' + Object.keys(value).sort().map(function(k) {
+              return k + ':' + _stableMemTableValue(value[k]);
+            }).join(',') + '}';
+          }
+          function _dedupeMemTableOps(ops) {
+            var seen = {};
+            var out = [];
+            (Array.isArray(ops) ? ops : []).forEach(function(op) {
+              if (!op) return;
+              var key = [
+                String(op.cmd || ''),
+                String(op.tableIdx != null ? op.tableIdx : ''),
+                String(op.rowIdx != null ? op.rowIdx : ''),
+                _stableMemTableValue(op.values || {})
+              ].join('|');
+              if (seen[key]) return;
+              seen[key] = true;
+              out.push(op);
+            });
+            return out;
+          }
           var _mtTotalOps = [];
           // 通道 A：sc1 JSON 字段 p1.table_updates 数组（OpenAI 强制 json_object 时唯一可走通道·结构化最稳）
           if (p1 && Array.isArray(p1.table_updates) && p1.table_updates.length > 0) {
@@ -3280,6 +3612,7 @@
             }
           }
           if (_mtTotalOps.length > 0) {
+            _mtTotalOps = _dedupeMemTableOps(_mtTotalOps);
             var _mtStats = MemTables.applyAIOps(_mtTotalOps, { actor: 'ai' });
             _dbg('[MemTables sc1] applied:', _mtStats,
                  '·channels: json=' + ((p1 && p1.table_updates) ? p1.table_updates.length : 0) +
@@ -3367,6 +3700,7 @@
         tp1d += 'SC1结构化账本：' + _packSc1d(_facts1d, 12000) + '\n\n';
         tp1d += '请返回严格 JSON，只包含以下字段：\n';
         tp1d += '{"shilu_text":"实录' + _shiluMin + '-' + _shiluMax + '字。纯文言史官体，仿《资治通鉴》《明实录》，以月日/是月/上命为句式，只记可验证事实，不评论。","szj_title":"时政记副标题，七字对仗两句，用顿号或逗号分隔。","shizhengji":"时政记正文' + _szjMin + '-' + _szjMax + '字。仿朝政纪要体，分3-5段，逐条复述玩家诏令/奏疏批复/问对朝议，并写执行者、执行过程、阻力、实际效果、遗留隐患。不得编造 SC1 账本没有的变化。","szj_summary":"时政记总结一句话，概括局势与隐患。"}';
+        tp1d += '\n可选字段 basis_refs：数组，列出 shilu_text/shizhengji 所依据的 SC1 字段、诏令、问对或奏疏摘要；不得把 basis_refs 当作新增事实。';
         var _sc1dBaseTok = Math.min(_effectiveOutCap || 7000, 7000);
         var _sc1dBody = {model:P.ai.model||'gpt-4o', messages:[{role:'system', content:_maybeCacheSys(sysP)}, {role:'user', content:tp1d}], temperature:Math.max(0.35, Math.min(0.75, _modelTemp || 0.6)), max_tokens:_tok(_sc1dBaseTok)};
         if (_modelFamily === 'openai') _sc1dBody.response_format = { type:'json_object' };
@@ -3386,6 +3720,7 @@
           p1.szj_title = p1d.szj_title || p1d.shizhengji_title || p1d.title || p1.szj_title || '';
           p1.shizhengji = p1d.shizhengji || p1d.shizheng || p1d.szj || p1.shizhengji || '';
           p1.szj_summary = p1d.szj_summary || p1d.shizhengji_summary || p1d.summary || p1.szj_summary || '';
+          if (Array.isArray(p1d.basis_refs)) p1.basis_refs = p1d.basis_refs.slice(0, 16);
           if (!p1.zhengwen) p1.zhengwen = p1.shizhengji;
           GM._turnAiResults.subcall1 = p1;
           ctx.results.sc1d = p1d;

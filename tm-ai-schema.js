@@ -194,6 +194,12 @@
       requiredSubFields: ['action'],
       consumedBy: ['endturn:9597']
     },
+    character_memory_updates: {
+      type: 'array',
+      desc: 'AI-proposed character memory candidates; WriteGate only, never direct hard state',
+      requiredSubFields: ['actor', 'memory', 'confidence', 'source_refs'],
+      consumedBy: ['MemoryTurnInference.collectPostTurnCandidates']
+    },
 
     // ──────────────────────────────────────────────
     // NPC 互动与诏令问责

@@ -66,6 +66,23 @@
     'memorialObjection','lostVirtueRumor'
   ];
 
+  // ── P-ZV7 皇威·按源差异化封顶（E.B 锁定·明史轻重分档）──
+  //   加分源各自的累计上限（ceiling）：单一来源最多把皇威抬高这么多。selfBlame(罪己)不当常规加分→0。
+  var HUANGWEI_SOURCE_CAP = {
+    militaryVictory: 20, territoryExpansion: 18, personalCampaign: 18, suppressRevolt: 15,
+    executeRebelMinister: 12, structuralReform: 12, grandCeremony: 10, benevolence: 10,
+    tribute: 10, rehabilitation: 8, culturalAchievement: 8, auspicious: 6, imperialFuneral: 6,
+    selfBlame: 0, _default: 12
+  };
+  //   扣分源各自的累计下限（floor·此处存绝对值）：单一来源最多把皇威拉低这么多。越亡国级越深。
+  //   heavenlySign(天象) 封顶 25 沿用 P-5TK 特殊数，且其衰减仍走 P-5TK 的 0.10 比例（不进统一 0.5/回合）。
+  var HUANGWEI_DRAIN_CAP = {
+    imperialFlight: 50, capitalFall: 30, forcedAbdication: 25, personalCampaignFail: 20,
+    deposeFailure: 18, militaryDefeat: 18, diplomaticHumiliation: 15, idleGovern: 15,
+    brokenPromise: 12, courtScandal: 12, lostVirtueRumor: 10, familyScandal: 10,
+    memorialObjection: 8, heavenlySign: 25, selfBlame: 24, _default: 15
+  };
+
   function _readInitialValue(key, defaultVal) {
     var sc = null;
     try { sc = (typeof global.findScenarioById === 'function') ? global.findScenarioById(global.GM.sid) : null; } catch(e){try{window.TM&&TM.errors&&TM.errors.captureSilent(e,'tm-authority-engines');}catch(_){}}
@@ -118,6 +135,8 @@
       HUANGWEI_SOURCES_14.forEach(function(s){ if (G.huangwei.sources[s] === undefined) G.huangwei.sources[s] = 0; });
       HUANGWEI_DRAINS_14.forEach(function(d){ if (G.huangwei.drains[d] === undefined) G.huangwei.drains[d] = 0; });
     }
+    // P-ZV7 罪己诏：selfBlame 在 SOURCES_14、不在 DRAINS_14·但罪己走 drains 记账·此处兜底初始化好让 adjustHuangwei 记得进去
+    if (G.huangwei.drains && G.huangwei.drains.selfBlame === undefined) G.huangwei.drains.selfBlame = 0;
     return G.huangwei;
   }
 
@@ -155,6 +174,16 @@
     if (!hw) return { ok: false, reason: 'missing-huangwei' };
     var amount = Number(delta);
     if (!isFinite(amount) || amount === 0) return { ok: false, reason: 'invalid-delta' };
+    // P-ZV7 ③按源封顶：先按该源已累计余量削这笔 delta（削后 index 与 sources/drains 同口径·同民心套路）。
+    //   加分→sources[source] 不超 ceiling；扣分→drains[source] 不超 floor 绝对值。源不在表里走 _default。
+    if (amount > 0) {
+      var _hwCeil = (HUANGWEI_SOURCE_CAP[source] !== undefined) ? HUANGWEI_SOURCE_CAP[source] : HUANGWEI_SOURCE_CAP._default;
+      amount = Math.max(0, Math.min(amount, _hwCeil - (Number(hw.sources[source]) || 0)));
+    } else {
+      var _hwFloor = (HUANGWEI_DRAIN_CAP[source] !== undefined) ? HUANGWEI_DRAIN_CAP[source] : HUANGWEI_DRAIN_CAP._default;
+      amount = -Math.max(0, Math.min(-amount, _hwFloor - (Number(hw.drains[source]) || 0)));
+    }
+    if (amount === 0) return { ok: false, reason: 'source-capped', source: source };
     var cleanReason = _authorityCleanReason(reason, {
       defaultReason: source || 'huangwei-change',
       allowUnattributed: true
@@ -224,11 +253,65 @@
       hw.index = Math.min(100, hw.index + ((hw.drains.heavenlySign || 0) - P5TK_HW_CAP));
       hw.drains.heavenlySign = P5TK_HW_CAP;
     }
+    // ── P-ZV7 ①皇威·扣分项自然衰减：drains 每回合朝 0 衰 0.5×mr 回血 index（加分项 sources 不衰）。
+    //   天象 drain 上面已按 P-5TK 特殊数(0.10/封25)单独处理·此处跳过。其余 drain 衰减 + 超本源封顶则削平回血。衰减率·可调。
+    var P_ZV7_HW_DECAY = 0.5;
+    HUANGWEI_DRAINS_14.forEach(function(d) {
+      if (d === 'heavenlySign') return;
+      var dv = hw.drains[d] || 0;
+      if (dv > 0) {
+        var heal = Math.min(dv, P_ZV7_HW_DECAY * mr);
+        hw.index = Math.min(100, hw.index + heal);
+        hw.drains[d] = Math.max(0, dv - heal);
+      }
+      var cap = (HUANGWEI_DRAIN_CAP[d] !== undefined) ? HUANGWEI_DRAIN_CAP[d] : HUANGWEI_DRAIN_CAP._default;
+      if ((hw.drains[d] || 0) > cap) {
+        hw.index = Math.min(100, hw.index + ((hw.drains[d] || 0) - cap));
+        hw.drains[d] = cap;
+      }
+    });
+    // selfBlame(罪己)走 drains 但不在 DRAINS_14·同样衰减回血（罪己的皇威损会衰·与民心增益对称·见罪己诏批次）
+    if ((hw.drains.selfBlame || 0) > 0) {
+      var sbHeal = Math.min(hw.drains.selfBlame, P_ZV7_HW_DECAY * mr);
+      hw.index = Math.min(100, hw.index + sbHeal);
+      hw.drains.selfBlame = Math.max(0, hw.drains.selfBlame - sbHeal);
+    }
     // P-5TK·衰减/封顶改了 hw.index → 同步重算段位 phase + 按新 index 修正暴君/失威 active（否则 index 变了 phase 缓存滞留·面板段位与威望脱节·authority-ui 还拿 phase 算皇威乘数）
     hw.phase = _getHuangweiPhase(hw.index);
     hw.tyrantSyndrome.active = hw.index > 90 ? true : (hw.index < 85 ? false : hw.tyrantSyndrome.active);
     hw.lostAuthorityCrisis.active = hw.index < 30 ? true : (hw.index > 35 ? false : hw.lostAuthorityCrisis.active);
     _updatePerceivedHuangwei(hw);
+  }
+
+  // ── P-ZV7 ⑤皇威·读档削平：把各源累计 sources/drains 夹回封顶内·同步修正 index（老档历史超额账规整）。
+  //   超 ceiling 的加分→削超额并回落 index；超 floor 的扣分→削超额并回血 index。由 migration 读档调一次（幂等）。
+  function regularizeHuangweiCaps(root) {
+    var G = root || global.GM;
+    if (!G || !G.huangwei) return { adjusted: 0, detail: [] };
+    var hw = G.huangwei;
+    if (!hw.sources) hw.sources = {};
+    if (!hw.drains) hw.drains = {};
+    var out = [];
+    Object.keys(hw.sources).forEach(function(s) {
+      var cap = (HUANGWEI_SOURCE_CAP[s] !== undefined) ? HUANGWEI_SOURCE_CAP[s] : HUANGWEI_SOURCE_CAP._default;
+      var cur = Number(hw.sources[s]) || 0;
+      if (cur > cap) {
+        hw.index = Math.max(0, hw.index - (cur - cap));   // 加分超额→回落 index
+        hw.sources[s] = cap; out.push(s + ' +' + cur + '→+' + cap);
+      }
+    });
+    Object.keys(hw.drains).forEach(function(d) {
+      var cap = (HUANGWEI_DRAIN_CAP[d] !== undefined) ? HUANGWEI_DRAIN_CAP[d] : HUANGWEI_DRAIN_CAP._default;
+      var cur = Number(hw.drains[d]) || 0;
+      if (cur > cap) {
+        hw.index = Math.min(100, hw.index + (cur - cap));  // 扣分超额→回血 index
+        hw.drains[d] = cap; out.push(d + ' -' + cur + '→-' + cap);
+      }
+    });
+    hw.index = Math.max(0, Math.min(100, hw.index));
+    if (typeof _getHuangweiPhase === 'function') hw.phase = _getHuangweiPhase(hw.index);
+    if (typeof _updatePerceivedHuangwei === 'function') _updatePerceivedHuangwei(hw);
+    return { adjusted: out.length, detail: out };
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -243,6 +326,20 @@
 
   var HUANGQUAN_SOURCES_8 = ['purge','secretPolice','personalRule','structureReform','militaryCentral','tour','heirDecision','executePM'];
   var HUANGQUAN_DRAINS_8 = ['trustedMinister','eunuchsRelatives','youngOrIllness','factionConsuming','idleGovern','militaryDefeat','cabinetization','memorialObjection'];
+
+  // ── P-ZV7 皇权·按源差异化封顶（E.B 草案·明史轻重）。高位反噬另有民心倒U(tm-feedback-loops 专制过严)·此处不重复罚。
+  //   加分源累计上限（ceiling·集权）：单源最多把皇权抬高这么多。
+  var HUANGQUAN_SOURCE_CAP = {
+    purge: 18, executePM: 15, personalRule: 15, militaryCentral: 15,
+    structureReform: 12, secretPolice: 12, heirDecision: 10, tour: 8, _default: 12
+  };
+  //   扣分源累计下限（floor·此处存绝对值·分权）：单源最多把皇权拉低这么多。
+  var HUANGQUAN_DRAIN_CAP = {
+    youngOrIllness: 25, trustedMinister: 22, cabinetization: 18, factionConsuming: 18,
+    eunuchsRelatives: 15, idleGovern: 15, memorialObjection: 10, militaryDefeat: 10, _default: 15
+  };
+  // ① 选择性衰减分类：事件类（过去就淡）每回合衰；状态类（前因在就维持·消失才回暖）不无脑衰·靠重评/前因判定。
+  var HUANGQUAN_DRAIN_EVENT = { militaryDefeat: 1, memorialObjection: 1 };   // 事件类·每回合衰减回血
 
   function _ensureHuangquan() {
     var G = global.GM;
@@ -423,6 +520,15 @@
       _rememberAuthorityBlocked('huangquan', amount, 'missing-reason', source);
       return { ok: false, blocked: true, reason: 'missing-reason' };
     }
+    // P-ZV7 ③按源封顶：按该源已累计 sources/drains 余量先削这笔 delta（削后 index 与账本同口径·同皇威/民心套路）。
+    if (amount > 0) {
+      var _hqCeil = (HUANGQUAN_SOURCE_CAP[source] !== undefined) ? HUANGQUAN_SOURCE_CAP[source] : HUANGQUAN_SOURCE_CAP._default;
+      amount = Math.max(0, Math.min(amount, _hqCeil - (Number(hq.sources[source]) || 0)));
+    } else {
+      var _hqFloor = (HUANGQUAN_DRAIN_CAP[source] !== undefined) ? HUANGQUAN_DRAIN_CAP[source] : HUANGQUAN_DRAIN_CAP._default;
+      amount = -Math.max(0, Math.min(-amount, _hqFloor - (Number(hq.drains[source]) || 0)));
+    }
+    if (amount === 0) return { ok: false, reason: 'source-capped', source: source };
     var oldValue = typeof hq.index === 'number' && isFinite(hq.index) ? hq.index : 55;
     hq.index = Math.max(0, Math.min(100, oldValue + amount));
     var applied = hq.index - oldValue;
@@ -468,11 +574,58 @@
     if (scandalous.length > 2) {
       adjustHuangquan('eunuchsRelatives', -0.15 * mr * scandalous.length / 2, '内宦外戚');
     }
+    // ── P-ZV7 ①A 选择性衰减（皇权扣分多是持续状态·不无脑衰·按前因判定回暖）──
+    var P_ZV7_HQ_DECAY = 0.5;
+    // 事件类（军败/抗疏）：过去就淡·每回合衰回血
+    Object.keys(HUANGQUAN_DRAIN_EVENT).forEach(function(d) {
+      var dv = hq.drains[d] || 0;
+      if (dv > 0) { var h = Math.min(dv, P_ZV7_HQ_DECAY * mr); hq.index = Math.min(100, hq.index + h); hq.drains[d] = Math.max(0, dv - h); }
+    });
+    // 状态类·权臣坐大：前因(权臣久任+高野心)还在则上方已维持；前因消失→回暖
+    var _trustedActive = longTrusted.length > 0 && (longTrusted[0]._tenureMonths || 0) > 60 && longTrusted[0].ambition > 70;
+    if (!_trustedActive && (hq.drains.trustedMinister || 0) > 0) {
+      var ht = Math.min(hq.drains.trustedMinister, P_ZV7_HQ_DECAY * mr); hq.index = Math.min(100, hq.index + ht); hq.drains.trustedMinister -= ht;
+    }
+    // 状态类·宦官外戚：前因(scandalous>2)消失→回暖
+    if (scandalous.length <= 2 && (hq.drains.eunuchsRelatives || 0) > 0) {
+      var he = Math.min(hq.drains.eunuchsRelatives, P_ZV7_HQ_DECAY * mr); hq.index = Math.min(100, hq.index + he); hq.drains.eunuchsRelatives -= he;
+    }
+    // 其余状态类（主少/党争/内阁化/怠政）暂无干净前因信号 → 不自动回暖也不自动衰（v1·绝不假回血·前因信号回头补）
+    // 全 drains 超本源封顶 → 削平回血（老路径写入/老档兜底）
+    HUANGQUAN_DRAINS_8.forEach(function(d) {
+      var cap = (HUANGQUAN_DRAIN_CAP[d] !== undefined) ? HUANGQUAN_DRAIN_CAP[d] : HUANGQUAN_DRAIN_CAP._default;
+      if ((hq.drains[d] || 0) > cap) { hq.index = Math.min(100, hq.index + ((hq.drains[d] || 0) - cap)); hq.drains[d] = cap; }
+    });
+    hq.phase = _getHuangquanPhase(hq.index);   // 衰减/削平改了 index → 重算段位
     // 执行度传导（皇权 > 70 → 诏令 100% 执行；< 40 → 50% 被打折）
     var execRate = 0.5 + (hq.index / 100) * 0.5;
     hq.executionRate = execRate;
     // 大臣抗疏率（皇权越低抗疏越多）
     hq.ministers.objectionRate = Math.max(0.05, Math.min(0.6, 0.6 - hq.index / 200));
+  }
+
+  // ── P-ZV7 ⑤皇权·读档削平：把 sources/drains 历史超额账夹回各源封顶内·同步修正 index（老档规整）。
+  //   超 ceiling 的加分→削超额回落 index；超 floor 的扣分→削超额回血 index。由 migration 读档调一次（幂等）。
+  function regularizeHuangquanCaps(root) {
+    var G = root || global.GM;
+    if (!G || !G.huangquan) return { adjusted: 0, detail: [] };
+    var hq = G.huangquan;
+    if (!hq.sources) hq.sources = {};
+    if (!hq.drains) hq.drains = {};
+    var out = [];
+    Object.keys(hq.sources).forEach(function(s) {
+      var cap = (HUANGQUAN_SOURCE_CAP[s] !== undefined) ? HUANGQUAN_SOURCE_CAP[s] : HUANGQUAN_SOURCE_CAP._default;
+      var cur = Number(hq.sources[s]) || 0;
+      if (cur > cap) { hq.index = Math.max(0, hq.index - (cur - cap)); hq.sources[s] = cap; out.push(s + ' +' + cur + '→+' + cap); }
+    });
+    Object.keys(hq.drains).forEach(function(d) {
+      var cap = (HUANGQUAN_DRAIN_CAP[d] !== undefined) ? HUANGQUAN_DRAIN_CAP[d] : HUANGQUAN_DRAIN_CAP._default;
+      var cur = Number(hq.drains[d]) || 0;
+      if (cur > cap) { hq.index = Math.min(100, hq.index + (cur - cap)); hq.drains[d] = cap; out.push(d + ' -' + cur + '→-' + cap); }
+    });
+    hq.index = Math.max(0, Math.min(100, hq.index));
+    if (typeof _getHuangquanPhase === 'function') hq.phase = _getHuangquanPhase(hq.index);
+    return { adjusted: out.length, detail: out };
   }
 
   function _executePurge(targetName) {
@@ -562,6 +715,31 @@
   }
 
   function adjustMinxin(source, delta, reason, opts) {
+    opts = opts || {};
+    if (!opts.fromMinxinLedger) {
+      try {
+        var root = global.GM || (typeof window !== 'undefined' && window.GM) || null;
+        if (root && global.TM && global.TM.MinxinLedger && typeof global.TM.MinxinLedger.recordAndApply === 'function') {
+          return global.TM.MinxinLedger.recordAndApply(root, {
+            sourceSystem: opts.sourceSystem || 'authority-engines',
+            kind: source || opts.kind || 'authority-minxin',
+            targetRegions: opts.targetRegions || opts.regions || opts.regionWeights || [],
+            targetClasses: opts.targetClasses || opts.classes || [],
+            affectedParties: opts.affectedParties || [],
+            deltaTrue: delta,
+            intensity: opts.intensity != null ? opts.intensity : Math.min(1, Math.abs(Number(delta) || 0) / 20),
+            confidence: opts.confidence != null ? opts.confidence : 0.8,
+            reason: reason || opts.reason || source || 'authority minxin change',
+            linkedIssue: opts.linkedIssue || opts.issueId || '',
+            policyActionId: opts.policyActionId || opts.actionId || '',
+            courtIssueId: opts.courtIssueId || ''
+          }, {
+            source: opts.source || 'authority-engines',
+            turn: root && root.turn
+          });
+        }
+      } catch (_minxinLedgerE) {}
+    }
     var mx = _ensureMinxin();
     if (!mx) return;
     mx.trueIndex = Math.max(0, Math.min(100, mx.trueIndex + delta));
@@ -656,10 +834,43 @@
       var corveeBurden = (G.population.corvee.annualCorveeDays || 30) / 30;
       if (corveeBurden > 1.2) adjustMinxin('corvee', -(corveeBurden - 1.2) * 0.5 * mr, '徭役重');
     }
-    // 灾赈
-    if (G.vars && G.vars.disasterLevel > 0.3) {
-      if (G.guoku && G.guoku.money > 50000) adjustMinxin('disasterRelief', +0.3 * mr, '有赈');
-      else adjustMinxin('disasterRelief', -0.5 * mr, '无赈');
+    // 灾赈（P-ZV7·② 实政对冲·3a 逐笔分权重·自发半）：本回合真实赈灾/水利支出→disasterRelief 正项。
+    //   归因按"代码路径"判·不信 AI 自报：此处汇总的是 AI 地方官自发的 disaster_relief/public_works_water
+    //   动作（aiOutput.localActions→div.fiscal.expenditures.discretionary·带 turn 戳）·一律按"自发"5 折。
+    //   玩家亲下的赈灾（诏令/议题/事件那条·确定的玩家代码路径）另在各自落账点按"奉旨"满额喂 disasterRelief。
+    //   灾起而本回合零赈灾→维持负（① 持续状态·前因仍在不回暖）。封顶 disasterRelief −25~+20 交 MINXIN_SOURCE_CAP。
+    //   旧逻辑（国库银>5万就算"有赈"）是拿国库余额冒充赈灾·与玩家有没有真开仓无关·已废。权重/折算·可调。
+    var _zfReliefSpend = 0;
+    try {
+      var _IBdr = global.IntegrationBridge || (typeof window !== 'undefined' && window.IntegrationBridge) || null;
+      var _drlvs = (_IBdr && typeof _IBdr.getLeafDivisions === 'function' && G.adminHierarchy) ? (_IBdr.getLeafDivisions(G.adminHierarchy, 'player') || []) : [];
+      _drlvs.forEach(function(d) {
+        var disc = d && d.fiscal && d.fiscal.expenditures && d.fiscal.expenditures.discretionary;
+        if (Array.isArray(disc)) disc.forEach(function(act) {
+          if (act && act.turn === G.turn && (act.type === 'disaster_relief' || act.type === 'public_works_water')) {
+            _zfReliefSpend += (Number(act.amount) || 0);
+          }
+        });
+      });
+    } catch (_e) {}
+    // 玩家本回合是否亲下赈灾诏（御案/诏书→PlayerActionSignals 带 relief 标签·确定的玩家代码路径）。
+    //   若是·则本回合这些赈灾 act 算"奉旨"满额(1.0)·否则纯地方官自发 5 折。这样御案赈灾诏不会被当自发打折。
+    //   （要务决断那条赈灾另在 tm-endturn-helpers._chooseIssueOption 直接路由 disasterRelief 满额·与此互不重叠。）
+    var _playerOrderedRelief = false;
+    try {
+      var _pasItems = G._playerActionSignals && Array.isArray(G._playerActionSignals.items) ? G._playerActionSignals.items : [];
+      _playerOrderedRelief = _pasItems.some(function(s) {
+        return s && s.turn === G.turn && Array.isArray(s.policyTags) && s.policyTags.indexOf('relief') >= 0;
+      });
+    } catch (_e2) {}
+    var P_ZV7_RELIEF_LOCAL_W = 0.5;   // 地方官自发赈灾权重·可调
+    var P_ZV7_RELIEF_PER = 50000;     // 每多少两白银折满一档对冲·可调
+    if (_zfReliefSpend > 0) {
+      var _zfW = _playerOrderedRelief ? 1.0 : P_ZV7_RELIEF_LOCAL_W;   // 玩家本回合下了赈灾诏→奉旨满额·否则地方自发 5 折
+      var _zfGain = Math.min(1.5, _zfReliefSpend / P_ZV7_RELIEF_PER * 0.6) * _zfW * mr;
+      if (_zfGain > 0) adjustMinxin('disasterRelief', +_zfGain, _playerOrderedRelief ? '奉诏赈灾（实政对冲·满额）' : '地方赈灾·自发（实政对冲·5折）');
+    } else if (G.vars && G.vars.disasterLevel > 0.3) {
+      adjustMinxin('disasterRelief', -0.5 * mr, '灾起未赈');
     }
     // 地方官清浊
     var corruptOfficials = (G.chars || []).filter(function(c) { return c.alive !== false && (c.integrity || 60) < 30; }).length;
@@ -684,16 +895,17 @@
     } else {
       mx.prophecy.intensity = Math.max(0, mx.prophecy.intensity - 0.002 * mr);
     }
-    // ── P-5TK·天象/谶纬类不可抗力扣分衰减+封顶（原本只进不出→现在会回血·作用于已累计存量·老存档同样缓慢回血）──
-    // 衰减参数·owner 可调（被动机制参数·非玩家操作效果量）：每回合回血累计负值的 _HEAL 比例·单项扣分封顶 -_CAP
-    var P5TK_HEAL = 0.10, P5TK_CAP = 25, P5TK_MIN = 0.5;
-    ['heavenSign', 'prophecy'].forEach(function(s) {
+    // ── P-ZV7·自然回暖：一次性/不可抗力类源（天象/谶纬/祥瑞/战事）负累计每回合朝 0 回 P_ZV7_RECOVER 点
+    //   （绝对值·只回暖负项·正项不衰）。"天象本是一时之灾、月余渐平"。封顶交 ledger 的 MINXIN_SOURCE_CAP
+    //   按源差异化处理·此处不再单设 -25。持续状态类（赋税/徭役/物价/官吏…）由上方每回合重评 + ledger 封顶平台
+    //   驱动·不在此回暖。回暖经 adjustMinxin→ledger→摊叶子·trueIndex 真回（非只动显示细项）。回暖率·机制参数·可调。
+    var P_ZV7_RECOVER = 1; // 民心负项每回合自然回暖点数（皇威另配 0.5）
+    ['heavenSign', 'prophecy', 'auspicious', 'warResult'].forEach(function(s) {
       var acc = mx.sources[s] || 0;
       if (acc < 0) {
-        var heal = Math.min(-acc, Math.max(P5TK_MIN, -acc * P5TK_HEAL) * mr);
-        if (heal > 0) adjustMinxin(s, heal, '天象创伤渐平（P-5TK 衰减）');
+        var heal = Math.min(-acc, P_ZV7_RECOVER * mr);
+        if (heal > 0) adjustMinxin(s, heal, '一时之灾渐平（P-ZV7 回暖）');
       }
-      if ((mx.sources[s] || 0) < -P5TK_CAP) adjustMinxin(s, (-P5TK_CAP) - (mx.sources[s] || 0), '天象扣分封顶（P-5TK）');
     });
     // ── P-DZ民心·稳定器（B 方案）：治本打开动力学后，给玩家叶子民心一个向「开局基线」缓慢回归的力，
     //   防引擎负项（赋税/天象/战乱…）累积把民心单调打崩。回归率 P_MX_REGRESS 小·机制参数·可调；
@@ -934,10 +1146,42 @@
     _ensureMinxin();
   }
 
+  // ── P-ZV7 罪己诏（批2·关键词触发·6回合限1次）：玩家本回合诏书含"罪己"→认错示天下：
+  //   −8皇威(进drain·随0.5衰回血) ＋ +5民心(imperialVirtue 君德·随稳定器淡·与皇威损对称会衰) ＋ 核心重臣 loyalty各+4。
+  //   冷却存 hw._selfBlameLastTurn。trade 数·冷却·重臣判定正则·可调。
+  function _tickSelfBlameEdict(ctx) {
+    var G = global.GM;
+    var hw = _ensureHuangwei();
+    if (!hw || !G) return;
+    var SELFBLAME_COOLDOWN = 6, SELFBLAME_HW = -8, SELFBLAME_MX = 5, SELFBLAME_MINISTER = 4;
+    var turn = ctx.turn || G.turn || 0;
+    var last = (typeof hw._selfBlameLastTurn === 'number') ? hw._selfBlameLastTurn : -999;
+    if ((turn - last) < SELFBLAME_COOLDOWN) return;
+    var items = (G._playerActionSignals && Array.isArray(G._playerActionSignals.items)) ? G._playerActionSignals.items : [];
+    var hit = items.some(function(s) {
+      return s && s.turn === G.turn && /罪己/.test(String(s.text || '') + ' ' + String(s.topic || '') + ' ' + String(s.action || ''));
+    });
+    if (!hit) return;
+    hw._selfBlameLastTurn = turn;
+    adjustHuangwei('selfBlame', SELFBLAME_HW, '下罪己诏·认错示天下');                          // −8皇威·进 drains.selfBlame·随衰
+    if (typeof adjustMinxin === 'function') adjustMinxin('imperialVirtue', SELFBLAME_MX, '罪己诏·收揽人心', { persist: true });
+    var bumped = 0;
+    (G.chars || []).forEach(function(c) {
+      if (!c || c.alive === false) return;
+      var t = String(c.officialTitle || c.title || '');
+      if (t && /首辅|次辅|辅臣|大学士|阁|尚书|都御史|督师|总督|太师|太傅|太保/.test(t)) {
+        c.loyalty = Math.max(0, Math.min(100, (Number(c.loyalty) || 50) + SELFBLAME_MINISTER));
+        bumped++;
+      }
+    });
+    if (global.addEB) global.addEB('皇威', '下罪己诏：皇威 −8、民心 +5、' + bumped + ' 位核心重臣感念（忠诚 +4）');
+  }
+
   function tick(ctx) {
     ctx = ctx || {};
     var mr = ctx.monthRatio || 1;
     try { _tickHuangwei(ctx, mr); } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'auth] hw:') : console.error('[auth] hw:', e); }
+    try { _tickSelfBlameEdict(ctx); } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'auth] selfBlame:') : console.error('[auth] selfBlame:', e); }
     try { _tickHuangquan(ctx, mr); } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'auth] hq:') : console.error('[auth] hq:', e); }
     try { _tickMinxin(ctx, mr); } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'auth] mx:') : console.error('[auth] mx:', e); }
     try { _tickVarLinkage(ctx, mr); } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'auth] linkage:') : console.error('[auth] linkage:', e); }
@@ -989,7 +1233,9 @@
     init: init,
     tick: tick,
     adjustHuangwei: adjustHuangwei,
+    regularizeHuangweiCaps: regularizeHuangweiCaps,
     adjustHuangquan: adjustHuangquan,
+    regularizeHuangquanCaps: regularizeHuangquanCaps,
     setHuangquan: setHuangquan,
     adjustMinxin: adjustMinxin,
     syncAuthorityPhases: syncAuthorityPhases,

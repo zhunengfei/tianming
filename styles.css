@@ -627,6 +627,10 @@ input,textarea,select{pointer-events:auto!important;position:relative;z-index:10
 .gs-fab-btn{width:36px;height:36px;border:1px solid var(--gold-d);background:rgba(184,154,83,0.06);color:var(--gold-400);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:"STKaiti","KaiTi","楷体",serif;font-size:13px;cursor:pointer;transition:all 0.2s;position:relative;}
 .gs-fab-btn:hover{background:rgba(184,154,83,0.2);border-color:var(--gold-300);transform:translateY(-2px);box-shadow:0 4px 10px rgba(184,154,83,0.3);}
 .gs-fab-btn[data-tip]:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);font-family:"STKaiti","KaiTi","楷体",serif;font-size:14.5px;letter-spacing:0.1em;padding:3px 8px;background:rgba(26,20,16,0.95);color:var(--gold-300);border:1px solid var(--gold-d);border-radius:3px;white-space:nowrap;pointer-events:none;z-index:100;}
+
+.tm-fulltext-tooltip{position:fixed;left:0;top:0;z-index:100000;max-width:min(460px,calc(100vw - 28px));max-height:min(48vh,420px);overflow:auto;padding:9px 12px;border:1px solid rgba(214,188,116,.54);border-radius:5px;background:linear-gradient(180deg,rgba(34,28,21,.98),rgba(13,11,9,.98));color:#f0e4bf;font:13px/1.65 "STKaiti","KaiTi","STSong",serif;letter-spacing:.04em;white-space:pre-wrap;word-break:break-word;box-shadow:0 10px 26px rgba(0,0,0,.58),inset 0 1px 0 rgba(255,238,186,.08);pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity .08s ease,transform .08s ease;}
+.tm-fulltext-tooltip.show{opacity:1;transform:translateY(0);}
+.tm-fulltext-source{min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .gs-turn-summary{padding:7px 14px;background:linear-gradient(to right,rgba(36,30,24,0.92),rgba(26,20,16,0.94));border:1px solid rgba(184,154,83,0.35);border-radius:16px;backdrop-filter:blur(6px);font-family:"STKaiti","KaiTi","楷体",serif;font-size:14.5px;color:#d4c9b0;letter-spacing:0.1em;text-align:right;box-shadow:0 2px 8px rgba(0,0,0,0.35);}
 .gs-turn-summary .hl{color:var(--gold-300,#c9a85f);font-weight:500;}
 .gs-turn-summary .warn{color:var(--vermillion-400);}
@@ -1599,7 +1603,7 @@ input,textarea,select{pointer-events:auto!important;position:relative;z-index:10
 .gs-panel.p-party{--panel-c:var(--purple-400,#8e6aa8);}
 .gs-party-row{display:flex;align-items:center;gap:5px;padding:4px 0;font-size:15.5px;cursor:pointer;transition:all 0.15s;border-radius:2px;}
 .gs-party-row:hover{background:rgba(184,154,83,0.06);padding-left:4px;}
-.gs-party-name{flex:1;color:#ede5d0;font-family:"STKaiti","KaiTi","楷体",serif;letter-spacing:0.06em;}
+.gs-party-name{flex:1;min-width:0;color:#ede5d0;font-family:"STKaiti","KaiTi","楷体",serif;letter-spacing:0.06em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .gs-party-infl{display:inline-flex;align-items:center;gap:3px;}
 .gs-party-bar{width:42px;height:4px;background:rgba(107,93,71,0.25);border-radius:2px;overflow:hidden;}
 .gs-party-fill{height:100%;}
@@ -1610,7 +1614,7 @@ input,textarea,select{pointer-events:auto!important;position:relative;z-index:10
 .gs-class-row{display:flex;align-items:center;gap:6px;padding:4px 0;font-size:15.5px;cursor:pointer;transition:all 0.15s;border-radius:2px;}
 .gs-class-row:hover{background:rgba(184,154,83,0.06);padding-left:4px;}
 .gs-class-icon{width:20px;height:20px;border-radius:2px;background:linear-gradient(135deg,var(--c-c,var(--gold-400)),var(--ink-100,#3d342a));color:#1a1410;display:flex;align-items:center;justify-content:center;font-family:"STKaiti","KaiTi","楷体",serif;font-size:14px;font-weight:bold;}
-.gs-class-name{flex:1;color:#ede5d0;font-family:"STKaiti","KaiTi","楷体",serif;letter-spacing:0.05em;}
+.gs-class-name{flex:1;min-width:0;color:#ede5d0;font-family:"STKaiti","KaiTi","楷体",serif;letter-spacing:0.05em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .gs-class-pop{font-size:13.5px;color:var(--ink-300,#6b5d47);font-family:"STKaiti","KaiTi","楷体",serif;}
 .gs-class-mood{font-size:13.5px;font-family:"STKaiti","KaiTi","楷体",serif;padding:0 5px;border-radius:2px;line-height:14px;}
 .gs-class-mood.stable{color:var(--celadon-400,#7eb8a7);background:rgba(106,154,127,0.06);}
@@ -1624,8 +1628,8 @@ input,textarea,select{pointer-events:auto!important;position:relative;z-index:10
 .gs-army-row:last-child{border-bottom:none;}
 .gs-army-icon{font-family:"STKaiti","KaiTi","楷体",serif;font-size:12px;color:var(--vermillion-400);width:14px;text-align:center;}
 .gs-army-info{flex:1;min-width:0;}
-.gs-army-name{color:#ede5d0;font-family:"STKaiti","KaiTi","楷体",serif;font-size:15.5px;}
-.gs-army-loc{font-size:13.5px;color:var(--ink-300,#6b5d47);font-family:"STKaiti","KaiTi","楷体",serif;font-style:italic;}
+.gs-army-name{display:block;min-width:0;color:#ede5d0;font-family:"STKaiti","KaiTi","楷体",serif;font-size:15.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gs-army-loc{display:block;min-width:0;font-size:13.5px;color:var(--ink-300,#6b5d47);font-family:"STKaiti","KaiTi","楷体",serif;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .gs-army-size{font-size:14px;color:var(--vermillion-400);font-family:"STKaiti","KaiTi","楷体",serif;font-weight:500;min-width:36px;text-align:right;}
 .gs-army-morale{width:30px;height:3px;background:rgba(107,93,71,0.25);border-radius:2px;overflow:hidden;margin-top:2px;}
 .gs-army-morale-fill{height:100%;background:var(--celadon-400,#7eb8a7);}

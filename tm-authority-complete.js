@@ -450,7 +450,7 @@
     suppressRevolt: 8,
     auspicious: 3,
     benevolence: 4,
-    selfBlame: 2,
+    selfBlame: -8,   // P-ZV7 翻正：罪己=认错示弱·降皇威（旧 +2 与新规反·改负与罪己诏机制同向）
     tribute: 4,
     imperialFuneral: 3,
     rehabilitation: 4,
