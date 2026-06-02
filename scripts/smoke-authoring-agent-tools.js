@@ -138,9 +138,35 @@ function ok(cond, msg) {
     const resB = await AA.runAuthoringLoop(draftB, 'x', { caller: neverFinish, maxIterations: 5 });
     ok(resB.iterations === 5 && resB.stopReason === 'maxIterations' && !resB.finished, 'maxIterations 闸生效（不会无限跑）');
 
-    console.log('— loop：空 toolCalls 即停 —');
+    console.log('— loop：空 toolCalls 先 nudge 再放弃（方向A 韧性）—');
     const resC = await AA.runAuthoringLoop(AA.makeDraft({}), 'x', { caller: () => Promise.resolve({ toolCalls: [] }) });
-    ok(resC.stopReason === 'noToolCalls' && resC.iterations === 1, '无 toolCalls 时停在 noToolCalls');
+    ok(resC.stopReason === 'noToolCalls' && resC.iterations === 3, '无 toolCalls 先 nudge 2 次再停在 noToolCalls（1+2 轮·不立即放弃）');
+
+    console.log('— loop：nudge 后自愈（no-tool → 提示 → finish）—');
+    let cNudge = 0;
+    const nudgeThenFinish = function () {
+      cNudge++;
+      return Promise.resolve(cNudge === 1 ? { toolCalls: [] } : { toolCalls: [{ name: 'finish', input: { summary: '改好了' } }] });
+    };
+    const resCn = await AA.runAuthoringLoop(AA.makeDraft({ name: 'x' }), 'x', { caller: nudgeThenFinish });
+    ok(resCn.finished && resCn.stopReason === 'finish', 'noToolCalls 后经 nudge 自愈并 finish');
+
+    console.log('— loop：瞬态错误退避重试后自愈（方向A 韧性）—');
+    let cFlaky = 0;
+    const flakyThenOk = function () {
+      cFlaky++;
+      if (cFlaky === 1) { const e = new Error('网络抖动'); e.transient = true; return Promise.reject(e); }
+      return Promise.resolve({ toolCalls: [{ name: 'finish', input: { summary: 'ok' } }] });
+    };
+    const resR = await AA.runAuthoringLoop(AA.makeDraft({ name: 'x' }), 'x', { caller: flakyThenOk, retryBaseMs: 1 });
+    ok(resR.finished && resR.stopReason === 'finish' && cFlaky === 2, '瞬态错误重试一次后自愈 finish');
+
+    console.log('— loop：非瞬态错误（401）快速失败·不重试 —');
+    let cHard = 0;
+    const hardErr = function () { cHard++; const e = new Error('401 鉴权失败'); e.status = 401; return Promise.reject(e); };
+    let hardRejected = false;
+    await AA.runAuthoringLoop(AA.makeDraft({ name: 'x' }), 'x', { caller: hardErr, retryBaseMs: 1 }).catch(() => { hardRejected = true; });
+    ok(hardRejected && cHard === 1, '非瞬态错误（401）不重试·一次即失败');
 
     console.log('— callWithTools：anthropic 路径（mock fetch）—');
     let seen = null;

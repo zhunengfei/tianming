@@ -974,6 +974,10 @@
     } else if (action === 'select-memorial-desk') {
       state.memorialId = data.id || '';
       openYueZouPreviewPanel();
+    } else if (action === 'memorial-unseal-desk') {
+      state.memorialOpened = state.memorialOpened || {};
+      if (data.id) state.memorialOpened[data.id] = true;
+      openYueZouPreviewPanel();
     } else if (action === 'memorial-filter-desk') {
       state.memorialFilter = data.filter || 'all';
       openYueZouPreviewPanel();
@@ -1187,8 +1191,8 @@
       'body.tm-phase8-formal .tm-bridge-overlay.show .tm-action-panel{transform:translateX(0);}',
       'body.tm-phase8-formal .tm-action-panel.edict-shell{left:50%;top:54px;width:calc(100vw - 130px);height:calc(100vh - 104px);transform:translate(-50%,10px);}',
       'body.tm-phase8-formal .tm-bridge-overlay.show .tm-action-panel.edict-shell{transform:translate(-50%,0);}',
-      'body.tm-phase8-formal .tm-action-panel.memorial-shell{left:40px;right:40px;top:64px;width:auto;height:min(820px,calc(100vh - 94px));transform:none;}',
-      'body.tm-phase8-formal .tm-bridge-overlay.show .tm-action-panel.memorial-shell{transform:none;}',
+      'body.tm-phase8-formal .tm-action-panel.memorial-shell{left:50%;top:54px;width:calc(100vw - 130px);height:calc(100vh - 104px);transform:translate(-50%,10px);}',
+      'body.tm-phase8-formal .tm-bridge-overlay.show .tm-action-panel.memorial-shell{transform:translate(-50%,0);}',
       'body.tm-phase8-formal .tm-action-panel.letter-shell{left:50%;top:60px;width:min(1440px,calc(100vw - 64px));height:min(860px,calc(100vh - 90px));transform:translate(-50%,10px);}',
       'body.tm-phase8-formal .tm-bridge-overlay.show .tm-action-panel.letter-shell{transform:translate(-50%,0);}',
       'body.tm-phase8-formal .tm-action-panel.records-shell{left:40px;right:40px;top:64px;width:auto;height:min(830px,calc(100vh - 96px));transform:none;}',
@@ -2070,74 +2074,261 @@
     return memorialGroupKey(m) === filter;
   }
 
-  function renderMemorialCardV4(m){
-    var key = memorialGroupKey(m);
-    var cls = key === 'done' ? 'done' : key === 'held' ? 'held' : '';
-    var meta = [m.from || m.sender, m.dept || m.office || m.type, m.status || '待批'].filter(Boolean).join(' · ');
-    var body = m.text || m.content || m.body || m.summary || '暂无正文。';
-    var reply = m.reply || '着有关衙门速核，限期具奏。';
+  function installMemorialYuanStyles(){
+    var st = document.getElementById('tm-memorial-yuan-style');
+    if (!st) { st = document.createElement('style'); st.id = 'tm-memorial-yuan-style'; document.head.appendChild(st); }
+    st.textContent = 'body.tm-phase8-formal .zou-yuan{--desk-1:#dccca6;--desk-2:#c6b083;--desk-3:#a78f68;  --silk-hi:#fffdf3;--silk:#f6efda;--silk-lo:#ece1c6;--silk-edge:#dcc99c;  --silk-shadow:rgba(120,90,36,0.1);  --ink:#241d15;--ink-soft:#574733;--ink-faint:#9c8b6b;  --gold-hi:#d8b96a;--gold:#a8833a;--gold-d:#7d5e22;  --cinnabar:#a83228;--cinnabar-hi:#c64a3e;--cinnabar-d:#7a2018;  --wood-1:#6b4a28;--wood-2:#3f2a14;--wood-edge:#2a1b0c;--knob:#241810;  --jade:#557f6f;--jade-hi:#6fa291;  --indigo:#4a5e8a;--violet:#8e6aa8;--amber:#b98b2f;  --font:"STKaiti","KaiTi","楷体","Noto Serif SC","Source Han Serif CN","STSong",serif;  --font-doc:"FangSong","STFangsong","仿宋","Noto Serif SC",serif;  --font-song:"STSong","SimSun","宋体",serif;}body.tm-phase8-formal .zou-yuan *{box-sizing:border-box;margin:0;padding:0;}body.tm-phase8-formal .zou-yuan{font-family:var(--font);color:var(--ink);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;overflow:hidden;  background:    radial-gradient(46% 36% at 50% -4%, rgba(255,238,196,0.5), transparent 70%),    radial-gradient(60% 50% at 18% 24%, rgba(120,100,70,0.13), transparent 60%),    radial-gradient(52% 60% at 86% 76%, rgba(80,60,40,0.16), transparent 55%),    radial-gradient(120% 120% at 50% 28%, var(--desk-1), var(--desk-2) 54%, var(--desk-3) 100%);;height:100%;display:flex;flex-direction:column;padding:14px 18px;}body.tm-phase8-formal .zou-yuan::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;opacity:0.6;  background:    radial-gradient(58% 40% at 50% 0%, rgba(255,236,188,0.32), transparent 66%),    radial-gradient(150% 120% at 50% 42%, transparent 54%, rgba(58,42,22,0.5) 100%),    repeating-linear-gradient(91deg, rgba(92,68,40,0.05) 0 2px, transparent 2px 7px),    repeating-linear-gradient(106deg, rgba(80,60,36,0.03) 0 3px, transparent 3px 9px);}body.tm-phase8-formal .zou-yuan .zou-titlebar{flex:0 0 auto;position:relative;display:flex;align-items:center;justify-content:center;  padding:6px 0 12px;margin-bottom:10px;}body.tm-phase8-formal .zou-yuan .zou-titlebar::after{content:"";position:absolute;left:6%;right:6%;bottom:2px;height:1px;  background:linear-gradient(90deg,transparent,rgba(216,185,106,0.75) 22%,rgba(216,185,106,0.75) 78%,transparent);}body.tm-phase8-formal .zou-yuan .zou-titlebar::before{content:"";position:absolute;left:6%;right:6%;bottom:5px;height:1px;  background:linear-gradient(90deg,transparent,rgba(168,131,58,0.32) 30%,rgba(168,131,58,0.32) 70%,transparent);}body.tm-phase8-formal .zou-yuan .zt-center{text-align:center;position:relative;}body.tm-phase8-formal .zou-yuan .zt-center::before{content:"";position:absolute;left:50%;top:50%;width:88px;height:88px;transform:translate(-50%,-56%);  pointer-events:none;z-index:0;opacity:0.42;background:no-repeat center/contain;  background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Cg fill=\'none\' stroke=\'%23a8833a\'%3E%3Ccircle cx=\'50\' cy=\'50\' r=\'44\' stroke-width=\'1.4\' stroke-opacity=\'0.5\'/%3E%3Ccircle cx=\'50\' cy=\'50\' r=\'37\' stroke-width=\'2.6\' stroke-opacity=\'0.34\'/%3E%3Ccircle cx=\'50\' cy=\'50\' r=\'30\' stroke-width=\'1\' stroke-opacity=\'0.4\' stroke-dasharray=\'2 4\'/%3E%3C/g%3E%3C/svg%3E");}body.tm-phase8-formal .zou-yuan .zt-main{position:relative;z-index:1;font-size:25px;font-weight:bold;letter-spacing:0.32em;color:var(--ink);line-height:1.05;  text-shadow:0 1px 0 rgba(255,255,255,0.7),0 2px 4px rgba(120,90,36,0.26),0 0 16px rgba(216,185,106,0.24);}body.tm-phase8-formal .zou-yuan .zt-main::before,body.tm-phase8-formal .zou-yuan .zt-main::after{content:"";display:inline-block;width:30px;height:1px;vertical-align:0.34em;margin:0 16px;background:linear-gradient(90deg,transparent,var(--gold));}body.tm-phase8-formal .zou-yuan .zt-main::after{background:linear-gradient(90deg,var(--gold),transparent);}body.tm-phase8-formal .zou-yuan .zt-sub{font-size:12.5px;color:var(--ink-faint);letter-spacing:0.34em;margin-top:5px;}body.tm-phase8-formal .zou-yuan .zt-sub::before,body.tm-phase8-formal .zou-yuan .zt-sub::after{content:"◆";font-size:7px;color:var(--gold);opacity:0.62;vertical-align:0.22em;margin:0 11px;letter-spacing:0;}body.tm-phase8-formal .zou-yuan .zou-chips{position:absolute;right:2px;top:8px;display:flex;gap:7px;}body.tm-phase8-formal .zou-yuan .chip{font-size:11.5px;letter-spacing:0.06em;padding:3px 11px;border-radius:11px;border:1px solid var(--gold-d);  background:rgba(255,250,235,0.7);color:var(--ink-soft);white-space:nowrap;}body.tm-phase8-formal .zou-yuan .chip.hot{border-color:var(--cinnabar);color:#fff;background:linear-gradient(160deg,var(--cinnabar),var(--cinnabar-d));box-shadow:0 1px 5px rgba(122,32,24,0.4);}body.tm-phase8-formal .zou-yuan .chip.green{border-color:var(--jade);color:#23463a;background:rgba(111,162,145,0.22);}body.tm-phase8-formal .zou-yuan .zou-body{flex:1;min-height:0;display:flex;gap:16px;}body.tm-phase8-formal .zou-yuan .shelf{flex:0 0 286px;min-height:0;display:flex;flex-direction:column;position:relative;  border:1px solid rgba(168,131,58,0.4);border-radius:6px;overflow:hidden;  background:    linear-gradient(180deg,rgba(255,253,243,0.5),rgba(245,236,210,0.32)),    linear-gradient(135deg,rgba(58,40,22,0.04),rgba(40,28,15,0.07));  box-shadow:inset 0 1px 0 rgba(255,255,255,0.5),0 10px 26px rgba(50,32,14,0.22);}body.tm-phase8-formal .zou-yuan .shelf-hd{flex:0 0 auto;display:flex;align-items:center;gap:9px;padding:11px 13px 9px;border-bottom:1px solid rgba(168,131,58,0.3);}body.tm-phase8-formal .zou-yuan .shelf-seal{width:32px;height:32px;flex:0 0 auto;display:grid;place-items:center;border-radius:5px;font-size:17px;color:#fff;font-weight:bold;  background:linear-gradient(155deg,var(--cinnabar-hi),var(--cinnabar-d));border:1px solid rgba(122,32,24,0.6);  box-shadow:0 2px 6px rgba(122,32,24,0.4),inset 0 1px 0 rgba(255,255,255,0.28);}body.tm-phase8-formal .zou-yuan .shelf-hd b{font-size:15px;letter-spacing:0.12em;color:var(--ink);display:block;}body.tm-phase8-formal .zou-yuan .shelf-hd span{font-size:11px;color:var(--ink-faint);letter-spacing:0.06em;}body.tm-phase8-formal .zou-yuan .filters{flex:0 0 auto;display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px 11px;border-bottom:1px solid rgba(168,131,58,0.22);}body.tm-phase8-formal .zou-yuan .filter{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 9px;cursor:pointer;font-family:var(--font);  border:1px solid rgba(168,131,58,0.28);border-radius:4px;background:rgba(255,252,240,0.5);color:var(--ink-soft);  font-size:12.5px;letter-spacing:0.04em;transition:all .15s;}body.tm-phase8-formal .zou-yuan .filter:first-child{grid-column:1 / -1;}body.tm-phase8-formal .zou-yuan .filter:hover{background:rgba(168,131,58,0.12);border-color:var(--gold);}body.tm-phase8-formal .zou-yuan .filter.active{color:#fff;background:linear-gradient(150deg,var(--cinnabar),var(--cinnabar-d));border-color:var(--cinnabar-d);box-shadow:0 2px 7px rgba(122,32,24,0.35);}body.tm-phase8-formal .zou-yuan .filter .fc{font-size:10.5px;min-width:18px;height:16px;padding:0 5px;border-radius:8px;display:inline-grid;place-items:center;  background:rgba(120,90,40,0.16);color:var(--ink-soft);}body.tm-phase8-formal .zou-yuan .filter.active .fc{background:rgba(255,255,255,0.26);color:#fff;}body.tm-phase8-formal .zou-yuan .shelf-scroll{flex:1;min-height:0;overflow-y:auto;padding:10px 11px 4px;scrollbar-width:none;}body.tm-phase8-formal .zou-yuan .shelf-scroll::-webkit-scrollbar{width:0;height:0;}body.tm-phase8-formal .zou-yuan .shelf-group{margin-bottom:12px;}body.tm-phase8-formal .zou-yuan .shelf-group-t{font-size:11.5px;letter-spacing:0.16em;color:var(--ink-faint);margin:0 0 7px 2px;display:flex;align-items:center;gap:7px;}body.tm-phase8-formal .zou-yuan .shelf-group-t::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 2px rgba(168,131,58,0.2);}body.tm-phase8-formal .zou-yuan .shelf-group-t small{color:var(--ink-faint);opacity:0.7;letter-spacing:0;}body.tm-phase8-formal .zou-yuan .zou-folder{position:relative;display:block;width:100%;text-align:left;cursor:pointer;font-family:var(--font);  margin-bottom:8px;padding:9px 11px 9px 15px;border-radius:4px;border:1px solid rgba(168,131,58,0.3);  background:linear-gradient(180deg,var(--silk-hi),var(--silk) 70%,var(--silk-lo));  box-shadow:0 2px 7px rgba(60,40,20,0.13),inset 0 1px 0 rgba(255,255,255,0.5);transition:transform .16s,box-shadow .16s,border-color .16s;overflow:hidden;}body.tm-phase8-formal .zou-yuan .zou-folder::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--tc,var(--gold));}body.tm-phase8-formal .zou-yuan .zou-folder::after{content:"";position:absolute;right:26%;top:0;bottom:0;width:1px;background:rgba(120,90,40,0.1);}body.tm-phase8-formal .zou-yuan .zou-folder:hover{transform:translateX(3px);box-shadow:0 4px 12px rgba(60,40,20,0.2);border-color:var(--gold);}body.tm-phase8-formal .zou-yuan .zou-folder.active{border-color:var(--cinnabar);box-shadow:-2px 0 0 var(--cinnabar),0 6px 16px rgba(60,40,20,0.26);transform:translateX(4px);  background:linear-gradient(180deg,#fffef7,#fbf4e0);}body.tm-phase8-formal .zou-yuan .zf-top{display:flex;align-items:center;gap:6px;margin-bottom:4px;}body.tm-phase8-formal .zou-yuan .zf-type{font-size:10.5px;font-weight:bold;letter-spacing:0.05em;padding:1px 7px;border-radius:3px;color:#fff;background:var(--tc,var(--gold));white-space:nowrap;}body.tm-phase8-formal .zou-yuan .zf-sub{font-size:10px;letter-spacing:0.04em;color:var(--ink-faint);padding:1px 6px;border-radius:3px;border:1px solid rgba(168,131,58,0.32);background:rgba(255,255,255,0.4);}body.tm-phase8-formal .zou-yuan .zf-sub.mi{color:var(--cinnabar-d);border-color:rgba(122,32,24,0.4);background:rgba(168,50,40,0.08);}body.tm-phase8-formal .zou-yuan .zf-urgent{margin-left:auto;width:7px;height:7px;border-radius:50%;background:var(--cinnabar);box-shadow:0 0 0 3px rgba(168,50,40,0.18);animation:zmy-pulse 1.8s ease-in-out infinite;}body.tm-phase8-formal .zou-yuan .zf-title{font-size:13.5px;color:var(--ink);line-height:1.35;font-weight:bold;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;}body.tm-phase8-formal .zou-yuan .zf-meta{font-size:11px;color:var(--ink-faint);margin-top:3px;letter-spacing:0.02em;display:flex;align-items:center;gap:6px;}body.tm-phase8-formal .zou-yuan .zf-meta .dot{opacity:0.5;}body.tm-phase8-formal .zou-yuan .zf-rel{font-size:9.5px;letter-spacing:0;}body.tm-phase8-formal .zou-yuan .zf-rel i{font-style:normal;color:var(--gold);}body.tm-phase8-formal .zou-yuan .zf-rel i.off{color:rgba(120,90,40,0.25);}body.tm-phase8-formal .zou-yuan .zou-folder.done{opacity:0.78;}body.tm-phase8-formal .zou-yuan .zou-folder.done .zf-title{font-weight:normal;}body.tm-phase8-formal .zou-yuan .zf-stamp{position:absolute;right:7px;bottom:6px;font-size:9.5px;color:var(--cinnabar-d);opacity:0.7;border:1px solid rgba(122,32,24,0.4);border-radius:3px;padding:0 4px;transform:rotate(-7deg);}body.tm-phase8-formal .zou-yuan .zf-remote{font-size:9.5px;font-style:normal;width:16px;height:16px;display:inline-grid;place-items:center;border-radius:3px;color:var(--indigo);border:1px solid rgba(74,94,138,0.45);background:rgba(74,94,138,0.1);}body.tm-phase8-formal .zou-yuan .zf-held{margin-top:5px;font-size:10px;letter-spacing:0.03em;color:var(--ink-faint);}body.tm-phase8-formal .zou-yuan .zf-held.warn{color:var(--cinnabar-d);font-weight:bold;}body.tm-phase8-formal .zou-yuan .transit{flex:0 0 auto;border-top:1px solid rgba(168,131,58,0.3);padding:10px 12px 11px;background:rgba(58,40,22,0.04);}body.tm-phase8-formal .zou-yuan .transit-t{font-size:11.5px;letter-spacing:0.14em;color:var(--ink-faint);margin-bottom:7px;display:flex;align-items:center;gap:6px;}body.tm-phase8-formal .zou-yuan .transit-t::before{content:"⛟";font-size:12px;color:var(--gold);}body.tm-phase8-formal .zou-yuan .transit-row{font-size:11px;color:var(--ink-soft);padding:5px 0 6px 12px;position:relative;border-bottom:1px dashed rgba(168,131,58,0.22);}body.tm-phase8-formal .zou-yuan .transit-row:last-child{border-bottom:0;}body.tm-phase8-formal .zou-yuan .transit-row::before{content:"";position:absolute;left:0;top:9px;width:5px;height:5px;border-radius:50%;border:1px solid var(--gold);background:rgba(168,131,58,0.2);}body.tm-phase8-formal .zou-yuan .transit-row b{color:var(--ink);font-size:11.5px;}body.tm-phase8-formal .zou-yuan .transit-row em{font-style:normal;color:var(--ink-faint);float:right;font-size:10px;}body.tm-phase8-formal .zou-yuan .read{flex:1;min-height:0;display:flex;justify-content:center;position:relative;}body.tm-phase8-formal .zou-yuan .zouben{flex:1;max-width:760px;min-height:0;position:relative;display:flex;flex-direction:column;  background:    radial-gradient(80% 22% at 50% 0%, rgba(255,255,255,0.6), transparent 60%),    radial-gradient(42% 50% at 16% 26%, rgba(198,162,98,0.09), transparent 70%),    radial-gradient(46% 56% at 86% 76%, rgba(150,116,60,0.1), transparent 72%),    linear-gradient(180deg,var(--silk-hi),var(--silk) 38%,var(--silk-lo) 100%);  border:1px solid var(--silk-edge);border-radius:5px;  box-shadow:0 18px 44px rgba(50,32,14,0.32),0 0 36px rgba(120,90,40,0.14),inset 0 1px 0 rgba(255,255,255,0.55),inset 0 0 110px var(--silk-shadow);  overflow:hidden;animation:zmy-benIn .5s cubic-bezier(.2,.72,.28,1) both;}body.tm-phase8-formal .zou-yuan .zouben::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:0.46;mix-blend-mode:multiply;z-index:0;  background-image:    url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'240\' height=\'240\'%3E%3Cfilter id=\'fib\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.012 0.55\' numOctaves=\'3\' seed=\'9\' stitchTiles=\'stitch\'/%3E%3CfeColorMatrix type=\'saturate\' values=\'0\'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type=\'linear\' slope=\'0.5\'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23fib)\'/%3E%3C/svg%3E"),    repeating-linear-gradient(0deg, rgba(120,90,40,0.04) 0 1px, transparent 1px 4px);  background-size:240px 240px, auto;}body.tm-phase8-formal .zou-yuan .zouben > *{position:relative;z-index:1;}body.tm-phase8-formal .zou-yuan .ben-head{flex:0 0 auto;padding:16px 30px 13px;border-bottom:1px solid rgba(168,131,58,0.36);position:relative;}body.tm-phase8-formal .zou-yuan .ben-head::after{content:"";position:absolute;left:24px;right:24px;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent,rgba(216,185,106,0.6) 20%,rgba(216,185,106,0.6) 80%,transparent);}body.tm-phase8-formal .zou-yuan .bh-row{display:flex;align-items:flex-start;gap:14px;}body.tm-phase8-formal .zou-yuan .bh-seal{flex:0 0 auto;width:52px;height:64px;border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;  color:#fff;background:linear-gradient(155deg,var(--tc,var(--gold)),color-mix(in srgb,var(--tc,var(--gold)) 64%,#000));  border:1px solid rgba(0,0,0,0.25);box-shadow:0 3px 9px rgba(40,28,15,0.34),inset 0 1px 0 rgba(255,255,255,0.3);position:relative;}body.tm-phase8-formal .zou-yuan .bh-seal::after{content:"";position:absolute;inset:3px;border:1px solid rgba(255,255,255,0.32);border-radius:3px;}body.tm-phase8-formal .zou-yuan .bh-seal b{font-size:18px;font-weight:bold;line-height:1;letter-spacing:0.02em;}body.tm-phase8-formal .zou-yuan .bh-seal span{font-size:9px;letter-spacing:0.04em;opacity:0.92;}body.tm-phase8-formal .zou-yuan .bh-main{flex:1;min-width:0;}body.tm-phase8-formal .zou-yuan .bh-title{font-size:21px;font-weight:bold;letter-spacing:0.04em;color:var(--ink);line-height:1.3;  text-shadow:0 1px 0 rgba(255,255,255,0.6);}body.tm-phase8-formal .zou-yuan .bh-author{font-size:13px;color:var(--ink-soft);margin-top:6px;letter-spacing:0.03em;}body.tm-phase8-formal .zou-yuan .bh-author b{color:var(--ink);font-size:14px;}body.tm-phase8-formal .zou-yuan .bh-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px;}body.tm-phase8-formal .zou-yuan .bh-tag{font-size:11px;letter-spacing:0.04em;padding:2px 9px;border-radius:11px;border:1px solid rgba(168,131,58,0.4);background:rgba(255,252,240,0.6);color:var(--ink-soft);}body.tm-phase8-formal .zou-yuan .bh-tag.mi{color:var(--cinnabar-d);border-color:rgba(122,32,24,0.45);background:rgba(168,50,40,0.07);}body.tm-phase8-formal .zou-yuan .bh-tag.impeach{color:#fff;border-color:var(--cinnabar-d);background:linear-gradient(150deg,var(--cinnabar),var(--cinnabar-d));font-weight:bold;box-shadow:0 1px 4px rgba(122,32,24,0.3);}body.tm-phase8-formal .zou-yuan .bh-tag.remote{color:var(--indigo);border-color:rgba(74,94,138,0.5);background:rgba(74,94,138,0.09);}body.tm-phase8-formal .zou-yuan .bh-tag .rel-d{color:var(--jade-hi);}body.tm-phase8-formal .zou-yuan .bh-tag .rel-d.lo{color:var(--cinnabar);}body.tm-phase8-formal .zou-yuan .bh-status{position:absolute;top:14px;right:30px;}body.tm-phase8-formal .zou-yuan .ben-body{flex:1;min-height:0;overflow-y:auto;padding:20px 32px 16px;scrollbar-width:none;position:relative;}body.tm-phase8-formal .zou-yuan .ben-body::-webkit-scrollbar{width:0;height:0;}body.tm-phase8-formal .zou-yuan .ben-paper{position:relative;padding:18px 22px 20px;border:1px double rgba(168,50,40,0.42);border-radius:2px;  background:    repeating-linear-gradient(90deg, transparent 0 calc(2.05em - 1px), rgba(168,50,40,0.12) calc(2.05em - 1px) 2.05em),    linear-gradient(180deg, rgba(255,252,242,0.55), rgba(248,240,222,0.4));  box-shadow:inset 0 0 24px rgba(168,131,58,0.08);}body.tm-phase8-formal .zou-yuan .ben-paper::before,body.tm-phase8-formal .zou-yuan .ben-paper::after{content:"";position:absolute;left:8px;right:8px;height:1px;background:rgba(168,50,40,0.4);}body.tm-phase8-formal .zou-yuan .ben-paper::before{top:7px;box-shadow:0 3px 0 rgba(168,50,40,0.18);}body.tm-phase8-formal .zou-yuan .ben-paper::after{bottom:7px;box-shadow:0 -3px 0 rgba(168,50,40,0.18);}body.tm-phase8-formal .zou-yuan .bp-open{font-size:14.5px;letter-spacing:0.04em;color:var(--ink-soft);margin-bottom:10px;}body.tm-phase8-formal .zou-yuan .bp-open b{color:var(--ink);}body.tm-phase8-formal .zou-yuan .ben-text{font-family:var(--font-doc);font-size:15.5px;line-height:2.05;color:var(--ink);letter-spacing:0.02em;text-align:justify;white-space:pre-wrap;  text-indent:2em;}body.tm-phase8-formal .zou-yuan .ben-text.collapsed{display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden;}body.tm-phase8-formal .zou-yuan .bp-close{font-family:var(--font-doc);font-size:14px;color:var(--ink-soft);margin-top:12px;text-align:right;letter-spacing:0.04em;}body.tm-phase8-formal .zou-yuan .ben-toggle{display:inline-block;margin-top:8px;font-size:12.5px;color:var(--cinnabar-d);cursor:pointer;border:none;background:none;font-family:var(--font);letter-spacing:0.06em;}body.tm-phase8-formal .zou-yuan .ben-toggle:hover{color:var(--cinnabar);text-decoration:underline;}body.tm-phase8-formal .zou-yuan .ben-sealed{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:40px;}body.tm-phase8-formal .zou-yuan .ben-empty{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:40px;text-align:center;}body.tm-phase8-formal .zou-yuan .ben-empty-seal{width:64px;height:64px;display:grid;place-items:center;border-radius:9px;font-size:31px;font-weight:bold;color:#fff;background:linear-gradient(155deg,var(--gold-hi),var(--gold-d));box-shadow:0 4px 13px rgba(125,94,34,0.38),inset 0 1px 0 rgba(255,255,255,0.3);opacity:0.82;margin-bottom:8px;}body.tm-phase8-formal .zou-yuan .ben-empty h3{font-size:19px;letter-spacing:0.32em;color:var(--ink-soft);font-weight:bold;}body.tm-phase8-formal .zou-yuan .ben-empty p{font-size:13px;color:var(--ink-faint);letter-spacing:0.08em;}body.tm-phase8-formal .zou-yuan .ben-empty small{font-size:11px;color:var(--ink-faint);opacity:0.72;letter-spacing:0.04em;margin-top:5px;}body.tm-phase8-formal .zou-yuan .wax{width:118px;height:118px;border-radius:50%;position:relative;display:grid;place-items:center;cursor:pointer;  background:radial-gradient(circle at 38% 32%, var(--cinnabar-hi), var(--cinnabar) 45%, var(--cinnabar-d) 100%);  box-shadow:0 8px 22px rgba(122,32,24,0.5),inset 0 3px 8px rgba(255,180,160,0.4),inset 0 -8px 14px rgba(60,10,6,0.5);  border:2px solid rgba(80,16,10,0.6);transition:transform .2s;animation:zmy-waxBreath 3s ease-in-out infinite;}body.tm-phase8-formal .zou-yuan .wax:hover{transform:scale(1.05);}body.tm-phase8-formal .zou-yuan .wax::before{content:"";position:absolute;inset:-9px;border-radius:50%;border:1px dashed rgba(122,32,24,0.4);}body.tm-phase8-formal .zou-yuan .wax b{font-size:30px;color:#ffe8df;font-weight:bold;text-shadow:0 2px 3px rgba(60,10,6,0.6);letter-spacing:0.05em;transform:rotate(-6deg);}body.tm-phase8-formal .zou-yuan .sealed-hint{text-align:center;color:var(--ink-soft);}body.tm-phase8-formal .zou-yuan .sealed-hint h4{font-size:16px;letter-spacing:0.16em;color:var(--cinnabar-d);margin-bottom:6px;}body.tm-phase8-formal .zou-yuan .sealed-hint p{font-size:12.5px;color:var(--ink-faint);letter-spacing:0.04em;}body.tm-phase8-formal .zou-yuan .ben-foot{flex:0 0 auto;padding:13px 30px 16px;border-top:1px solid rgba(168,131,58,0.36);position:relative;background:linear-gradient(180deg,transparent,rgba(168,131,58,0.05));}body.tm-phase8-formal .zou-yuan .pizhu-lbl{display:flex;align-items:center;gap:8px;margin-bottom:7px;}body.tm-phase8-formal .zou-yuan .pizhu-lbl b{font-size:14px;letter-spacing:0.16em;color:var(--cinnabar-d);}body.tm-phase8-formal .zou-yuan .pizhu-lbl::before{content:"御 笔";font-size:10px;letter-spacing:0.1em;color:#fff;background:linear-gradient(150deg,var(--cinnabar),var(--cinnabar-d));padding:2px 7px;border-radius:3px;}body.tm-phase8-formal .zou-yuan .pizhu-lbl small{margin-left:auto;font-size:10.5px;color:var(--ink-faint);}body.tm-phase8-formal .zou-yuan .pizhu-quick{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;}body.tm-phase8-formal .zou-yuan .qphrase{font-family:var(--font);font-size:11.5px;letter-spacing:0.05em;color:var(--cinnabar-d);cursor:pointer;  padding:2px 10px;border-radius:12px;border:1px solid rgba(122,32,24,0.34);background:rgba(168,50,40,0.05);transition:all .14s;}body.tm-phase8-formal .zou-yuan .qphrase:hover{background:var(--cinnabar);color:#fff;border-color:var(--cinnabar);}body.tm-phase8-formal .zou-yuan .pizhu-ta{width:100%;min-height:54px;resize:vertical;font-family:var(--font);font-size:15px;line-height:1.7;letter-spacing:0.04em;  color:var(--cinnabar);padding:9px 13px;border:1px solid rgba(122,32,24,0.3);border-radius:4px;  background:    repeating-linear-gradient(0deg, transparent 0 calc(1.7em - 1px), rgba(168,50,40,0.08) calc(1.7em - 1px) 1.7em),    rgba(255,252,244,0.7);  box-shadow:inset 0 1px 3px rgba(120,40,30,0.1);outline:none;transition:border-color .15s,box-shadow .15s;}body.tm-phase8-formal .zou-yuan .pizhu-ta::placeholder{color:rgba(168,50,40,0.4);}body.tm-phase8-formal .zou-yuan .pizhu-ta:focus{border-color:var(--cinnabar);box-shadow:inset 0 1px 3px rgba(120,40,30,0.12),0 0 0 3px rgba(168,50,40,0.1);}body.tm-phase8-formal .zou-yuan .pizhu-acts{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px;}body.tm-phase8-formal .zou-yuan .pact{font-family:var(--font);font-size:13px;letter-spacing:0.08em;cursor:pointer;padding:7px 16px;border-radius:5px;  border:1px solid var(--gold-d);background:#fbf4e2;color:var(--ink-soft);transition:all .15s;display:inline-flex;align-items:center;gap:4px;  box-shadow:0 1px 3px rgba(80,56,24,0.12);}body.tm-phase8-formal .zou-yuan .pact:hover{background:#fff;border-color:var(--gold);color:var(--ink);transform:translateY(-1px);}body.tm-phase8-formal .zou-yuan .pact.primary{color:#fff;background:linear-gradient(155deg,var(--cinnabar-hi),var(--cinnabar-d));border-color:var(--cinnabar-d);box-shadow:0 2px 8px rgba(122,32,24,0.34);}body.tm-phase8-formal .zou-yuan .pact.primary:hover{background:linear-gradient(155deg,#d2564a,var(--cinnabar));color:#fff;}body.tm-phase8-formal .zou-yuan .pact.jade{border-color:var(--jade);color:#23463a;background:rgba(111,162,145,0.18);}body.tm-phase8-formal .zou-yuan .pact.jade:hover{background:rgba(111,162,145,0.32);color:#16302a;}body.tm-phase8-formal .zou-yuan .pact.danger{border-color:rgba(122,32,24,0.5);color:var(--cinnabar-d);}body.tm-phase8-formal .zou-yuan .pact.danger:hover{background:rgba(168,50,40,0.1);}body.tm-phase8-formal .zou-yuan .pact-sep{flex:0 0 1px;align-self:stretch;margin:2px 3px;background:rgba(168,131,58,0.3);}body.tm-phase8-formal .zou-yuan .aside{flex:0 0 250px;min-height:0;display:flex;flex-direction:column;gap:12px;overflow-y:auto;scrollbar-width:none;}body.tm-phase8-formal .zou-yuan .aside::-webkit-scrollbar{width:0;}body.tm-phase8-formal .zou-yuan .card{flex:0 0 auto;border:1px solid rgba(168,131,58,0.38);border-radius:6px;overflow:hidden;  background:linear-gradient(180deg,rgba(255,253,243,0.55),rgba(245,236,210,0.34));  box-shadow:inset 0 1px 0 rgba(255,255,255,0.5),0 6px 16px rgba(50,32,14,0.16);}body.tm-phase8-formal .zou-yuan .card-hd{display:flex;align-items:center;gap:7px;padding:9px 13px;border-bottom:1px solid rgba(168,131,58,0.28);  font-size:13.5px;letter-spacing:0.1em;color:var(--ink);background:linear-gradient(90deg,rgba(168,131,58,0.1),transparent);}body.tm-phase8-formal .zou-yuan .card-hd .ci{width:20px;height:20px;flex:0 0 auto;display:grid;place-items:center;border-radius:4px;font-size:11px;color:#fff;  background:linear-gradient(150deg,var(--gold-hi),var(--gold-d));}body.tm-phase8-formal .zou-yuan .card-bd{padding:11px 13px 13px;}body.tm-phase8-formal .zou-yuan .piaoni{font-family:var(--font-doc);font-size:13.5px;line-height:1.85;color:var(--ink-soft);letter-spacing:0.02em;  padding:9px 11px;border-radius:4px;border:1px dashed rgba(120,90,40,0.34);background:rgba(255,250,235,0.5);position:relative;}body.tm-phase8-formal .zou-yuan .piaoni::before{content:"拟";position:absolute;right:8px;top:6px;font-size:24px;color:rgba(120,90,40,0.1);font-weight:bold;}body.tm-phase8-formal .zou-yuan .piaoni .pn-from{display:block;font-family:var(--font);font-size:11px;color:var(--ink-faint);margin-top:7px;letter-spacing:0.04em;}body.tm-phase8-formal .zou-yuan .piaoni-take{margin-top:9px;width:100%;font-family:var(--font);font-size:12px;letter-spacing:0.08em;cursor:pointer;  padding:6px;border-radius:4px;border:1px solid var(--gold-d);background:#fbf4e2;color:var(--gold-d);transition:all .14s;}body.tm-phase8-formal .zou-yuan .piaoni-take:hover{background:var(--gold);color:#fff;border-color:var(--gold);}body.tm-phase8-formal .zou-yuan .who{display:flex;align-items:center;gap:11px;}body.tm-phase8-formal .zou-yuan .who-face{width:46px;height:56px;flex:0 0 auto;border-radius:4px;display:grid;place-items:center;font-size:22px;font-weight:bold;color:var(--ink);  background:linear-gradient(160deg,#efe3c4,#d9c79d);border:1px solid rgba(168,131,58,0.5);box-shadow:inset 0 1px 0 rgba(255,255,255,0.5),0 2px 6px rgba(60,40,20,0.18);}body.tm-phase8-formal .zou-yuan .who-info b{font-size:14.5px;color:var(--ink);display:block;letter-spacing:0.03em;}body.tm-phase8-formal .zou-yuan .who-info span{font-size:11.5px;color:var(--ink-faint);display:block;margin-top:2px;letter-spacing:0.02em;}body.tm-phase8-formal .zou-yuan .who-meta{display:grid;grid-template-columns:auto 1fr;gap:5px 9px;margin-top:11px;font-size:12px;}body.tm-phase8-formal .zou-yuan .who-meta dt{color:var(--ink-faint);letter-spacing:0.06em;}body.tm-phase8-formal .zou-yuan .who-meta dd{color:var(--ink);text-align:right;}body.tm-phase8-formal .zou-yuan .relbar{display:inline-flex;align-items:center;gap:2px;}body.tm-phase8-formal .zou-yuan .relbar i{width:14px;height:4px;border-radius:2px;background:rgba(120,90,40,0.18);}body.tm-phase8-formal .zou-yuan .relbar i.on{background:var(--jade);}body.tm-phase8-formal .zou-yuan .relbar i.on.bad{background:var(--cinnabar);}body.tm-phase8-formal .zou-yuan .chain{display:flex;flex-direction:column;gap:0;font-size:12px;}body.tm-phase8-formal .zou-yuan .chain-row{display:flex;align-items:flex-start;gap:9px;padding:5px 0;position:relative;}body.tm-phase8-formal .zou-yuan .chain-row:not(:last-child)::after{content:"";position:absolute;left:9px;top:21px;bottom:-3px;width:1px;background:rgba(168,131,58,0.3);}body.tm-phase8-formal .zou-yuan .chain-dot{flex:0 0 auto;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:9px;color:#fff;margin-top:1px;  background:linear-gradient(150deg,var(--gold-hi),var(--gold-d));}body.tm-phase8-formal .zou-yuan .chain-row b{color:var(--ink);font-size:12px;letter-spacing:0.04em;}body.tm-phase8-formal .zou-yuan .chain-row p{color:var(--ink-faint);font-size:11px;line-height:1.5;margin-top:1px;}body.tm-phase8-formal .zou-yuan .impact{display:grid;gap:8px;}body.tm-phase8-formal .zou-yuan .imp-row{display:flex;align-items:center;justify-content:space-between;font-size:12px;padding:5px 9px;border-radius:4px;background:rgba(255,250,235,0.5);border:1px solid rgba(168,131,58,0.22);}body.tm-phase8-formal .zou-yuan .imp-row span{color:var(--ink-faint);letter-spacing:0.04em;}body.tm-phase8-formal .zou-yuan .imp-row b{color:var(--ink);}body.tm-phase8-formal .zou-yuan .imp-row b.up{color:var(--jade);}body.tm-phase8-formal .zou-yuan .imp-row b.dn{color:var(--cinnabar);}body.tm-phase8-formal .zou-yuan .imp-foot{margin-top:8px;font-size:10.5px;color:var(--ink-faint);letter-spacing:0.04em;text-align:right;font-style:italic;}body.tm-phase8-formal .zou-yuan .imp-pending{font-size:12px;color:var(--ink-faint);line-height:1.78;letter-spacing:0.03em;}body.tm-phase8-formal .zou-yuan .imp-pending b{color:var(--ink-soft);}body.tm-phase8-formal .zou-yuan .imp-note{display:inline-block;margin-top:7px;padding:1px 8px;border-radius:10px;font-size:10.5px;color:var(--cinnabar-d);background:rgba(168,50,40,0.06);border:1px dashed rgba(122,32,24,0.3);letter-spacing:0.03em;}body.tm-phase8-formal .zou-yuan .imp-relay{margin-top:9px;padding:7px 10px;font-size:11.5px;line-height:1.6;color:var(--indigo);background:rgba(74,94,138,0.07);border:1px dashed rgba(74,94,138,0.35);border-radius:4px;letter-spacing:0.03em;}body.tm-phase8-formal .zou-yuan .imp-relay b{color:var(--indigo);}body.tm-phase8-formal .zou-yuan .held-banner{flex:0 0 auto;margin:9px 30px 0;padding:8px 14px;font-size:12px;letter-spacing:0.03em;color:var(--ink-soft);background:rgba(168,131,58,0.1);border-left:3px solid var(--gold);border-radius:0 4px 4px 0;}body.tm-phase8-formal .zou-yuan .held-banner b{color:var(--ink);}body.tm-phase8-formal .zou-yuan .held-banner.warn{color:var(--cinnabar-d);background:rgba(168,50,40,0.07);border-left-color:var(--cinnabar);}body.tm-phase8-formal .zou-yuan .held-banner.warn b{color:var(--cinnabar-d);}body.tm-phase8-formal .zou-yuan .card-hd .hd-note{margin-left:auto;font-size:10.5px;font-weight:normal;letter-spacing:0.04em;color:var(--ink-faint);padding:1px 8px;border-radius:9px;background:rgba(120,90,40,0.08);}@keyframes zmy-pulse{0%,100%{box-shadow:0 0 0 3px rgba(168,50,40,0.18);}50%{box-shadow:0 0 0 5px rgba(168,50,40,0.05);}}@keyframes zmy-waxBreath{0%,100%{box-shadow:0 8px 22px rgba(122,32,24,0.5),inset 0 3px 8px rgba(255,180,160,0.4),inset 0 -8px 14px rgba(60,10,6,0.5);}50%{box-shadow:0 8px 28px rgba(122,32,24,0.62),inset 0 3px 8px rgba(255,180,160,0.5),inset 0 -8px 14px rgba(60,10,6,0.5);}}@keyframes zmy-headDrop{from{opacity:0;transform:translateY(-14px);}to{opacity:1;transform:translateY(0);}}@keyframes zmy-bodyRise{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}@keyframes zmy-benIn{from{opacity:0;transform:translateY(10px) scale(0.99);}to{opacity:1;transform:translateY(0) scale(1);}}body.tm-phase8-formal .zou-yuan .stamp-fx{position:absolute;left:50%;top:50%;width:120px;height:120px;transform:translate(-50%,-50%) scale(2.4) rotate(-12deg);  opacity:0;pointer-events:none;z-index:30;border-radius:8px;border:3px solid var(--cinnabar);  display:grid;place-items:center;font-size:30px;font-weight:bold;color:var(--cinnabar);  box-shadow:0 0 0 4px rgba(168,50,40,0.2);}body.tm-phase8-formal .zou-yuan .stamp-fx.go{animation:zmy-stampDrop .6s cubic-bezier(.3,1.4,.5,1) forwards;}@keyframes zmy-stampDrop{0%{opacity:0;transform:translate(-50%,-50%) scale(2.4) rotate(-12deg);}40%{opacity:0.95;transform:translate(-50%,-50%) scale(1) rotate(-12deg);}100%{opacity:0;transform:translate(-50%,-50%) scale(1.05) rotate(-12deg);}}';
+  }
+  // ═══ 御案批红 · 百官奏疏 (zou-yuan) · 落地 2026-06-02 ═══
+  var MEM_TYPE_YUAN = {
+    '弹章':{c:'#a83228',label:'弹章',glyph:'劾'},'弹劾':{c:'#a83228',label:'弹章',glyph:'劾'},
+    '警报':{c:'#7a2018',label:'警报',glyph:'警'},'军务':{c:'#4a5e8a',label:'军务',glyph:'兵'},
+    '边报':{c:'#4a5e8a',label:'边报',glyph:'边'},'荐表':{c:'#557f6f',label:'荐表',glyph:'荐'},
+    '政务':{c:'#a8833a',label:'政务',glyph:'政'},'人事':{c:'#8e6aa8',label:'人事',glyph:'铨'},
+    '民生':{c:'#b98b2f',label:'民生',glyph:'民'},'经济':{c:'#b98b2f',label:'民生',glyph:'民'},
+    'territory':{c:'#a83228',label:'侨置',glyph:'疆'},'谏疏':{c:'#a8833a',label:'谏疏',glyph:'谏'}
+  };
+  function memTypeYuan(t){ return MEM_TYPE_YUAN[t] || {c:'#a8833a',label:(t||'奏疏'),glyph:'奏'}; }
+  var MEM_REL_LABEL = { high:'信据确凿', medium:'尚需查核', low:'风闻待核' };
+  var MEM_REL_LEVEL = { high:3, medium:2, low:1 };
+  function memRel(m){ return (m && m.reliability) || 'medium'; }
+  var MEM_STATUS_TEXT = { pending:'待批', pending_review:'待核', hold:'留中', held:'留中', approved:'已准', rejected:'已驳', annotated:'已批示', referred:'已转', court_debate:'付廷议', done:'已批' };
+  function memIsSecret(m){ return m && (m.subtype === '密折' || m.subtype === '密揭'); }
+  function memHeldTurns(m){
+    var gm = window.GM || {}; var now = Number(gm.turn || 1);
+    var arr = (m.raw && Number(m.raw._arrivedTurn)) || Number(m.turn) || now;
+    return Math.max(0, now - arr);
+  }
+  function memCharOf(m){
+    try { if (typeof window.findCharByName === 'function') return window.findCharByName(m.from); } catch(_) {}
+    return null;
+  }
+  function memOpener(m){
+    var f = String(m.from || '');
+    if (/^[一-龥]{2,4}$/.test(f) && !/(司|厂|监|部|院|寺|军|民|塘报|有司|衙|生员|士民|联名)/.test(f)) return '臣' + f + '谨奏：';
+    return '';
+  }
+
+  // 折子 (左·奏牍架)
+  function renderMemFolderYuan(m, activeId){
+    var tm = memTypeYuan(m.type), g = memorialGroupKey(m), secret = memIsSecret(m);
+    var opened = state.memorialOpened && state.memorialOpened[m.id];
+    var held = memHeldTurns(m);
+    var sealedTag = secret ? (opened ? '密折' : '密 · 封缄') : (m.subtype && m.subtype !== '公疏' ? m.subtype : '');
+    var tail = g === 'done'
+      ? '<span class="zf-stamp">' + esc(MEM_STATUS_TEXT[m.status] || '已批') + '</span>'
+      : (g === 'held' && held > 0 ? '<div class="zf-held' + (held >= 2 ? ' warn' : '') + '">已留中 ' + held + ' 回' + (held >= 2 ? ' · 恐续奏' : '') + '</div>' : '<div style="margin-top:5px">' + memRelDots(memRel(m)) + '</div>');
+    return '<button type="button" class="zou-folder ' + (String(activeId) === String(m.id) ? 'active' : '') + (g === 'done' ? ' done' : '') + '" data-desk-action="select-memorial-desk" data-id="' + attr(m.id || '') + '" style="--tc:' + tm.c + '">' +
+      '<div class="zf-top"><span class="zf-type" style="background:' + tm.c + '">' + esc(tm.label) + '</span>' +
+        (sealedTag ? '<span class="zf-sub' + (secret && !opened ? ' mi' : '') + '">' + esc(sealedTag) + '</span>' : '') +
+        ((m.raw && m.raw._remoteFrom) ? '<span class="zf-remote" title="远方奏疏">远</span>' : '') +
+        (g === 'urgent' ? '<span class="zf-urgent"></span>' : '') + '</div>' +
+      '<div class="zf-title">' + esc(m.title || '奏疏') + '</div>' +
+      '<div class="zf-meta"><b style="color:var(--ink)">' + esc(m.from || '臣工') + '</b><span class="dot">·</span><span>' + esc(m.dept || m.office || '通政司') + '</span></div>' +
+      tail + '</button>';
+  }
+  function memRelDots(rel){
+    var lv = MEM_REL_LEVEL[rel] || 0, h = '';
+    for (var i = 0; i < 3; i++) h += '<i class="' + (i < lv ? '' : 'off') + '">●</i>';
+    return '<span class="zf-rel" title="' + attr(MEM_REL_LABEL[rel] || '') + '">' + h + '</span>';
+  }
+
+  // 奏本抬头
+  function memBenHead(m, tm, g){
+    var statusChip = g === 'urgent' ? '<span class="chip hot">急奏</span>' : g === 'done' ? '<span class="chip green">' + esc(MEM_STATUS_TEXT[m.status] || '已批') + '</span>' : g === 'held' ? '<span class="chip">留中</span>' : '<span class="chip">待批</span>';
+    var rel = memRel(m), relCls = rel === 'low' ? 'lo' : '';
+    var ch = memCharOf(m), faction = (ch && (ch.faction || ch.group)) || '';
+    var impeachT = '';
+    if (tm.label === '弹章' && /弹劾/.test(String(m.title || ''))) {
+      var _it = (String(m.title).split('弹劾')[1] || '').replace(/(冒功|欺君|不法|贪墨|贪|失职|渎职|结党|专擅|跋扈).*$/, '').replace(/[，。、；：·等\s].*$/, '').slice(0, 12);
+      if (_it.length >= 2) impeachT = _it;
+    }
+    return '<div class="ben-head"><div class="bh-status">' + statusChip + '</div><div class="bh-row">' +
+      '<div class="bh-seal" style="--tc:' + tm.c + '"><b>' + esc(tm.glyph) + '</b><span>' + esc(tm.label) + '</span></div>' +
+      '<div class="bh-main"><div class="bh-title">' + esc(m.title || '奏疏') + '</div>' +
+        '<div class="bh-author">具题　<b>' + esc(m.from || '臣工') + '</b>　' + esc(m.office || (ch && (ch.officialTitle || ch.title)) || '') + '　〔' + esc(m.dept || '通政司') + '〕</div>' +
+        '<div class="bh-tags">' +
+          '<span class="bh-tag">' + esc(tm.label) + '</span>' +
+          (m.subtype ? '<span class="bh-tag' + (memIsSecret(m) ? ' mi' : '') + '">' + esc(m.subtype) + '</span>' : '') +
+          (impeachT ? '<span class="bh-tag impeach">被劾 · ' + esc(impeachT) + '</span>' : '') +
+          ((m.raw && m.raw._remoteFrom) ? '<span class="bh-tag remote">远方 · ' + esc(m.raw._remoteFrom) + '</span>' : '') +
+          '<span class="bh-tag">可靠 <span class="rel-d ' + relCls + '">' + esc(MEM_REL_LABEL[rel] || '未明') + '</span></span>' +
+          (faction ? '<span class="bh-tag">' + esc(faction) + '</span>' : '') +
+        '</div></div></div></div>';
+  }
+
+  // 御览批红 (中)
+  function renderMemReaderYuan(m){
+    if (!m) return '<div class="ben-empty"><div class="ben-empty-seal">奏</div><h3>案 牍 清 净</h3><p>百官无事启奏　·　通政司暂无折件转入</p><small>新奏疏会于每回合由百官、有司、边镇陆续呈入</small></div>';
+    var tm = memTypeYuan(m.type), g = memorialGroupKey(m);
+    // 密折封缄态
+    if (memIsSecret(m) && !(state.memorialOpened && state.memorialOpened[m.id])) {
+      return memBenHead(m, tm, g) +
+        '<div class="ben-sealed"><button type="button" class="wax" data-desk-action="memorial-unseal-desk" data-id="' + attr(m.id || '') + '"><b>缄</b></button>' +
+        '<div class="sealed-hint"><h4>密 折 · 火 漆 封 缄</h4><p>' + esc(m.from || '') + ' 直达御前 · 不付外廷拟议<br>点火漆启封，方可御览</p></div></div>';
+    }
+    var done = g === 'done';
     var mid = 'mem-formal-' + (m.rawIndex != null ? m.rawIndex : String(m.id || '').replace(/[^a-zA-Z0-9_-]/g, ''));
-    var bodyHtml = body.length > 180
-      ? '<div class="mem-body collapsed wd-selectable" id="' + attr(mid) + '-body">' + esc(body) + '</div><button type="button" class="mem-toggle" onclick="var b=document.getElementById(&quot;' + attr(mid) + '-body&quot;);if(b){var col=b.classList.toggle(&quot;collapsed&quot;);this.textContent=col?&quot;▼ 展开全文&quot;:&quot;▲ 收起&quot;;}">▼ 展开全文</button>'
-      : '<div class="mem-body wd-selectable">' + esc(body) + '</div>';
     var replyId = mid + '-reply';
+    var reply = m.reply || '';
     state.memorialReplies = state.memorialReplies || {};
     if (Object.prototype.hasOwnProperty.call(state.memorialReplies, replyId)) reply = state.memorialReplies[replyId];
-    var btnData = function(decision){ return { id:m.id || '', decision:decision, replyid:replyId }; };
-    // 侨置决策·承接旧 renderMemorials·仅当奏疏挂 _qiaozhiTarget(领土丢失后生成)·入口 openQiaozhiPanel·此前 desk 卡缺此上下文动作 → 侨置在御案 UI 够不着 (修复 2026-05-29)
-    var qzBtn = (m.raw && m.raw._qiaozhiTarget) ? actionBtn('侨置决策', 'memorial-qiaozhi-desk', { id:m.id || '' }, 'tm-mini-btn hot') : '';
-    return '<article class="memorial-card-v4 ' + cls + '">' +
-      '<div class="memorial-card-head-v4"><span class="memorial-avatar-v4">' + esc((m.from || m.sender || '奏').slice(0, 1)) + '</span><span><b>' + esc(m.title || m.topic || '奏疏') + '</b><span>' + esc(meta) + '</span></span><span class="tm-chip-row">' + actionChip(key === 'urgent' ? '急奏' : key === 'done' ? '已批' : key === 'held' ? '留中' : '待批', key === 'urgent' ? 'hot' : key === 'done' ? 'green' : '') + '</span></div>' +
-      '<div class="memorial-body-v4">' + bodyHtml + '</div>' +
-      '<div class="memorial-reply-v4"><textarea id="' + attr(replyId) + '" class="tm-textarea" data-desk-memorial-reply placeholder="朱批意见">' + esc(reply) + '</textarea><div class="memorial-actions-v4">' + actionBtn('准奏', 'memorial-decision-desk', btnData('approved'), 'tm-mini-btn green') + actionBtn('驳回', 'memorial-decision-desk', btnData('rejected'), 'tm-mini-btn hot') + actionBtn('批示', 'memorial-decision-desk', btnData('annotated'), 'tm-mini-btn') + actionBtn('转有司', 'memorial-decision-desk', btnData('referred'), 'tm-mini-btn') + actionBtn('发廷议', 'memorial-decision-desk', btnData('court_debate'), 'tm-mini-btn') + (key === 'held' ? '' : actionBtn('留中', 'memorial-decision-desk', btnData('hold'), 'tm-mini-btn')) + actionBtn('摘入', 'memorial-edict-desk', { id:m.id || '' }, 'tm-mini-btn') + actionBtn('传召问询', 'memorial-summon-desk', { id:m.id || '' }, 'tm-mini-btn') + qzBtn + '</div></div>' +
-      '</article>';
+    var body = m.text || m.content || '暂无正文。';
+    var opener = memOpener(m);
+    var held = memHeldTurns(m);
+    var longBody = body.length > 180;
+    var bodyHtml = longBody
+      ? '<div class="ben-text collapsed" id="' + attr(mid) + '-bt">' + esc(body) + '</div><button type="button" class="ben-toggle" onclick="var b=document.getElementById(&quot;' + attr(mid) + '-bt&quot;);if(b){var c=b.classList.toggle(&quot;collapsed&quot;);this.textContent=c?&quot;▼ 展开全文&quot;:&quot;▲ 收起&quot;;}">▼ 展开全文</button>'
+      : '<div class="ben-text" id="' + attr(mid) + '-bt">' + esc(body) + '</div>';
+    var quick = done ? '' : '<div class="pizhu-quick">' + ['知道了', '依议', '该部知道', '着实奏来', '览', '准奏，钦此', '着会官详议'].map(function(p){
+      return '<span class="qphrase" onclick="var t=document.getElementById(&quot;' + replyId + '&quot;);if(t){t.value=t.value?t.value+&quot;，&quot;+this.textContent:this.textContent;t.focus();}">' + esc(p) + '</span>';
+    }).join('') + '</div>';
+    return memBenHead(m, tm, g) +
+      (g === 'held' && held > 0 ? '<div class="held-banner' + (held >= 2 ? ' warn' : '') + '"><b>已留中 ' + held + ' 回合</b>' + (held >= 2 ? '　·　' + esc(m.from || '具题人') + '恐焦虑续奏，或求见当面追问' : '　·　御前暂存，可继续保留或下发') + '</div>' : '') +
+      '<div class="ben-body"><div class="ben-paper">' +
+        (opener ? '<div class="bp-open">' + esc(opener) + '</div>' : '') +
+        bodyHtml +
+        '<div class="bp-close">臣不胜屏营待命之至，谨奏。</div>' +
+      '</div></div>' +
+      '<div class="ben-foot">' +
+        '<div class="pizhu-lbl"><b>朱 批</b>' + (done ? '<small>已批 · 朱批归档</small>' : '<small>御笔朱批，下发有司</small>') + '</div>' +
+        quick +
+        '<textarea class="pizhu-ta" id="' + attr(replyId) + '" data-desk-memorial-reply ' + (done ? 'readonly' : '') + ' placeholder="御笔亲批……">' + esc(reply) + '</textarea>' +
+        memReaderActs(m, g, done, replyId) +
+      '</div>';
+  }
+  function memReaderActs(m, g, done, replyId){
+    if (done) return '<div class="pizhu-acts"><span style="font-size:12px;color:var(--ink-faint);letter-spacing:0.06em">此折已批 · ' + esc(MEM_STATUS_TEXT[m.status] || '已决') + ' · 可追踪回函与承办</span></div>';
+    var bd = function(dec){ return { id: m.id || '', decision: dec, replyid: replyId }; };
+    var a = '<div class="pizhu-acts">';
+    a += actionBtn('准奏', 'memorial-decision-desk', bd('approved'), 'pact primary');
+    a += actionBtn('驳回', 'memorial-decision-desk', bd('rejected'), 'pact danger');
+    a += actionBtn('批示', 'memorial-decision-desk', bd('annotated'), 'pact');
+    a += actionBtn('转有司', 'memorial-decision-desk', bd('referred'), 'pact');
+    a += actionBtn('发廷议', 'memorial-decision-desk', bd('court_debate'), 'pact');
+    if (g !== 'held') a += actionBtn('留中', 'memorial-decision-desk', bd('hold'), 'pact');
+    a += '<span class="pact-sep"></span>';
+    a += actionBtn('摘入拟诏', 'memorial-edict-desk', { id: m.id || '' }, 'pact jade');
+    a += actionBtn('传召问询', 'memorial-summon-desk', { id: m.id || '' }, 'pact');
+    if (m.raw && m.raw._qiaozhiTarget) a += actionBtn('侨置决策', 'memorial-qiaozhi-desk', { id: m.id || '' }, 'pact primary');
+    a += '</div>';
+    return a;
   }
 
-  function renderFormalMemorialTransit(){
+  // 票拟与影响 (右)
+  function renderMemAsideYuan(m){
+    if (!m) return '';
+    var g = memorialGroupKey(m), rel = memRel(m), relLv = MEM_REL_LEVEL[rel] || 0;
+    var ch = memCharOf(m);
+    var loyalty = ch && (typeof ch.loyalty === 'number' ? ch.loyalty : null);
+    var faction = (ch && (ch.faction || ch.group)) || m.dept || '';
+    var relation = ch && (ch.persona || ch.personality || ch.bio || ch.note || ch.desc) || '';
+    var niyi = m.raw && (m.raw._fuchenNiyi || m.raw.piaoni);
+    var _replyId = 'mem-formal-' + (m.rawIndex != null ? m.rawIndex : String(m.id || '').replace(/[^a-zA-Z0-9_-]/g, '')) + '-reply';
+    var aside = '';
+    // 辅臣拟议 (AI 生成于 endturn·写 raw._fuchenNiyi·未生成则占位)·niyi 在时可一键采入朱批
+    aside += '<div class="card"><div class="card-hd"><span class="ci">拟</span>辅臣拟议<span class="hd-note">辅臣之见 · 可采可驳</span></div><div class="card-bd">' +
+      (niyi ? '<div class="piaoni">' + esc(niyi) + '<span class="pn-from">—— 辅臣 拟议</span></div>'
+            + (g !== 'done' ? '<button type="button" class="piaoni-take" data-niyi="' + attr(niyi) + '" onclick="var t=document.getElementById(&quot;' + _replyId + '&quot;);if(t){if(!t.readOnly){var n=this.getAttribute(&quot;data-niyi&quot;);t.value=t.value?t.value+&quot;　&quot;+n:n;t.focus();}}">采拟议入朱批</button>' : '')
+            : '<div class="piaoni" style="color:var(--ink-faint)">辅臣拟议将于推演时由辅臣拟具（带其立场私心，可采可驳）。<span class="pn-from">—— 待本回辅臣拟议</span></div>') +
+    '</div></div>';
+    // 具题之臣
+    aside += '<div class="card"><div class="card-hd"><span class="ci">臣</span>具题之臣</div><div class="card-bd">' +
+      '<div class="who"><div class="who-face">' + esc((m.from || '臣').slice(0, 1)) + '</div>' +
+        '<div class="who-info"><b>' + esc(m.from || '臣工') + '</b><span>' + esc(m.office || (ch && (ch.officialTitle || ch.title)) || '') + '</span><span>' + esc(m.dept || '') + (faction ? ' · ' + esc(faction) : '') + '</span></div></div>' +
+      '<dl class="who-meta">' +
+        (loyalty != null ? '<dt>忠悃</dt><dd>' + loyalty + ' / 100</dd>' : '') +
+        '<dt>可靠</dt><dd><span class="relbar">' + [0, 1, 2].map(function(i){ return '<i class="' + (i < relLv ? 'on' : '') + (rel === 'low' && i < relLv ? ' bad' : '') + '"></i>'; }).join('') + '</span></dd>' +
+      '</dl>' +
+      (relation ? '<div style="margin-top:9px;font-size:11.5px;color:var(--ink-soft);line-height:1.6;font-family:var(--font-doc)">「' + esc(compactText(String(relation), 60)) + '」</div>' : '') +
+    '</div></div>';
+    // 批阅链路
+    aside += '<div class="card"><div class="card-hd"><span class="ci">链</span>批阅链路</div><div class="card-bd"><div class="chain">' +
+      memChainRow('源', '来源', '奏疏 · ' + esc(memTypeYuan(m.type).label) + (m.subtype ? ' · ' + esc(m.subtype) : '')) +
+      memChainRow('批', '批复', '准奏 / 驳回 / 留中 / 转有司 / 发廷议') +
+      memChainRow('行', '执行', '君主 → 中枢辅臣 → 有司 → 州县地方') +
+      memChainRow('档', '归档', '写入近事 · 人物记忆 · 史官实录') +
+    '</div></div></div>';
+    // 批后结果 (仅已批回显·不事前预估)
+    if (g === 'done') {
+      aside += '<div class="card"><div class="card-hd"><span class="ci">果</span>批后结果 · 本折后续</div><div class="card-bd"><div class="chain">' +
+        memFollowups(m).map(function(r){ return memChainRow(r[0].slice(0, 1), r[0], esc(r[1])); }).join('') +
+      '</div></div></div>';
+    } else {
+      aside += '<div class="card"><div class="card-hd"><span class="ci">果</span>批后结果</div><div class="card-bd"><div class="imp-pending">尚未批复。<br>朱批下发后，此处回显该折引发的<b>实际</b>影响（民心 / 财政 / 人物 / 边事…）。<br><span class="imp-note">后果应自然发生 · 不事前预告</span></div></div></div>';
+    }
+    return aside;
+  }
+  function memChainRow(d, b, p){ return '<div class="chain-row"><span class="chain-dot">' + esc(d) + '</span><div><b>' + esc(b) + '</b><p>' + p + '</p></div></div>'; }
+  // 本折后续·已批折回显真实已发生的后续(纯文字·无数字·读现有数据·不另调 AI)·承接"后果应自然不预告"
+  function memFollowups(m){
+    var rows = [], st = String(m.status || '');
+    var DEC = { approved:'已准奏 · 交有司施行', rejected:'已驳回 · 所请不行', annotated:'已批示 · 候有司遵行', referred:'已交有司核议', court_debate:'已付廷议 · 候朝议' };
+    rows.push(['朱批', DEC[st] || '已得朱批']);
+    if (st === 'referred') rows.push(['承办', ((m.raw && m.raw._referredTo) ? m.raw._referredTo + ' ' : '所交有司') + '应于后续上折复议']);
+    if (m.raw && m.raw._remoteFrom) {
+      var _now = Number((window.GM || {}).turn || 1), _dt = Number(m.raw._replyDeliveryTurn || 0);
+      rows.push(['回传', (_dt && _now >= _dt) ? '朱批已送达 · ' + (m.from || '具题人') + '已知结果' : '朱批回传中 · 信使在途 · ' + (m.from || '具题人') + '尚不知结果']);
+    }
+    if (m.from) rows.push(['具题人', m.from + '：' + (st === 'rejected' ? '闻驳 · 或忧惧或离心' : '闻准 · 感念在心')]);
+    rows.push(['归档', '已入近事 · 人物记忆 · 史官实录（后续于近事、实录追踪）']);
+    return rows;
+  }
+
+  // 在途奏疏
+  function renderMemTransitYuan(){
     var gm = window.GM || {};
-    var pending = Array.isArray(gm._pendingMemorialDeliveries) ? gm._pendingMemorialDeliveries.filter(function(m){ return !m || m.status === 'in_transit'; }) : [];
+    var pending = Array.isArray(gm._pendingMemorialDeliveries) ? gm._pendingMemorialDeliveries.filter(function(m){ return !m || m.status === 'in_transit' || m.status === 'intercepted'; }) : [];
     var rows = firstArray(pending, gm.memorialTransit, gm._memorialTransit, gm.zoushuTransit).slice(0, 4);
     if (!rows.length) return '';
-    return rows.map(function(t){
-      return '<div class="memorial-side-note"><b>' + esc([t.from || t.sender || '地方', t.office || t.dept || '衙门'].filter(Boolean).join(' · ')) + '</b><p>' + esc([t.type || '奏疏', t.eta || t.due || '在途'].filter(Boolean).join(' / ')) + '<br>' + esc(compactText(t.body || t.text || t.content || '', 72)) + '</p></div>';
-    }).join('');
+    return '<div class="transit"><div class="transit-t">在途奏疏 · ' + rows.length + ' 件</div>' +
+      rows.map(function(t){
+        var from = t.from || t.sender || '地方', eta = t.eta || t.due || '在途';
+        return '<div class="transit-row"><b>' + esc(from) + '</b><em>' + esc(eta) + '</em><div style="color:var(--ink-faint);font-size:10.5px;margin-top:2px">' + esc([t.office || t.dept || '衙门', t.type || '奏疏'].filter(Boolean).join(' · ')) + '</div><div style="margin-top:1px">' + esc(compactText(t.body || t.text || t.content || '', 60)) + '</div></div>';
+      }).join('') + '</div>';
   }
 
+  // 主面板
   function renderFormalMemorialPanel(){
+    installMemorialYuanStyles();
     restoreFormalDraftsFromGM(false);
     var mems = getMemorials();
     var filter = state.memorialFilter || 'all';
     if (filter === 'review') filter = 'all';
-    var filters = [
-      ['all','全部奏疏','旧奏疏总览'],
-      ['urgent','急奏待批','红签优先'],
-      ['pending','百官启奏','常规待批'],
-      ['held','留中之折','御前暂存'],
-      ['done','已批档案','朱批归档']
-    ];
-    var side = filters.map(function(f){
-      var count = mems.filter(function(m){ return memorialMatchesFormal(f[0], m); }).length;
-      return '<button type="button" class="' + (filter === f[0] ? 'active' : '') + '" data-desk-action="memorial-filter-desk" data-filter="' + attr(f[0]) + '"><i>奏</i><span><b>' + esc(f[1]) + '</b><span>' + esc(f[2]) + '</span></span>' + actionChip(String(count), count ? 'green' : '') + '</button>';
-    }).join('');
     var visible = mems.filter(function(m){ return memorialMatchesFormal(filter, m); });
-    var groupMeta = [
-      ['urgent','急奏待批','红签急奏，优先于常规折件。'],
-      ['pending','百官启奏','可准奏、驳回、批示、转交有司或发朝议。'],
-      ['held','留中之折','暂不下发，保留御前判断与后续回合。'],
-      ['done','已批档案','已形成朱批，可追踪回函与承办。']
-    ];
-    var groups = groupMeta.map(function(g){
-      var key = g[0];
-      var rows = visible.filter(function(m){ return memorialGroupKey(m) === key; });
-      if (!rows.length) return '';
-      return '<section class="memorial-group-v4"><h3 class="memorial-group-title-v4"><span>' + esc(g[1]) + '</span><small>' + esc(rows.length) + ' 件 · ' + esc(g[2]) + '</small></h3>' + rows.map(renderMemorialCardV4).join('') + '</section>';
+    // active
+    var active = mems.find(function(m){ return String(m.id) === String(state.memorialId || ''); });
+    if (!active || !memorialMatchesFormal(filter, active)) active = visible[0] || mems[0] || null;
+    if (active) state.memorialId = active.id;
+    // 筛选签条
+    var filters = [['all', '全部'], ['urgent', '急奏'], ['pending', '百官启奏'], ['held', '留中'], ['done', '已批']];
+    var filterHtml = filters.map(function(f){
+      var n = mems.filter(function(m){ return memorialMatchesFormal(f[0], m); }).length;
+      return '<button type="button" class="filter ' + (filter === f[0] ? 'active' : '') + '" data-desk-action="memorial-filter-desk" data-filter="' + attr(f[0]) + '"><span>' + esc(f[1]) + '</span><span class="fc">' + n + '</span></button>';
     }).join('');
-    var transit = renderFormalMemorialTransit();
-    return '<section class="memorial-office-v4">' +
-      '<aside class="memorial-cases-v4"><div class="tm-panel-v4-title"><span class="seal">奏</span><span><b>朱批案牍</b><span>急奏 / 留中 / 已批</span></span></div><div class="memorial-filter-v4">' + side + '</div>' + (transit ? '<h3 class="tm-roster-group" style="margin-top:12px">在途奏疏</h3>' + transit : '') + '</aside>' +
-      '<main class="memorial-paper-v4"><header class="memorial-paper-head-v4"><span><h2>奏 疏 待 览</h2><p>案牍之司　　百官启奏</p></span><span class="tm-chip-row">' + actionChip('本回 ' + mems.filter(function(m){ return memorialGroupKey(m) !== 'done'; }).length + ' 件', 'green') + actionChip('急 ' + mems.filter(function(m){ return memorialGroupKey(m) === 'urgent'; }).length, 'hot') + '</span></header>' +
-        (groups || '<div class="mem-empty">案牍清净　百官无事启奏</div>') +
-      '</main></section>';
+    // 折子列表 (分组)
+    var order = ['urgent', 'pending', 'held', 'done'];
+    var GLBL = { urgent: '急奏待批', pending: '百官启奏', held: '留中之折', done: '已批档案' };
+    var listHtml = order.map(function(gk){
+      var rows = visible.filter(function(m){ return memorialGroupKey(m) === gk; });
+      if (!rows.length) return '';
+      return '<div class="shelf-group"><div class="shelf-group-t">' + esc(GLBL[gk]) + ' <small>' + rows.length + ' 件</small></div>' +
+        rows.map(function(m){ return renderMemFolderYuan(m, state.memorialId); }).join('') + '</div>';
+    }).join('') || '<div style="padding:30px 10px;text-align:center;color:var(--ink-faint);font-size:12.5px;">案牍清净　无此类奏疏</div>';
+    var pend = mems.filter(function(m){ return memorialGroupKey(m) !== 'done'; }).length;
+    var urg = mems.filter(function(m){ return memorialGroupKey(m) === 'urgent'; }).length;
+    return '<section class="zou-yuan">' +
+      '<div class="zou-titlebar"><div class="zt-center"><div class="zt-main">百 官 奏 疏</div><div class="zt-sub">通政司　百官启奏　御前批红</div></div>' +
+        '<div class="zou-chips"><span class="chip green">本回 ' + pend + ' 件</span><span class="chip hot">急 ' + urg + '</span></div></div>' +
+      '<div class="zou-body">' +
+        '<aside class="shelf"><div class="shelf-hd"><span class="shelf-seal">奏</span><div><b>朱批案牍</b><span>急奏 · 留中 · 已批</span></div></div>' +
+          '<div class="filters">' + filterHtml + '</div>' +
+          '<div class="shelf-scroll">' + listHtml + '</div>' +
+          renderMemTransitYuan() +
+        '</aside>' +
+        '<main class="read"><article class="zouben">' + renderMemReaderYuan(active) + '</article></main>' +
+        '<aside class="aside">' + renderMemAsideYuan(active) + '</aside>' +
+      '</div></section>';
   }
 
   function normalizeLetterPeople(){

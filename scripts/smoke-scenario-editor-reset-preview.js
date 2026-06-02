@@ -2675,8 +2675,13 @@ assert(appJs.includes("setSaveIndicator('saving')"),
   'writeStoredDraft should flip indicator to saving on entry');
 assert(appJs.includes("setSaveIndicator('saved', payload.savedAt)"),
   'writeStoredDraft should flip indicator to saved on successful persist');
-assert(appJs.includes("setSaveIndicator('error', null, err && err.message)"),
+assert(appJs.includes("setSaveIndicator('error'"),
   'writeStoredDraft should flip indicator to error on persistence failure');
+// 修 quota：超大剧本(天启 3.7M 字符)超 localStorage 配额时优雅降级——跳过持久化 + 提示，不再 throw（否则 commit/apply 整条失败）。
+assert(appJs.includes('DRAFT_PERSIST_MAX'),
+  'writeStoredDraft should guard oversized drafts via DRAFT_PERSIST_MAX (quota fix)');
+assert(appJs.includes('自动存草稿已暂停'),
+  'oversized/quota persistence failure should degrade gracefully (autosave paused, no throw)');
 
 // Slice 74: top-action group dividers.
 assert(html.includes('Slice 74: Top-action group dividers'),
