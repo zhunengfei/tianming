@@ -590,7 +590,29 @@
     if (scandalous.length <= 2 && (hq.drains.eunuchsRelatives || 0) > 0) {
       var he = Math.min(hq.drains.eunuchsRelatives, P_ZV7_HQ_DECAY * mr); hq.index = Math.min(100, hq.index + he); hq.drains.eunuchsRelatives -= he;
     }
-    // 其余状态类（主少/党争/内阁化/怠政）暂无干净前因信号 → 不自动回暖也不自动衰（v1·绝不假回血·前因信号回头补）
+    // ── P-ZV7 ①A·其余 4 个持续状态接前因信号（前因在→维持·消失→0.5 回暖）。无信号则 cleared=false·绝不假回血。──
+    var _Ghq = global.GM;
+    var _player = (_Ghq.chars || []).find(function(c) { return c && c.isPlayer; });
+    var _youngIllCleared = !!_player && (Number(_player.age) || 30) >= 12 && (Number(_player.health) || 80) >= 40;   // 主少/病弱：成年且康复才算清
+    var _ps = Number(_Ghq.partyStrife);
+    var _factionCleared = isFinite(_ps) && _ps <= 55;                                                              // 党争：>70 起·≤55 消（滞回防抖）
+    var _cabCleared = Array.isArray(_Ghq.dynamicInstitutions) && !_Ghq.dynamicInstitutions.some(function(inst) { return /内阁|军机|议政/.test((inst && inst.name) || ''); });  // 内阁化：有这份数据(数组)且其中无内阁/军机机构才算裁撤·清；字段缺失→不判不回血
+    var _idleMonths = (global.P && global.P.conf && Number(global.P.conf.idleGovernMonths)) || 6;                  // 怠政阈值·月·玩家可调·默认6
+    var _idleThresh = (typeof global.turnsForMonths === 'function') ? global.turnsForMonths(_idleMonths) : _idleMonths;  // 按剧本时间换算成回合
+    var _lastCourt = (_Ghq._lastChangchaoDecisionMeta && Number(_Ghq._lastChangchaoDecisionMeta.turn)) || 0;
+    var _idleCleared = !!_lastCourt && ((_Ghq.turn || 0) - _lastCourt) < _idleThresh;                             // 怠政：近期开过常朝才清·无常朝记录→不判
+    [
+      { k: 'youngOrIllness', clear: _youngIllCleared },
+      { k: 'factionConsuming', clear: _factionCleared },
+      { k: 'cabinetization', clear: _cabCleared },
+      { k: 'idleGovern', clear: _idleCleared }
+    ].forEach(function(s) {
+      if (s.clear && (hq.drains[s.k] || 0) > 0) {
+        var hh = Math.min(hq.drains[s.k], P_ZV7_HQ_DECAY * mr);
+        hq.index = Math.min(100, hq.index + hh);
+        hq.drains[s.k] = Math.max(0, hq.drains[s.k] - hh);
+      }
+    });
     // 全 drains 超本源封顶 → 削平回血（老路径写入/老档兜底）
     HUANGQUAN_DRAINS_8.forEach(function(d) {
       var cap = (HUANGQUAN_DRAIN_CAP[d] !== undefined) ? HUANGQUAN_DRAIN_CAP[d] : HUANGQUAN_DRAIN_CAP._default;

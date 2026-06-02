@@ -106,6 +106,29 @@
         } catch(_applyErr) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_applyErr, 'endturn] applyAITurnChanges:') : console.warn('[endturn] applyAITurnChanges:', _applyErr); }
 
         // ═══════════════════════════════════════════════════════════════════
+        // 辅臣拟议·AI 生成 (Stage 2·2026-06-02)·御前待批奏疏的辅臣处理建议
+        //   decoupled secondary 调用 (同 reconcile 范式)·失败不影响主流程·写 m._fuchenNiyi (UI 御览批红右栏读)
+        //   跨朝代中立：提示词禁后世专名(内阁/票拟)·以「辅臣/近臣」通称·辅臣带立场私心
+        // ═══════════════════════════════════════════════════════════════════
+        try {
+          if (GM && Array.isArray(GM.memorials) && typeof callAI === 'function') {
+            var _niyiPend = GM.memorials.filter(function(m){ return m && !m._fuchenNiyi && (m.status === 'pending' || m.status === 'pending_review'); }).slice(0, 8);
+            if (_niyiPend.length) {
+              var _niyiList = _niyiPend.map(function(m, i){ return (i + 1) + '. 【' + (m.type || '奏疏') + (m.subtype ? '·' + m.subtype : '') + '】' + (m.from || '臣工') + '：' + String(m.title || '').slice(0, 40) + '　—　' + String(m.text || m.content || '').slice(0, 90); }).join('\n');
+              var _niyiPrompt = '【辅臣拟议】\n你扮演当朝中枢辅臣（佐理机务的首席文臣·按本朝制度而定·勿用后世专名如内阁/票拟）。下列奏疏已呈御前·请为每封拟一句简短处理建议（依议/驳之/缓议/会官详议/下有司核议/留中再观）·并略陈一句理由。\n要带你自己的立场与分寸（循资守成或锐意任事·护党或秉公·畏事或敢任）·按辅臣本色·不必全然中正。\n密折/警报系直达御前不付外廷者·以「近臣」口吻拟·余以「辅臣」口吻。\n\n奏疏清单：\n' + _niyiList + '\n\n只输出 JSON 数组·每项 {"i":序号,"niyi":"拟议正文(建议+一句理由·40字内)"}·勿输出其他文字。';
+              var _niyiRaw = await callAI(_niyiPrompt, 900, undefined, 'secondary', { priority: 'low', timeoutMs: 45000, maxRetries: 1 });
+              if (_niyiRaw) {
+                var _niyiArr = null;
+                try { var _nm = String(_niyiRaw).match(/\[[\s\S]*\]/); if (_nm) _niyiArr = JSON.parse(_nm[0]); } catch(_nje) {}
+                if (Array.isArray(_niyiArr)) {
+                  _niyiArr.forEach(function(o){ if (!o || o.niyi == null) return; var _ix = Number(o.i) - 1; if (_ix >= 0 && _ix < _niyiPend.length) _niyiPend[_ix]._fuchenNiyi = String(o.niyi).slice(0, 120); });
+                }
+              }
+            }
+          }
+        } catch (_niyiErr) { /* 辅臣拟议失败不影响主流程 */ }
+
+        // ═══════════════════════════════════════════════════════════════════
         // Wave 1c+2 · 二次 AI 自审 reconciliation·tool_use 强约束
         // 6 个 validator 累计警告 >= 3 时·_maybeReconcileWithAI 设 GM._needsReconcile·此处取走并调 AI 二审
         // Wave 2 改造：用 callAIWithTools·让 AI 必须以结构化 tool_call 输出·彻底消灭 narrative/JSON 不一致
@@ -1882,28 +1905,69 @@
             if (cu.feedback) found.feedback = cu.feedback;
             found.lastUpdateTurn = GM.turn;
             // 完成/失败处理
+            var _ckW = ({dispatch:2.0,diplomacy:2.0,finance:1.8,intel:1.6,query:1.3,write:1.1,other:1.0})[found.category||'other']||1.0;
+            var _ckWill = (typeof found.willingness === 'number') ? found.willingness : 0.6;
             if (found.status === 'completed' || found.consequenceType === 'success') {
               found.status = 'completed';
-              addEB('\u95EE\u5BF9\u00B7\u5C65\u884C', foundNpc + '\u4EAB\u606F\uFF1A' + found.task.slice(0,30) + '——' + (cu.feedback||'').slice(0, 40));
-              if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(foundNpc, '履命完成：' + found.task + '——' + (cu.feedback||''), '慰', 5);
-              // 忠诚奖励
+              addEB('问对·履行', foundNpc + '享息：' + found.task.slice(0,30) + '——' + (cu.feedback||'').slice(0, 40));
+              if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(foundNpc, '履命完成：' + found.task + '——' + (cu.feedback||''), '慰', Math.min(8, 4 + Math.round(_ckW)));
               var _cch = findCharByName(foundNpc);
               if (_cch) {
-                if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(_cch, 3, '\u95EE\u5BF9\u5C65\u547D\u5B8C\u6210', { source:'wendui-task-completed' });
-                else _cch.loyalty = Math.min(100, ((typeof _cch.loyalty === 'number' && isFinite(_cch.loyalty)) ? _cch.loyalty : 50) + 3);
+                _cch._promiseKept = (_cch._promiseKept || 0) + 1;   // P-commit-calib·累积履约(治『恩德不累积』同源)
+                var _ckGain = Math.max(1, Math.min(8, Math.round(
+                  ((cu.consequenceType === 'partial') ? 1.5 : 3) * _ckW          // 基础×category权重
+                  + ((_ckWill < 0.4) ? 1.5 : 0)                                  // 勉强应承却办成→意外受信
+                  + Math.min(2, (_cch._promiseKept - 1) * 0.5)                   // 屡次履约累积信任(封顶+2)
+                )));
+                if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(_cch, _ckGain, '问对履命完成', { source:'wendui-task-completed' });
+                else _cch.loyalty = Math.min(100, ((typeof _cch.loyalty === 'number' && isFinite(_cch.loyalty)) ? _cch.loyalty : 50) + _ckGain);
+              }
+              // P-commit-calib·(b-稳) 硬产出承诺履成→确定性结构化后果（canonical 通道·有界·prompt 已去重防双计）
+              if (found.category === 'query') {
+                // 查办/肃贪履成 → 经 canonical FE.adjustPlayerDivisionCorruption 降本势力 div.corruption 源叶（小幅·cascade+aggregate 都吃·持久）
+                var _ckFE = (typeof FiscalEngine !== 'undefined' && FiscalEngine) || (typeof window !== 'undefined' && window.FiscalEngine) || null;
+                if (_ckFE && typeof _ckFE.adjustPlayerDivisionCorruption === 'function') {
+                  var _ckPFac = (typeof P !== 'undefined' && P && P.playerInfo && P.playerInfo.factionName) || '';
+                  var _ckCorrDrop = Math.max(2, Math.min(5, Math.round(2 * _ckW)));
+                  var _ckNDiv = _ckFE.adjustPlayerDivisionCorruption(_ckPFac, -_ckCorrDrop, 0, 100);
+                  if (_ckNDiv === 0) _ckFE.adjustPlayerDivisionCorruption('', -_ckCorrDrop, 0, 100); // 势力 key 对不上→不过滤兜底
+                  if (typeof addEB === 'function') addEB('问对·实绩', foundNpc + '查办履成·吏治浊度降' + _ckCorrDrop);
+                }
+              } else if (found.category === 'intel') {
+                // 侦查履成 → 密查所得入风闻情报池（纯增量·无经济效应）
+                if (!Array.isArray(GM._interceptedIntel)) GM._interceptedIntel = [];
+                GM._interceptedIntel.push({ turn: GM.turn, interceptor: foundNpc, from: '密查', to: '皇帝', content: '奉旨密查所得：' + String(found.task || '').slice(0,30) + (cu.feedback ? '——' + String(cu.feedback).slice(0,60) : ''), urgency: 'report' });
+                if (GM._interceptedIntel.length > 40) GM._interceptedIntel.shift();
+                if (typeof addEB === 'function') addEB('问对·实绩', foundNpc + '密查复命·情报入风闻');
+              } else if (found.category === 'finance') {
+                // 财赋履成 → 提 compliance/实征率（canonical FE.adjustPlayerCompliance·源叶 div.fiscal.compliance·cascade 真增收·非塞现金·避 P-VWF 尺度/双计雷）
+                var _ckFE2 = (typeof FiscalEngine !== 'undefined' && FiscalEngine) || (typeof window !== 'undefined' && window.FiscalEngine) || null;
+                if (_ckFE2 && typeof _ckFE2.adjustPlayerCompliance === 'function') {
+                  var _ckPFac2 = (typeof P !== 'undefined' && P && P.playerInfo && P.playerInfo.factionName) || '';
+                  var _ckCompUp = Math.min(0.05, 0.02 * _ckW);
+                  var _ckNC = _ckFE2.adjustPlayerCompliance(_ckPFac2, _ckCompUp, 0.1, 1);
+                  if (_ckNC === 0) _ckFE2.adjustPlayerCompliance('', _ckCompUp, 0.1, 1); // 势力 key 对不上→不过滤兜底
+                  if (typeof addEB === 'function') addEB('问对·实绩', foundNpc + '理财履成·实征率升' + (Math.round(_ckCompUp*1000)/10) + '%');
+                }
               }
             } else if (found.status === 'failed' || cu.consequenceType === 'abandoned') {
               found.status = 'failed';
-              addEB('\u95EE\u5BF9\u00B7\u5931\u8BFA', foundNpc + '\u672A\u5C65\uFF1A' + found.task.slice(0,30) + '——' + (cu.feedback||'').slice(0,40));
-              if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(foundNpc, '未履命：' + found.task + '——' + (cu.feedback||''), '忧', 5);
+              addEB('问对·失诺', foundNpc + '未履：' + found.task.slice(0,30) + '——' + (cu.feedback||'').slice(0,40));
+              if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(foundNpc, '未履命：' + found.task + '——' + (cu.feedback||''), '忧', Math.min(8, 4 + Math.round(_ckW)));
               var _fch = findCharByName(foundNpc);
               if (_fch) {
-                if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(_fch, -3, '\u95EE\u5BF9\u5C65\u547D\u5931\u8BFA', { source:'wendui-task-failed' });
-                else _fch.loyalty = Math.max(0, ((typeof _fch.loyalty === 'number' && isFinite(_fch.loyalty)) ? _fch.loyalty : 50) - 3);
-                _fch.stress = Math.min(100, (_fch.stress||0) + 5);
+                _fch._promiseBroken = (_fch._promiseBroken || 0) + 1;   // P-commit-calib·累积失约
+                var _ckPen = Math.max(1, Math.min(10, Math.round(
+                  ((cu.consequenceType === 'abandoned') ? 4 : 3) * _ckW          // 撂挑子比单纯失败更重
+                  + ((_ckWill > 0.7) ? 1.5 : 0)                                  // 满口应承却背弃→额外失信
+                  + Math.min(3, (_fch._promiseBroken - 1) * 1.0)                 // 惯犯累积失信(封顶+3)
+                )));
+                if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(_fch, -_ckPen, '问对履命失诺', { source:'wendui-task-failed' });
+                else _fch.loyalty = Math.max(0, ((typeof _fch.loyalty === 'number' && isFinite(_fch.loyalty)) ? _fch.loyalty : 50) - _ckPen);
+                _fch.stress = Math.min(100, (_fch.stress||0) + Math.min(12, Math.round(5 * _ckW)));
               }
             } else if (cu.feedback) {
-              addEB('\u95EE\u5BF9\u00B7\u8FDB\u5C55', foundNpc + '：' + (cu.feedback||'').slice(0,50));
+              addEB('问对·进展', foundNpc + '：' + (cu.feedback||'').slice(0,50));
             }
             // 写入起居注
             if (GM.qijuHistory && cu.feedback) {
@@ -1922,6 +1986,31 @@
                 addEB('\u95EE\u5BF9\u00B7\u8FC7\u671F', foundNpc + '迟迟未办：' + found.task.slice(0,30));
               }
             }
+          });
+        }
+
+        // P-commit-calib·静默失约兜底：AI 整回合未提及的承诺·过期(deadline+2)且进度<50 → 判失约+记失信账(治『撂下不办却无后果』)
+        if (GM._npcCommitments && typeof GM._npcCommitments === 'object') {
+          Object.keys(GM._npcCommitments).forEach(function(_swNm) {
+            (GM._npcCommitments[_swNm] || []).forEach(function(_swC) {
+              if (!_swC || _swC.status === 'completed' || _swC.status === 'failed') return;
+              if (_swC.lastUpdateTurn === GM.turn) return;
+              var _swEl = (GM.turn || 0) - (_swC.assignedTurn || GM.turn || 0);
+              if (_swEl > ((_swC.deadline || 3) + 2) && (_swC.progress || 0) < 50) {
+                _swC.status = 'failed';
+                _swC.lastUpdateTurn = GM.turn;
+                if (!_swC.feedback) _swC.feedback = '迟迟未办，无声搁置';
+                var _swCh = findCharByName(_swNm);
+                if (_swCh) {
+                  var _swW = ({dispatch:2.0,diplomacy:2.0,finance:1.8,intel:1.6,query:1.3,write:1.1,other:1.0})[_swC.category||'other']||1.0;
+                  _swCh._promiseBroken = (_swCh._promiseBroken || 0) + 1;
+                  var _swPen = Math.max(1, Math.min(8, Math.round(2.5 * _swW + Math.min(3, (_swCh._promiseBroken - 1) * 1.0))));
+                  if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(_swCh, -_swPen, '问对承诺搁置', { source:'wendui-task-lapsed' });
+                  else _swCh.loyalty = Math.max(0, ((typeof _swCh.loyalty === 'number' && isFinite(_swCh.loyalty)) ? _swCh.loyalty : 50) - _swPen);
+                }
+                if (typeof addEB === 'function') addEB('问对·搁置', _swNm + '搁置未办：' + String(_swC.task||'').slice(0,30));
+              }
+            });
           });
         }
 

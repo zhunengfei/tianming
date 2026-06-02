@@ -156,6 +156,8 @@ function walk(dir, out) {
       return;
     }
     if (!entry.isFile()) return;
+    // 安装包专用的「首装增量基线」清单·不入热更包(apply 时 finalize 会写当版真 manifest)·避免自引用/陈旧
+    if (entry.name === '.hot-update-manifest.json') return;
     const ext = path.extname(entry.name).toLowerCase();
     if (!ALLOWED_EXTS.has(ext)) return;
     const stat = fs.statSync(abs);

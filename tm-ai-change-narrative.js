@@ -765,10 +765,20 @@
     if (!entity || !updates) return 0;
     var G = global.GM;
     var count = 0;
+    // ★ 落地守卫(2026-06-02)·弱模型脏输出探测：剔除 U+FFFD 替换字符·防乱码静默写库
+    function _sanitizeAiStr(raw, ctxKey){
+      if (typeof raw !== 'string' || raw.indexOf('�') < 0) return raw;
+      var cleaned = raw.replace(/�/g, '');
+      try {
+        if (G) { G._aiDataIntegrityLog = G._aiDataIntegrityLog || []; G._aiDataIntegrityLog.push({ turn: G.turn||0, entity: entityName||'', field: ctxKey||'', removed: raw.length - cleaned.length, sample: raw.slice(0,40) }); }
+        console.warn('[ai-applier-guard] U+FFFD 替换字符已剔除·字段=' + (entityName||'') + '.' + (ctxKey||''));
+      } catch(_){}
+      return cleaned;
+    }
     Object.keys(updates).forEach(function(key){
       // 跳过禁区字段（以 _ 开头）
       if (/^_/.test(key)) return;
-      var newVal = updates[key];
+      var newVal = _sanitizeAiStr(updates[key], key);
       var oldVal = entity[key];
       // 数组追加（key 以 + 开头·如 "+careerHistory"）
       if (/^\+/.test(key)) {
@@ -782,7 +792,7 @@
         // 对象深 merge
         Object.keys(newVal).forEach(function(subK){
           if (/^_/.test(subK)) return;
-          entity[key][subK] = newVal[subK];
+          entity[key][subK] = _sanitizeAiStr(newVal[subK], key + '.' + subK);
         });
         count++;
       } else if (reportType === 'char_update' && key === 'loyalty' && typeof global.setCharacterLoyalty === 'function') {

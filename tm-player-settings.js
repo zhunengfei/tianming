@@ -254,7 +254,9 @@ function openSettings(){
 
 
     "<div class=\"settings-section\"><h4>\u96BE\u5EA6</h4>"+
-    "<select onchange=\"P.conf.difficulty=this.value\"><option value=\"narrative\" "+(/^(narrative|\u7B80\u5355|\u53D9\u4E8B)$/.test(P.conf.difficulty||"")?"selected":"")+">\u53D9\u4E8B\u00B7\u6E29\u548C</option><option value=\"standard\" "+(!/^(narrative|\u7B80\u5355|\u53D9\u4E8B|hardcore|\u56F0\u96BE|\u5730\u72F1|\u786C\u6838)$/.test(P.conf.difficulty||"")?"selected":"")+">\u6807\u51C6</option><option value=\"hardcore\" "+(/^(hardcore|\u56F0\u96BE|\u5730\u72F1|\u786C\u6838)$/.test(P.conf.difficulty||"")?"selected":"")+">\u786C\u6838</option></select></div>"+
+    "<select onchange=\"P.conf.difficulty=this.value\"><option value=\"narrative\" "+(/^(narrative|\u7B80\u5355|\u53D9\u4E8B)$/.test(P.conf.difficulty||"")?"selected":"")+">\u53D9\u4E8B\u00B7\u6E29\u548C</option><option value=\"standard\" "+(!/^(narrative|\u7B80\u5355|\u53D9\u4E8B|hardcore|\u56F0\u96BE|\u5730\u72F1|\u786C\u6838)$/.test(P.conf.difficulty||"")?"selected":"")+">\u6807\u51C6</option><option value=\"hardcore\" "+(/^(hardcore|\u56F0\u96BE|\u5730\u72F1|\u786C\u6838)$/.test(P.conf.difficulty||"")?"selected":"")+">\u786C\u6838</option></select>" +
+    "<div class=\"fd\" style=\"margin-top:0.5rem;\"><label style=\"font-size:0.72rem;\">\u6020\u653F\u5224\u5B9A\u00B7\u4E45\u4E0D\u89C6\u671D(\u6708)</label><input type=\"number\" min=\"1\" max=\"60\" value=\""+((P.conf&&P.conf.idleGovernMonths)||6)+"\" style=\"width:72px;font-size:0.78rem;margin-left:0.4rem;\" onchange=\"P.conf.idleGovernMonths=Math.max(1,parseInt(this.value)||6);if(typeof saveP==='function')saveP();if(typeof toast==='function')toast('\u6020\u653F\u5224\u5B9A\u00B7'+P.conf.idleGovernMonths+'\u4E2A\u6708\u4E0D\u89C6\u671D');\" title=\"\u7687\u5E1D\u8FDE\u7EED\u8FD9\u4E48\u591A\u6708\u4E0D\u5F00\u5E38\u671D\u5373\u5224\u6020\u653F\u00B7\u6309\u5267\u672C\u6BCF\u56DE\u5408\u65F6\u957F\u6362\u7B97\u00B7\u9ED8\u8BA46\u00B7\u635F\u7687\u6743\"></div>" +
+    "</div>"+
 
     // 1.6: Token消耗统计
     "<div class=\"settings-section\"><h4>AI \u8C03\u7528\u7EDF\u8BA1</h4>"+

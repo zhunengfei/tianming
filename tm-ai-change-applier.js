@@ -1062,7 +1062,21 @@
     // schema: [{ target:'guoku|neitang|province:X', kind:'income|expense', resource?:'money|grain|cloth', category, name, amount, reason, recurring:bool, stopAfterTurn }]
     var fiscalCount = 0;
     (aiOutput.fiscal_adjustments || []).forEach(function(fa) {
-      if (!fa || !fa.target || !fa.kind) return;
+      if (!fa) return;
+      // ★ fiscal 容差归一(2026-06-02·bug A)：AI 常用中文/自然名指账户与收支·若不归一则 target 解析为 null·
+      //   此条 fiscal 静默漏账(财政死账真凶之一)。映射常见别名到 guoku/neitang/province: 与 income/expense。
+      if (fa.target != null) {
+        var _ft = String(fa.target).trim();
+        if (/^(太仓|太仓库|国库|户部库|外库|公帑|公库|guoku|taicang|taicangku)$/i.test(_ft)) fa.target = 'guoku';
+        else if (/^(内帑|内库|内承运库|私帑|帝室库|御库|neitang|neicang)$/i.test(_ft)) fa.target = 'neitang';
+        else if (/^(province|省|布政使司)\s*[:：]/i.test(_ft)) fa.target = 'province:' + _ft.replace(/^(province|省|布政使司)\s*[:：]\s*/i, '');
+      }
+      if (fa.kind != null) {
+        var _fk = String(fa.kind).trim();
+        if (/^(income|收入|进项|增收|入项)$/i.test(_fk)) fa.kind = 'income';
+        else if (/^(expense|expenditure|支出|开支|耗费|拨支|出项)$/i.test(_fk)) fa.kind = 'expense';
+      }
+      if (!fa.target || !fa.kind) return;
       var action = String(fa.action || fa.op || 'add').toLowerCase();
       if (action === 'modify') action = 'update';
       if (action === 'set') action = 'update';

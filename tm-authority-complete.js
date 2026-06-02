@@ -595,7 +595,13 @@
     if (G.partyStrife > 70 && _autoAuthorityEventDue('huangquan', 'partyStrifeHigh', _turnsForMonthsLocal(6))) {
       triggerHuangquanEvent('factionConsuming', { reason: '\u515a\u4e89\u8017\u653f' });
     }
-    // 怠政
+    // 怠政（久不视朝 ≥ P.conf.idleGovernMonths 月·按剧本时间换算·玩家可调·默认6）
+    var _idleMonths = (global.P && global.P.conf && Number(global.P.conf.idleGovernMonths)) || 6;
+    var _lastCourtTurn = (G._lastChangchaoDecisionMeta && Number(G._lastChangchaoDecisionMeta.turn)) || 0;
+    if (_lastCourtTurn && (ctx.turn - _lastCourtTurn) >= _turnsForMonthsLocal(_idleMonths)
+        && _autoAuthorityEventDue('huangquan', 'idleGovernLong', _turnsForMonthsLocal(3))) {
+      triggerHuangquanEvent('idleGovern', { reason: '久不视朝·怠政' });
+    }
     // 军事惨败
     if (G._turnBattleResults) {
       G._turnBattleResults.forEach(function(b) {

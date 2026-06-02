@@ -673,7 +673,7 @@ function extractEdictFiscalReforms(edictText) {
     { type: 'landsurvey',       re: /清丈|丈量田亩|清丈田亩|核田|清查田亩|度田|鱼鳞册/ },
     { type: 'saltreform',       re: /盐法|盐课|整顿盐政|盐政改革|纲盐|开中法/ },
     { type: 'openmaritime',     re: /开海|弛海禁|驰海禁|开市舶|通商舶|开洋|准海商/ },
-    { type: 'encouragefarming', re: /劝农|劝课农桑|奖励垦荒|奖励开垦|屯田|垦荒/ }
+    { type: 'encouragefarming', re: /劝农|劝课农桑|奖励垦荒|奖励开垦|屯田|垦荒|番薯|甘薯|红薯|地瓜|玉米|苞谷|苞米|马铃薯|洋芋|土豆|高产作物|推广.{0,3}作物/ }
   ];
 
   var out = [];

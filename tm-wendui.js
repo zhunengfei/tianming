@@ -515,14 +515,25 @@ function openWenduiModal(name, mode, prefillMsg) {
   }
 }
 
-// 对质：召入第二人
-var _wdConfronter = null;
+// 对质：召入第二人（L4·f1·多人对质·_wdConfronters 列表，最多 3 人）
+var _wdConfronters = [];
+function _wdAddConfronter(nm) {
+  if (!nm) return;
+  if (!Array.isArray(_wdConfronters)) _wdConfronters = [];
+  if (_wdConfronters.indexOf(nm) >= 0) { toast(nm + '已在场'); return; }
+  if (_wdConfronters.length >= 3) { toast('对质者最多三人'); return; }
+  _wdConfronters.push(nm);
+  if (typeof closeGenericModal === 'function') closeGenericModal();
+  toast('已召入' + nm + '对质（在场' + _wdConfronters.length + '人）');
+  var inp = _$('wd-modal-input');
+  if (inp) inp.placeholder = '现在' + (_wdConfronters.length + 1) + '人在场，请发问……';
+}
 function _wdSummonConfronter() {
   // L4\u00B7f1\u00B7cedui mode \u5141\u53EC\u4EBA\u5BF9\u8D28\u00B7multi-advisor \u534F\u5546\u00B7confronter \u72EC\u7ACB archetype\u00B7\u5173\u540E\u8DD1 merge LLM
   // (RX\u00B7C3 \u4E34\u7981\u89E3\u9664)
   var capital = GM._capital || '\u4EAC\u57CE';
   var current = GM.wenduiTarget;
-  var candidates = (GM.chars || []).filter(function(c) { return c.alive !== false && c.name !== current && _wdCanDirectAudience(c); });
+  var candidates = (GM.chars || []).filter(function(c) { return c.alive !== false && c.name !== current && _wdConfronters.indexOf(c.name) < 0 && _wdCanDirectAudience(c); });
   // L4\u00B7f1\u00B7\u82E5 cedui mode\u00B7\u989D\u5916\u8FC7\u6EE4 loyalty>=60\u00B7\u8DDF L4\u00B7a advisor \u5019\u9009\u6807\u51C6\u4E00\u81F4
   if (_wenduiMode === 'cedui') {
     candidates = candidates.filter(function(c) { return (c.loyalty || 50) >= 60; });
@@ -530,7 +541,7 @@ function _wdSummonConfronter() {
   if (candidates.length === 0) { toast('\u65E0\u53EF\u53EC\u89C1\u4E4B\u4EBA'); return; }
   var html = '<div style="max-height:50vh;overflow-y:auto;">';
   candidates.slice(0, 20).forEach(function(c) {
-    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;border-bottom:1px solid var(--bg-4);cursor:pointer;" onclick="_wdConfronter=\'' + c.name.replace(/'/g, '') + '\';closeGenericModal();toast(\'\u5DF2\u53EC\u5165\'+_wdConfronter+\'\u5BF9\u8D28\');var inp=_$(\'wd-modal-input\');if(inp)inp.placeholder=\'\u73B0\u5728\u4E24\u4EBA\u90FD\u5728\uFF0C\u8BF7\u53D1\u95EE\u2026\u2026\';">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;border-bottom:1px solid var(--bg-4);cursor:pointer;" onclick="_wdAddConfronter(\'' + c.name.replace(/'/g, '') + '\');">';
     html += '<span>' + escHtml(c.name) + ' <span style="font-size:0.7rem;color:var(--txt-d);">' + escHtml(c.title || '') + '</span></span>';
     html += '<span style="font-size:0.72rem;color:var(--txt-s);">\u5FE0' + (typeof _fmtNum1==='function'?_fmtNum1(c.loyalty||50):(c.loyalty||50)) + '</span>';
     html += '</div>';
@@ -1130,7 +1141,17 @@ function _wdUpdateEmotionBar(name) {
 function closeWenduiModal() {
   var _targetName = GM.wenduiTarget;
   var _closingMode = _wenduiMode;   // L4·b2·snapshot 关前 mode
-  _wdConfronter = null; // 清除对质者
+  // L4·f1·对质后果——御前对质给在场者之间记 confront 关系账（行为有代价：affinity−10/积怨+1）
+  if (Array.isArray(_wdConfronters) && _wdConfronters.length && _targetName && typeof applyNpcInteraction === 'function') {
+    _wdConfronters.forEach(function(_cfName) {
+      if (!_cfName || _cfName === _targetName) return;
+      try {
+        applyNpcInteraction(_targetName, _cfName, 'confront', { description: '御前对质', visibility: 'court' });
+        applyNpcInteraction(_cfName, _targetName, 'confront', { description: '御前对质', visibility: 'court' });
+      } catch(_){}
+    });
+  }
+  _wdConfronters = []; // 清除对质者
   var m = _$('wendui-modal'); if (m) m.remove();
   GM.wenduiTarget = null;
   // L4·b2·若关 cedui mode·调 hook 应用政治后果
@@ -1589,6 +1610,26 @@ async function sendWendui(){
         GM.jishiRecords.push({turn:GM.turn,char:name,playerSaid:msg,npcSaid:replyText,loyaltyDelta:loyaltyDelta,mode:_wenduiMode});
         if (typeof renderJishi === 'function') renderJishi();
 
+        // L4·f1·对质者发声——渲染在场对质者各自的当庭回应
+        if (parsed && Array.isArray(parsed.confronterReplies) && Array.isArray(_wdConfronters) && _wdConfronters.length) {
+          parsed.confronterReplies.forEach(function(cr) {
+            if (!cr || !cr.name || !cr.reply) return;
+            if (_wdConfronters.indexOf(cr.name) < 0) return; // 只认在场者
+            var _crText = String(cr.reply).slice(0, 1200);
+            var _crDiv = document.createElement('div');
+            _crDiv.className = 'wendui-msg wendui-npc';
+            _crDiv.innerHTML = '<div style="flex:1;min-width:0;"><div class="wendui-npc-name" style="color:var(--amber-400);">'
+              + escHtml(cr.name) + ' <span style="font-size:0.62rem;opacity:0.7;">·对质</span></div>'
+              + '<div class="wendui-npc-bubble wd-selectable">' + escHtml(_crText) + '</div></div>';
+            chat.appendChild(_crDiv);
+            if (!GM.wenduiHistory[cr.name]) GM.wenduiHistory[cr.name] = [];
+            GM.wenduiHistory[cr.name].push({ role:'npc', content:_crText, turn:GM.turn, mode:_wenduiMode, _confrontWith:name });
+            if (Array.isArray(GM.jishiRecords)) GM.jishiRecords.push({ turn:GM.turn, char:cr.name, playerSaid:'〔' + name + '对质·在场〕' + msg, npcSaid:_crText, loyaltyDelta:0, mode:_wenduiMode });
+          });
+          chat.scrollTop = chat.scrollHeight;
+          if (typeof renderJishi === 'function') renderJishi();
+        }
+
         // ═══ 旁听泄露机制（动态联动版）═══
         // 正式问对→根据官制/党派/阴谋/NPC目标动态判定谁获知
         if (_wenduiMode !== 'private' && typeof NpcMemorySystem !== 'undefined' && NpcMemorySystem.remember) {
@@ -2044,13 +2085,34 @@ function _wdBuildPrompt(ch, name) {
     p += '  · 若只是表态/陈情/回答皇帝问话——suggestions 留空 []，不要勉强造建议\n';
 
   // 对质模式（有第二人在场）
-  if (_wdConfronter) {
-    var _cf = findCharByName(_wdConfronter);
-    if (_cf) {
-      p += '\n\u3010\u5BF9\u8D28\u6A21\u5F0F\u3011\u73B0\u5728' + _wdConfronter + '(' + (_cf.title||'') + ')\u4E5F\u5728\u573A\u3002\n';
-      p += '  ' + _wdConfronter + '\u7684\u7ACB\u573A:' + (_cf.stance||'\u4E2D\u7ACB') + ' \u5FE0' + (_cf.loyalty||50) + ' \u91CE\u5FC3' + (_cf.ambition||50) + '\n';
-      p += '  \u4F60(' + ch.name + ')\u5E94\u610F\u8BC6\u5230\u5BF9\u65B9\u5728\u573A\u2014\u2014\u53EF\u80FD\u9488\u950B\u76F8\u5BF9\u3001\u4E92\u76F8\u63ED\u7A7F\u3001\u6216\u6C14\u6C1B\u7D27\u5F20\u3002\n';
-      p += '  \u56DE\u590D\u4E2D\u53EF\u4EE5\u5F15\u7528\u5BF9\u65B9\u8A00\u8BBA\u5E76\u53CD\u9A73\uFF0C\u6216\u5411\u7687\u5E1D\u63ED\u53D1\u5BF9\u65B9\u7684\u95EE\u9898\u3002\n';
+  if (Array.isArray(_wdConfronters) && _wdConfronters.length > 0) {
+    var _cfNames = [];
+    _wdConfronters.forEach(function(_cfName) {
+      var _cfc = findCharByName(_cfName);
+      if (!_cfc) return;
+      _cfNames.push(_cfName);
+      p += '\n【对质·在场者】' + _cfName + '(' + (_cfc.title||'') + ')也在场。\n';
+      p += '  立场:' + (_cfc.stance||'中立') + ' 忠' + (_cfc.loyalty||50) + ' 野心' + (_cfc.ambition||50) + (_cfc.personality ? ' 性:' + String(_cfc.personality).slice(0,12) : '') + '\n';
+      var _rel = (ch.relations && ch.relations[_cfName]) ? ch.relations[_cfName] : null;
+      if (_rel) {
+        var _rp = [];
+        if (Array.isArray(_rel.labels) && _rel.labels.length && typeof NPC_RELATION_LABELS !== 'undefined') {
+          var _lbls = _rel.labels.map(function(l){ return (NPC_RELATION_LABELS[l] && NPC_RELATION_LABELS[l].label) || ''; }).filter(Boolean);
+          if (_lbls.length) _rp.push('素来' + _lbls.join('、'));
+        }
+        if (typeof _rel.affinity === 'number') _rp.push('亲疏' + _rel.affinity + '/100');
+        if (_rel.conflictLevel && typeof CONFLICT_LEVELS !== 'undefined' && CONFLICT_LEVELS[_rel.conflictLevel]) _rp.push('积怨·' + CONFLICT_LEVELS[_rel.conflictLevel].label);
+        if (Array.isArray(_rel.history) && _rel.history.length) {
+          var _lh = _rel.history[_rel.history.length - 1];
+          if (_lh && _lh.event) _rp.push('近事:' + String(_lh.event).slice(0,18));
+        }
+        if (_rp.length) p += '  你与' + _cfName + '——' + _rp.join('·') + '\n';
+      }
+    });
+    if (_cfNames.length) {
+      p += '  你(' + ch.name + ')应意识到在场者——按你们的关系与恩怨，可能针锋相对、互相揭穿、气氛紧张，亦可能同声共气。\n';
+      p += '  回复中可引用在场者言论并反驳，或向皇帝揭发其问题。\n';
+      p += '  【对质输出】除主回复外，请在 JSON 顶层额外加字段 confronterReplies:[{"name":"在场者姓名(须为 ' + _cfNames.join('/') + ' 之一)","reply":"该在场者当庭的回应(可反驳或附和你，须合其立场与恩怨，40-120字)"}]，在场每人各一条。\n';
     }
   }
 

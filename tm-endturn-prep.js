@@ -370,6 +370,32 @@ function _endTurn_collectInput() {
       GM._edictTracker.push({ id: uid(), content: _content, category: cat.label, turn: GM.turn, status: 'pending', assignee: '', feedback: '', progressPercent: 0 });
     }
   });
+  // ★ 候选事件池消费(2026-06-02·bug C)：玩家本回合诏令已处理的候选事件标 _fired·
+  //   防事件池 stale——例如玩家诏令"崔呈秀回籍"后·事件池不再向 AI/奏疏 抛"劾崔呈秀夺情"。
+  //   保守匹配：事件标题/发起人中的人物名同时出现在本回合诏令文本→视为已处理(只匹 title·不匹 payload·减误杀)。
+  try {
+    if (Array.isArray(GM._candidateEvents) && GM._candidateEvents.length) {
+      var _edictBlob = [edicts.political, edicts.military, edicts.diplomatic, edicts.economic, edicts.other]
+        .filter(Boolean).join('　');
+      if (_edictBlob) {
+        var _evCharNames = (GM.chars || []).map(function(c){ return c && c.name; })
+          .filter(function(n){ return n && n.length >= 2; });
+        GM._candidateEvents.forEach(function(ev) {
+          if (!ev || ev._fired) return;
+          var _evText = String(ev.title || '') + '　' + String(ev.presenter || '');
+          for (var _ci = 0; _ci < _evCharNames.length; _ci++) {
+            var _nm = _evCharNames[_ci];
+            if (_evText.indexOf(_nm) >= 0 && _edictBlob.indexOf(_nm) >= 0) {
+              ev._fired = true;
+              ev._resolvedByEdict = _nm;
+              ev._resolvedTurn = GM.turn;
+              break;
+            }
+          }
+        });
+      }
+    }
+  } catch(_candEvErr) { /* 候选事件消费失败不影响主流程 */ }
   // 清理超过10回合的旧追踪记录
   // 保留：本回合全部 + 未完成诏令（跨回合追踪·无年限）+ 已完成/受阻者 24 回合
   GM._edictTracker = GM._edictTracker.filter(function(e) {

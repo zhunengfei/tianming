@@ -1033,6 +1033,7 @@
     tp += '    · 反向：冤杀忠良/自毁长城、丧师失地、藩属叛离、城下之盟受辱 → 相称地 -1~3。\n';
     tp += '    · 诛杀对象是奸党逆贼则升皇威、冤杀忠良则降——由你按其人忠奸、罪证、朝野公论判定，这是该你（AI）定的量。\n';
     tp += '    · 【勿重复记功】平定民变、对外军事胜负 系统已确定性自动结算皇威（前者经平乱、后者经 battleResult.huangweiDelta），不要再在 record_sentiment_changes 里重复给这两类，以免双计。\n\n';
+    tp += '※ 【问对承诺履行·勿重复结算】玩家问对中交办、且本回合 NPC 履行完成（commitment_update 标 completed）的「查办(query)」承诺，系统已确定性下调本势力吏治浊度（降腐）；「财赋(finance)」承诺已确定性上调本势力实征率（compliance/起运到账率）；「侦查(intel)」承诺已确定性记入情报池。对同一已履成之事，勿再在 reform_effects(anticorruption 的 corruptionDelta/complianceDelta) 或 admin_changes(corruption_delta) 重复给，以免双计。\n\n';
 
     // 朝议记录注入（让AI知道本回合谁在朝议中主张了什么——叙事必须保持一致）
     //   targetTurn == GM.turn 的记录算"影响本回合"：
@@ -1766,6 +1767,10 @@
     }
 
     var _promptComposer = (typeof TM !== 'undefined' && TM.PromptComposer) ? TM.PromptComposer : null;
+    // [1A·sysBlocks·2026-06-02] offset-marker 分块：下方 sysP += 链零改动，仅在块边界采样 length 切片。
+    // _segs 按代码序保留段（1B/1C 据此按 profile 选段丢段），join(_segs.text)===sysP 由切片连续性构造保证。
+    var _segs = [], _segPrev = 0;
+    function _mark(_n){ _segs.push({ name: _n, text: sysP.slice(_segPrev) }); _segPrev = sysP.length; }
     var sysP = (_promptComposer && typeof _promptComposer.buildBase === 'function')
       ? _promptComposer.buildBase({
           sc: sc,
@@ -1980,6 +1985,7 @@
       }
     } catch(_arcIE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_arcIE, 'sysP] 情节弧注入失败') : console.warn('[sysP] 情节弧注入失败', _arcIE); }
 
+    _mark('base');
     // 注入·启动预演规划（aiPlanScenarioForInference 生成·轻量版·提升推演稳定性）
     if (GM._aiInferencePlan && GM._aiInferencePlan.generatedAt) {
       var _pl = GM._aiInferencePlan;
@@ -2040,6 +2046,7 @@
     // 注入·首回合候选事件（仅 Turn 1-3 时·未触发的）
     }
 
+    _mark('worldState');
     if (GM.turn <= 3 && Array.isArray(GM._candidateEvents) && GM._candidateEvents.length > 0) {
       var _unfired = GM._candidateEvents.filter(function(e) { return e && !e._fired; });
       if (_unfired.length > 0) {
@@ -2075,6 +2082,7 @@
       }
     } catch(_pceIE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_pceIE, 'sysP] events.playerChoices 注入失败') : console.warn('[sysP] events.playerChoices 注入失败', _pceIE); }
 
+    _mark('events');
     // 注入AI深度阅读摘要（10轮预热结果——极高密度剧本理解）
     if (GM._aiScenarioDigest && GM._aiScenarioDigest.masterDigest) {
       var _d = GM._aiScenarioDigest;
@@ -2187,6 +2195,7 @@
       }
     }
 
+    _mark('digest');
     // 7.4: 历史索引目录——AI可按需请求详细历史
     if (typeof HistoryIndex !== 'undefined') {
       var _histSummary = HistoryIndex.getSummaryForAI();
@@ -2197,6 +2206,7 @@
     }
 
     sysP += '\n\u53D9\u4E8B\u54F2\u5B66\uFF1A\u5FE0\u8A00\u9006\u8033\uFF0C\u4F73\u8BDD\u60A6\u5FC3\u3002\u5FE0\u81E3\u7684\u8BDD\u867D\u7136\u6B63\u786E\u4F46\u8BF7\u5199\u5F97\u8BA9\u4EBA\u89C9\u5F97\u70E6\u8E81\u548C\u7D2F\uFF0C\u4F5E\u81E3\u7684\u8BDD\u867D\u7136\u7A7A\u6D1E\u4F46\u8BF7\u5199\u5F97\u8BA9\u4EBA\u89C9\u5F97\u8212\u670D\u548C\u5F00\u5FC3\u3002\u8FD9\u662F\u7406\u89E3\u5386\u53F2\u7684\u6838\u5FC3\u3002';
+    _mark('context');
     // 注入玩家角色详情（双重身份：私人+政治）
     if (P.playerInfo) {
       var pi = P.playerInfo;
@@ -2318,6 +2328,7 @@
     // ══════════════════════════════════════════════════════════════
     //  NPC↔NPC 交互指令（核心升级：世界不围绕玩家旋转）
     // ══════════════════════════════════════════════════════════════
+    _mark('player');
     sysP += '\n\n【NPC之间的自主交互——极其重要】';
     sysP += '\n世界不是"玩家 vs 所有NPC"的单一结构。NPC之间有自己的恩怨、合作、竞争、阴谋。';
     sysP += '\n每回合的npc_actions中，至少一半应该是NPC对NPC的行为（而非NPC对玩家的行为）：';
@@ -2337,6 +2348,7 @@
     sysP += '\n  - 师徒反目 / 兄弟阋墙 / 老友重逢';
     sysP += '\n\n在affinity_changes中体现NPC之间关系的变动。在npc_actions中target应经常是其他NPC而非玩家。';
 
+    _mark('npcDeep');
     // ── 势力自治指令（全方位升级）──
     if (GM.facs && GM.facs.length > 1) {
       sysP += '\n\n■■■ 势力作为"活的国家"——三层决策模拟 ■■■';
@@ -2690,11 +2702,13 @@
       }
     }
     sysP += '\n- 物品可被获取/失去：通过战争缴获、外交赠送、盗窃等方式。在叙事中适时让角色获取或丢失物品。';
+    _mark('worldState');
     sysP += '\n\n【你的全部权力——可在JSON中修改的内容】';
     sysP += '\n你可以通过返回JSON中的对应字段修改游戏中的一切：';
     sysP += '\n- resource_changes: 修改任何资源变量';
     sysP += '\n- char_updates: 修改角色忠诚/野心/压力/所在地/立场/党派等（new_location/new_stance/new_party）';
     sysP += '\n- battleResult: 结构化战斗结果。若本回合明确发生战斗，请输出 {winnerFactionId, loserFactionId, occupiedCityIds, casualties:{attacker,defender}, affectedArmies:[{armyId,side,loss,moraleDelta,loyaltyDelta,state,commanderFate}], commanderFate:{name,outcome}, huangweiDelta, postBattleEffects[]}，胜负/占城/伤亡不得只写在叙事里。\n  ※ huangweiDelta 0~8：仅当赢家是玩家势力时按战果定皇威加分——灭国级大捷/收复重镇 6~8、击溃主力 3~5、小胜/边境摩擦 1~2；敌胜或平局给 0。漏给则引擎按保底 +2/场落地。';
+    _mark('base');
     sysP += '\n\n【NPC自主行为系统·核心——每回合必须生成】';
     sysP += '\nnpc_actions是世界活力的引擎。每回合应有5-10条NPC自主行为，涵盖不同层级的角色。';
     sysP += '\nbehaviorType可用类型：';
@@ -2733,6 +2747,7 @@
     sysP += '\n特质与能力值组合产生独特行为——勇猛+高智=深思熟虑的果断；勇猛+低智=鲁莽冲动';
     sysP += '\n对立特质的角色自然互相看不惯——贪婪者鄙视慷慨者"败家"，坦诚者厌恶狡诈者"虚伪"';
 
+    _mark('npcDeep');
     sysP += '\n\n【NPC主动来书·鸿雁传书·扩充版】';
     sysP += '\n不在京城的 NPC 遇到事件时应主动写信给皇帝——每回合产出 2-5 封·少写无趣·多写过滥';
     sysP += '\n在 npc_letters 数组中输出：';
@@ -2773,6 +2788,7 @@
     sysP += '\n【数量控制】每回合 2-5 封·优先重要性高的 NPC·无事写无意义信件的 NPC 可不写';
     sysP += '\n【注意】NPC 来信有传递延迟(驿递数日·八百里加急更快)·信件可能被截获——敌对势力控制区信件截获概率更高';
 
+    _mark('letters');
     sysP += '\n\n【记忆一致性——绝对规则】';
     sysP += '\nblockB中每个角色附有"刻骨"(永久伤疤)和blockB3中有"铭记"(近期记忆)。';
     sysP += '\n生成npc_actions时必须与这些记忆一致——不允许出现：';
@@ -2863,6 +2879,7 @@
       sysP += '\naffinity_changes\u4E2D\u53EF\u7528relType\u5B57\u6BB5\u5EFA\u7ACB/\u5F3A\u5316\u5173\u7CFB\uFF1Ablood/marriage/mentor/sworn/rival/benefactor/enemy';
     }
 
+    _mark('npcDeep');
     // 2.1: 注入状态耦合参考（非机械执行，AI自行决定实际变化）
     if (GM._couplingReport) {
       sysP += '\n\n' + GM._couplingReport;
@@ -2969,6 +2986,7 @@
       });
     }
 
+    _mark('worldState');
     sysP += '\n\n【官制职能——推演原则】';
     sysP += '\n本朝官制中每个部门有职能分工（见tp中【官制职能分工】）。推演时注意：';
     sysP += '\n  · 事务应优先由对口部门处理——但"对口"看职能内容，不看部门名称';
@@ -2981,6 +2999,7 @@
     sysP += '\n  · 官制改革后：旧部门官员对旧职能保留经验（只失去执行权，不失去见识）';
     sysP += '\n  · 多数行政领域之间有共通性——财政/人事/民政的底层逻辑相近，不应将其视为完全隔离的知识孤岛';
     sysP += '\n  · 真正的"外行"是：从未接触过、能力也低(对应值<40)、从政时间短的角色';
+    _mark('personnel');
     sysP += '\n- character_deaths: 让任何角色死亡（包括玩家角色→游戏结束）';
     sysP += '\n- faction_changes: \u4FEE\u6539\u52BF\u529B\u5C5E\u6027\uFF08strength_delta\u5B9E\u529B\uFF0Ceconomy_delta\u7ECF\u6D4E\uFF0CplayerRelation_delta\u5BF9\u7389\u5173\u7CFB\u3002strength\u964D\u81F30\u2192\u52BF\u529B\u8986\u706D\uFF09';
     sysP += '\n- faction_events: 创造势力间自主事件（战争/联盟/政变/行军/围城等）';
@@ -3037,6 +3056,7 @@
       }
     }
     sysP += '\n- office_changes中的任命必须考虑岗位继任方式：世袭岗位应由前任子嗣继承，流官由朝廷选拔，科举岗位应从进士中选，军功岗位从武将中选。';
+    _mark('base');
     // ── 社会生灭周期（党派/势力/阶层的 create/dissolve） ──
     sysP += '\n【社会生灭周期——党派/势力/阶层可生可灭】';
     sysP += '\n  党派：party_create(新崛起) / party_splinter(分裂自既有) / party_merge(合流) / party_dissolve(覆灭)';
@@ -3055,6 +3075,7 @@
     sysP += '\n    · 势力覆灭必须与战争/bigyear 事件呼应，不得凭空消失';
     sysP += '\n    · 阶层兴替跨度长——通常数十回合渐变，非一日之功；除非诏令明确废止（如"永禁贱籍"）才立即生效';
     sysP += '\n    · 新建时 leader/首脑须指向现有角色；不得在回合推演中自动创建新角色';
+    _mark('worldState');
     sysP += '\n【官制人事·扩展动作】';
     sysP += '\n  promote: 晋升——填newRank(新品级)，可选newDept+newPosition(升任新职)';
     sysP += '\n  demote: 降级——填newRank';
@@ -3243,6 +3264,7 @@
     sysP += '\n  · corruption_found: 查出贪腐人数, named_corrupt: ["具象贪腐者"]';
     sysP += '\n  · narrative: 混合叙述文本（具象角色点名+其余用数字）';
 
+    _mark('personnel');
     // 科举政治维度
     if (P.keju && P.keju.enabled) {
       sysP += '\n\n【科举政治·重要】';
@@ -3259,6 +3281,7 @@
         sysP += '\n上科状元:' + (_lastK.topThree?_lastK.topThree[0]:'') + ' 主考:' + (_lastK.chiefExaminer||'') + (_lastK.examinerParty ? '('+_lastK.examinerParty+')' : '');
       }
     }
+    _mark('socialRules');
     sysP += '\n- map_changes: 领地变更';
     sysP += '\n请根据推演情况积极使用这些权力，让世界活起来。不要只返回空数组。';
 
@@ -3329,6 +3352,7 @@
     // 1.4: 幻觉防火墙——名称白名单注入
     // 明确列出当前存活角色和有效地名，要求AI只使用名单内名称
     // ============================================================
+    _mark('base');
     (function _hallucinationFirewall() {
       // 存活角色白名单
       var _aliveNames = (GM.chars || []).filter(function(c) { return c.alive !== false; }).map(function(c) { return c.name; });
@@ -3362,6 +3386,7 @@
         }
       }
     })();
+    _mark('roster');
 
     // 1.2: 模型适配——获取默认温度和JSON包裹格式
     var _modelTemp = P.ai.temp || (typeof ModelAdapter !== 'undefined' ? ModelAdapter.getDefaultTemp() : 0.8);
@@ -3395,6 +3420,20 @@
     }
 
     // ===== 写入 ctx.prompt =====
+    // [1A·sysBlocks·2026-06-02] 收尾：闭合最后一段 + 组装 sysBlocks + 运行时 diff=0 自检。
+    // 截断分支(L~3391 sysP 整体重赋值)或任何失配 → 放弃分块、回退整条 sysP(1B/1C 见 _segs=null 即用全量·不省字但安全)。
+    _mark('tail');
+    var _recon = _segs.map(function(_s){ return _s.text; }).join('');
+    if (_recon === sysP) {
+      var sysBlocks = {};
+      _segs.forEach(function(_s){ sysBlocks[_s.name] = (sysBlocks[_s.name] || '') + _s.text; });
+      ctx.prompt.sysBlocks = sysBlocks;
+      ctx.prompt._segs = _segs;
+    } else {
+      ctx.prompt.sysBlocks = null;
+      ctx.prompt._segs = null;
+      if (typeof DebugLog !== 'undefined') DebugLog.log('ai', '[sysBlocks] 分块回退(截断/失配) recon=' + _recon.length + ' sysP=' + sysP.length);
+    }
     ctx.prompt.sysP = sysP;
     // R209a·tp 是 §3 sub-call prompt 的 base (ai-infer L229 tp0·L848 tp1 等使用)·必 export
     // (per Codex P7-β addendum·避 ad hoc cross-module dep)

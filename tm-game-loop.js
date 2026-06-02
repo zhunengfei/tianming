@@ -1709,7 +1709,7 @@ async function _wtSend() {
     + '   · setting — 世界背景/设定注入：补充剧本的背景信息/状态/历史（例："此时倭寇已平"、"北方去年大旱未记入"）\n'
     + '   · hardChange — 直接修改数值或字段：要求直接改具体数值/字段（例："帑廪+1000万两"、"某NPC忠诚设为100"、"袁崇焕所在地改为京师"、"皇威+10"）\n'
     + '       ★【识别规则】只要指令提到：具体金额(万两/石/匹)、具体数值(+N/-N/设为N)、具体字段(国库/帑廪/内帑/忠诚/所在地/位置/皇威/皇权/民心等)——必须归入 hardChange。不要误判为 narrative/directive。\n'
-    + '       ★【常见路径】白银=guoku.money·粮=guoku.grain·布=guoku.cloth·内帑银=neitang.money·皇威=huangwei.index·皇权=huangquan.index·腐败/吏治=corruption.trueIndex·民心=minxin.trueIndex·人物忠诚=chars[人物名].loyalty·人物所在地=chars[人物名].location\n'
+    + '       ★【常见路径】白银=guoku.money·粮=guoku.grain·布=guoku.cloth·内帑银=neitang.money·皇威=huangwei.index·皇权=huangquan.index·腐败/吏治=corruption.trueIndex·民心=minxin.trueIndex·人物忠诚=chars[人物名].loyalty·人物所在地=chars[人物名].location·军队兵力=armies[军名].soldiers·军队主帅=armies[军名].commander·军队士气=armies[军名].morale·军队忠诚=armies[军名].loyalty·军队欠饷月数=armies[军名].payArrearsMonths\n'
     + '       ★【操作符】"加/增/+"→op:add · "减/扣/-"→op:add(负数) · "设为/改为/="→op:set · "翻倍/x2"→op:mul\n'
     + '       ★【单位换算】1 万两=10000·50 万两=500000·100 万石=1000000·玩家说"100 万"一律写成 1000000 数字不要保留"万"字\n'
     + '   · edictSubstitute — 等同诏令：玩家实际想下诏令的事（例："拨银赈灾"、"罢某某官"、"遣使某国"——这些本该走诏令而非问天）\n'
@@ -1912,7 +1912,7 @@ function _wtConfirmPending() {
 
 function _wtNormalizeHardChangePath(path) {
   var p = String(path || '').trim().replace(/\s+/g, '');
-  p = p.replace(/\[(\d+)\]/g, '.$1');
+  p = p.replace(/\[([^\]]+)\]/g, '.$1');   // 支持 [名字] 形式·如 armies[天龙军]/chars[袁崇焕] → .名字（原仅支持 [数字]）
   var root = '';
   var m = p.match(/^(GM|gm|P|p)\.(.+)$/);
   if (m) {
@@ -2276,6 +2276,58 @@ function _wtSyncHardChangeSideEffects(parts, newVal) {
 }
 
 /** 直接修改 GM/P 字段 */
+function _wtCanonicalArmyHardChangeField(field) {
+  var f = String(field || '').trim().replace(/\s+/g, '');
+  var aliases = {
+    '兵力':'soldiers','兵员':'soldiers','兵員':'soldiers','军额':'soldiers','軍額':'soldiers','人数':'soldiers','人數':'soldiers','兵数':'soldiers','兵數':'soldiers','兵':'soldiers','size':'soldiers','strength':'soldiers','soldiers':'soldiers',
+    '主帅':'commander','主帥':'commander','统帅':'commander','統帥':'commander','主将':'commander','主將':'commander','将领':'commander','將領':'commander','将帅':'commander','將帥':'commander','commander':'commander','general':'commander','leader':'commander',
+    '士气':'morale','士氣':'morale','军心':'morale','軍心':'morale','morale':'morale',
+    '训练':'training','訓練':'training','操练':'training','操練':'training','训练度':'training','training':'training',
+    '补给':'supply','補給':'supply','粮饷':'supply','糧餉':'supply','供给':'supply','供給':'supply','supply':'supply',
+    '忠诚':'loyalty','忠誠':'loyalty','军忠':'loyalty','忠诚度':'loyalty','忠誠度':'loyalty','loyalty':'loyalty',
+    '控制':'control','控制度':'control','军纪':'control','軍紀':'control','掌控':'control','control':'control','controlLevel':'control',
+    '兵变险':'mutinyRisk','兵變險':'mutinyRisk','兵变风险':'mutinyRisk','兵變風險':'mutinyRisk','mutinyRisk':'mutinyRisk',
+    '欠饷':'payArrearsMonths','欠餉':'payArrearsMonths','欠饷月数':'payArrearsMonths','欠餉月數':'payArrearsMonths','payArrearsMonths':'payArrearsMonths'
+  };
+  return aliases[f] || f;
+}
+
+function _wtFindArmyHardChangeTarget(name, allowFuzzy) {
+  if (typeof GM === 'undefined' || !GM || !Array.isArray(GM.armies) || !name) return null;
+  var t = _wtNormalizeCharacterLookupToken(name);
+  if (!t) return null;
+  var loose = [];
+  for (var i = 0; i < GM.armies.length; i++) {
+    var a = GM.armies[i];
+    if (!a) continue;
+    var keys = [a.name, a.id, a.title].map(_wtNormalizeCharacterLookupToken).filter(Boolean);
+    if (keys.indexOf(t) >= 0) return { army: a, index: i };
+    if (allowFuzzy && keys.some(function(k){ return k && (k.indexOf(t) >= 0 || t.indexOf(k) >= 0); })) loose.push({ army: a, index: i });
+  }
+  return (allowFuzzy && loose.length === 1) ? loose[0] : null;
+}
+
+// 解析军队 hardChange 路径：armies/军/部队 前缀（允许模糊匹配军名）或 裸军名（只认精确·防误伤 guoku/民心 等 GM 字段路径）
+function _wtResolveArmyHardChange(parts) {
+  if (!parts || parts.length < 2) return null;
+  var prefixes = /^(armies|army|军|軍|军队|軍隊|部队|部隊)$/i;
+  var name, field, allowFuzzy;
+  if (prefixes.test(String(parts[0] || ''))) {
+    if (parts.length < 3) return null;
+    name = parts[1];
+    field = _wtCanonicalArmyHardChangeField(parts.slice(2).join('.'));
+    allowFuzzy = true;
+  } else {
+    name = parts[0];
+    field = _wtCanonicalArmyHardChangeField(parts.slice(1).join('.'));
+    allowFuzzy = false;
+  }
+  if (!name || !field) return null;
+  var hit = _wtFindArmyHardChangeTarget(name, allowFuzzy);
+  if (!hit || !hit.army) return null;
+  return { army: hit.army, index: hit.index, field: field };
+}
+
 function _wtApplyHardChange(path, op, value) {
   if (!path) return false;
   // 根据路径前缀决定 root
@@ -2303,6 +2355,38 @@ function _wtApplyHardChange(path, op, value) {
         _wtMirrorCharacterHardChange(charChange.ch.name, mirror, []);
       }
       _wtAfterHardChange(charPath, oldCharVal, scalar.value);
+      return true;
+    }
+    // 军队按名解析（镜像人物处理·治"问天直改军队写到数组幽灵属性 armies['天龙军']、真军不动"的静默失败）
+    var armyChange = _wtResolveArmyHardChange(parts);
+    if (armyChange && armyChange.army) {
+      var _a = armyChange.army, _f = armyChange.field;
+      var _armyPath = 'armies.' + armyChange.index + '.' + _f;
+      if (_f === 'commander') {
+        var _cmdVal = String(value == null ? '' : value).trim();
+        try {
+          if (typeof TM !== 'undefined' && TM.AIChange && TM.AIChange.Army && typeof TM.AIChange.Army.applyAIArmyChange === 'function') {
+            TM.AIChange.Army.applyAIArmyChange({ armyName: _a.name, commander: _cmdVal, reason: '问天直改主帅' }, { source: 'wentian.hardChange' });
+          } else { _a.commander = _cmdVal; }
+        } catch (_wtCmdE) { _a.commander = _cmdVal; }
+        _wtAfterHardChange(_armyPath, '', _cmdVal);
+        return true;
+      }
+      var _oldA = _a[_f];
+      var _ascalar = _wtApplyScalarHardChange(_oldA, op || 'set', value);
+      if (!_ascalar.ok) return false;
+      var _numFields = { soldiers:1, morale:1, training:1, supply:1, loyalty:1, control:1, mutinyRisk:1, payArrearsMonths:1 };
+      var _nv = _ascalar.value;
+      if (_numFields[_f]) {
+        _nv = Math.round(Number(_nv) || 0);
+        if (_f === 'morale' || _f === 'training' || _f === 'supply' || _f === 'loyalty' || _f === 'control' || _f === 'mutinyRisk') _nv = Math.max(0, Math.min(100, _nv));
+        else _nv = Math.max(0, _nv);
+      }
+      _a[_f] = _nv;
+      if (_f === 'soldiers') { _a.size = _nv; _a.strength = _nv; }   // 与 applier 同口径同步别名
+      if (_f === 'control') { _a.controlLevel = _nv; }
+      try { if (typeof TM !== 'undefined' && TM.AIChange && TM.AIChange.Army && TM.AIChange.Army.refreshMilitaryViews) TM.AIChange.Army.refreshMilitaryViews(GM); } catch (_wtRmvE) {}
+      _wtAfterHardChange(_armyPath, _oldA, _nv);
       return true;
     }
   }

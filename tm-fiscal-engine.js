@@ -1540,6 +1540,11 @@
     var cfg = getSalaryConfig(G);
     var grainRatio = cfg.royalGrainRatio != null ? safeNumber(cfg.royalGrainRatio, 0.5) : 0.5;
     var stoneToSilver = cfg.salaryStoneToSilver != null ? safeNumber(cfg.salaryStoneToSilver, 0.6) : 0.6;
+    // 演义旋钮（粮赤字②·E.B 拍 P-FUV）：宗禄（明末宗藩这座大山）折粮按难度松绑——标准/硬核/默认维持满压保真(×1.0)、只叙事档松。
+    //   硬核/标准让玩家在真实宗藩+军饷重压下治国；叙事/演义档给宗禄减半、不至于一上来被宗禄压垮。系数·可调。
+    var _diff = String((global.P && global.P.conf && global.P.conf.difficulty) || '').toLowerCase();
+    var _royalMult = /narrative|叙事|简单|演义/.test(_diff) ? 0.5 : 1.0;   // 仅叙事 0.5·标准/硬核/默认满压保真（P-FUV）
+    stoneThis *= _royalMult;
     return {
       total: {
         money: stoneThis * (1 - grainRatio) * stoneToSilver,
@@ -1563,16 +1568,19 @@
     var G = getGame();
     var cfg = getSalaryConfig(G);
     var turnDays = getTurnDays(ctx, G);
+    // 演义旋钮（P-FUV·军饷半）：军饷按难度松绑·比宗禄轻（军饷是国防核心·连着欠饷/哗变机制）。标准/硬核/默认满压·只叙事 0.7。可调。
+    var _diffA = String((global.P && global.P.conf && global.P.conf.difficulty) || '').toLowerCase();
+    var _armyMult = /narrative|叙事|简单|演义/.test(_diffA) ? 0.7 : 1.0;   // 仅叙事 0.7·标准/硬核/默认满压（P-FUV）
     if (cfg.armyAnnualOverride) {
       var ov = cfg.armyAnnualOverride;
       var yf = turnDays / 365;
       return {
         total: {
-          money: safeNumber(ov.money, 0) * yf,
-          grain: safeNumber(ov.grain, 0) * yf,
-          cloth: safeNumber(ov.cloth, 0) * yf
+          money: safeNumber(ov.money, 0) * yf * _armyMult,
+          grain: safeNumber(ov.grain, 0) * yf * _armyMult,
+          cloth: safeNumber(ov.cloth, 0) * yf * _armyMult
         },
-        byArmy: { override: { money: safeNumber(ov.money, 0) * yf, soldiers: safeNumber(ov.soldiers, 0) } }
+        byArmy: { override: { money: safeNumber(ov.money, 0) * yf * _armyMult, soldiers: safeNumber(ov.soldiers, 0) } }
       };
     }
     var pay = {};
@@ -1599,6 +1607,7 @@
       total.cloth += item.cloth;
       byArmy[army.name || army.id || '军'] = item;
     });
+    total.money *= _armyMult; total.grain *= _armyMult; total.cloth *= _armyMult;   // 演义旋钮·军饷松绑（P-FUV·硬核 ×1 不动）
     return { total: total, byArmy: byArmy };
   }
 
