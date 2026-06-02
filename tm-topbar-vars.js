@@ -456,6 +456,8 @@ function _openHujiPanel() {
   body += '<td>丁</td><td>' + (P.national.ding >= 10000 ? (P.national.ding/10000).toFixed(0)+'万' : P.national.ding) + '</td></tr>';
   body += '<tr><td>逃户</td><td colspan="3" style="color:var(--amber-400);">' + P.fugitives + '</td></tr>';
   body += '</table>';
+  if (typeof _renderHujiRuntimeBridge === 'function') body += _renderHujiRuntimeBridge();
+  if (typeof _renderHujiGovernanceLoop === 'function') body += _renderHujiGovernanceLoop();
   // 色目户
   body += '<div style="font-size:0.82rem;color:var(--gold-400);margin:0.6rem 0 0.2rem;">色目户</div>';
   body += '<div style="font-size:0.78rem;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;">';
@@ -1069,6 +1071,230 @@ function _renderLizhiFullPanel() {
   return h;
 }
 // ── 民心：包含民变+谶纬+天象 ──
+function _renderMinxinLedgerCauses(m) {
+  var api = (typeof window !== 'undefined' && window.TM && window.TM.MinxinLedger) || (typeof TM !== 'undefined' && TM.MinxinLedger) || null;
+  if (!api || typeof api.snapshot !== 'function') return '';
+  function esc(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){
+      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch] || ch;
+    });
+  }
+  var snap;
+  try { snap = api.snapshot(GM, { limit: 5 }); } catch (_) { snap = null; }
+  if (!snap) return '';
+  var h = '';
+  h += '<div style="font-size:0.82rem;color:var(--gold-400);margin:0.6rem 0 0.3rem;">Minxin Ledger</div>';
+  h += '<div style="font-size:0.76rem;">true ' + esc(Math.round(snap.trueIndex || 0)) + ' / court ' + esc(Math.round(snap.perceivedIndex || snap.trueIndex || 0)) + ' / ' + esc(snap.visibilityTier || 'moderate') + '</div>';
+  var recent = Array.isArray(snap.recent) ? snap.recent : [];
+  recent.slice(0, 4).forEach(function(row){
+    h += '<div style="font-size:0.74rem;color:var(--text-secondary);margin-top:2px;">';
+    h += 'T' + esc(row.turn || '') + ' ' + esc(row.kind || row.sourceSystem || 'signal') + ': ' + esc(row.reason || '');
+    if (row.deltaTrue != null) h += ' (' + esc(row.deltaTrue) + ')';
+    h += '</div>';
+  });
+  var chain = Array.isArray(snap.uprisingChain) ? snap.uprisingChain : [];
+  chain.slice(0, 3).forEach(function(c){
+    h += '<div style="font-size:0.74rem;color:var(--vermillion-400);margin-top:2px;">';
+    h += 'L' + esc(c.level || '') + ' ' + esc(c.region || c.regionName || '') + ' ' + esc(c.className || c.classKey || '') + ' ' + esc(c.cause || '');
+    h += '</div>';
+  });
+  var pa = (typeof window !== 'undefined' && window.TM && window.TM.MinxinPressureActions) || (typeof TM !== 'undefined' && TM.MinxinPressureActions) || null;
+  if (pa && typeof pa.snapshot === 'function') {
+    var ps;
+    try { ps = pa.snapshot(GM, { limit: 4 }); } catch (_) { ps = null; }
+    if (ps && Array.isArray(ps.active) && ps.active.length) {
+      h += '<div style="font-size:0.8rem;color:var(--gold-400);margin:0.5rem 0 0.2rem;">Minxin Pressure Actions</div>';
+      ps.active.slice(0, 3).forEach(function(item){
+        h += '<div style="font-size:0.74rem;color:var(--text-secondary);margin-top:2px;">';
+        h += esc(item.regionName || '') + ' / ' + esc(item.className || '') + ' true ' + esc(Math.round(item.true || 0)) + ' / ' + esc(item.severity || '');
+        h += '</div>';
+      });
+    }
+  }
+  return h;
+}
+
+function _renderMinxinCommitments() {
+  var api = (typeof window !== 'undefined' && window.TM && window.TM.MinxinCommitmentTracker) || (typeof TM !== 'undefined' && TM.MinxinCommitmentTracker) || null;
+  if (!api || typeof api.snapshot !== 'function') return '';
+  function esc(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){
+      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch] || ch;
+    });
+  }
+  var snap;
+  try { snap = api.snapshot(GM, { limit: 4 }); } catch (_) { snap = null; }
+  if (!snap || !Array.isArray(snap.active) || !snap.active.length) return '';
+  var h = '<div style="font-size:0.8rem;color:var(--gold-400);margin:0.5rem 0 0.2rem;">Minxin Commitments</div>';
+  snap.active.slice(0, 3).forEach(function(item){
+    h += '<div style="font-size:0.74rem;color:var(--text-secondary);margin-top:2px;">';
+    h += esc(item.regionName || '') + ' / ' + esc(item.className || '') + ' ' + esc(item.status || '') + ' ' + esc(Math.round(item.progress || 0)) + '%';
+    h += '</div>';
+  });
+  return h;
+}
+
+function _renderMinxinResponsibility() {
+  var api = (typeof window !== 'undefined' && window.TM && window.TM.MinxinResponsibilityChain) || (typeof TM !== 'undefined' && TM.MinxinResponsibilityChain) || null;
+  if (!api || typeof api.snapshot !== 'function') return '';
+  function esc(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){
+      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch] || ch;
+    });
+  }
+  var snap;
+  try { snap = api.snapshot(GM, { limit: 4 }); } catch (_) { snap = null; }
+  if (!snap || (!snap.officialReports || !snap.officialReports.length) && (!snap.rumors || !snap.rumors.length)) return '';
+  var h = '<div style="font-size:0.8rem;color:var(--gold-400);margin:0.5rem 0 0.2rem;">Minxin Responsibility</div>';
+  (snap.officialReports || []).slice(0, 2).forEach(function(r){
+    h += '<div style="font-size:0.74rem;color:var(--text-secondary);margin-top:2px;">';
+    h += esc(r.executorName || r.agency || '') + ' ' + esc(r.regionName || '') + ' report ' + esc(Math.round(r.reportedProgress || 0)) + '% / true ' + esc(Math.round(r.actualProgress || 0)) + '%';
+    h += '</div>';
+  });
+  (snap.rumors || []).slice(0, 2).forEach(function(r){
+    h += '<div style="font-size:0.74rem;color:var(--vermillion-400);margin-top:2px;">';
+    h += esc(r.severity || '') + ' ' + esc(r.regionName || '') + ' rumor risk ' + esc(r.falseReportRisk || 0);
+    h += '</div>';
+  });
+  return h;
+}
+
+function _renderMinxinHardLinks() {
+  var api = (typeof window !== 'undefined' && window.TM && window.TM.MinxinHardLinks) || (typeof TM !== 'undefined' && TM.MinxinHardLinks) || null;
+  if (!api || typeof api.snapshot !== 'function') return '';
+  function esc(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){
+      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch] || ch;
+    });
+  }
+  var snap;
+  try { snap = api.snapshot(GM, { limit: 4 }); } catch (_) { snap = null; }
+  if (!snap || !snap.summary) return '';
+  var summary = snap.summary || {};
+  var fiscal = summary.fiscal || {};
+  var military = summary.military || {};
+  var hukou = summary.hukou || {};
+  var local = summary.localExecution || {};
+  var hasData = (fiscal.claimedRevenue || fiscal.actualRevenue || military.availableRecruits || hukou.hiddenHouseholds || local.avgExecutionRate);
+  if (!hasData && (!snap.regionImpacts || !snap.regionImpacts.length)) return '';
+  var h = '<div style="font-size:0.8rem;color:var(--gold-400);margin:0.5rem 0 0.2rem;">Minxin Hard Links</div>';
+  h += '<div style="font-size:0.74rem;color:var(--text-secondary);margin-top:2px;">';
+  h += 'fiscal ' + esc(fiscal.actualRevenue || 0) + '/' + esc(fiscal.claimedRevenue || 0);
+  h += ' · recruits ' + esc(military.availableRecruits || 0);
+  h += ' · hidden ' + esc(hukou.hiddenHouseholds || 0);
+  h += ' · exec ' + esc(local.avgExecutionRate || 0);
+  h += '</div>';
+  (snap.regionImpacts || []).slice(0, 2).forEach(function(row){
+    h += '<div style="font-size:0.74rem;color:var(--text-secondary);margin-top:2px;">';
+    h += esc(row.regionName || '') + ' minxin ' + esc(row.trueMinxin || 0) + ' collection ' + esc(row.collectionMultiplier || 0) + ' draft ' + esc(row.conscription && row.conscription.recruitmentEfficiency || 0);
+    h += '</div>';
+  });
+  return h;
+}
+
+function _renderMinxinHardLinkConsumers() {
+  var api = (typeof window !== 'undefined' && window.TM && window.TM.MinxinHardLinkConsumers) || (typeof TM !== 'undefined' && TM.MinxinHardLinkConsumers) || null;
+  if (!api || typeof api.snapshot !== 'function') return '';
+  function esc(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){
+      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch] || ch;
+    });
+  }
+  var snap;
+  try { snap = api.snapshot(GM, { limit: 4 }); } catch (_) { snap = null; }
+  if (!snap || !snap.summary) return '';
+  var summary = snap.summary || {};
+  var fiscal = summary.fiscal || {};
+  var military = summary.military || {};
+  var hukou = summary.hukou || {};
+  var execution = summary.execution || {};
+  var hasData = (fiscal.plannedIncome || fiscal.actualIncome || military.requestedRecruits || hukou.hiddenHouseholds || execution.effectiveExecutionRate);
+  if (!hasData) return '';
+  var h = '<div style="font-size:0.8rem;color:var(--gold-400);margin:0.5rem 0 0.2rem;">Minxin Hard Link Consumers</div>';
+  h += '<div style="font-size:0.74rem;color:var(--text-secondary);margin-top:2px;">';
+  h += 'income ' + esc(fiscal.actualIncome || 0) + '/' + esc(fiscal.plannedIncome || 0);
+  h += ' · recruits ' + esc(military.approvedRecruits || 0) + '/' + esc(military.requestedRecruits || 0);
+  h += ' · taxbase ' + esc(hukou.effectiveTaxHouseholds || 0);
+  h += ' · exec ' + esc(execution.effectiveExecutionRate || 0);
+  h += '</div>';
+  return h;
+}
+
+function _renderHujiRuntimeBridge() {
+  var api = (typeof window !== 'undefined' && window.TM && window.TM.HujiRuntimeBridge) || (typeof TM !== 'undefined' && TM.HujiRuntimeBridge) || null;
+  if (!api || typeof api.snapshot !== 'function') return '';
+  function esc(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){
+      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch] || ch;
+    });
+  }
+  var snap;
+  try { snap = api.snapshot(GM, { limit: 3 }); } catch (_) { snap = null; }
+  if (!snap || !snap.hukou) return '';
+  var h = '<div style="font-size:0.8rem;color:var(--gold-400);margin:0.5rem 0 0.2rem;">Huji Runtime Bridge</div>';
+  var hukou = snap.hukou || {};
+  var corvee = snap.corvee && snap.corvee.summary || {};
+  var military = snap.military || {};
+  var hujiHardEffects = snap.hardEffects || (GM && GM._hujiHardEffects) || {};
+  var hardFiscal = hujiHardEffects.fiscal || {};
+  var hardMilitary = hujiHardEffects.military || {};
+  var hardCorvee = hujiHardEffects.corvee || {};
+  h += '<div style="font-size:0.74rem;color:var(--text-secondary);margin-top:2px;">';
+  h += 'hukou ' + esc(hukou.registeredHouseholds || 0) + '/' + esc(hukou.registeredMouths || 0);
+  h += ' 路 hidden ' + esc(hukou.hiddenCount || 0);
+  h += ' 路 taxbase ' + esc(hukou.effectiveTaxHouseholds || 0);
+  h += '</div>';
+  h += '<div style="font-size:0.74rem;color:var(--text-secondary);margin-top:2px;">';
+  h += 'corvee demand ' + esc(corvee.totalDemandDays || 0) + ' gap ' + esc(corvee.gapDays || 0);
+  h += ' 路 service pool ' + esc(military.availableRecruits || 0) + '/' + esc(military.requestedRecruits || 0);
+  h += '</div>';
+  if (hujiHardEffects && (hujiHardEffects.fiscal || hujiHardEffects.military || hujiHardEffects.corvee)) {
+    h += '<div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">';
+    h += 'hujiHardEffects x' + esc(hardFiscal.collectionMultiplier || 0);
+    h += ' 路 loss ' + esc(hardFiscal.revenueLoss || 0);
+    h += ' 路 shortfall ' + esc(hardMilitary.shortfall || 0);
+    h += ' 路 minxin ' + esc(hardCorvee.minxinDelta || 0);
+    if (hujiHardEffects.ledger && hujiHardEffects.ledger.length) h += ' 路 ledger ' + esc(hujiHardEffects.ledger.length);
+    h += '</div>';
+  }
+  (snap.operations || []).slice(-2).forEach(function(op){
+    h += '<div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">';
+    h += 'T' + esc(op.turn || '') + ' ' + esc((op.tags || []).join('/')) + ' · ' + esc((op.text || '').slice(0, 42));
+    h += '</div>';
+  });
+  return h;
+}
+
+function _renderHujiGovernanceLoop() {
+  var api = (typeof window !== 'undefined' && window.TM && window.TM.HujiGovernanceLoop) || (typeof TM !== 'undefined' && TM.HujiGovernanceLoop) || null;
+  if (!api || typeof api.snapshot !== 'function') return '';
+  function esc(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){
+      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch] || ch;
+    });
+  }
+  var snap;
+  try { snap = api.snapshot(GM, { limit: 4 }); } catch (_) { snap = null; }
+  if (!snap || (!snap.count && !(snap.commitments && snap.commitments.length))) return '';
+  var h = '<div style="font-size:0.8rem;color:var(--gold-400);margin:0.5rem 0 0.2rem;">Huji Governance Loop</div>';
+  h += '<div style="font-size:0.74rem;color:var(--text-secondary);margin-top:2px;">';
+  h += 'active ' + esc(snap.active || 0) + ' completed ' + esc(snap.completed || 0) + ' total ' + esc(snap.count || 0);
+  h += ' · ticked ' + esc((snap.stats && snap.stats.ticked) || 0);
+  h += '</div>';
+  (snap.commitments || []).slice(-3).forEach(function(c){
+    var executorLabel = (c.executorOffice || c.executorDept || '') + (c.executorHolder ? '/' + c.executorHolder : '');
+    h += '<div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">';
+    h += esc(c.type || 'commitment') + ' ' + esc(c.status || '') + ' progress ' + esc(c.progress || 0);
+    h += ' · paid ' + esc(c.paidCost || 0) + '/' + esc(c.cost || 0);
+    if (executorLabel) h += ' · executor ' + esc(executorLabel);
+    if (c.executorReliability != null) h += ' · reliability ' + esc(c.executorReliability);
+    if (c.courtDecision) h += ' · court ' + esc(c.courtDecision);
+    if (c.linkedIssue) h += ' · ' + esc(c.linkedIssue);
+    h += '</div>';
+  });
+  return h;
+}
+
 function _renderMinxinFullPanel() {
   var m = GM.minxin || {}; var h = '';
   var trueIdx = typeof m.trueIndex === 'number' ? m.trueIndex : (typeof m.index === 'number' ? m.index : (typeof m.value === 'number' ? m.value : 0));
@@ -1111,6 +1337,13 @@ function _renderMinxinFullPanel() {
       });
     }
   }
+  h += _renderMinxinLedgerCauses(m);
+  h += _renderMinxinCommitments();
+  h += _renderMinxinResponsibility();
+  h += _renderMinxinHardLinks();
+  h += _renderMinxinHardLinkConsumers();
+  h += _renderHujiRuntimeBridge();
+  h += _renderHujiGovernanceLoop();
   return h;
 }
 // ── 皇权：包含奏疏+抗疏+权臣+执行率 ──

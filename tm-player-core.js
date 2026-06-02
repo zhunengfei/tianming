@@ -575,6 +575,28 @@ function _showWorkDetail(idx) {
   var tmp = document.createElement('div'); tmp.innerHTML = html; document.body.appendChild(tmp.firstChild);
 }
 
+function _recordPlayerActionSignal(kind, text, meta) {
+  try {
+    if (!window.GM) return;
+    meta = meta || {};
+    var payload = {
+      root: GM,
+      source: meta.source || 'tm-player-core',
+      action: meta.action || kind || '',
+      kind: kind || meta.kind || '',
+      topic: meta.topic || '',
+      actor: meta.actor || meta.from || '',
+      target: meta.target || '',
+      text: text || meta.text || ''
+    };
+    if (window.TM && TM.PartyClassLlmCalibrator && typeof TM.PartyClassLlmCalibrator.notifyPlayerAction === 'function') {
+      TM.PartyClassLlmCalibrator.notifyPlayerAction(payload);
+    } else if (window.TM && TM.PlayerActionSignals && typeof TM.PlayerActionSignals.record === 'function') {
+      TM.PlayerActionSignals.record(GM, payload);
+    }
+  } catch (_) {}
+}
+
 function _workAction(idx, action) {
   var w = (GM.culturalWorks || [])[idx]; if (!w) return;
   if (!GM._edictSuggestions) GM._edictSuggestions = [];
@@ -587,6 +609,7 @@ function _workAction(idx, action) {
   else if (action === 'unban') content = '解禁 ' + w.author + '《' + w.title + '》——准其重新流布，刊本发还';
   if (content) {
     GM._edictSuggestions.push({ source: '\u6587\u4E8B', from: w.author, content: content, turn: GM.turn, used: false });
+    _recordPlayerActionSignal('edict', content, { source: 'cultural-work-action', action: action, actor: w.author, topic: w.title || '' });
     toast('已录入诏令建议库');
     if (typeof _renderEdictSuggestions === 'function') _renderEdictSuggestions();
   }
@@ -1173,6 +1196,7 @@ function _dfSubmitBuild(divNameEnc, typeIdx, isCustom) {
   }
   if (!GM._edictSuggestions) GM._edictSuggestions = [];
   GM._edictSuggestions.push({ source: '\u5DE5\u7A0B', from: divName, content: content, turn: GM.turn, used: false });
+  _recordPlayerActionSignal('construction', content, { source: 'district-build-action', target: divName });
   toast('\u5DF2\u5F55\u5165\u8BCF\u4EE4\u5EFA\u8BAE\u5E93\u2014\u2014\u8BF7\u5728\u8BCF\u4EE4\u533A\u7EB3\u5165\u540E\u9881\u8BCF');
   if (typeof _renderEdictSuggestions === 'function') _renderEdictSuggestions();
   var m = document.getElementById('_dfBuildModal'); if (m) m.remove();
@@ -1271,6 +1295,7 @@ function _dfDoNonDirectAction(idx, divNameEnc, autonomyTypeEnc) {
   var content = a.action.indexOf('edict:') === 0 ? a.action.substring(6) : a.action;
   if (!GM._edictSuggestions) GM._edictSuggestions = [];
   GM._edictSuggestions.push({ source: '\u5C01\u5EFA', from: divName, content: content, turn: GM.turn, used: false });
+  _recordPlayerActionSignal('edict', content, { source: 'non-direct-region-action', action: a.label || '', target: divName });
   toast('\u3014' + a.label + '\u3015\u5DF2\u5F55\u5165\u8BCF\u4EE4\u5EFA\u8BAE\u5E93');
   if (typeof _renderEdictSuggestions === 'function') _renderEdictSuggestions();
   var m = document.getElementById('_dfFeudalModal'); if (m) m.remove();

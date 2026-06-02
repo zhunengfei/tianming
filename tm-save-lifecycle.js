@@ -927,6 +927,15 @@ function fullLoadGame(data){
       }
     } catch(_mtRebuildE) { console.warn('[fullLoadGame] 12 表自动重建失败:', _mtRebuildE); }
 
+    try {
+      if (window.TM && TM.MemoryTurnBackfill && typeof TM.MemoryTurnBackfill.ensureBackfilled === 'function') {
+        var _memSpine = TM.MemoryTurnBackfill.ensureBackfilled(GM, { turn: GM.turn, archiveCap: 80 });
+        if (_memSpine && (_memSpine.rebuilt || _memSpine.reason === 'rollup_rebuilt_from_existing_archive')) {
+          console.log('[fullLoadGame] memory spine backfill: ' + (_memSpine.legacyBundles || 0) + ' bundles');
+        }
+      }
+    } catch(_memSpineE) { console.warn('[fullLoadGame] memory spine backfill failed:', _memSpineE); }
+
     _$("launch").style.display="none";
     _$("bar").style.display="flex";
     _$("bar-btns").innerHTML="";

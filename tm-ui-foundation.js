@@ -419,3 +419,111 @@ function closeModal(){closeGenericModal();}
     sections: SECTIONS
   };
 })();
+
+/* === Source: tm-fulltext-tooltip.js === */
+(function(){
+  'use strict';
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  window.TM = window.TM || {};
+  if (window.TM.fullTextTooltip) return;
+
+  var activeEl = null;
+  var tipEl = null;
+  var lastPoint = { x: 0, y: 0 };
+  var selector = '[data-tm-fulltext],.tm-fulltext-source,.tm-party-full,.tm-class-full,.tm-army-full,.gs-party-name,.gs-class-name,.gs-army-name,.gs-army-loc';
+
+  function escAttr(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function fullTextAttr(text, always) {
+    var v = String(text == null ? '' : text).trim();
+    if (!v) return '';
+    return ' data-tm-fulltext="' + escAttr(v) + '"' + (always ? ' data-tm-fulltext-always="1"' : '');
+  }
+
+  function getTip() {
+    if (tipEl && document.body.contains(tipEl)) return tipEl;
+    tipEl = document.createElement('div');
+    tipEl.id = 'tm-fulltext-tooltip';
+    tipEl.className = 'tm-fulltext-tooltip';
+    tipEl.setAttribute('role', 'tooltip');
+    document.body.appendChild(tipEl);
+    return tipEl;
+  }
+
+  function getText(el) {
+    if (!el) return '';
+    return String(el.getAttribute('data-tm-fulltext') || el.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function isClipped(el) {
+    if (!el) return false;
+    return el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1;
+  }
+
+  function place(x, y) {
+    var tip = getTip();
+    var pad = 14;
+    var left = x + pad;
+    var top = y + pad;
+    var rect = tip.getBoundingClientRect();
+    var vw = window.innerWidth || document.documentElement.clientWidth || 0;
+    var vh = window.innerHeight || document.documentElement.clientHeight || 0;
+    if (left + rect.width + 10 > vw) left = Math.max(8, x - rect.width - pad);
+    if (top + rect.height + 10 > vh) top = Math.max(8, y - rect.height - pad);
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+  }
+
+  function show(el, x, y) {
+    var text = getText(el);
+    if (!text) return;
+    if (!el.hasAttribute('data-tm-fulltext') && !el.hasAttribute('data-tm-fulltext-always') && !isClipped(el)) return;
+    activeEl = el;
+    lastPoint.x = x || lastPoint.x;
+    lastPoint.y = y || lastPoint.y;
+    var tip = getTip();
+    tip.textContent = text;
+    tip.classList.add('show');
+    place(lastPoint.x, lastPoint.y);
+  }
+
+  function hide() {
+    activeEl = null;
+    if (tipEl) tipEl.classList.remove('show');
+  }
+
+  document.addEventListener('mouseover', function(e){
+    var el = e.target && e.target.closest ? e.target.closest(selector) : null;
+    if (!el) return;
+    show(el, e.clientX, e.clientY);
+  }, true);
+
+  document.addEventListener('mousemove', function(e){
+    lastPoint.x = e.clientX;
+    lastPoint.y = e.clientY;
+    if (activeEl) place(lastPoint.x, lastPoint.y);
+  }, true);
+
+  document.addEventListener('mouseout', function(e){
+    if (!activeEl) return;
+    var to = e.relatedTarget;
+    if (to && activeEl.contains && activeEl.contains(to)) return;
+    hide();
+  }, true);
+
+  document.addEventListener('focusin', function(e){
+    var el = e.target && e.target.closest ? e.target.closest(selector) : null;
+    if (!el) return;
+    var rect = el.getBoundingClientRect();
+    show(el, rect.left + rect.width / 2, rect.bottom);
+  }, true);
+
+  document.addEventListener('focusout', hide, true);
+  document.addEventListener('scroll', hide, true);
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') hide(); }, true);
+
+  window.tmFullTextAttr = fullTextAttr;
+  window.TM.fullTextTooltip = { attr: fullTextAttr, hide: hide };
+})();

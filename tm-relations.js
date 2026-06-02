@@ -138,6 +138,69 @@ function ensureCharRelation(charA, charB) {
   return r;
 }
 
+function _tmRelationHash(text) {
+  try {
+    if (typeof window !== 'undefined' && window.TM && TM.MemorySourceBound && typeof TM.MemorySourceBound.safeHash === 'function') {
+      return TM.MemorySourceBound.safeHash(text);
+    }
+  } catch(_) {}
+  text = String(text == null ? '' : text);
+  var h = 2166136261;
+  for (var i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+  }
+  return 'h' + (h >>> 0).toString(16) + '-len' + text.length;
+}
+
+function recordNpcRelationEvent(data) {
+  if (typeof GM === 'undefined' || !GM) return null;
+  data = data || {};
+  if (!data.actor || !data.target) return null;
+  if (!Array.isArray(GM._npcRelationEvents)) GM._npcRelationEvents = [];
+  var turn = Number(data.turn != null ? data.turn : (GM.turn || 0));
+  var text = String(data.text || data.description || data.kind || '').replace(/\s+/g, ' ').trim();
+  var hash = _tmRelationHash([turn, data.source || '', data.actor, data.target, data.kind || '', text].join('|'));
+  var id = data.id || ('npcRelationEvent-' + turn + '-' + String(data.actor).slice(0, 12) + '-' + String(data.target).slice(0, 12) + '-' + String(data.kind || 'event').slice(0, 24) + '-' + hash.slice(0, 18));
+  var exists = GM._npcRelationEvents.some(function(evt) { return evt && evt.id === id; });
+  if (exists) return null;
+  var sourceRef = { type: 'npcRelationEvent', id: id, turn: turn, authority: data.authorityLevel || 'event_log', visibility: data.visibility || 'internal', lane: 'L4_dialogue_evidence', role: 'record' };
+  try {
+    if (typeof window !== 'undefined' && window.TM && TM.MemorySourceBound && typeof TM.MemorySourceBound.normalizeRef === 'function') {
+      sourceRef = TM.MemorySourceBound.normalizeRef(sourceRef);
+    }
+  } catch(_) {}
+  var evt = {
+    id: id,
+    turn: turn,
+    source: data.source || 'npc_interaction',
+    actor: String(data.actor),
+    target: String(data.target),
+    participants: Array.isArray(data.participants) ? data.participants.slice(0, 8) : [String(data.actor), String(data.target)],
+    kind: String(data.kind || 'interaction'),
+    delta: data.delta || {},
+    metrics: data.metrics || {},
+    text: text,
+    importance: Math.max(1, Math.min(10, Number(data.importance || 5))),
+    visibility: data.visibility || 'internal',
+    authorityLevel: data.authorityLevel || 'event_log',
+    confidence: data.confidence != null ? Math.max(0, Math.min(1, Number(data.confidence))) : 0.82,
+    sourceRefs: [sourceRef],
+    basisRefs: Array.isArray(data.basisRefs) ? data.basisRefs.slice(0, 8) : [],
+    contentHash: hash
+  };
+  GM._npcRelationEvents.push(evt);
+  if (GM._npcRelationEvents.length > 1200) GM._npcRelationEvents = GM._npcRelationEvents.slice(-1200);
+  return evt;
+}
+
+if (typeof window !== 'undefined') {
+  window.recordNpcRelationEvent = recordNpcRelationEvent;
+  window.TM = window.TM || {};
+  window.TM.NpcRelationEvents = window.TM.NpcRelationEvents || {};
+  window.TM.NpcRelationEvents.record = recordNpcRelationEvent;
+}
+
 /**
  * 应用一次NPC互动
  */
@@ -200,6 +263,28 @@ function applyNpcInteraction(actor, target, type, extra) {
   // 限制历史长度
   if (rAB.history.length > 20) rAB.history = rAB.history.slice(-20);
   if (rBA.history.length > 20) rBA.history = rBA.history.slice(-20);
+
+  recordNpcRelationEvent({
+    turn: turn,
+    source: 'tm-relations.applyNpcInteraction',
+    actor: actor,
+    target: target,
+    participants: [actor, target],
+    kind: type,
+    delta: eff,
+    metrics: {
+      affinity: rBA.affinity,
+      trust: rBA.trust,
+      respect: rBA.respect,
+      fear: rBA.fear,
+      hostility: rBA.hostility,
+      conflictLevel: rBA.conflictLevel || 0,
+      owesFavor: rBA.owesFavor || 0
+    },
+    text: extra.description || def.label,
+    importance: def.important || 5,
+    visibility: extra.visibility || 'internal'
+  });
 
   // NPC 记忆
   if (typeof NpcMemorySystem !== 'undefined' && NpcMemorySystem.remember) {

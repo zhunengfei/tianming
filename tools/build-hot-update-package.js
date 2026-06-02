@@ -23,6 +23,21 @@ const ALLOWED_EXTS = new Set([
   '.bmp', '.svg', '.ico', '.mp3', '.ogg', '.wav', '.md', '.txt', '.csv', '.woff', '.woff2',
   '.ttf', '.wasm', '.map'
 ]);
+const KNOWN_WEB_TOP_DIRS = [
+  'assets',
+  'css',
+  'docs',
+  'fonts',
+  'img',
+  'images',
+  'js',
+  'scenarios',
+  'scripts',
+  'sounds',
+  'audio',
+  'tools',
+  'preview'
+];
 
 const EXCLUDED_DIRS = new Set([
   '.git', 'node_modules', '.cache', '.tmp', 'tmp', 'dist', 'build', 'release', 'coverage',
@@ -68,10 +83,73 @@ function normalizeRel(file) {
   return path.relative(WEB_ROOT, file).replace(/\\/g, '/');
 }
 
+function isValidManifestRelPath(rel) {
+  const normalized = String(rel || '').replace(/\\/g, '/');
+  if (!normalized) return false;
+  if (normalized === '.' || normalized === '..') return false;
+  if (normalized.startsWith('../') || normalized.includes('/../')) return false;
+  if (path.posix.normalize(normalized).startsWith('/')) return false;
+  if (/[<>:"|?*]/.test(normalized)) return false;
+  if (/[\u0000-\u001F\u007F-\u009F\uF000-\uF8FF]/.test(normalized)) return false;
+  return true;
+}
+
+function isRecoveredPath(rel) {
+  const raw = String(rel || '');
+  return /[A-Za-z]:/.test(raw) || raw.includes('\uFF1A') || /C\u00a0/.test(raw);
+}
+
+function inferRecoveredRelPath(rel) {
+  const normalized = String(rel || '').replace(/\\/g, '/');
+  const lower = normalized.toLowerCase();
+  const webPos = lower.indexOf('web');
+  if (webPos < 0) return '';
+  const tail = normalized.slice(webPos + 3);
+  if (!tail || tail.startsWith('/')) return '';
+  for (const top of KNOWN_WEB_TOP_DIRS) {
+    if (!tail.startsWith(top)) continue;
+    if (tail.length <= top.length) continue;
+    if (!/[A-Za-z0-9_.-]/.test(tail[top.length])) continue;
+    const candidate = 'web/' + top + '/' + tail.slice(top.length);
+    if (isValidManifestRelPath(candidate)) return candidate;
+  }
+  return '';
+}
+
+function resolveManifestRel(filePath) {
+  const raw = normalizeRel(filePath);
+  if (isValidManifestRelPath(raw) && !isRecoveredPath(raw)) {
+    return { path: raw, recovered: false };
+  }
+  const recovered = inferRecoveredRelPath(raw);
+  if (recovered && isValidManifestRelPath(recovered)) {
+    return { path: recovered, recovered: true };
+  }
+  throw new Error('invalid manifest relative path: ' + raw);
+}
+
+function addManifestEntry(entries, filePath, fileSize, fileSha, explicitRel) {
+  // explicitRel: for files bundled at a fixed in-zip path (e.g. bundled-scenarios/<name>) that live
+  // outside WEB_ROOT — skip the web-relative resolve (which rejects ../ paths) and use it verbatim.
+  const { path: rel, recovered } = explicitRel
+    ? { path: explicitRel, recovered: false }
+    : resolveManifestRel(filePath);
+  const existing = entries.get(rel);
+  const shouldReplace = !existing || (!existing.recovered && !recovered && fileSize > existing.size) || (existing.recovered && !recovered);
+  if (shouldReplace) {
+    entries.set(rel, {
+      path: rel,
+      sha256: fileSha,
+      size: fileSize,
+      absPath: filePath,
+      recovered
+    });
+  }
+}
+
 function walk(dir, out) {
   fs.readdirSync(dir, { withFileTypes: true }).forEach(entry => {
     const abs = path.join(dir, entry.name);
-    const rel = normalizeRel(abs);
     if (entry.isDirectory()) {
       if (_isExcludedDir(entry.name)) return;
       walk(abs, out);
@@ -80,7 +158,8 @@ function walk(dir, out) {
     if (!entry.isFile()) return;
     const ext = path.extname(entry.name).toLowerCase();
     if (!ALLOWED_EXTS.has(ext)) return;
-    out.push(abs);
+    const stat = fs.statSync(abs);
+    addManifestEntry(out, abs, stat.size, sha256File(abs));
   });
 }
 
@@ -141,11 +220,12 @@ function main() {
   const includePreview = flag('include-preview');
   const explicitFiles = listArg('files');
 
-  const files = [];
+  const manifestEntries = new Map();
   if (explicitFiles.length) {
     explicitFiles.forEach(rel => {
       const abs = path.resolve(WEB_ROOT, rel);
-      if (!abs.startsWith(WEB_ROOT + path.sep)) {
+      const relFromRoot = path.relative(WEB_ROOT, abs).replace(/\\/g, '/');
+      if (!relFromRoot || relFromRoot.startsWith('..') || path.isAbsolute(relFromRoot)) {
         console.error('file outside web root:', rel);
         process.exit(1);
       }
@@ -153,13 +233,16 @@ function main() {
         console.error('file not found:', rel);
         process.exit(1);
       }
-      files.push(abs);
+      const stat = fs.statSync(abs);
+      addManifestEntry(manifestEntries, abs, stat.size, sha256File(abs));
     });
   } else {
-    walk(WEB_ROOT, files);
+    walk(WEB_ROOT, manifestEntries);
   }
-  const filtered = includePreview || explicitFiles.length ? files : files.filter(file => !normalizeRel(file).startsWith('preview/'));
-  if (!explicitFiles.length && !filtered.some(file => normalizeRel(file) === 'index.html')) {
+  const filtered = includePreview || explicitFiles.length
+    ? Array.from(manifestEntries.values())
+    : Array.from(manifestEntries.values()).filter(file => !file.path.startsWith('preview/'));
+  if (!explicitFiles.length && !filtered.some(file => file.path === 'index.html')) {
     console.error('index.html not found in hot-update file list');
     process.exit(1);
   }
@@ -167,19 +250,18 @@ function main() {
   fs.mkdirSync(outDir, { recursive: true });
   const zipPath = path.join(outDir, packageName);
   const zip = new AdmZip();
-  const manifestFiles = filtered.sort().map(file => {
-    const rel = normalizeRel(file);
-    const stat = fs.statSync(file);
-    zip.addLocalFile(file, path.dirname(rel) === '.' ? '' : path.dirname(rel));
-    return { path: rel, sha256: sha256File(file), size: stat.size };
-  });
+  filtered
+    .sort((a, b) => a.path.localeCompare(b.path))
+    .forEach(entry => {
+      zip.addLocalFile(entry.absPath, path.dirname(entry.path) === '.' ? '' : path.dirname(entry.path));
+    });
 
   // 2026-05-22·bundled scenarios·热更也能 ship 官方剧本 JSON 改动
   const bundledScenarios = walkBundledScenarios();
   bundledScenarios.forEach(entry => {
     const stat = fs.statSync(entry.abs);
     zip.addLocalFile(entry.abs, 'bundled-scenarios');
-    manifestFiles.push({ path: entry.zipPath, sha256: sha256File(entry.abs), size: stat.size });
+    addManifestEntry(manifestEntries, entry.abs, stat.size, sha256File(entry.abs), entry.zipPath);
   });
   if (bundledScenarios.length) {
     console.log('[hot-update] bundled scenarios·' + bundledScenarios.length + ' file(s)·' + bundledScenarios.map(e => path.basename(e.abs)).join(', '));
@@ -190,7 +272,7 @@ function main() {
   appMains.forEach(entry => {
     const stat = fs.statSync(entry.abs);
     zip.addLocalFile(entry.abs, '', '_app_main.js');
-    manifestFiles.push({ path: entry.zipPath, sha256: sha256File(entry.abs), size: stat.size });
+    addManifestEntry(manifestEntries, entry.abs, stat.size, sha256File(entry.abs), '_app_main.js');
   });
   if (appMains.length) {
     console.log('[hot-update] app main impl·_app_main.js·' + (fs.statSync(appMains[0].abs).size/1024).toFixed(1) + ' KB');
@@ -203,7 +285,7 @@ function main() {
   appPreloads.forEach(entry => {
     const stat = fs.statSync(entry.abs);
     zip.addLocalFile(entry.abs, '', '_app_preload.js');
-    manifestFiles.push({ path: entry.zipPath, sha256: sha256File(entry.abs), size: stat.size });
+    addManifestEntry(manifestEntries, entry.abs, stat.size, sha256File(entry.abs), '_app_preload.js');
   });
   if (appPreloads.length) {
     console.log('[hot-update] app preload impl·_app_preload.js·' + (fs.statSync(appPreloads[0].abs).size/1024).toFixed(1) + ' KB');
@@ -211,13 +293,22 @@ function main() {
     console.warn('[hot-update] WARN·APP_ROOT/preload-impl.js 不存在·preload shim 将无 hot 实现可加载·只能 fallback bundled');
   }
 
+  // manifest must list ONLY files that are actually in the package (zip archive built from `filtered`).
+  // mirror the archive's preview filter (line ~242) so the manifest never advertises preview/ files that
+  // aren't shipped — otherwise applyHotUpdateBundle's per-file existence check throws '热更新文件不存在'.
+  const finalManifestFiles = Array.from(manifestEntries.values())
+    .filter(entry => includePreview || explicitFiles.length || !entry.path.startsWith('preview/'))
+    .map(entry => ({ path: entry.path, sha256: entry.sha256, size: entry.size, absPath: entry.absPath }))
+    .sort((a, b) => a.path.localeCompare(b.path))
+    .map(entry => ({ path: entry.path, sha256: entry.sha256, size: entry.size }));
+
   const manifest = {
     type: 'tianming-hot-update',
     version,
     entry: 'index.html',
     minAppVersion,
     generatedAt: new Date().toISOString(),
-    files: manifestFiles,
+    files: finalManifestFiles,
     remove: []
   };
   zip.addFile('manifest.json', Buffer.from(JSON.stringify(manifest, null, 2), 'utf-8'));
@@ -245,7 +336,7 @@ function main() {
 
   console.log('[hot-update] package:', zipPath);
   console.log('[hot-update] feed:', path.join(outDir, 'hot-latest.json'));
-  console.log('[hot-update] files:', manifestFiles.length);
+  console.log('[hot-update] files:', finalManifestFiles.length);
 }
 
 main();

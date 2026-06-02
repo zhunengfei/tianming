@@ -36,7 +36,8 @@ var _POST_TURN_CRITICAL_IDS = _POST_TURN_NEXT_REQUIRED_IDS;
 // npc_behavior 由 tm-endturn-pipeline-steps.js 入队；它允许在结果弹窗后后台运行，
 // 不默认列入 next/save 必阻塞项，避免玩家过回合等待重新变长。
 var _POST_TURN_SAVE_REQUIRED_IDS = {
-  sc25: true
+  sc25: true,
+  sc25c: true
 };
 
 function _isCriticalPostTurnJob(job) {
@@ -109,8 +110,24 @@ async function _scL2AIGenerate(turnOverride) {
     var parsedL2 = extractJSON(respL2);
     if (parsedL2 && parsedL2.summary) {
       // 替换或新增
+      var _l2Meta = null;
+      try {
+        if (typeof TM !== 'undefined' && TM.MemorySourceBound && typeof TM.MemorySourceBound.buildSummaryMetadata === 'function') {
+          _l2Meta = TM.MemorySourceBound.buildSummaryMetadata(GM, {
+            type: 'memoryLayerL2',
+            turn: jobTurn,
+            turnRange: bucketStart + '-' + jobTurn,
+            text: parsedL2.summary,
+            sourceItems: bucketShiji.concat(bucketMems.map(function(m) {
+              if (!m) return m;
+              return Object.assign({ sourceType: '_aiMemory' }, m);
+            })),
+            maxBasisRefs: 24
+          });
+        }
+      } catch(_) {}
       GM._memoryLayers.L2 = (GM._memoryLayers.L2 || []).filter(function(x){ return x.turnBucket !== jobTurn || !x.aiGenerated; });
-      GM._memoryLayers.L2.push({
+      var _l2Record = {
         turnBucket: jobTurn,
         turnRange: bucketStart + '-' + jobTurn,
         summary: parsedL2.summary,
@@ -120,7 +137,20 @@ async function _scL2AIGenerate(turnOverride) {
         turning_points: parsedL2.turning_points || [],
         aiGenerated: true,
         createdAt: jobTurn
-      });
+      };
+      if (_l2Meta) {
+        _l2Record.id = _l2Meta.id;
+        _l2Record.sourceRefs = _l2Meta.sourceRefs;
+        _l2Record.basisRefs = _l2Meta.basisRefs;
+        _l2Record.evidenceRefs = _l2Meta.evidenceRefs;
+        _l2Record.contentHash = _l2Meta.contentHash;
+        _l2Record.authorityLevel = _l2Meta.authorityLevel;
+        _l2Record.authorityRank = _l2Meta.authorityRank;
+        _l2Record.basisMaxAuthorityRank = _l2Meta.basisMaxAuthorityRank;
+        _l2Record.factStatus = _l2Meta.factStatus;
+        _l2Record.lane = _l2Meta.lane;
+      }
+      GM._memoryLayers.L2.push(_l2Record);
       if (GM._memoryLayers.L2.length > 12) GM._memoryLayers.L2 = GM._memoryLayers.L2.slice(-12);
       try {
         if (typeof recordMemoryDiagnostic === 'function') recordMemoryDiagnostic('post_turn_l2', { status: 'ok', range: bucketStart + '-' + jobTurn, memories: bucketMems.length, shiji: bucketShiji.length, snapshot: (typeof buildMemoryDiagnosticSnapshot === 'function' ? buildMemoryDiagnosticSnapshot(GM) : null) });
@@ -167,8 +197,21 @@ async function _scL3Condense(turnOverride) {
     ], 4000, null, 'primary', { priority: 'background' });
     var parsedL3 = extractJSON(respL3);
     if (parsedL3 && parsedL3.theme) {
+      var _l3Meta = null;
+      try {
+        if (typeof TM !== 'undefined' && TM.MemorySourceBound && typeof TM.MemorySourceBound.buildSummaryMetadata === 'function') {
+          _l3Meta = TM.MemorySourceBound.buildSummaryMetadata(GM, {
+            type: 'memoryLayerL3',
+            turn: jobTurn,
+            turnRange: l3Start + '-' + jobTurn,
+            text: [parsedL3.theme, parsedL3.atmosphere, parsedL3.mainThreads, parsedL3.causalSummary].filter(Boolean).join(' '),
+            sourceItems: bucketL2,
+            maxBasisRefs: 30
+          });
+        }
+      } catch(_) {}
       GM._memoryLayers.L3 = (GM._memoryLayers.L3 || []).filter(function(x){ return x.turnBucket !== jobTurn || !x.aiGenerated; });
-      GM._memoryLayers.L3.push({
+      var _l3Record = {
         turnBucket: jobTurn,
         turnRange: l3Start + '-' + jobTurn,
         theme: parsedL3.theme,
@@ -180,7 +223,20 @@ async function _scL3Condense(turnOverride) {
         summary: parsedL3.theme + '·' + (parsedL3.atmosphere || ''),  // 向后兼容字段
         aiGenerated: true,
         createdAt: jobTurn
-      });
+      };
+      if (_l3Meta) {
+        _l3Record.id = _l3Meta.id;
+        _l3Record.sourceRefs = _l3Meta.sourceRefs;
+        _l3Record.basisRefs = _l3Meta.basisRefs;
+        _l3Record.evidenceRefs = _l3Meta.evidenceRefs;
+        _l3Record.contentHash = _l3Meta.contentHash;
+        _l3Record.authorityLevel = _l3Meta.authorityLevel;
+        _l3Record.authorityRank = _l3Meta.authorityRank;
+        _l3Record.basisMaxAuthorityRank = _l3Meta.basisMaxAuthorityRank;
+        _l3Record.factStatus = _l3Meta.factStatus;
+        _l3Record.lane = _l3Meta.lane;
+      }
+      GM._memoryLayers.L3.push(_l3Record);
       try {
         if (typeof recordMemoryDiagnostic === 'function') recordMemoryDiagnostic('post_turn_l3', { status: 'ok', range: l3Start + '-' + jobTurn, scenes: bucketL2.length, snapshot: (typeof buildMemoryDiagnosticSnapshot === 'function' ? buildMemoryDiagnosticSnapshot(GM) : null) });
       } catch(_) {}

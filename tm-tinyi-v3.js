@@ -2443,7 +2443,21 @@ if (typeof window !== 'undefined') {
 //   - 运行时党派增删改全经此处·便于 §6 用印阻挠 / §7 追责 hook
 
 function _ty3_getParties() {
-  return Array.isArray(GM.parties) ? GM.parties : [];
+  if (typeof GM !== 'undefined' && GM && Array.isArray(GM.parties)) return GM.parties;
+  if (typeof GM !== 'undefined' && GM && GM.scriptData && Array.isArray(GM.scriptData.parties)) return GM.scriptData.parties;
+  if (typeof P !== 'undefined' && P && Array.isArray(P.parties)) return P.parties;
+  if (typeof scriptData !== 'undefined' && scriptData && Array.isArray(scriptData.parties)) return scriptData.parties;
+  if (typeof GM !== 'undefined' && GM && GM.partyState && typeof GM.partyState === 'object') {
+    return Object.keys(GM.partyState).map(function(name) {
+      var row = GM.partyState[name];
+      if (row && typeof row === 'object') {
+        if (!row.name) row.name = name;
+        return row;
+      }
+      return { name: name };
+    });
+  }
+  return [];
 }
 
 function _ty3_getPartyObj(name) {
@@ -2899,6 +2913,10 @@ function _ty3_partyStanceOnTopic(partyName, topicText, topicType) {
     if (disputes[i] && disputes[i].topic && t.indexOf(disputes[i].topic.toLowerCase()) >= 0) {
       return disputes[i].stake === 'support' ? 'support' : 'oppose';
     }
+  }
+  var goals = _ty3_partyGoalEntries(p);
+  for (var g = 0; g < goals.length; g++) {
+    if (_ty3_textIncludesGoal(t, goals[g].text)) return 'support';
   }
   // policyStance 关键字软匹配
   for (var j = 0; j < stances.length; j++) {
@@ -4037,6 +4055,9 @@ function _ty3_phase1_startDebate() {
   var bg = document.getElementById('ty3-seating-bg');
   if (bg) bg.remove();
   if (!CY._ty3) return;
+  var publicMeta = _ty3_clone(CY._ty3.meta || {});
+  publicMeta.proposer = publicMeta.proposer || CY._ty3.proposer || '';
+  publicMeta.proposerParty = publicMeta.proposerParty || CY._ty3.proposerParty || '';
   CY._ty2 = {
     topic: CY._ty3.topic,
     topicType: (CY._ty3.meta && CY._ty3.meta.topicType) || 'other',
@@ -4047,10 +4068,10 @@ function _ty3_phase1_startDebate() {
     roundNum: 0,
     currentPhase: 'opening',
     decision: null,
-    _publicMeta: { proposer: CY._ty3.proposer, proposerParty: CY._ty3.proposerParty },
-    _economyReform: CY._ty3.meta && CY._ty3.meta._economyReform,
-    _reformType: CY._ty3.meta && CY._ty3.meta.reformType,
-    _reformId: CY._ty3.meta && CY._ty3.meta.reformId
+    _publicMeta: publicMeta,
+    _economyReform: publicMeta._economyReform,
+    _reformType: publicMeta.reformType,
+    _reformId: publicMeta.reformId
   };
   // v2.6 polish·init stance·**必含 source: 'init'** + history·防 Slice 3 hybrid 锁 silently 失效 (源 undefined 时 source === 'dims-initial' 假)
   CY._ty3.attendees.forEach(function(n) { CY._ty2.stances[n] = { current: 'neutral', initial: 'neutral', locked: false, confidence: 0, source: 'init', history: [] }; });
@@ -5052,7 +5073,12 @@ function _ty3_enqueueTinyiFollowUp(entry) {
     opposingParties: _ty3_normalizePartyNames(entry.opposingParties || []),
     blockerParty: entry.blockerParty || '',
     draftEdict: entry.draftEdict || null,
-    decisionMode: entry.decisionMode || ''
+    decisionMode: entry.decisionMode || '',
+    sourceType: entry.sourceType || '',
+    sourceClass: entry.sourceClass || entry.className || '',
+    className: entry.className || entry.sourceClass || '',
+    demandText: entry.demandText || '',
+    relationEvidence: Array.isArray(entry.relationEvidence) ? entry.relationEvidence.map(_ty3_clone) : []
   };
   GM.tinyi.followUpQueue.push(queued);
   if (CY._ty3) CY._ty3.followUpTurn = queued.dueTurn;
@@ -5085,6 +5111,106 @@ function _ty3_enqueueTinyiFollowUp(entry) {
   return queued;
 }
 
+function _ty3_recordSocialPoliticalSignal(seal, meta, ctx) {
+  try {
+    if (typeof TM === 'undefined' || !TM.SocialPoliticalSignals || typeof TM.SocialPoliticalSignals.record !== 'function') return null;
+    if (typeof GM === 'undefined' || !GM || !seal) return null;
+    var parties = [];
+    function addParty(name, role) {
+      name = String(name || '').trim();
+      if (!name) return;
+      if (parties.some(function(x) { return x.name === name; })) return;
+      parties.push({
+        name: name,
+        reason: role + ' in court outcome ' + (seal.sealStatus || seal.status || '')
+      });
+    }
+    addParty(seal.sourceParty, 'source party');
+    (Array.isArray(seal.opposingParties) ? seal.opposingParties : []).forEach(function(name) { addParty(name, 'opposing party'); });
+    addParty(seal.blockerParty, 'blocking party');
+    var classes = [];
+    var className = seal.sourceClass || seal.className || (meta && (meta.sourceClass || meta.className)) || '';
+    if (className) {
+      classes.push({
+        name: className,
+        reason: seal.demandText || 'court issue outcome'
+      });
+    }
+    var recordedSignal = TM.SocialPoliticalSignals.record(GM, {
+      sourceSystem: 'court',
+      kind: 'tinyi-stage6-' + (seal.sealStatus || seal.status || 'outcome'),
+      tags: ['court', 'tinyi', 'party', 'class', seal.sealStatus || seal.status || ''],
+      intensity: seal.sealStatus === 'blocked' ? 0.75 : 0.62,
+      confidence: 0.9,
+      linkedIssue: seal.chaoyiTrackId || seal.topic || '',
+      reason: '廷议结果：' + (seal.topic || '') + ' / ' + (seal.sealStatus || seal.status || ''),
+      affectedClasses: classes,
+      affectedParties: parties,
+      evidence: [
+        'tinyi-stage6-social-signal',
+        seal.grade || '',
+        (ctx && ctx.decision && ctx.decision.mode) || '',
+        seal.demandText || ''
+      ]
+    });
+    try {
+      if (TM.MinxinPressureActions && typeof TM.MinxinPressureActions.recordPlayerResponse === 'function') {
+        TM.MinxinPressureActions.recordPlayerResponse(GM, {
+          channel: 'tinyi',
+          decision: seal.sealStatus || seal.status || '',
+          linkedIssue: (meta && (meta.linkedIssue || meta.sourceId || meta.id)) || seal.linkedIssue || seal.chaoyiTrackId || '',
+          actor: seal.sourceParty || '',
+          topic: seal.topic || '',
+          text: [seal.topic, seal.demandText, seal.body, seal.grade].filter(Boolean).join(' ')
+        }, {
+          turn: GM.turn || 0,
+          source: 'tinyi-stage6-minxin-pressure-response'
+        });
+      }
+    } catch (_mpaE) {
+      try { window.TM && TM.errors && TM.errors.captureSilent(_mpaE, 'tinyi-stage6-minxin-pressure-response'); } catch (_) {}
+    }
+    return recordedSignal;
+  } catch (_spsE) {
+    try { window.TM && TM.errors && TM.errors.captureSilent(_spsE, 'tinyi-stage6-social-signal'); } catch (_) {}
+    return null;
+  }
+}
+
+function _ty3_recordCourtOutcomeRecord(seal, meta, ctx) {
+  try {
+    if (typeof GM === 'undefined' || !GM || !seal) return null;
+    if (!Array.isArray(GM._courtRecords)) GM._courtRecords = [];
+    var item = {
+      id: seal.id || ('court_' + Date.now() + '_' + Math.floor(Math.random() * 100000)),
+      turn: GM.turn || 0,
+      source: 'tinyi-stage6',
+      topic: seal.topic || '',
+      status: seal.sealStatus || seal.status || '',
+      sealStatus: seal.sealStatus || seal.status || '',
+      grade: seal.grade || '',
+      sourceParty: seal.sourceParty || (meta && (meta.sourceParty || meta.party)) || '',
+      party: seal.sourceParty || (meta && (meta.sourceParty || meta.party)) || '',
+      opposingParties: Array.isArray(seal.opposingParties) ? seal.opposingParties.slice() : [],
+      blockerParty: seal.blockerParty || '',
+      sourceClass: seal.sourceClass || seal.className || (meta && (meta.sourceClass || meta.className)) || '',
+      className: seal.className || seal.sourceClass || (meta && (meta.className || meta.sourceClass)) || '',
+      demandText: seal.demandText || (meta && meta.demandText) || '',
+      sourceType: seal.sourceType || (meta && meta.sourceType) || '',
+      issueId: seal.chaoyiTrackId || (meta && (meta.issueId || meta.id)) || '',
+      chaoyiTrackId: seal.chaoyiTrackId || '',
+      decisionMode: (ctx && ctx.decision && ctx.decision.mode) || ctx && ctx.decisionMode || '',
+      at: Date.now()
+    };
+    GM._courtRecords.push(item);
+    if (GM._courtRecords.length > 80) GM._courtRecords = GM._courtRecords.slice(-80);
+    return item;
+  } catch (_recordCourtE) {
+    try { window.TM && TM.errors && TM.errors.captureSilent(_recordCourtE, 'tinyi-stage6-court-record'); } catch (_) {}
+    return null;
+  }
+}
+
 function _ty3_phase6_recordSeal(status, ctx, detail) {
   ctx = ctx || {};
   detail = detail || {};
@@ -5103,6 +5229,7 @@ function _ty3_phase6_recordSeal(status, ctx, detail) {
     status: status,
     body: status === 'blocked' ? '' : body,
     sealTurn: GM.turn || 0,
+    chaoyiTrackId: chaoyiTrackId,
     sourceParty: sourceParty,
     opposingParties: opposingParties.slice(),
     blockerParty: detail.blockerParty || '',
@@ -5121,6 +5248,16 @@ function _ty3_phase6_recordSeal(status, ctx, detail) {
   }
   var meta = _ty3_currentTinyiMeta();
   if (meta && typeof meta === 'object') {
+    if (!sourceParty && meta.party) {
+      sourceParty = meta.party;
+      seal.sourceParty = sourceParty;
+    }
+    seal.sourceType = meta.sourceType || meta.from || '';
+    seal.sourceClass = meta.sourceClass || meta.className || '';
+    seal.className = meta.className || seal.sourceClass || '';
+    seal.demandText = meta.demandText || '';
+    seal.origin = meta.origin ? _ty3_clone(meta.origin) : null;
+    seal.relationEvidence = Array.isArray(meta.relationEvidence) ? meta.relationEvidence.map(_ty3_clone) : [];
     meta.sealStatus = status;
     meta.sealedEdict = seal;
   }
@@ -5128,6 +5265,10 @@ function _ty3_phase6_recordSeal(status, ctx, detail) {
     GM.recentChaoyi[0].sealStatus = status;
     GM.recentChaoyi[0].sealedEdict = seal.body;
   }
+  var goalOutcome = _ty3_recordPartyGoalOutcome(meta, status, ctx, seal);
+  if (goalOutcome) seal.goalOutcome = goalOutcome;
+  _ty3_recordSocialPoliticalSignal(seal, meta, ctx);
+  _ty3_recordCourtOutcomeRecord(seal, meta, ctx);
 
   if (status === 'blocked') {
     _ty3_applyPolicyPartyResult(sourceParty, opposingParties, grade, 'blocked', seal.blockerParty);
@@ -5139,7 +5280,13 @@ function _ty3_phase6_recordSeal(status, ctx, detail) {
           grade: grade,
           sourceParty: sourceParty,
           opposingParties: opposingParties,
-          blockerParty: seal.blockerParty
+          blockerParty: seal.blockerParty,
+          sourceType: seal.sourceType || '',
+          sourceClass: seal.sourceClass || '',
+          className: seal.className || seal.sourceClass || '',
+          demandText: seal.demandText || '',
+          origin: seal.origin || null,
+          relationEvidence: seal.relationEvidence || []
         }, { turn: GM.turn || 0, source: 'tinyi-stage6-blocked' });
       }
     } catch (_pcBlockedE) {
@@ -5182,7 +5329,13 @@ function _ty3_phase6_recordSeal(status, ctx, detail) {
           outcome: 'issued',
           grade: grade,
           sourceParty: sourceParty,
-          opposingParties: opposingParties
+          opposingParties: opposingParties,
+          sourceType: seal.sourceType || '',
+          sourceClass: seal.sourceClass || '',
+          className: seal.className || seal.sourceClass || '',
+          demandText: seal.demandText || '',
+          origin: seal.origin || null,
+          relationEvidence: seal.relationEvidence || []
         }, { turn: GM.turn || 0, source: 'tinyi-stage6-issued' });
       }
     } catch (_pcIssuedE) {
@@ -5204,7 +5357,12 @@ function _ty3_phase6_recordSeal(status, ctx, detail) {
       sourceParty: sourceParty,
       opposingParties: opposingParties,
       draftEdict: draft,
-      decisionMode: (ctx.decision && ctx.decision.mode) || ctx.decisionMode || ''
+      decisionMode: (ctx.decision && ctx.decision.mode) || ctx.decisionMode || '',
+      sourceType: seal.sourceType || '',
+      sourceClass: seal.sourceClass || '',
+      className: seal.className || seal.sourceClass || '',
+      demandText: seal.demandText || '',
+      relationEvidence: seal.relationEvidence || []
     });
   }
   return seal;
@@ -5601,7 +5759,16 @@ function _ty3_removeFoundersFromParty(party, founders) {
 }
 
 function _ty3_partyEvolutionTick() {
-  if (!Array.isArray(GM.parties) || GM.parties.length === 0) return;
+  if (!Array.isArray(GM.parties) || GM.parties.length === 0) {
+    try {
+      if (typeof TM !== 'undefined' && TM.PartyGoals && typeof TM.PartyGoals.evolveDynamicRelations === 'function') {
+        TM.PartyGoals.evolveDynamicRelations(GM, { turn: GM.turn || 0, source: 'tinyi-party-evolution' });
+      }
+    } catch (_pcrEmptyE) {
+      try { window.TM && TM.errors && TM.errors.captureSilent(_pcrEmptyE, 'tinyi-party-class-relation-evolution-empty'); } catch (_) {}
+    }
+    return;
+  }
   if (!GM._partyEvolutionState) GM._partyEvolutionState = {};
   var state = GM._partyEvolutionState;
   GM.parties.forEach(function(p) {
@@ -5675,6 +5842,13 @@ function _ty3_partyEvolutionTick() {
       }
     }
   });
+  try {
+    if (typeof TM !== 'undefined' && TM.PartyGoals && typeof TM.PartyGoals.evolveDynamicRelations === 'function') {
+      TM.PartyGoals.evolveDynamicRelations(GM, { turn: GM.turn || 0, source: 'tinyi-party-evolution' });
+    }
+  } catch (_pcrE) {
+    try { window.TM && TM.errors && TM.errors.captureSilent(_pcrE, 'tinyi-party-class-relation-evolution'); } catch (_) {}
+  }
 }
 
 function _ty3_phase3b_openSpawnDialog() {
@@ -5765,7 +5939,12 @@ function _ty3_phase7_reviewFollowUp(entry) {
         grade: grade,
         sourceParty: sourceParty,
         opposingParties: opposers,
-        sealStatus: entry.sealStatus || ''
+        sealStatus: entry.sealStatus || '',
+        sourceType: entry.sourceType || '',
+        sourceClass: entry.sourceClass || entry.className || '',
+        className: entry.className || entry.sourceClass || '',
+        demandText: entry.demandText || '',
+        relationEvidence: entry.relationEvidence || []
       }, { turn: GM.turn || 0, source: 'tinyi-stage7-follow-up' });
     }
   } catch (_pcFollowE) {
@@ -6104,10 +6283,284 @@ function _ty3_alreadyHasTopic(keyword) {
 
 function _ty3_topicText(raw, maxLen) {
   var value = raw;
-  if (raw && typeof raw === 'object') value = raw.topic || raw.title || raw.name || raw.text || raw.content || raw.summary || raw.desc || '';
+  if (raw && typeof raw === 'object') value = raw.topic || raw.title || raw.name || raw.text || raw.content || raw.summary || raw.desc || raw.agenda || raw.goal || raw.objective || raw.demand || '';
   var text = String(value || '').replace(/\s+/g, ' ').trim();
   var max = maxLen || 34;
   return text.length > max ? text.slice(0, max) : text;
+}
+
+function _ty3_toTinyiArray(value) {
+  if (value == null || value === '') return [];
+  if (Array.isArray(value)) return value.slice();
+  if (value && typeof value === 'object') {
+    if (Array.isArray(value.items)) return value.items.slice();
+    if (Array.isArray(value.list)) return value.list.slice();
+    if (Array.isArray(value.goals)) return value.goals.slice();
+  }
+  return [value];
+}
+
+function _ty3_getScenarioClasses() {
+  if (typeof GM !== 'undefined' && GM && Array.isArray(GM.classes)) return GM.classes;
+  if (typeof GM !== 'undefined' && GM && Array.isArray(GM.socialClasses)) return GM.socialClasses;
+  if (typeof GM !== 'undefined' && GM && GM.scriptData && Array.isArray(GM.scriptData.classes)) return GM.scriptData.classes;
+  if (typeof GM !== 'undefined' && GM && GM.scriptData && Array.isArray(GM.scriptData.socialClasses)) return GM.scriptData.socialClasses;
+  if (typeof P !== 'undefined' && P && Array.isArray(P.classes)) return P.classes;
+  if (typeof P !== 'undefined' && P && Array.isArray(P.socialClasses)) return P.socialClasses;
+  if (typeof scriptData !== 'undefined' && scriptData && Array.isArray(scriptData.classes)) return scriptData.classes;
+  if (typeof scriptData !== 'undefined' && scriptData && Array.isArray(scriptData.socialClasses)) return scriptData.socialClasses;
+  return [];
+}
+
+function _ty3_numberOr(value, fallback) {
+  var n = Number(value);
+  return isNaN(n) ? fallback : n;
+}
+
+function _ty3_partyGoalEntries(p) {
+  if (!p) return [];
+  if (typeof TM !== 'undefined' && TM.PartyGoals && typeof TM.PartyGoals.getActiveGoals === 'function') {
+    try {
+      return TM.PartyGoals.getActiveGoals(GM, p, { turn: GM.turn || 0, source: 'tinyi-party-goal-scan' }).map(function(goal) {
+        return {
+          id: goal.id || '',
+          kind: goal.kind || 'currentAgenda',
+          text: goal.text || '',
+          raw: goal,
+          priority: goal.priority || 0,
+          expiresTurn: goal.expiresTurn || 0,
+          linkedClasses: Array.isArray(goal.linkedClasses) ? goal.linkedClasses.slice() : [],
+          sourceClass: goal.sourceClass || '',
+          relationEvidence: Array.isArray(goal.relationEvidence) ? goal.relationEvidence.map(_ty3_clone) : []
+        };
+      }).filter(function(goal) { return !!goal.text; });
+    } catch (_pgE) {
+      try { window.TM && TM.errors && TM.errors.captureSilent(_pgE, 'tinyi-party-goal-entries'); } catch (_) {}
+    }
+  }
+  var fields = [
+    { key: 'currentAgenda', kind: 'currentAgenda' },
+    { key: 'shortGoal', kind: 'shortGoal' }
+  ];
+  var seen = {};
+  var out = [];
+  fields.forEach(function(field) {
+    _ty3_toTinyiArray(p[field.key]).forEach(function(item) {
+      var text = _ty3_topicText(item, 42);
+      var sig = text.toLowerCase();
+      if (!text || seen[sig]) return;
+      seen[sig] = true;
+      out.push({ kind: field.kind, text: text, raw: item, sourceClass: '', relationEvidence: [] });
+    });
+  });
+  return out;
+}
+
+function _ty3_textIncludesGoal(topicText, goalText) {
+  var topic = String(topicText || '').toLowerCase();
+  var goal = String(goalText || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!topic || !goal) return false;
+  if (topic.indexOf(goal) >= 0) return true;
+  var words = goal.split(/\s+/).filter(function(w) { return w && w.length > 1; });
+  return words.length >= 2 && words.every(function(w) { return topic.indexOf(w) >= 0; });
+}
+
+function _ty3_uniquePushName(list, name) {
+  name = String(name || '').trim();
+  if (!name || list.indexOf(name) >= 0) return;
+  list.push(name);
+}
+
+function _ty3_uniquePushEvidence(list, evidence) {
+  if (!evidence) return;
+  var item = _ty3_clone(evidence);
+  var sig = JSON.stringify(item || {});
+  if (!list.some(function(existing) { return JSON.stringify(existing || {}) === sig; })) list.push(item);
+}
+
+function _ty3_currentScenarioId() {
+  var s = (typeof GM !== 'undefined' && GM && (GM.scenario || GM.scriptData)) || (typeof P !== 'undefined' && P && P.scenario) || {};
+  return String((typeof GM !== 'undefined' && GM && (GM.scenarioId || GM.sid)) || s.id || s.sid || s.name || '');
+}
+
+function _ty3_topicOrigin(sourceType, sourceId, sourceName) {
+  return {
+    scenarioId: _ty3_currentScenarioId(),
+    sourceType: sourceType || '',
+    sourceId: sourceId || '',
+    sourceName: sourceName || ''
+  };
+}
+
+function _ty3_relationEvidenceFor(partyName, classNames) {
+  var out = [];
+  var names = _ty3_toTinyiArray(classNames).map(function(v) { return String(v || '').trim(); }).filter(Boolean);
+  try {
+    if (typeof TM !== 'undefined' && TM.PartyGoals && typeof TM.PartyGoals.buildScenarioRelationIndex === 'function') {
+      TM.PartyGoals.buildScenarioRelationIndex(GM, { turn: GM.turn || 0, source: 'tinyi-relation-evidence' });
+    }
+  } catch (_relBuildE) {
+    try { window.TM && TM.errors && TM.errors.captureSilent(_relBuildE, 'tinyi-relation-evidence-build'); } catch (_) {}
+  }
+  var index = (typeof GM !== 'undefined' && GM && GM._partyGoalRelationIndex) || {};
+  _ty3_toTinyiArray(index.evidence).forEach(function(e) {
+    if (!e) return;
+    if (partyName && e.partyName !== partyName) return;
+    if (names.length && names.indexOf(e.className) < 0) return;
+    _ty3_uniquePushEvidence(out, e);
+  });
+  if (out.length === 0 && partyName && names.length) {
+    var party = _ty3_getPartyObj(partyName);
+    _ty3_toTinyiArray(party && (party.socialBase || party.social_base || party.baseClasses)).forEach(function(entry) {
+      var className = typeof entry === 'string' ? entry : (entry && (entry.class || entry.className || entry.name));
+      className = String(className || '').trim();
+      if (className && names.indexOf(className) >= 0) {
+        _ty3_uniquePushEvidence(out, { className: className, partyName: partyName, source: 'party-socialBase', detail: className });
+      }
+    });
+    _ty3_getScenarioClasses().forEach(function(cls) {
+      var className = cls && (cls.name || cls.className);
+      className = String(className || '').trim();
+      if (!className || names.indexOf(className) < 0) return;
+      _ty3_toTinyiArray(cls.supportingParties || cls.supporting_parties).forEach(function(entry) {
+        if (_ty3_partyNameFromSupportEntry(entry) === partyName) {
+          _ty3_uniquePushEvidence(out, { className: className, partyName: partyName, source: 'class-supportingParties', detail: partyName });
+        }
+      });
+    });
+  }
+  return out;
+}
+
+function _ty3_partyNameFromSupportEntry(entry) {
+  if (typeof entry === 'string') return entry.trim();
+  if (!entry || typeof entry !== 'object') return '';
+  return String(entry.party || entry.partyName || entry.name || entry.target || entry.class || '').trim();
+}
+
+function _ty3_supportingClassNamesForParty(partyName, partyObj) {
+  var out = [];
+  var pName = String(partyName || '').trim();
+  _ty3_toTinyiArray((partyObj && (partyObj.socialBase || partyObj.social_base || partyObj.baseClasses)) || []).forEach(function(entry) {
+    if (typeof entry === 'string') {
+      _ty3_uniquePushName(out, entry);
+      return;
+    }
+    if (!entry || typeof entry !== 'object') return;
+    var affinity = entry.affinity == null ? 0 : Number(entry.affinity);
+    if (!isNaN(affinity) && affinity < 0) return;
+    _ty3_uniquePushName(out, entry.class || entry.className || entry.name);
+  });
+  _ty3_getScenarioClasses().forEach(function(cls) {
+    if (!cls) return;
+    _ty3_toTinyiArray(cls.supportingParties || cls.supporting_parties).forEach(function(entry) {
+      var pn = _ty3_partyNameFromSupportEntry(entry);
+      if (pn && pn === pName) _ty3_uniquePushName(out, cls.name || cls.className);
+    });
+  });
+  return out;
+}
+
+function _ty3_supportingPartyNamesForClass(cls) {
+  var out = [];
+  _ty3_toTinyiArray(cls && (cls.supportingParties || cls.supporting_parties)).forEach(function(entry) {
+    _ty3_uniquePushName(out, _ty3_partyNameFromSupportEntry(entry));
+  });
+  return out;
+}
+
+function _ty3_classDemandText(cls) {
+  if (!cls) return '';
+  var sources = [cls.demands, cls.currentDemand, cls.currentAgenda, cls.shortGoal];
+  for (var i = 0; i < sources.length; i++) {
+    var arr = _ty3_toTinyiArray(sources[i]);
+    for (var j = 0; j < arr.length; j++) {
+      var text = _ty3_topicText(arr[j], 42);
+      if (text) return text;
+    }
+  }
+  return '';
+}
+
+function _ty3_classPressureEntry(cls) {
+  if (!cls) return null;
+  var demandText = _ty3_classDemandText(cls);
+  if (!demandText) return null;
+  var levels = cls.unrestLevels || {};
+  var sat = _ty3_numberOr(cls.satisfaction, 50);
+  var grievance = _ty3_numberOr(levels.grievance, 60);
+  var petition = _ty3_numberOr(levels.petition, 70);
+  var strike = _ty3_numberOr(levels.strike, 80);
+  var revolt = _ty3_numberOr(levels.revolt, 90);
+  var pressure = sat <= 45 || grievance <= 45 || petition <= 45 || strike <= 35 || revolt <= 35;
+  if (!pressure) return null;
+  return {
+    demandText: demandText,
+    satisfaction: sat,
+    unrestLevels: { grievance: grievance, petition: petition, strike: strike, revolt: revolt }
+  };
+}
+
+function _ty3_pickClassProposer(cls) {
+  if (!cls) return null;
+  var refs = _ty3_toTinyiArray(cls.leaders).concat(_ty3_toTinyiArray(cls.representativeNpcs));
+  for (var i = 0; i < refs.length; i++) {
+    var ref = refs[i];
+    var name = typeof ref === 'string' ? ref : (ref && ref.name);
+    var ch = name && (typeof findCharByName === 'function') ? findCharByName(name) : null;
+    if (ch && ch.alive !== false) return ch;
+    if (ref && typeof ref === 'object' && ref.name && ref.alive !== false) return ref;
+  }
+  return _ty3_pickProposer({ fallbackTitle: '\u6237\u90e8|\u6c11\u653f|\u5fa1\u53f2|\u90fd\u5bdf|minister|censor' });
+}
+
+function _ty3_isInactivePartyStatus(status) {
+  var s = String(status || '').trim();
+  return !!s && /dissolved|disbanded|dead|inactive|\u6e6e\u706d|\u5df2\u89e3\u6563|\u89e3\u6563|\u8986\u706d|\u706d\u4ea1|\u6d88\u4ea1|\u5e9f\u6b62/i.test(s);
+}
+
+function _ty3_recordPartyGoalOutcome(meta, status, ctx, seal) {
+  meta = meta || {};
+  if (meta.sourceType !== 'party_goal' && meta.from !== 'ty3-spawn-party-goal') return null;
+  var partyName = meta.party || meta.proposerParty || (ctx && ctx.opts && ctx.opts.proposerParty) || (seal && seal.sourceParty) || '';
+  if (typeof TM !== 'undefined' && TM.PartyGoals && typeof TM.PartyGoals.resolveGoal === 'function') {
+    try {
+      var resolved = TM.PartyGoals.resolveGoal(GM, partyName, meta.goalId || meta.goalText || meta.topic, {
+        source: 'tinyi-party-goal',
+        sealStatus: status,
+        outcome: status === 'blocked' ? 'blocked' : 'issued',
+        grade: (seal && seal.grade) || (ctx && ctx.grade) || '',
+        topic: (seal && seal.topic) || meta.topic || '',
+        goalText: meta.goalText || '',
+        goalKind: meta.goalKind || '',
+        chaoyiTrackId: (seal && seal.chaoyiTrackId) || (ctx && ctx.opts && ctx.opts.chaoyiTrackId) || ''
+      }, { turn: GM.turn || 0, source: 'tinyi-party-goal' });
+      if (resolved && resolved.historyEntry) return resolved.historyEntry;
+    } catch (_pgResolveE) {
+      try { window.TM && TM.errors && TM.errors.captureSilent(_pgResolveE, 'tinyi-party-goal-resolve'); } catch (_) {}
+    }
+  }
+  var p = _ty3_getPartyObj(partyName);
+  if (!p) return null;
+  if (!Array.isArray(p.agenda_history)) p.agenda_history = [];
+  var outcome = status === 'blocked' ? 'blocked' : (status === 'reissued' ? 'reissued' : 'issued');
+  var entry = {
+    turn: GM.turn || 0,
+    source: 'tinyi-party-goal',
+    topic: (seal && seal.topic) || meta.topic || '',
+    party: p.name || partyName,
+    goalText: meta.goalText || meta.goal || _ty3_topicText(meta, 42),
+    goalKind: meta.goalKind || '',
+    sealStatus: status,
+    outcome: outcome,
+    grade: (seal && seal.grade) || (ctx && ctx.grade) || '',
+    chaoyiTrackId: (seal && seal.chaoyiTrackId) || (ctx && ctx.opts && ctx.opts.chaoyiTrackId) || ''
+  };
+  p.agenda_history.push(entry);
+  if (p.agenda_history.length > 20) p.agenda_history = p.agenda_history.slice(-20);
+  p.lastTinyiGoalOutcome = Object.assign({}, entry);
+  p._lastGoalTinyiOutcomeTurn = entry.turn;
+  return entry;
 }
 
 function _ty3_pushPendingTinyiTopic(topicObj, keyword, spawned) {
@@ -6121,14 +6574,21 @@ function _ty3_pushPendingTinyiTopic(topicObj, keyword, spawned) {
 function _ty3_phase15_scanAndSpawnTopics() {
   if (!Array.isArray(GM._pendingTinyiTopics)) GM._pendingTinyiTopics = [];
   var spawned = [];
+  try {
+    if (typeof TM !== 'undefined' && TM.PartyGoals && typeof TM.PartyGoals.deriveFromClassDemands === 'function') {
+      TM.PartyGoals.deriveFromClassDemands(GM, { turn: GM.turn || 0, source: 'tinyi-phase15-class-demand' });
+    }
+  } catch (_pgDeriveE) {
+    try { window.TM && TM.errors && TM.errors.captureSilent(_pgDeriveE, 'tinyi-phase15-class-demand'); } catch (_) {}
+  }
   if (typeof GM.partyStrife === 'number' && GM.partyStrife >= 70) {
     var prop1 = _ty3_pickProposer({ fallbackTitle: '\u5FA1\u53F2|\u90FD\u5BDF|\u8A00\u5B98|censor' });
     var t1 = { topic: '\u8C03\u505C\u515A\u4E89\u00B7\u6050\u751F\u5927\u53D8', from: 'ty3-spawn-party-strife', turn: GM.turn, severity: GM.partyStrife };
     _ty3_attachProposer(t1, prop1, '\u515A\u4E89\u5DF2\u70BD\u00B7\u9700\u5148\u8BAE\u7EA6\u675F');
     _ty3_pushPendingTinyiTopic(t1, '\u8C03\u505C\u515A\u4E89', spawned);
   }
-  (GM.parties || []).forEach(function(p) {
-    if (!p || p.status === '湮灭') return;
+  _ty3_getParties().forEach(function(p) {
+    if (!p || _ty3_isInactivePartyStatus(p.status)) return;
     var coh = parseInt(p.cohesion, 10) || 50;
     var leader = (typeof _ty3_getPartyLeader === 'function') ? _ty3_getPartyLeader(p.name) : null;
     if (coh < 10) {
@@ -6145,6 +6605,64 @@ function _ty3_phase15_scanAndSpawnTopics() {
         _ty3_pushPendingTinyiTopic(t5, disputeText, spawned);
       }
     }
+    var goalEntries = _ty3_partyGoalEntries(p);
+    if (goalEntries.length > 0) {
+      var goalEntry = goalEntries[0];
+      var goalTurn = GM.turn || 0;
+      var lastGoalTurn = parseInt(p._lastGoalTinyiTurn, 10) || 0;
+      if (!lastGoalTurn || goalTurn - lastGoalTurn >= 3) {
+        var opponents = _ty3_normalizePartyNames([p.rivalParty, p.rival].concat(p.enemies || []).concat(p.rivals || []));
+        var supportingClasses = _ty3_supportingClassNamesForParty(p.name, p);
+        (goalEntry.linkedClasses || []).forEach(function(className) { _ty3_uniquePushName(supportingClasses, className); });
+        var relationEvidence = _ty3_relationEvidenceFor(p.name, supportingClasses);
+        (goalEntry.relationEvidence || []).forEach(function(e) { _ty3_uniquePushEvidence(relationEvidence, e); });
+        var tGoal = {
+          topic: '\u515A\u8BAE\u00B7' + p.name + '\u00B7' + goalEntry.text + '\u00B7\u8BF7\u4ED8\u5EF7\u8BAE',
+          from: 'ty3-spawn-party-goal',
+          sourceType: 'party_goal',
+          turn: GM.turn,
+          party: p.name,
+          goalId: goalEntry.id || '',
+          goalText: goalEntry.text,
+          goalKind: goalEntry.kind,
+          goalPriority: goalEntry.priority || 0,
+          expiresTurn: goalEntry.expiresTurn || 0,
+          sourceClass: goalEntry.sourceClass || '',
+          origin: _ty3_topicOrigin('party_goal', goalEntry.id || (p.name + ':' + goalEntry.text), p.name),
+          relationEvidence: relationEvidence,
+          supportingClasses: supportingClasses,
+          opposingParties: opponents
+        };
+        if (leader) _ty3_attachProposer(tGoal, leader, '\u672C\u515A\u8FD1\u671F\u76EE\u6807\u5DF2\u9700\u4ED8\u5EF7\u8BAE\u5B9A\u8BAE');
+        if (_ty3_pushPendingTinyiTopic(tGoal, p.name + '\u00B7' + goalEntry.text, spawned)) p._lastGoalTinyiTurn = goalTurn;
+      }
+    }
+  });
+  _ty3_getScenarioClasses().forEach(function(cls) {
+    if (!cls) return;
+    var pressure = _ty3_classPressureEntry(cls);
+    if (!pressure) return;
+    var classTurn = GM.turn || 0;
+    var lastClassTurn = parseInt(cls._lastPressureTinyiTurn, 10) || 0;
+    if (lastClassTurn && classTurn - lastClassTurn < 3) return;
+    var className = cls.name || cls.className || '';
+    var classSupportingParties = _ty3_supportingPartyNamesForClass(cls);
+    var t4 = {
+      topic: '\u6C11\u60C5\u00B7' + className + '\u00B7' + pressure.demandText + '\u00B7\u8BF7\u4ED8\u5EF7\u8BAE',
+      from: 'ty3-spawn-class-pressure',
+      sourceType: 'class_pressure',
+      turn: GM.turn,
+      className: className,
+      sourceClass: className,
+      demandText: pressure.demandText,
+      satisfaction: pressure.satisfaction,
+      unrestLevels: pressure.unrestLevels,
+      origin: _ty3_topicOrigin('class_pressure', className, className),
+      relationEvidence: _ty3_relationEvidenceFor('', [className]),
+      supportingParties: classSupportingParties
+    };
+    _ty3_attachProposer(t4, _ty3_pickClassProposer(cls), '\u9636\u5C42\u8BC9\u6C42\u4E0E\u6C11\u60C5\u538B\u529B\u5DF2\u4E0A\u8FBE');
+    if (_ty3_pushPendingTinyiTopic(t4, className + '\u00B7' + pressure.demandText, spawned)) cls._lastPressureTinyiTurn = classTurn;
   });
   var minXin = (typeof GM.minxin === 'number') ? GM.minxin :
     (GM.minxin && (typeof GM.minxin.trueIndex === 'number' ? GM.minxin.trueIndex : GM.minxin.value));

@@ -26,6 +26,14 @@ GameHooks.on('enterGame:after', function(){
   renderSidePanels();
 });
 
+function tmSidebarFullTextAttr(value, always) {
+  if (typeof window !== 'undefined' && typeof window.tmFullTextAttr === 'function') {
+    return window.tmFullTextAttr(value, always !== false);
+  }
+  var v = String(value == null ? '' : value).trim();
+  return v ? ' title="' + escHtml(v) + '"' : '';
+}
+
 function renderGameTech(){
   var el=_$("g-tech");if(!el||!GM.techTree)return;
   el.innerHTML=GM.techTree.map(function(t,i){
@@ -100,7 +108,7 @@ function openClassDetailPanel() {
     var satClr = sat > 65 ? 'var(--green)' : sat < 35 ? 'var(--red)' : 'var(--gold)';
     html += '<div style="background:var(--bg-2);border-radius:6px;padding:0.8rem;margin-bottom:0.8rem;border-left:3px solid ' + satClr + ';">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem;">';
-    html += '<span style="font-weight:700;font-size:0.95rem;">' + escHtml(cl.name) + '</span>';
+    html += '<span class="tm-class-full tm-fulltext-source" ' + tmSidebarFullTextAttr(cl.name, true) + ' style="font-weight:700;font-size:0.95rem;display:inline-block;max-width:260px;vertical-align:bottom;">' + escHtml(cl.name) + '</span>';
     html += '<div style="display:flex;gap:0.5rem;font-size:0.75rem;">';
     html += '<span style="color:' + satClr + ';">\u6EE1\u610F ' + sat + '</span>';
     html += '<span style="color:var(--blue);">\u5F71\u54CD ' + inf + '</span>';
@@ -117,15 +125,16 @@ function openClassDetailPanel() {
     if (fields.length > 0) {
       html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.3rem;font-size:0.78rem;margin-bottom:0.4rem;">';
       fields.forEach(function(f) {
-        html += '<div><span style="color:var(--txt-d);">' + f[0] + ':</span> ' + escHtml(String(f[1])) + '</div>';
+        var fv = f[0] + ': ' + String(f[1]);
+        html += '<div class="tm-class-full tm-fulltext-source" ' + tmSidebarFullTextAttr(fv, true) + '><span style="color:var(--txt-d);">' + f[0] + ':</span> ' + escHtml(String(f[1])) + '</div>';
       });
       html += '</div>';
     }
     if (cl.demands) {
-      html += '<div style="font-size:0.78rem;margin-bottom:0.3rem;"><span style="color:var(--red);">\u8BC9\u6C42:</span> ' + escHtml(cl.demands) + '</div>';
+      html += '<div class="tm-class-full tm-fulltext-source" ' + tmSidebarFullTextAttr('\u8BC9\u6C42: ' + cl.demands, true) + ' style="font-size:0.78rem;margin-bottom:0.3rem;"><span style="color:var(--red);">\u8BC9\u6C42:</span> ' + escHtml(cl.demands) + '</div>';
     }
     if (cl.description) {
-      html += '<div style="font-size:0.76rem;color:var(--txt-s);line-height:1.5;">' + escHtml(cl.description) + '</div>';
+      html += '<div class="tm-class-full" ' + tmSidebarFullTextAttr(cl.description, true) + ' style="font-size:0.76rem;color:var(--txt-s);line-height:1.5;">' + escHtml(cl.description) + '</div>';
     }
     html += '</div>';
   });
@@ -142,7 +151,7 @@ function openPartyDetailPanel() {
     var stClr = p.status === '\u6D3B\u8DC3' ? 'var(--green)' : p.status === '\u5F0F\u5FAE' ? 'var(--gold)' : p.status === '\u88AB\u538B\u5236' ? 'var(--red)' : 'var(--txt-d)';
     html += '<div style="background:var(--bg-2);border-radius:6px;padding:0.8rem;margin-bottom:0.8rem;border-left:3px solid var(--purple);">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem;">';
-    html += '<div><span style="font-weight:700;font-size:0.95rem;">' + escHtml(p.name) + '</span>';
+    html += '<div><span class="tm-party-full tm-fulltext-source" ' + tmSidebarFullTextAttr(p.name, true) + ' style="font-weight:700;font-size:0.95rem;display:inline-block;max-width:260px;vertical-align:bottom;">' + escHtml(p.name) + '</span>';
     if (p.status) html += ' <span style="font-size:0.7rem;color:' + stClr + ';">' + escHtml(p.status) + '</span>';
     html += '</div>';
     html += '<span style="color:var(--purple);font-size:0.82rem;">\u5F71\u54CD ' + inf + '</span>';
@@ -158,7 +167,8 @@ function openPartyDetailPanel() {
     if (fields.length > 0) {
       html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.3rem;font-size:0.78rem;margin-bottom:0.4rem;">';
       fields.forEach(function(f) {
-        html += '<div><span style="color:var(--txt-d);">' + f[0] + ':</span> ' + escHtml(String(f[1])) + '</div>';
+        var fv = f[0] + ': ' + String(f[1]);
+        html += '<div class="tm-party-full tm-fulltext-source" ' + tmSidebarFullTextAttr(fv, true) + '><span style="color:var(--txt-d);">' + f[0] + ':</span> ' + escHtml(String(f[1])) + '</div>';
       });
       html += '</div>';
     }
@@ -169,7 +179,7 @@ function openPartyDetailPanel() {
     if (p.longGoal) goals.push('\u957F\u671F\u8FFD\u6C42: ' + p.longGoal);
     if (goals.length > 0) {
       html += '<div style="font-size:0.78rem;margin-bottom:0.3rem;">';
-      goals.forEach(function(g) { html += '<div>' + escHtml(g) + '</div>'; });
+      goals.forEach(function(g) { html += '<div class="tm-party-full tm-fulltext-source" ' + tmSidebarFullTextAttr(g, true) + '>' + escHtml(g) + '</div>'; });
       html += '</div>';
     }
     // 政策立场标签
@@ -177,12 +187,12 @@ function openPartyDetailPanel() {
       var stances = Array.isArray(p.policyStance) ? p.policyStance : [p.policyStance];
       html += '<div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.3rem;">';
       stances.forEach(function(s) {
-        html += '<span style="font-size:0.68rem;background:var(--bg-3);color:var(--txt-s);padding:1px 6px;border-radius:3px;">' + escHtml(s) + '</span>';
+        html += '<span class="tm-party-full tm-fulltext-source" ' + tmSidebarFullTextAttr(s, true) + ' style="font-size:0.68rem;background:var(--bg-3);color:var(--txt-s);padding:1px 6px;border-radius:3px;display:inline-block;max-width:100%;">' + escHtml(s) + '</span>';
       });
       html += '</div>';
     }
     if (p.description) {
-      html += '<div style="font-size:0.76rem;color:var(--txt-s);line-height:1.5;">' + escHtml(p.description) + '</div>';
+      html += '<div class="tm-party-full" ' + tmSidebarFullTextAttr(p.description, true) + ' style="font-size:0.76rem;color:var(--txt-s);line-height:1.5;">' + escHtml(p.description) + '</div>';
     }
     html += '</div>';
   });
@@ -232,7 +242,7 @@ function openMilitaryDetailPanel() {
     var gTotal = list.reduce(function(s,a){return s+(a.soldiers||a.size||a.strength||0);},0);
     var icon = typeIcons[groupName] || '\u2694\uFE0F';
     html += '<div style="margin-bottom:0.8rem;">';
-    html += '<div style="font-size:0.82rem;font-weight:700;color:var(--gold-400);margin-bottom:0.5rem;padding:4px 8px;background:rgba(184,154,83,0.08);border-left:3px solid var(--gold-d);border-radius:3px;">';
+    html += '<div class="tm-army-full tm-fulltext-source" ' + tmSidebarFullTextAttr(groupName + ' (' + list.length + '\u652F\u00B7\u5408\u8BA1' + gTotal.toLocaleString() + ')', true) + ' style="font-size:0.82rem;font-weight:700;color:var(--gold-400);margin-bottom:0.5rem;padding:4px 8px;background:rgba(184,154,83,0.08);border-left:3px solid var(--gold-d);border-radius:3px;">';
     html += icon + ' ' + escHtml(groupName) + ' <span style="font-size:0.68rem;color:var(--txt-d);font-weight:400;">(' + list.length + '\u652F\u00B7\u5408\u8BA1' + gTotal.toLocaleString() + ')</span>';
     html += '</div>';
 
@@ -251,8 +261,8 @@ function openMilitaryDetailPanel() {
       // 标题行：名称 + 兵力 + 品质
       html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5rem;gap:0.5rem;">';
       html += '<div style="flex:1;min-width:0;">';
-      html += '<div style="font-weight:700;font-size:0.92rem;color:var(--gold);">' + escHtml(a.name||'\u65E0\u540D') + '</div>';
-      if (quality) html += '<div style="font-size:0.68rem;color:' + qualClr + ';margin-top:2px;">' + escHtml(quality) + '</div>';
+      html += '<div class="tm-army-full tm-fulltext-source" ' + tmSidebarFullTextAttr(a.name||'\u65E0\u540D', true) + ' style="font-weight:700;font-size:0.92rem;color:var(--gold);">' + escHtml(a.name||'\u65E0\u540D') + '</div>';
+      if (quality) html += '<div class="tm-army-full tm-fulltext-source" ' + tmSidebarFullTextAttr(quality, true) + ' style="font-size:0.68rem;color:' + qualClr + ';margin-top:2px;">' + escHtml(quality) + '</div>';
       html += '</div>';
       html += '<div style="text-align:right;flex-shrink:0;">';
       html += '<div style="font-size:1.05rem;font-weight:700;color:var(--gold);">' + sol.toLocaleString() + '</div>';
@@ -270,7 +280,8 @@ function openMilitaryDetailPanel() {
       if (metaLines.length > 0) {
         html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 10px;font-size:0.72rem;margin-bottom:0.5rem;">';
         metaLines.forEach(function(m) {
-          html += '<div><span style="color:var(--txt-d);">' + m[0] + ':</span> <span style="color:var(--txt);">' + escHtml(String(m[1])) + '</span></div>';
+          var mv = m[0] + ': ' + String(m[1]);
+          html += '<div class="tm-army-full tm-fulltext-source" ' + tmSidebarFullTextAttr(mv, true) + '><span style="color:var(--txt-d);">' + m[0] + ':</span> <span style="color:var(--txt);">' + escHtml(String(m[1])) + '</span></div>';
         });
         html += '</div>';
       }
@@ -293,7 +304,7 @@ function openMilitaryDetailPanel() {
         html += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
         a.composition.forEach(function(c) {
           if (!c || !c.type) return;
-          html += '<div style="font-size:0.68rem;background:var(--bg-3);border:1px solid var(--gold-d);border-radius:10px;padding:2px 8px;">';
+          html += '<div class="tm-army-full tm-fulltext-source" ' + tmSidebarFullTextAttr(c.type + ' ' + (c.count||0).toLocaleString(), true) + ' style="font-size:0.68rem;background:var(--bg-3);border:1px solid var(--gold-d);border-radius:10px;padding:2px 8px;">';
           html += '<span style="color:var(--txt);">' + escHtml(c.type) + '</span>';
           html += ' <span style="color:var(--gold);font-weight:600;">' + (c.count||0).toLocaleString() + '</span>';
           html += '</div>';
@@ -310,7 +321,7 @@ function openMilitaryDetailPanel() {
         a.equipment.forEach(function(e) {
           if (!e || !e.name) return;
           var condClr = e.condition==='\u7CBE\u826F'?'var(--green)':e.condition==='\u4E00\u822C'?'var(--txt-s)':e.condition==='\u7F3A\u635F'||e.condition==='\u788E'?'var(--red)':'var(--txt-d)';
-          html += '<div style="font-size:0.68rem;padding:2px 6px;background:var(--bg-3);border-radius:3px;display:flex;justify-content:space-between;gap:4px;">';
+          html += '<div class="tm-army-full tm-fulltext-source" ' + tmSidebarFullTextAttr(e.name + ' ' + (e.count||0).toLocaleString() + (e.condition ? ' ' + e.condition : ''), true) + ' style="font-size:0.68rem;padding:2px 6px;background:var(--bg-3);border-radius:3px;display:flex;justify-content:space-between;gap:4px;">';
           html += '<span style="color:var(--txt);">' + escHtml(e.name) + '</span>';
           html += '<span><span style="color:var(--gold);">' + (e.count||0).toLocaleString() + '</span>';
           if (e.condition) html += ' <span style="color:' + condClr + ';font-size:0.6rem;">' + escHtml(e.condition) + '</span>';
@@ -328,7 +339,7 @@ function openMilitaryDetailPanel() {
         html += '<div style="display:flex;flex-wrap:wrap;gap:6px;font-size:0.7rem;">';
         a.salary.forEach(function(s) {
           if (!s || !s.resource) return;
-          html += '<span style="color:var(--txt);"><span style="color:var(--txt-d);">' + escHtml(s.resource) + ':</span> <span style="color:var(--gold);font-weight:600;">' + (s.amount||0).toLocaleString() + '</span> <span style="color:var(--txt-d);font-size:0.62rem;">' + escHtml(s.unit||'') + '</span></span>';
+          html += '<span class="tm-army-full tm-fulltext-source" ' + tmSidebarFullTextAttr(s.resource + ': ' + (s.amount||0).toLocaleString() + ' ' + (s.unit||''), true) + ' style="color:var(--txt);"><span style="color:var(--txt-d);">' + escHtml(s.resource) + ':</span> <span style="color:var(--gold);font-weight:600;">' + (s.amount||0).toLocaleString() + '</span> <span style="color:var(--txt-d);font-size:0.62rem;">' + escHtml(s.unit||'') + '</span></span>';
         });
         html += '</div>';
         html += '</div>';
@@ -336,7 +347,7 @@ function openMilitaryDetailPanel() {
 
       // 描述
       if (a.description) {
-        html += '<div style="font-size:0.7rem;color:var(--txt-s);line-height:1.5;padding-top:4px;border-top:1px dashed var(--bg-4);">' + escHtml(a.description) + '</div>';
+        html += '<div class="tm-army-full" ' + tmSidebarFullTextAttr(a.description, true) + ' style="font-size:0.7rem;color:var(--txt-s);line-height:1.5;padding-top:4px;border-top:1px dashed var(--bg-4);">' + escHtml(a.description) + '</div>';
       }
 
       html += '</div>';

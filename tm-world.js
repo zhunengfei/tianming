@@ -730,21 +730,8 @@ function buildAIContext(deepMode) {
         if (a.quality) aInfo += ' ' + a.quality;
         if (a.commander) aInfo += ' 统帅:' + a.commander + (a.commanderTitle ? '(' + a.commanderTitle + ')' : '');
         if (a.garrison) aInfo += ' 驻:' + String(a.garrison).slice(0, 15);
-        // 兵种组成
-        if (Array.isArray(a.composition) && a.composition.length > 0) {
-          aInfo += '\n    兵种:' + a.composition.map(function(c) { return c.type + (c.count ? c.count + '人' : ''); }).join('/');
-        } else if (typeof a.composition === 'string' && a.composition) {
-          aInfo += ' 兵种:' + String(a.composition).slice(0, 20);
-        }
-        // 装备概况
+        // 第二刀·sc1 主推演只需粗粒度战力·兵种细分/装备数量明细/年饷已归位至 sc18 军事专项(战斗解算所需)·保留 equipmentCondition 一词作粗粒度战力指标
         if (a.equipmentCondition) aInfo += ' 装备' + a.equipmentCondition;
-        if (Array.isArray(a.equipment) && a.equipment.length > 0) {
-          aInfo += '(' + a.equipment.slice(0, 4).map(function(eq) { return eq.name + (eq.count ? eq.count : ''); }).join(',') + ')';
-        }
-        // 军饷
-        if (Array.isArray(a.salary) && a.salary.length > 0) {
-          aInfo += '\n    年饷:' + a.salary.map(function(s) { return (s.amount||0) + (s.unit||'') + (s.resource ? '(' + s.resource + ')' : ''); }).join('+');
-        }
         ctx += aInfo + '\n';
       });
       var totalSoldiers = activeArmies.reduce(function(s, a) { return s + (a.soldiers || 0); }, 0);

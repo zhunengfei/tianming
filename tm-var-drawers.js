@@ -296,7 +296,7 @@
 
     // 跳转提示
     html += _sec('如何操作', null,
-      _tabJump('写诏（亲征/大典/罪己/和亲等提升威望）', 'gt-edict') +
+      _tabJump('写诏（亲征/大典/和亲等提升威望；罪己诏认错·降皇威换民心百官）', 'gt-edict') +
       _tabJump('看奏疏（大臣献策）', 'gt-memorial') +
       _tabJump('召见大臣问对', 'gt-wendui') +
       _tabJump('朝议大事', 'gt-chaoyi')
@@ -879,14 +879,38 @@
     // § 分阶层
     if (m.byClass && Object.keys(m.byClass).length > 0) {
       var CLASS_NAMES = {imperial:'皇族',gentry_high:'门阀',gentry_mid:'中小士族',scholar:'寒士',merchant:'商贾',landlord:'地主',peasant_self:'自耕农',peasant_tenant:'佃农',craftsman:'工匠',debased:'贱民',clergy:'僧道',slave:'奴婢'};
+      var classMinxinLedger = Array.isArray(G._classMinxinBridgeLedger) ? G._classMinxinBridgeLedger : [];
+      function classMinxinNorm(v) {
+        return String(v || '').replace(/[\s\u3000'"`.,;:!?()[\]{}<>\/\\|_-]+/g, '').toLowerCase().trim();
+      }
+      function classMinxinCause(cl, cv) {
+        var wanted = classMinxinNorm(cl);
+        var className = classMinxinNorm(cv && cv.className);
+        var recent = null;
+        for (var i = classMinxinLedger.length - 1; i >= 0; i -= 1) {
+          var row = classMinxinLedger[i] || {};
+          if (classMinxinNorm(row.classKey) === wanted || classMinxinNorm(row.className) === className) {
+            recent = row;
+            break;
+          }
+        }
+        return (cv && cv.lastPressure) || recent || null;
+      }
       var ch = '';
       Object.keys(m.byClass).forEach(function(cl) {
-        var cv = m.byClass[cl]; var col = cv.index >= 60 ? '#6aa88a' : cv.index >= 40 ? 'var(--gold)' : 'var(--vermillion-400)';
+        var cv = m.byClass[cl] || {};
+        var idx = Number(cv.index != null ? cv.index : cv.true);
+        if (!isFinite(idx)) idx = 60;
+        var col = idx >= 60 ? '#6aa88a' : idx >= 40 ? 'var(--gold)' : 'var(--vermillion-400)';
+        var cause = classMinxinCause(cl, cv);
+        var causeText = cause ? [cause.sourceSystem || cause.source || '', cause.linkedIssue || '', cause.reason || ''].filter(Boolean).join(' · ') : '';
+        var regions = cause && cause.appliedRegions ? (Array.isArray(cause.appliedRegions) ? cause.appliedRegions : []).map(function(r){ return r && (r.region || r.name || r.id || r); }).filter(Boolean).slice(0, 3).join(' / ') : '';
         ch += '<div style="display:grid;grid-template-columns:72px 1fr auto;gap:8px;align-items:center;padding:3px 0;font-size:0.74rem;">' +
-          '<span style="color:var(--txt-d);">' + _esc(CLASS_NAMES[cl]||cl) + '</span>' +
-          _meter(cv.index, 100, col) +
-          '<span style="color:' + col + ';">' + Math.round(cv.index) + (cv.trend==='rising'?' ↑':cv.trend==='falling'?' ↓':'') + '</span>' +
-        '</div>';
+          '<span style="color:var(--txt-d);">' + _esc(cv.className || CLASS_NAMES[cl] || cl) + '</span>' +
+          _meter(idx, 100, col) +
+          '<span style="color:' + col + ';">' + Math.round(idx) + (cv.trend==='rising'?' ↑':cv.trend==='falling'?' ↓':'') + '</span>' +
+        '</div>' +
+        (causeText ? '<div style="margin:0 0 5px 72px;padding:3px 6px;background:rgba(184,154,83,0.08);border-left:2px solid var(--gold-d);font-size:0.68rem;color:var(--txt-d);">近因 ' + _esc(causeText).slice(0, 160) + (regions ? '<br>牵动 ' + _esc(regions) : '') + '</div>' : '');
       });
       html += _sec('分阶层 · 阶层民心', Object.keys(m.byClass).length + ' 层', ch);
     }

@@ -22,6 +22,11 @@
     if (s === null || s === undefined) return '';
     return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
   }
+  function fullTextAttr(s) {
+    if (typeof global.tmFullTextAttr === 'function') return global.tmFullTextAttr(s, true);
+    var v = String(s == null ? '' : s).trim();
+    return v ? ' title="' + esc(v) + '"' : '';
+  }
   function _openModal(title, html, onSave) {
     if (typeof openGenericModal === 'function') {
       openGenericModal(title, html, onSave || null);
@@ -291,7 +296,7 @@
 
       html += '<div style="background:var(--bg-2);border-radius:8px;padding:0.8rem;margin-bottom:0.7rem;border-left:4px solid '+stclr+';">';
       html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">';
-      html += '<div><span style="font-weight:700;font-size:1rem;">'+esc(p.name)+'</span>';
+      html += '<div><span class="tm-party-full tm-fulltext-source"'+fullTextAttr(p.name)+' style="font-weight:700;font-size:1rem;display:inline-block;max-width:260px;vertical-align:bottom;">'+esc(p.name)+'</span>';
       if (p.status) html += ' <span style="font-size:0.7rem;color:'+stclr+';">['+esc(p.status)+']</span>';
       html += '</div>';
       html += '<div style="font-size:0.76rem;color:'+stclr+';">影响 '+inf+' · 占官 '+oc+'</div>';
@@ -310,7 +315,10 @@
       if (p.currentAgenda) meta.push('议程: '+p.currentAgenda);
       if (Array.isArray(s.conflictWith) && s.conflictWith.length) meta.push('宿敌: '+s.conflictWith.join('、'));
       if (Array.isArray(s.alliedWith) && s.alliedWith.length) meta.push('同盟: '+s.alliedWith.join('、'));
-      if (meta.length) html += '<div style="font-size:0.74rem;color:var(--txt-s);margin-bottom:0.5rem;line-height:1.6;">'+esc(meta.join(' · '))+'</div>';
+      if (meta.length) {
+        var metaText = meta.join(' · ');
+        html += '<div class="tm-party-full tm-fulltext-source"'+fullTextAttr(metaText)+' style="font-size:0.74rem;color:var(--txt-s);margin-bottom:0.5rem;line-height:1.6;">'+esc(metaText)+'</div>';
+      }
       // 近期弹劾/政策动态
       var dyn = [];
       if ((s.recentImpeachWin||0) > 0) dyn.push('<span style="color:var(--green);">近期弹劾胜×'+Math.round(s.recentImpeachWin)+'</span>');
@@ -361,12 +369,12 @@
     Object.keys(byOwner).forEach(function(owner) {
       var isPlayer = owner === playerFac;
       html += '<div style="margin-bottom:1rem;">';
-      html += '<div style="font-size:0.85rem;font-weight:600;color:'+(isPlayer?'var(--gold)':'var(--txt-s)')+';margin-bottom:0.4rem;border-bottom:1px dashed var(--bd,rgba(255,255,255,0.1));padding-bottom:0.3rem;">'+esc(owner)+(isPlayer?' (本朝)':'')+' · '+byOwner[owner].length+' 支</div>';
+      html += '<div class="tm-army-full tm-fulltext-source"'+fullTextAttr(owner+(isPlayer?' (本朝)':'')+' · '+byOwner[owner].length+' 支')+' style="font-size:0.85rem;font-weight:600;color:'+(isPlayer?'var(--gold)':'var(--txt-s)')+';margin-bottom:0.4rem;border-bottom:1px dashed var(--bd,rgba(255,255,255,0.1));padding-bottom:0.3rem;">'+esc(owner)+(isPlayer?' (本朝)':'')+' · '+byOwner[owner].length+' 支</div>';
       byOwner[owner].forEach(function(a) {
         var bgColor = (a.mutinyRisk||0) >= 60 ? 'rgba(200,50,50,0.08)' : 'var(--bg-2)';
         html += '<div style="background:'+bgColor+';border-radius:6px;padding:0.6rem;margin-bottom:0.5rem;border-left:3px solid '+(a.mutinyRisk>=60?'var(--red)':(a.morale>=60?'var(--green)':'var(--amber, #e0a040)'))+';">';
         html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem;">';
-        html += '<div><span style="font-weight:600;">'+esc(a.name)+'</span>';
+        html += '<div><span class="tm-army-full tm-fulltext-source"'+fullTextAttr(a.name)+' style="font-weight:600;display:inline-block;max-width:240px;vertical-align:bottom;">'+esc(a.name)+'</span>';
         if (a.state && a.state !== 'garrison') html += ' <span style="font-size:0.7rem;color:var(--amber, #e0a040);background:rgba(224,160,64,0.1);padding:1px 5px;border-radius:3px;">'+esc({marching:'行军中',sieging:'围城中',routed:'溃散',disbanded:'解散'}[a.state]||a.state)+'</span>';
         html += '</div>';
         html += '<span style="font-size:0.75rem;color:var(--txt-d);">'+(a.soldiers||a.size||0)+' 兵</span>';
@@ -385,7 +393,10 @@
         if (a.garrison || a.location) info.push('驻: '+(a.garrison||a.location));
         if (a.destination) info.push('赴: '+a.destination);
         if (a.controlLevel >= 60) info.push('私兵度 '+a.controlLevel);
-        if (info.length) html += '<div style="font-size:0.72rem;color:var(--txt-s);margin-bottom:0.3rem;">'+esc(info.join(' · '))+'</div>';
+        if (info.length) {
+          var infoText = info.join(' · ');
+          html += '<div class="tm-army-full tm-fulltext-source"'+fullTextAttr(infoText)+' style="font-size:0.72rem;color:var(--txt-s);margin-bottom:0.3rem;">'+esc(infoText)+'</div>';
+        }
         // 动作按钮(仅玩家势力军队)
         if (isPlayer) {
           html += '<div style="display:flex;gap:0.3rem;flex-wrap:wrap;margin-top:0.3rem;">';
@@ -501,10 +512,21 @@
     _toast('已犒 '+aname);
   }
   function _tsSettleArrears(aname) {
-    _pushEdict('谕：户部速拨银两·发 '+aname+' 积欠军饷·安定军心。', '发饷');
     var a = (global.GM && GM.armies || []).find(function(x){return x.name === aname;});
-    if (a) { a.payArrearsMonths = 0; a.mutinyRisk = Math.max(0, (a.mutinyRisk||0) - 30); }
-    _toast('饷已清·兵变险大减');
+    var _arrears = a ? Math.max(0, Math.round(Number(a.payArrearsMonths||0))) : 0;
+    var _MS = global.MilitarySystems || (global.TM && global.TM.MilitarySystems);
+    if (a && _MS && typeof _MS.settleArmyArrears === 'function') {
+      var r = _MS.settleArmyArrears(a, {});
+      var c = (r && r.cost) || { money:0, grain:0, cloth:0 };
+      _pushEdict('谕：户部拨银 '+(c.money||0)+' 两'+(c.grain?'·粮 '+c.grain+' 石':'')+'·发 '+aname+' 积欠 '+_arrears+' 月军饷·安定军心。', '发饷');
+      _toast(r && r.monthsCleared > 0
+        ? ('已发饷·清欠 '+r.monthsCleared+' 月·耗银 '+(c.money||0)+(r.shortfall>0 ? '（国库不足·欠 '+Math.round(r.shortfall)+'）' : ''))
+        : '无欠饷可补');
+    } else {
+      _pushEdict('谕：户部速拨银两·发 '+aname+' 积欠军饷·安定军心。', '发饷');
+      if (a) { a.payArrearsMonths = 0; a.mutinyRisk = Math.max(0, (a.mutinyRisk||0) - 30); }
+      _toast('饷已清·兵变险大减');
+    }
   }
   function _tsAppointGeneral(aname) {
     var target = prompt('易将·新统帅姓名?', '');

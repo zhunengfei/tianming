@@ -10,7 +10,7 @@
   'use strict';
 
   var TM = global.TM = global.TM || {};
-  var CURRENT_VERSION = 3;
+  var CURRENT_VERSION = 6;
   var migrations = [];
 
   // ── 入狱关键词·与 tm-ai-change-applier.js onDismissal 同步 ──
@@ -265,6 +265,52 @@
         note: '清未明确原因的 _imprisoned 标记 (bug fix 2026-05-21·regex 过宽误判)'
       });
       try { console.log('[migration v3] cleared ' + cleared.length + ' false-positive _imprisoned·' + cleared.slice(0,5).map(function(c){return c.name;}).join(', ')); } catch(_) {}
+    }
+  });
+
+  // P-ZV7·⑤读档削平（v4·读档一次性·幂等）：历史超额账一次性夹回各源封顶内。
+  //   民心：调 MinxinLedger.regularizeSourceCaps（对越界源发规整 delta 经 gate 摊叶子·trueIndex 回正）+ 邸报明示。
+  //   皇威/皇权同款削平待其封顶落地后在此追加同一迁移。
+  register(4, 'pzv7-minxin-cap-regularize', function(target) {
+    try {
+      if (global.TM && global.TM.MinxinLedger && typeof global.TM.MinxinLedger.regularizeSourceCaps === 'function') {
+        var r = global.TM.MinxinLedger.regularizeSourceCaps(target);
+        if (r && r.regularized && r.regularized.length && typeof global.addEB === 'function') {
+          global.addEB('民心', '账目规整·历史超额扣分已按新规削平（' + r.regularized.length + ' 项）');
+        }
+      }
+    } catch (e) {
+      try { console.warn('[migration v4] pzv7 削平失败', e); } catch (_) {}
+    }
+  });
+
+  // P-ZV7·⑤皇威读档削平（v5·读档一次性·幂等）：把皇威 sources/drains 历史超额账夹回各源封顶内·同步修正 index。
+  register(5, 'pzv7-huangwei-cap-regularize', function(target) {
+    try {
+      var AE = global.AuthorityEngines || (global.TM && global.TM.AuthorityEngines);
+      if (AE && typeof AE.regularizeHuangweiCaps === 'function') {
+        var r = AE.regularizeHuangweiCaps(target);
+        if (r && r.adjusted && typeof global.addEB === 'function') {
+          global.addEB('皇威', '账目规整·历史超额已按新规削平（' + r.adjusted + ' 项）');
+        }
+      }
+    } catch (e) {
+      try { console.warn('[migration v5] pzv7 皇威削平失败', e); } catch (_) {}
+    }
+  });
+
+  // P-ZV7·⑤皇权读档削平（v6·读档一次性·幂等）：把皇权 sources/drains 历史超额账夹回各源封顶内·同步修正 index。
+  register(6, 'pzv7-huangquan-cap-regularize', function(target) {
+    try {
+      var AE = global.AuthorityEngines || (global.TM && global.TM.AuthorityEngines);
+      if (AE && typeof AE.regularizeHuangquanCaps === 'function') {
+        var r = AE.regularizeHuangquanCaps(target);
+        if (r && r.adjusted && typeof global.addEB === 'function') {
+          global.addEB('皇权', '账目规整·历史超额已按新规削平（' + r.adjusted + ' 项）');
+        }
+      }
+    } catch (e) {
+      try { console.warn('[migration v6] pzv7 皇权削平失败', e); } catch (_) {}
     }
   });
 

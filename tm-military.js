@@ -570,6 +570,52 @@ var MilitarySystems = (function(global) {
     return { ok: true, army: army, baseline: base, adjusted: validated.adjusted, routed: !!army.routed, loyaltyAttribution: attribution };
   }
 
+  // 玩家补饷·确定性结算：按 兵×月饷率×欠饷月数 算 back-pay → 走国库 spendFromGuoku 扣银/粮/布（落真账·不再免费清欠）。
+  //   按实付比例清欠饷月数（国库不足则部分清），发饷后军心适度回升 + 砍兵变险（每回合放血已扣过·此处不全反扣防过补）。
+  //   月饷率与引擎现行军饷同口径（fiscal calcArmyPay：每兵每月 money 0.5/grain 0.3/cloth 0.02·可被 army.monthly*PayPerSoldier 覆盖）。
+  function settleArmyArrears(army, opts) {
+    opts = opts || {};
+    if (!army) return { ok: false, reason: 'missing-army' };
+    var months = Math.max(0, Math.round(Number(army.payArrearsMonths || 0)));
+    var want = (opts.months != null) ? Math.min(months, Math.max(0, Math.round(Number(opts.months)))) : months;
+    if (want <= 0) return { ok: true, monthsCleared: 0, cost: { money: 0, grain: 0, cloth: 0 }, note: '无欠饷可补' };
+    var soldiers = Math.max(0, Math.round(Number(army.soldiers != null ? army.soldiers : (army.strength != null ? army.strength : army.size)) || 0));
+    var mPer = army.monthlyMoneyPayPerSoldier != null ? Number(army.monthlyMoneyPayPerSoldier) : 0.5;
+    var gPer = army.monthlyGrainPayPerSoldier != null ? Number(army.monthlyGrainPayPerSoldier) : 0.3;
+    var cPer = army.monthlyClothPayPerSoldier != null ? Number(army.monthlyClothPayPerSoldier) : 0.02;
+    var cost = {
+      money: Math.max(0, Math.round(soldiers * mPer * want)),
+      grain: Math.max(0, Math.round(soldiers * gPer * want)),
+      cloth: Math.max(0, Math.round(soldiers * cPer * want))
+    };
+    var spend = (global.FiscalEngine && typeof global.FiscalEngine.spendFromGuoku === 'function')
+      ? global.FiscalEngine.spendFromGuoku({ money: cost.money, grain: cost.grain, cloth: cost.cloth }, '补饷·' + (army.name || '军'))
+      : null;
+    var ded = (spend && spend.deducted) || {};
+    var frac = 1;
+    if (spend) {
+      if (cost.money > 0 && ded.money) frac = Math.min(frac, ded.money.deducted / cost.money);
+      if (cost.grain > 0 && ded.grain) frac = Math.min(frac, ded.grain.deducted / cost.grain);
+      if (cost.cloth > 0 && ded.cloth) frac = Math.min(frac, ded.cloth.deducted / cost.cloth);
+    }
+    var cleared = Math.max(0, Math.min(want, Math.round(want * frac)));
+    if (cleared <= 0 && frac > 0) cleared = 1;           // 付了点就认一月·不让钱白扣
+    army.payArrearsMonths = Math.max(0, months - cleared);
+    army.morale = _clamp100((army.morale == null ? 60 : Number(army.morale)) + Math.min(15, 4 * cleared));
+    army.loyalty = _clamp100((army.loyalty == null ? 60 : Number(army.loyalty)) + Math.min(10, 2 * cleared));
+    army.mutinyRisk = Math.max(0, (Number(army.mutinyRisk) || 0) - 10 * cleared);
+    army._lastArrearsSettleTurn = Number((global.GM && global.GM.turn) || 0);
+    return {
+      ok: true,
+      monthsRequested: want,
+      monthsCleared: cleared,
+      cost: cost,
+      deducted: ded,
+      remaining: army.payArrearsMonths,
+      shortfall: (ded.money && ded.money.deficit) || 0
+    };
+  }
+
   function _armyRefs(G) {
     return Array.isArray(G.armies) ? G.armies : [];
   }
@@ -985,6 +1031,7 @@ var MilitarySystems = (function(global) {
     payArrearsBaseline: payArrearsBaseline,
     validatePayArrearsAdjustment: validatePayArrearsAdjustment,
     applyPayArrearsPressure: applyPayArrearsPressure,
+    settleArmyArrears: settleArmyArrears,
     applyBattleResult: applyBattleResult,
     _readConstant: _readConstant
   };
