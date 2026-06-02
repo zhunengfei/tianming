@@ -1172,13 +1172,22 @@
           }
         } catch(_phase5SysE) {}
 
+        // P-D4J 波2·本回合诏令新建之军 → 交此处 AI 核定实际兵额与招募开销（确定性层只落"军已入册"，规模/花费由你定）
+        var _newArmiesT = (GM.armies||[]).filter(function(a){ return a && a._createdTurn === (GM.turn||0) && (a._edictBuilt || a._pendingMilitarySizing); });
+        if (_newArmiesT.length) {
+          tp18 += '\n【本回合奉诏新建之军·待你核定兵额与募兵开销】\n';
+          _newArmiesT.forEach(function(a){
+            tp18 += '  ' + a.name + (a._pendingMilitarySizing ? '·兵额未定（诏书未写明，请按朝廷财力与募兵规制给出合理实额）' : '·诏定兵' + (a.soldiers||0)) + (a.special ? '·来头:' + String(a.special).slice(0,40) : '') + '\n';
+          });
+          tp18 += '  → 每支新军：用 supplementary_army_changes 的 soldiers_delta 把兵额补到实数（兵额未定的从 0 补起）；并在 recruitment_costs 给该军招募开销（银/粮/布，依兵额兵种与本朝财力估算，量入为出）。\n';
+        }
         tp18 += '\n【铁律·势力军事自主】\n';
         tp18 += '· 非玩家势力（后金/察哈尔/朝鲜/郑氏/流民/外族等）的军队·由你自主推演其军事行动：扩张/掠袭/征服/防御/内争/联盟/背叛\n';
         tp18 += '· 各势力按其性格+战略+资源自主决策——后金必图辽西·皇太极可能绕蒙古入塞；察哈尔被后金逼西迁；朝鲜夹缝求存；郑氏海商谋台海\n';
         tp18 += '· 敌方势力兵力·玩家不可直接调动·但可通过外交/册封/招抚/挑衅影响其行动\n';
         tp18 += '· 两势力交锋·按双方兵力/士气/装备/补给/训练/统帅能力综合推演·给出具体伤亡与结果\n';
         tp18 += '· 每个非玩家势力本回合应至少 1 条 faction_military_actions 条目（兵力调动/作战/备战/征募等）\n';
-        tp18 += '\n请返回JSON：{"military_situation":"全局军事态势分析(200字)","border_threats":"边境威胁评估(150字)","army_morale_analysis":"各军士气分析和风险(100字)","supplementary_army_changes":[{"name":"部队","faction":"所属","soldiers_delta":0,"morale_delta":0,"composition":[{"type":"兵种名","count":人数}],"equipment":[{"name":"装备名","count":数量}],"equipmentCondition":"装备状况·简陋/一般/优良","quality":"兵质","reason":"兵种/装备/兵质仅在实际变动时填(如扩编火器营/换装红衣大炮/整训提升)·否则省略这几项"}],"faction_military_actions":[{"faction":"势力名","action":"军事行动30字","targetFaction":"目标势力可空","casualties":0,"outcome":"结果30字","rationale":"动机30字"}],"war_probability":"下回合爆发战争的概率和方向(80字)"}';
+        tp18 += '\n请返回JSON：{"military_situation":"全局军事态势分析(200字)","border_threats":"边境威胁评估(150字)","army_morale_analysis":"各军士气分析和风险(100字)","supplementary_army_changes":[{"name":"部队","faction":"所属","soldiers_delta":0,"morale_delta":0,"composition":[{"type":"兵种名","count":人数}],"equipment":[{"name":"装备名","count":数量}],"equipmentCondition":"装备状况·简陋/一般/优良","quality":"兵质","reason":"兵种/装备/兵质仅在实际变动时填(如扩编火器营/换装红衣大炮/整训提升)·否则省略这几项"}],"faction_military_actions":[{"faction":"势力名","action":"军事行动30字","targetFaction":"目标势力可空","casualties":0,"outcome":"结果30字","rationale":"动机30字"}],"recruitment_costs":[{"name":"新建军名","silver":0,"grain":0,"cloth":0,"reason":"募兵开销·依兵额兵种与本朝财力估算·量入为出"}],"war_probability":"下回合爆发战争的概率和方向(80字)"}';
         tp18 += '\n\u82e5\u672c\u56de\u5408\u660e\u786e\u53d1\u751f\u4e00\u573a\u53ef\u843d\u5730\u6218\u6597/\u5360\u57ce\uff0c\u8fd8\u5fc5\u987b\u8fd4\u56de battleResult:{winnerFactionId,loserFactionId,occupiedCityIds,casualties:{attacker,defender},affectedArmies:[{armyId,side,loss,moraleDelta,loyaltyDelta,state,commanderFate}],attackerArmyId,defenderArmyId,commanderFate:{name,outcome},postBattleEffects[]}.\u82e5\u591a\u573a\u6218\u6597\uff0c\u9009\u6700\u91cd\u5927\u4e00\u573a\u5199 battleResult\uff0c\u5176\u4f59\u7559\u5728 faction_military_actions\u3002';
         var _sc18Body = {model:P.ai.model||"gpt-4o", messages:[{role:"system",content:_maybeCacheSys(sysP)},{role:"user",content:tp18}], temperature:0.7, max_tokens:_tok(12000)};
         if (_modelFamily === 'openai') _sc18Body.response_format = { type: 'json_object' };
@@ -1264,6 +1273,27 @@
                   if (ac.morale_delta) army.morale = clamp((army.morale||50) + clamp(parseInt(ac.morale_delta)||0, -15, 15), 0, 100);
                   if (ac.reason) addEB('\u519B\u4E8B', army.name + '：' + ac.reason);
                 }
+              });
+            }
+            // P-D4J 波2·新建军招募开销·AI 定额 → 确定性扣国库(银/粮/布)·落账不飘（只对本回合新建之军收，防 AI 给旧军乱记账；国库不足尽扣记欠）
+            if (Array.isArray(p18.recruitment_costs) && p18.recruitment_costs.length && global.FiscalEngine && typeof global.FiscalEngine.spendFromGuoku === 'function') {
+              p18.recruitment_costs.forEach(function(rc) {
+                if (!rc || !rc.name) return;
+                var _rcArmy = (GM.armies||[]).find(function(a){ return a && a.name === rc.name; });
+                if (!_rcArmy || _rcArmy._createdTurn !== (GM.turn||0)) return;
+                var _silver = Math.max(0, Math.round(Number(rc.silver != null ? rc.silver : rc.money) || 0));
+                var _grain  = Math.max(0, Math.round(Number(rc.grain) || 0));
+                var _cloth  = Math.max(0, Math.round(Number(rc.cloth) || 0));
+                _rcArmy._pendingMilitarySizing = false;
+                if (_silver + _grain + _cloth <= 0) return;
+                var _rcSpend = global.FiscalEngine.spendFromGuoku({ money: _silver, grain: _grain, cloth: _cloth }, '募兵·' + rc.name);
+                _rcArmy._recruitCost = { silver: _silver, grain: _grain, cloth: _cloth, turn: GM.turn };
+                var _rcDed = (_rcSpend && _rcSpend.deducted) || {};
+                var _rcDef = [];
+                if (_rcDed.money && _rcDed.money.deficit > 0) _rcDef.push('银' + Math.round(_rcDed.money.deficit));
+                if (_rcDed.grain && _rcDed.grain.deficit > 0) _rcDef.push('粮' + Math.round(_rcDed.grain.deficit));
+                if (_rcDed.cloth && _rcDed.cloth.deficit > 0) _rcDef.push('布' + Math.round(_rcDed.cloth.deficit));
+                if (typeof addEB === 'function') addEB('财政', '募' + rc.name + '开销·' + (_silver?'银'+_silver+' ':'') + (_grain?'粮'+_grain+' ':'') + (_cloth?'布'+_cloth:'') + (_rcDef.length ? '（国库不足，欠' + _rcDef.join('/') + '）' : '') + (rc.reason ? '：' + rc.reason : ''));
               });
             }
             // 各势力军事行动

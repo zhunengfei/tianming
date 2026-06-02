@@ -15,8 +15,8 @@
 // ============================================================
 
 function extractEdictActions(edictText) {
-  if (!edictText || edictText.length < 4) return { appointments: [], dismissals: [], deaths: [], rewards: [] };
-  var actions = { appointments: [], dismissals: [], deaths: [], rewards: [] };
+  if (!edictText || edictText.length < 4) return { appointments: [], dismissals: [], deaths: [], rewards: [], armyBuilds: [], payArrears: [] };
+  var actions = { appointments: [], dismissals: [], deaths: [], rewards: [], armyBuilds: [], payArrears: [] };
   var text = edictText.replace(/\s+/g, '');
 
   // 预构建已知姓名集（含字号）——用于扫名优先
@@ -177,7 +177,67 @@ function extractEdictActions(edictText) {
     }
   });
 
-  if (actions.appointments.length || actions.dismissals.length || actions.deaths.length) {
+  // ═══ 建军/组建新军 模式（确定性落名册·宁缺毋滥）═══
+  //   只认明确"创建"动词 + 军名后缀，避免把"调某军/提到某军"误判成建军；已在册同名军视作扩编留给 AI。
+  //   兵力规模与招募成本不在此定：诏书写明则解析备用、没写交回合内 sc18 军事推演 AI 估（确定性层只保"军必入册"）。
+  function _bldCnNum(s) {
+    if (!s) return null;
+    if (/^[0-9]+$/.test(s)) return parseInt(s, 10);
+    var map = { '零':0,'〇':0,'一':1,'二':2,'两':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9 };
+    var unit = { '十':10,'百':100,'千':1000,'万':10000,'亿':100000000 };
+    var total = 0, section = 0, num = 0, ok = false;
+    for (var _ci = 0; _ci < s.length; _ci++) {
+      var _ch = s.charAt(_ci);
+      if (map[_ch] != null) { num = map[_ch]; ok = true; }
+      else if (unit[_ch] != null) {
+        ok = true; var _u = unit[_ch];
+        if (_u >= 10000) { section = (section + (num || 0)) * _u; total += section; section = 0; }
+        else { section += (num === 0 ? 1 : num) * _u; }
+        num = 0;
+      } else if (/[0-9]/.test(_ch)) { num = num * 10 + parseInt(_ch, 10); ok = true; }
+      else { return null; }
+    }
+    var _r = total + section + num;
+    return ok && _r > 0 ? _r : null;
+  }
+  var _buildVerbs = '(?:组建|新建|新设|增设|增置|设立|创设|创立|创建|筹建|编练|编组|编立|建立)';
+  var _armySuffix = '(?:军|营|卫|镇|师|标|旅|水师|铁骑|马队|乡勇|团练|新军)';
+  var _buildPat = new RegExp(_buildVerbs + '([\\u4e00-\\u9fa5]{2,8}?' + _armySuffix + ')', 'g');
+  var _buildSet = {};
+  var _bm;
+  while ((_bm = _buildPat.exec(text)) !== null) {
+    var _aName = _bm[1].replace(/[，。、]/g, '');
+    if (_aName.length < 2 || _buildSet[_aName]) continue;
+    if (/[以为令着调率充及与并]/.test(_aName)) continue;   // 含跨句标记 → 非军名·弃
+    var _existsArmy = (GM.armies || []).some(function(a) {
+      if (!a || !a.name) return false;
+      return a.name === _aName || a.name.indexOf(_aName) >= 0 || _aName.indexOf(a.name) >= 0;
+    });
+    if (_existsArmy) continue;                              // 已在册 → 扩编/调动·留给 AI
+    _buildSet[_aName] = true;
+    var _win = text.slice(_bm.index, _bm.index + 48);
+    var _numM = _win.match(/([0-9]{2,8}|[一二两三四五六七八九十百千万亿]{1,7})(?:名|人|兵|众|卒|骑|马步)/);
+    var _strength = _numM ? _bldCnNum(_numM[1]) : null;
+    var _special = (text.slice(_bm.index).split(/[。；！\n]/)[0] || '').slice(0, 50);
+    actions.armyBuilds.push({ name: _aName, strength: _strength, special: _special });
+  }
+
+  // ═══ 补饷/发饷 模式（确定性结算欠饷·apply 时走 settleArmyArrears 真扣国库）═══
+  //   只认明确"发/补/拨…饷"动宾·避免把"欠饷三月"这种纯陈述误判成补饷指令。target：点名某军 / 全军·九边·边军 等泛指。
+  var _payIntentRx = /(?:补发|补给|补|发放|发|拨给|拨发|拨|关给|关|给|清还|清偿|清)[一-龥]{0,4}?(?:欠饷|积欠军饷|积欠饷银|军饷|饷银|月饷|饷)/;
+  if (_payIntentRx.test(text)) {
+    var _payAll = /九边|全军|各军|诸军|三军|各镇|诸镇|边军|各营|众军|诸营/.test(text);
+    // 点名军：roster-anchored——只认确实在册、且名字出现在诏书里的军（避免从动词/连词里抠出假军名）
+    var _payNames = {};
+    (GM.armies || []).forEach(function(a) {
+      if (a && a.name && String(a.name).length >= 2 && text.indexOf(a.name) >= 0) _payNames[a.name] = true;
+    });
+    var _payNameList = Object.keys(_payNames);
+    // 有补饷意图但既没点名也没泛指 → 默认补所有欠饷军（"着户部发饷"泛指）
+    actions.payArrears.push({ all: _payAll || _payNameList.length === 0, names: _payNameList });
+  }
+
+  if (actions.appointments.length || actions.dismissals.length || actions.deaths.length || actions.armyBuilds.length || actions.payArrears.length) {
     _dbg('[Edict] 从诏令提取:', JSON.stringify(actions));
   }
   return actions;
@@ -371,6 +431,68 @@ function applyEdictActions(actions) {
       });
     }
   } catch (_bcE) {}
+  // 下诏建军·确定性落名册（操作不蒸发；实际兵力规模与招募成本交回合内 sc18 军事推演 AI 估）
+  try {
+    var _ab = (actions && Array.isArray(actions.armyBuilds)) ? actions.armyBuilds : [];
+    var _applyArmy = (typeof TM !== 'undefined' && TM.AIChange && TM.AIChange.Army && TM.AIChange.Army.applyAIArmyChange)
+      ? TM.AIChange.Army.applyAIArmyChange
+      : (typeof applyAIArmyChange === 'function' ? applyAIArmyChange : null);
+    if (_ab.length && _applyArmy) {
+      _ab.forEach(function(b) {
+        if (!b || !b.name) return;
+        var _pending = (b.strength == null);
+        var _res = null;
+        try {
+          _res = _applyArmy({
+            name: b.name, action: 'create',
+            soldiers: _pending ? 0 : b.strength,
+            branch: '募兵',
+            state: _pending ? 'recruiting' : 'garrison',
+            reason: '奉诏组建'
+          }, { source: 'edict.build_army', silentEB: true });
+        } catch (_aE) {}
+        var _army = _res && _res.army;
+        if (_army) {
+          _army._edictBuilt = true;
+          _army._createdTurn = GM.turn;
+          _army._pendingMilitarySizing = _pending;
+          if (b.special) { _army.special = b.special; if (!_army.description) _army.description = b.special; }
+          if (typeof addEB === 'function') {
+            addEB('军事', '奉诏组建' + b.name + (_pending ? '·兵额待充实（编练中）' : '·' + b.strength + '兵') + (b.special ? '：' + b.special : ''), { credibility: 'high' });
+          }
+        }
+      });
+    }
+  } catch (_abErr) {}
+  // 下诏补饷·确定性结算欠饷（走 settleArmyArrears 真扣国库·不再免费清欠；与 UI 发饷按钮靠 settleArmyArrears 读当前欠饷月数幂等·不双结算）
+  try {
+    var _pa = (actions && Array.isArray(actions.payArrears)) ? actions.payArrears : [];
+    var _paMS = (typeof MilitarySystems !== 'undefined' && MilitarySystems) || (typeof TM !== 'undefined' && TM.MilitarySystems) || (typeof global !== 'undefined' && global.MilitarySystems) || null;
+    if (_pa.length && _paMS && typeof _paMS.settleArmyArrears === 'function' && Array.isArray(GM.armies)) {
+      var _pfPay = (P.playerInfo && P.playerInfo.factionName) || '';
+      _pa.forEach(function(entry) {
+        if (!entry) return;
+        var _targets = [];
+        if (entry.all) {
+          GM.armies.forEach(function(a) {
+            if (a && (a.payArrearsMonths || 0) > 0 && (!a.faction || a.faction === _pfPay)) _targets.push(a);
+          });
+        }
+        (entry.names || []).forEach(function(nm) {
+          var a = GM.armies.find(function(x) { return x && x.name && (x.name === nm || x.name.indexOf(nm) >= 0 || nm.indexOf(x.name) >= 0); });
+          if (a && _targets.indexOf(a) < 0) _targets.push(a);
+        });
+        _targets.forEach(function(a) {
+          if (!a || (a.payArrearsMonths || 0) <= 0) return;
+          var _r = _paMS.settleArmyArrears(a, {});
+          if (_r && _r.monthsCleared > 0 && typeof addEB === 'function') {
+            var _c = _r.cost || {};
+            addEB('军务', '奉诏补饷·' + a.name + '·清欠 ' + _r.monthsCleared + ' 月·耗银 ' + (_c.money || 0) + (_r.shortfall > 0 ? '（国库不足·欠 ' + Math.round(_r.shortfall) + '）' : ''), { credibility: 'high' });
+          }
+        });
+      });
+    }
+  } catch (_paErr) {}
   // 免职——双路径：postSystem + officeTree
   actions.dismissals.forEach(function(a) {
     var char = findCharByName(a.character);

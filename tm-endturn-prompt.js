@@ -683,9 +683,14 @@
       }
     }
 
-    // —— 层3: 记忆上下文（历史纪要 + 近期要事 + 人物履历 + 玩家轨迹）——
-    var memoryContext = getMemoryAnchorsForAI(8);
-    if(memoryContext) tp += "\n" + memoryContext;
+    // —— 层3: 记忆上下文 —— getMemoryAnchorsForAI 已退役（2026-06-01·F3-A 去双注入）
+    // 其 4 组内容已全部迁入 v6 governed 投影，经 compileFromGM 统一注入 SC1_PRE_CONTEXT memory-context：
+    //   近期要事 anchors → pushNarrativeEnvelopes(envelope:830)
+    //   年代纪要 memoryArchive → pushMemoryArchiveEnvelopes
+    //   人物履历 characterArcs → pushCharacterArcEnvelopes
+    //   玩家轨迹 playerDecisions → pushPlayerDecisionEnvelopes
+    // 归档副作用 archiveOldMemories 仍由 createMemoryAnchor(over-limit) 触发，不受影响。
+    // chronicleAfterwords（上回合回顾/早期叙事归档）暂保留（尚未确认 v6 覆盖）。
     if (GM.chronicleAfterwords && GM.chronicleAfterwords.length > 0) {
       var _chrArch = (GM.chronicleAfterwords[0] && GM.chronicleAfterwords[0]._isArchive) ? GM.chronicleAfterwords[0] : null;
       var _lastAft = GM.chronicleAfterwords[GM.chronicleAfterwords.length - 1];
@@ -3023,7 +3028,10 @@
       if (_pendingIssues.length > 0) {
         sysP += '\n\n\u3010\u5F53\u524D\u65F6\u5C40\u8981\u52A1\u2014\u2014\u5F85\u89E3\u51B3\u3011';
         _pendingIssues.forEach(function(iss) {
-          sysP += '\n  ' + iss.title + '(' + (iss.category || '') + ' \u7B2C' + iss.raisedTurn + '\u56DE\u5408\u63D0\u51FA) id:' + iss.id;
+          var _issAuth = iss.authorityLevel || 'ai_analysis';
+          var _issFact = iss.factStatus || 'advisory';
+          var _issConf = typeof iss.confidence === 'number' ? Math.round(Math.max(0, Math.min(1, iss.confidence)) * 100) + '%' : 'unknown';
+          sysP += '\n  ' + iss.title + '(' + (iss.category || '') + ' \u7B2C' + iss.raisedTurn + '\u56DE\u5408\u63D0\u51FA) id:' + iss.id + ' authority:' + _issAuth + ' fact:' + _issFact + ' confidence:' + _issConf;
         });
         sysP += '\n\u8BF7\u6839\u636E\u672C\u56DE\u5408\u63A8\u6F14\u68C0\u67E5\u4EE5\u4E0A\u8981\u52A1\u662F\u5426\u6709\u8FDB\u5C55\u6216\u5DF2\u89E3\u51B3\uFF0C\u5E76\u8BC6\u522B\u65B0\u51FA\u73B0\u7684\u91CD\u5927\u77DB\u76FE\u3002';
       }
@@ -3310,14 +3318,12 @@
     _dbg('[TokenLimit] 生效输出上限:', _effectiveOutCap, 'tokens | 手动:', P.conf.maxOutputTokens||0, '检测:', P.conf._detectedMaxOutput||0);
 
     // ============================================================
-    // 1.3: 跨回合记忆摘要注入（最近3条摘要，覆盖15-50回合历史）
+    // 1.3: 跨回合记忆摘要注入 —— 已退役（2026-06-01·F3 去冗余）
+    // _aiMemorySummaries 现由 v6 统一记忆管线 governed 投影：
+    //   tm-memory-envelope.js pushNarrativeEnvelopes → memory-context（compileFromGM 注入 tp1）
+    //   以 type=summary / authority=ai_summary（低权威·warnings 区）经预算与治理编排。
+    // 此处不再 raw 注入 sysP，避免与 v6 双注入、token 浪费与口径矛盾。
     // ============================================================
-    if (GM._aiMemorySummaries && GM._aiMemorySummaries.length > 0) {
-      sysP += '\n\n【历史回顾摘要（跨回合AI记忆）】';
-      GM._aiMemorySummaries.slice(-3).forEach(function(ms) {
-        sysP += '\n' + ms.summary;
-      });
-    }
 
     // ============================================================
     // 1.4: 幻觉防火墙——名称白名单注入

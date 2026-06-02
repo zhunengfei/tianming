@@ -1318,7 +1318,17 @@ function _chooseIssueOption(issueId, choiceIdx) {
       var _AEi = (typeof window !== 'undefined' && window.AuthorityEngines) || (typeof global !== 'undefined' && global.AuthorityEngines) || null;
       if (_AEi) {
         var _authFn = ({ '民心': _AEi.adjustMinxin, 'minxin': _AEi.adjustMinxin, '皇威': _AEi.adjustHuangwei, 'huangwei': _AEi.adjustHuangwei, '皇权': _AEi.adjustHuangquan, 'huangquan': _AEi.adjustHuangquan })[k];
-        if (typeof _authFn === 'function') { _authFn('issueChoice', v, '要务决断·' + (ch.text || ''), { persist: true }); return; }
+        if (typeof _authFn === 'function') {
+          // P-ZV7·② 实政对冲（奉旨满额半）：玩家亲决的赈灾/平反，按内容把民心 delta 路由到对应"源"（而非笼统 issueChoice），
+          //   这样它进 disasterRelief / judicialFairness 正项·在总和净掉天象·面板分项可见。皇威/皇权暂仍走 issueChoice。
+          var _mxSrc = 'issueChoice';
+          if (k === '民心' || k === 'minxin') {
+            var _ctext = String((issue.title || '') + ' ' + (issue.category || '') + ' ' + (ch.text || '') + ' ' + (ch.desc || ''));
+            if (/赈|救荒|开仓|以工代赈|蠲|减赋|减租|抚恤|平粜|赈济|赈给/.test(_ctext)) _mxSrc = 'disasterRelief';
+            else if (/平反|昭雪|冤狱|恤刑|宽刑|大赦|赦免|清狱|纠误|平冤/.test(_ctext)) _mxSrc = 'judicialFairness';
+          }
+          _authFn(_mxSrc, v, '要务决断·' + (ch.text || ''), { persist: true }); return;
+        }
       }
       // 先匹配 GM.vars
       if (GM.vars && GM.vars[k]) {

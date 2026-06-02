@@ -388,4 +388,10 @@
 
   global.buildUnifiedAIContext = buildUnifiedAIContext;
 
+  try {
+    if (global.TM && TM.SocialPoliticalSignals && typeof TM.SocialPoliticalSignals.installEventBridge === 'function') {
+      TM.SocialPoliticalSignals.installEventBridge(global.GM || null, EVENT_BUS);
+    }
+  } catch (_socialPoliticalBridgeE) {}
+
 })(typeof window !== 'undefined' ? window : (typeof global !== 'undefined' ? global : this));

@@ -371,7 +371,7 @@
         if (typeof applyEdictActions === 'function') {
           try {
             var ea = ctx.input.edictActions;
-            if (ea && ((ea.appointments && ea.appointments.length) || (ea.dismissals && ea.dismissals.length) || (ea.deaths && ea.deaths.length))) {
+            if (ea && ((ea.appointments && ea.appointments.length) || (ea.dismissals && ea.dismissals.length) || (ea.deaths && ea.deaths.length) || (ea.armyBuilds && ea.armyBuilds.length) || (ea.rewards && ea.rewards.length) || (ea.payArrears && ea.payArrears.length))) {
               applyEdictActions(ea);
             }
           } catch(e) { try { console.warn('[pipeline.post-ai-edict] applyEdictActions failed', e); } catch(_){} }
@@ -511,6 +511,30 @@
         }
         // 注：oldVars 在 ctx.input·edicts/xinglu 同
         // _renderArgs 17 字段顺序按 _endTurn_render 期望
+        try {
+          if (typeof window !== 'undefined' && window.TM && TM.SocialPoliticalSignals && typeof TM.SocialPoliticalSignals.recordTurnResult === 'function') {
+            ctx.results.turnResultSocialSignals = TM.SocialPoliticalSignals.recordTurnResult(GM, ctx, {
+              source: 'turn-result-ai',
+              turn: GM && GM.turn
+            });
+            if (ctx.results.turnResultSocialSignals && ctx.results.turnResultSocialSignals.recorded > 0) {
+              if (TM.PartyClassSignalBridge && typeof TM.PartyClassSignalBridge.applyPending === 'function') {
+                ctx.results.turnResultSignalApply = TM.PartyClassSignalBridge.applyPending(GM, {
+                  source: 'turn-result-ai',
+                  turn: GM && GM.turn
+                });
+              } else if (typeof TM.SocialPoliticalSignals.applyPending === 'function') {
+                ctx.results.turnResultSignalApply = TM.SocialPoliticalSignals.applyPending(GM, {
+                  source: 'turn-result-ai',
+                  turn: GM && GM.turn
+                });
+              }
+            }
+          }
+        } catch(_turnResultSignalE) {
+          ctx.results.turnResultSocialSignalError = _turnResultSignalE;
+          try { console.warn('[pipeline.render-finalize] turn-result social signal failed', _turnResultSignalE); } catch(_) {}
+        }
         var _renderArgs = [
           ar.shizhengji || '',
           ar.zhengwen || '',
@@ -528,7 +552,11 @@
           ar.szjTitle || '',
           ar.szjSummary || '',
           ar.personnelChanges || [],
-          ar.hourenXishuo || ''
+          ar.hourenXishuo || '',
+          {
+            basis_refs: ar.basis_refs || ar.basisRefs || [],
+            source: 'sc1d'
+          }
         ];
         // [slice 6.5·2026-05-07] deferred 路径·shijiModal 后朝进行中
         // 暂存 payload + 用 ctx.deferredSteps 显式登记 phase5·替代闭包模式 (audit 决定 2)

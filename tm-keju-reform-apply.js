@@ -28,8 +28,10 @@
   // ════════════════════════════════════════════════════════════════
 
   function _isL7Enabled() {
-    if (typeof P === 'undefined' || !P || !P.conf) return false;
-    return P.conf.useNewKejuL7 === true;
+    if (typeof P === 'undefined' || !P) return false;
+    var conf = P.conf || {};
+    if (conf.useNewKejuL === false) return false;
+    return conf.useNewKejuL7 !== false;
   }
 
   // ════════════════════════════════════════════════════════════════
@@ -39,6 +41,7 @@
   function _kjReformKeyiCallback(method, ctx) {
     if (!_isL7Enabled()) {
       try { console.log('[L7·a] flag off·skip apply'); } catch(_){}
+      try { if (typeof toast === 'function') toast('⚠️ 科举改革落地模块未开启·议政结果未写入范式'); } catch(_){}
       return;
     }
     ctx = ctx || {};
@@ -790,7 +793,7 @@
   }
 
   function _kjpL7MethodLabel(method) {
-    // RBB·BB-D2·对齐 _keyiPersistToCourtRecords·council='依议开科' edict='下诏强推' defy='逆众议强推'
+    // RBB·BB-D2·对齐 _keyiPersistToCourtRecords·本文件用改革纪事简版标签
     // L7 chronicle 用简版·council='依议' edict='下诏' defy='逆众议'
     return ({ council:'依议', edict:'下诏', defy:'逆众议' })[method] || method;
   }

@@ -12,6 +12,216 @@
 // 见 web/docs/architecture-map.md §1 行 5
 // ============================================================
 
+async function _runPreSubmitPartyClassCalibration() {
+  try {
+    var _pcSchedulerRan = false;
+    try {
+      if (typeof window !== 'undefined' && window.TM && TM.PartyClassActionScheduler && typeof TM.PartyClassActionScheduler.scheduleBeforeSubmit === 'function') {
+        TM.PartyClassActionScheduler.scheduleBeforeSubmit(GM, {
+          source: 'pre-submit-party-class-action-scheduler',
+          turn: GM && GM.turn
+        });
+        _pcSchedulerRan = true;
+      }
+    } catch(_partyClassSchedulerE) {
+      try { console.warn('[endTurn] pre-submit party/class action scheduler failed', _partyClassSchedulerE); } catch(_){}
+    }
+    if (!_pcSchedulerRan && typeof window !== 'undefined' && window.TM && TM.SocialPoliticalSignals) {
+      try {
+        if (typeof TM.SocialPoliticalSignals.decayAndResolve === 'function') {
+          TM.SocialPoliticalSignals.decayAndResolve(GM, {
+            source: 'pre-submit-signal-maintenance',
+            turn: GM && GM.turn
+          });
+        }
+        if (typeof TM.SocialPoliticalSignals.scanRuntimePressures === 'function') {
+          TM.SocialPoliticalSignals.scanRuntimePressures(GM, {
+            source: 'pre-submit-runtime-pressure',
+            turn: GM && GM.turn
+          });
+        }
+        if (TM.PartyClassSignalBridge && typeof TM.PartyClassSignalBridge.applyPending === 'function') {
+          TM.PartyClassSignalBridge.applyPending(GM, {
+            source: 'pre-submit-runtime-pressure',
+            turn: GM && GM.turn
+          });
+        } else if (typeof TM.SocialPoliticalSignals.applyPending === 'function') {
+          TM.SocialPoliticalSignals.applyPending(GM, {
+            source: 'pre-submit-runtime-pressure',
+            turn: GM && GM.turn
+          });
+        }
+      } catch(_socialPoliticalE) {
+        try { console.warn('[endTurn] pre-submit social/political signal bridge failed', _socialPoliticalE); } catch(_){}
+      }
+    }
+    if (!_pcSchedulerRan) try {
+      if (typeof window !== 'undefined' && window.TM && TM.PartyClassActors && typeof TM.PartyClassActors.run === 'function') {
+        if (typeof TM.PartyClassActors.tick === 'function') {
+          TM.PartyClassActors.tick(GM, {
+            source: 'pre-submit-party-class-actor-maintenance',
+            turn: GM && GM.turn
+          });
+        }
+        TM.PartyClassActors.run(GM, {
+          source: 'pre-submit-party-class-actors',
+          turn: GM && GM.turn
+        });
+      }
+    } catch(_partyClassActorsE) {
+      try { console.warn('[endTurn] pre-submit party/class actors failed', _partyClassActorsE); } catch(_){}
+    }
+    try {
+      if (typeof window !== 'undefined' && window.TM && TM.ClassMinxinBridge && typeof TM.ClassMinxinBridge.maintain === 'function') {
+        TM.ClassMinxinBridge.maintain(GM, {
+          source: 'pre-submit-class-minxin-bridge',
+          turn: GM && GM.turn
+        });
+      }
+    } catch(_classMinxinMaintainE) {
+      try { console.warn('[endTurn] pre-submit class/minxin bridge failed', _classMinxinMaintainE); } catch(_){}
+    }
+    try {
+      if (typeof window !== 'undefined' && window.TM && TM.MinxinLedger && typeof TM.MinxinLedger.maintain === 'function') {
+        TM.MinxinLedger.maintain(GM, {
+          source: 'pre-submit-minxin-ledger',
+          turn: GM && GM.turn
+        });
+      }
+    } catch(_minxinLedgerMaintainE) {
+      try { console.warn('[endTurn] pre-submit minxin ledger failed', _minxinLedgerMaintainE); } catch(_){}
+    }
+    try {
+      if (typeof window !== 'undefined' && window.TM && TM.MinxinPressureActions && typeof TM.MinxinPressureActions.maintain === 'function') {
+        TM.MinxinPressureActions.maintain(GM, {
+          source: 'pre-submit-minxin-pressure-actions',
+          turn: GM && GM.turn
+        });
+      }
+    } catch(_minxinPressureActionsE) {
+      try { console.warn('[endTurn] pre-submit minxin pressure actions failed', _minxinPressureActionsE); } catch(_){}
+    }
+    try {
+      if (typeof window !== 'undefined' && window.TM && TM.MinxinCommitmentTracker && typeof TM.MinxinCommitmentTracker.tick === 'function') {
+        TM.MinxinCommitmentTracker.tick(GM, {
+          source: 'pre-submit-minxin-commitments',
+          turn: GM && GM.turn
+        });
+      }
+    } catch(_minxinCommitmentsE) {
+      try { console.warn('[endTurn] pre-submit minxin commitments failed', _minxinCommitmentsE); } catch(_){}
+    }
+    try {
+      if (typeof window !== 'undefined' && window.TM && TM.MinxinResponsibilityChain && typeof TM.MinxinResponsibilityChain.tick === 'function') {
+        TM.MinxinResponsibilityChain.tick(GM, {
+          source: 'pre-submit-minxin-responsibility',
+          turn: GM && GM.turn
+        });
+      }
+    } catch(_minxinResponsibilityE) {
+      try { console.warn('[endTurn] pre-submit minxin responsibility failed', _minxinResponsibilityE); } catch(_){}
+    }
+    try {
+      if (typeof window !== 'undefined' && window.TM && TM.HujiGovernanceLoop && typeof TM.HujiGovernanceLoop.ingestPlayerSignals === 'function') {
+        TM.HujiGovernanceLoop.ingestPlayerSignals(GM, {
+          source: 'pre-submit-huji-governance',
+          turn: GM && GM.turn
+        });
+        if (typeof TM.HujiGovernanceLoop.applyCourtFeedbacks === 'function') {
+          TM.HujiGovernanceLoop.applyCourtFeedbacks(GM, {
+            source: 'pre-submit-huji-governance-court-feedback',
+            turn: GM && GM.turn
+          });
+        }
+      }
+    } catch(_hujiGovernanceE) {
+      try { console.warn('[endTurn] pre-submit huji governance loop failed', _hujiGovernanceE); } catch(_){}
+    }
+    try {
+      if (typeof window !== 'undefined' && window.TM && TM.HujiRuntimeBridge && typeof TM.HujiRuntimeBridge.maintain === 'function') {
+        TM.HujiRuntimeBridge.maintain(GM, {
+          source: 'pre-submit-huji-runtime-bridge',
+          turn: GM && GM.turn,
+          includePlayerSignals: true
+        });
+      }
+    } catch(_hujiRuntimeBridgeE) {
+      try { console.warn('[endTurn] pre-submit huji runtime bridge failed', _hujiRuntimeBridgeE); } catch(_){}
+    }
+    try {
+      if (typeof window !== 'undefined' && window.TM && TM.MinxinHardLinks && typeof TM.MinxinHardLinks.tick === 'function') {
+        TM.MinxinHardLinks.tick(GM, {
+          source: 'pre-submit-minxin-hard-links',
+          turn: GM && GM.turn
+        });
+      }
+    } catch(_minxinHardLinksE) {
+      try { console.warn('[endTurn] pre-submit minxin hard links failed', _minxinHardLinksE); } catch(_){}
+    }
+    try {
+      if (typeof window !== 'undefined' && window.TM && TM.MinxinHardLinkConsumers && typeof TM.MinxinHardLinkConsumers.consume === 'function') {
+        TM.MinxinHardLinkConsumers.consume(GM, {
+          source: 'pre-submit-minxin-hard-link-consumers',
+          turn: GM && GM.turn
+        });
+      }
+    } catch(_minxinHardLinkConsumersE) {
+      try { console.warn('[endTurn] pre-submit minxin hard-link consumers failed', _minxinHardLinkConsumersE); } catch(_){}
+    }
+    try {
+      if (typeof window !== 'undefined' && window.TM && TM.HujiRuntimeBridge && typeof TM.HujiRuntimeBridge.maintain === 'function') {
+        TM.HujiRuntimeBridge.maintain(GM, {
+          source: 'pre-submit-huji-runtime-bridge-after-hard-links',
+          turn: GM && GM.turn
+        });
+      }
+    } catch(_hujiRuntimeBridgeAfterE) {
+      try { console.warn('[endTurn] post-consumer huji runtime bridge failed', _hujiRuntimeBridgeAfterE); } catch(_){}
+    }
+    if (typeof window === 'undefined' || !window.TM || !TM.PartyClassLlmCalibrator || typeof TM.PartyClassLlmCalibrator.flushBeforeSubmit !== 'function') return;
+    if (GM && GM._partyClassPreSubmitBusy) return;
+    if (GM) GM._partyClassPreSubmitBusy = true;
+    var _partyClassCalibration = await TM.PartyClassLlmCalibrator.flushBeforeSubmit({
+      source: 'pre-submit-player-action',
+      phase: 'pre-submit',
+      turn: GM && GM.turn,
+      priority: 'background',
+      timeoutMs: (typeof P !== 'undefined' && P && P.conf && P.conf.partyClassLlmSubmitTimeoutMs) || 45000
+    });
+    try {
+      var _pcApplied = _partyClassCalibration && _partyClassCalibration.applied;
+      var _pcAppliedCount = 0;
+      if (_pcApplied && typeof _pcApplied === 'object') {
+        Object.keys(_pcApplied).forEach(function(k) {
+          var n = Number(_pcApplied[k]);
+          if (isFinite(n) && n > 0) _pcAppliedCount += n;
+        });
+      }
+      if (_pcAppliedCount > 0 && TM.PartyClassActors && typeof TM.PartyClassActors.run === 'function') {
+        if (TM.PartyClassActionScheduler && typeof TM.PartyClassActionScheduler.scheduleBeforeSubmit === 'function') {
+          TM.PartyClassActionScheduler.scheduleBeforeSubmit(GM, {
+            source: 'pre-submit-party-class-action-scheduler-calibrated',
+            turn: GM && GM.turn,
+            skipSignalMaintenance: true,
+            skipRuntimeScan: true
+          });
+        } else {
+          TM.PartyClassActors.run(GM, {
+            source: 'pre-submit-party-class-actors-calibrated',
+            turn: GM && GM.turn
+          });
+        }
+      }
+    } catch(_partyClassActorsAfterE) {
+      try { console.warn('[endTurn] post-calibration party/class actors failed', _partyClassActorsAfterE); } catch(_){}
+    }
+  } catch(_partyClassLlmE) {
+    try { console.warn('[endTurn] pre-submit party/class LLM calibration failed', _partyClassLlmE); } catch(_){}
+  } finally {
+    try { if (GM) GM._partyClassPreSubmitBusy = false; } catch(_){}
+  }
+}
+
 async function _endTurnInternal() {
   try {
     if (typeof _cancelNpcIdleAutonomyLoop === 'function') _cancelNpcIdleAutonomyLoop('endturn_start');
@@ -32,6 +242,7 @@ async function endTurn(){
   } catch(_npcInTurnCancelE) {
     try { console.warn('[endTurn] NPC in-turn timer cancel failed', _npcInTurnCancelE); } catch(_){}
   }
+  await _runPreSubmitPartyClassCalibration();
   _showPostTurnCourtPromptAndStartEndTurn();
 }
 
@@ -718,6 +929,138 @@ EndTurnHooks.registerFragment('scenario-style', function(ctx) {
 });
 
 // fragment·起居注 (原 hook 5 _origPrompt2)
+EndTurnHooks.registerFragment('party-class-calibration', function(ctx) {
+  if (typeof GM === 'undefined' || !GM) return null;
+  var lines = [];
+  var diag = null;
+  try {
+    if (typeof TM !== 'undefined' && TM.PartyClassLlmCalibrator && typeof TM.PartyClassLlmCalibrator.getDiagnostics === 'function') {
+      diag = TM.PartyClassLlmCalibrator.getDiagnostics(GM);
+    }
+  } catch (_) { diag = null; }
+  if (diag) {
+    lines.push('turn=' + diag.turn + ' tier=' + diag.tier + ' seq=' + diag.actionSeq + ' calibrated=' + diag.lastCalibratedSeq);
+    if (diag.lastResult) lines.push('lastCalibration=' + (diag.lastResult.source || '') + ' applied=' + JSON.stringify(diag.lastResult.applied || {}));
+    if (diag.playerSignals && diag.playerSignals.policyTags && diag.playerSignals.policyTags.length) {
+      lines.push('policyTags=' + diag.playerSignals.policyTags.slice(0, 8).join(','));
+    }
+  }
+  try {
+    var edges = GM.partyClassRelations && GM.partyClassRelations.edges;
+    if (edges && typeof edges === 'object') {
+      var relLines = Object.keys(edges).map(function(key) {
+        var e = edges[key] || {};
+        if (!e.className || !e.partyName) return '';
+        var reason = e.lastReason ? ' reason=' + String(e.lastReason).slice(0, 60) : '';
+        return e.className + '<->' + e.partyName + ' affinity=' + e.affinity + ' trust=' + e.trust + ' grievance=' + e.grievance + ' status=' + (e.status || '') + reason;
+      }).filter(Boolean).slice(-8);
+      if (relLines.length) lines.push('relations:\n' + relLines.map(function(x) { return '- ' + x; }).join('\n'));
+    }
+  } catch (_) {}
+  try {
+    if (typeof TM !== 'undefined' && TM.PlayerActionSignals && typeof TM.PlayerActionSignals.formatForPrompt === 'function') {
+      var signals = TM.PlayerActionSignals.formatForPrompt(GM, { limit: 8 });
+      if (signals) lines.push(signals);
+    }
+  } catch (_) {}
+  try {
+    if (typeof TM !== 'undefined' && TM.SocialPoliticalSignals && typeof TM.SocialPoliticalSignals.formatForPrompt === 'function') {
+      var socialSignals = TM.SocialPoliticalSignals.formatForPrompt(GM, { limit: 10 });
+      if (socialSignals) lines.push(socialSignals);
+    }
+  } catch (_) {}
+  try {
+    if (typeof TM !== 'undefined' && TM.ClassMinxinBridge && typeof TM.ClassMinxinBridge.formatForPrompt === 'function') {
+      var classMinxin = TM.ClassMinxinBridge.formatForPrompt(GM, { limit: 8 });
+      if (classMinxin) lines.push(classMinxin);
+    }
+  } catch (_) {}
+  try {
+    if (typeof TM !== 'undefined' && TM.MinxinLedger && typeof TM.MinxinLedger.formatForPrompt === 'function') {
+      var minxinLedger = TM.MinxinLedger.formatForPrompt(GM, { limit: 10 });
+      if (minxinLedger) lines.push(minxinLedger);
+    }
+  } catch (_) {}
+  try {
+    if (typeof TM !== 'undefined' && TM.MinxinPressureActions && typeof TM.MinxinPressureActions.formatForPrompt === 'function') {
+      var minxinPressureActions = TM.MinxinPressureActions.formatForPrompt(GM, { limit: 10 });
+      if (minxinPressureActions) lines.push(minxinPressureActions);
+    }
+  } catch (_) {}
+  try {
+    if (typeof TM !== 'undefined' && TM.MinxinCommitmentTracker && typeof TM.MinxinCommitmentTracker.formatForPrompt === 'function') {
+      var minxinCommitments = TM.MinxinCommitmentTracker.formatForPrompt(GM, { limit: 10 });
+      if (minxinCommitments) lines.push(minxinCommitments);
+    }
+  } catch (_) {}
+  try {
+    if (typeof TM !== 'undefined' && TM.MinxinResponsibilityChain && typeof TM.MinxinResponsibilityChain.formatForPrompt === 'function') {
+      var minxinResponsibility = TM.MinxinResponsibilityChain.formatForPrompt(GM, { limit: 10 });
+      if (minxinResponsibility) lines.push(minxinResponsibility);
+    }
+  } catch (_) {}
+  try {
+    if (typeof TM !== 'undefined' && TM.MinxinHardLinks && typeof TM.MinxinHardLinks.formatForPrompt === 'function') {
+      var minxinHardLinks = TM.MinxinHardLinks.formatForPrompt(GM, { limit: 10 });
+      if (minxinHardLinks) lines.push(minxinHardLinks);
+    }
+  } catch (_) {}
+  try {
+    if (typeof TM !== 'undefined' && TM.MinxinHardLinkConsumers && typeof TM.MinxinHardLinkConsumers.formatForPrompt === 'function') {
+      var minxinHardLinkConsumers = TM.MinxinHardLinkConsumers.formatForPrompt(GM, { limit: 10 });
+      if (minxinHardLinkConsumers) lines.push(minxinHardLinkConsumers);
+    }
+  } catch (_) {}
+  try {
+    if (typeof TM !== 'undefined' && TM.HujiRuntimeBridge && typeof TM.HujiRuntimeBridge.formatForPrompt === 'function') {
+      var hujiRuntimeBridge = TM.HujiRuntimeBridge.formatForPrompt(GM, { limit: 10 });
+      if (hujiRuntimeBridge) lines.push(hujiRuntimeBridge);
+    }
+  } catch (_) {}
+  try {
+    if (typeof TM !== 'undefined' && TM.HujiGovernanceLoop && typeof TM.HujiGovernanceLoop.formatForPrompt === 'function') {
+      var hujiGovernanceLoop = TM.HujiGovernanceLoop.formatForPrompt(GM, { limit: 10 });
+      if (hujiGovernanceLoop) lines.push(hujiGovernanceLoop);
+    }
+  } catch (_) {}
+  try {
+    if (typeof TM !== 'undefined' && TM.PartyClassActionScheduler && typeof TM.PartyClassActionScheduler.formatForPrompt === 'function') {
+      var actorActions = TM.PartyClassActionScheduler.formatForPrompt(GM, { limit: 10 });
+      if (actorActions) lines.push(actorActions);
+    }
+  } catch (_) {}
+  try {
+    var issueLinks = Array.isArray(GM._partyClassCourtIssueLinks) ? GM._partyClassCourtIssueLinks.slice(-8) : [];
+    if (issueLinks.length) {
+      lines.push('courtIssueGoalLinks:\n' + issueLinks.map(function(x) {
+        return '- ' + (x.topic || x.issueId || 'issue') + ' -> party=' + (x.party || '') + ' class=' + (x.className || '') + ' goal=' + String(x.goalText || '').slice(0, 120);
+      }).join('\n'));
+    }
+  } catch (_) {}
+  try {
+    var calibratedIssues = Array.isArray(GM._partyClassCourtIssues) ? GM._partyClassCourtIssues.slice(-8) : [];
+    if (calibratedIssues.length) {
+      lines.push('calibratedCourtIssues:\n' + calibratedIssues.map(function(x) {
+        return '- ' + (x.topic || x.title || x.id || 'issue') + ' status=' + (x.status || '') + ' party=' + (x.sourceParty || '') + ' class=' + (x.sourceClass || x.className || '');
+      }).join('\n'));
+    }
+  } catch (_) {}
+  try {
+    var facLines = (Array.isArray(GM.facs) ? GM.facs : []).filter(function(f) {
+      return f && Array.isArray(f._partyClassLlmHistory) && f._partyClassLlmHistory.length;
+    }).slice(-8).map(function(f) {
+      var last = f._partyClassLlmHistory[f._partyClassLlmHistory.length - 1] || {};
+      var update = last.update || {};
+      return '- ' + (f.name || f.id || 'faction') + ' attitude=' + (f.attitude || '') + ' shortGoal=' + String(f.shortGoal || update.shortGoal || '').slice(0, 100);
+    });
+    if (facLines.length) lines.push('calibratedFactions:\n' + facLines.join('\n'));
+  } catch (_) {}
+  if (!lines.length) return null;
+  return '\n\n=== Party-Class-Faction-Court Calibration Snapshot ===\n'
+    + 'Use this calibrated class/party/faction/court-issue state in the current turn simulation. Treat player signals as evidence, not as fixed permanent pairings.\n'
+    + lines.join('\n');
+});
+
 EndTurnHooks.registerFragment('qiju-history', function(ctx) {
   if (!(P.ai.key && GM.conv && GM.conv.length > 0)) return null;
   var qijuLb = (P.conf && P.conf.qijuLookback) || 5;

@@ -1158,9 +1158,33 @@
         // 处理时局要务更新
         if (p1.current_issues_update && Array.isArray(p1.current_issues_update)) {
           if (!GM.currentIssues) GM.currentIssues = [];
+          function _normalizeIssueUpdate(iu, existing) {
+            if (typeof TM !== 'undefined' && TM.MemoryIssueGovernance && typeof TM.MemoryIssueGovernance.normalizeIssueUpdate === 'function') {
+              return TM.MemoryIssueGovernance.normalizeIssueUpdate(iu, GM, existing);
+            }
+            var _ev = Array.isArray(iu.evidenceRefs) ? iu.evidenceRefs.slice(0, 8) : [];
+            var _hasEv = _ev.length > 0;
+            var _conf = typeof iu.confidence === 'number' ? Math.max(0, Math.min(1, iu.confidence)) : (_hasEv ? 0.55 : 0.4);
+            return {
+              sourceType: iu.sourceType || (existing && existing.sourceType) || 'ai_analysis',
+              authorityLevel: _hasEv ? (iu.authorityLevel || (existing && existing.authorityLevel) || 'ai_analysis') : 'ai_analysis',
+              confidence: _hasEv ? _conf : Math.min(_conf, 0.45),
+              evidenceRefs: _ev,
+              basisRefs: _ev,
+              generatedBy: iu.generatedBy || (existing && existing.generatedBy) || 'sc1.current_issues_update',
+              factStatus: _hasEv ? (iu.factStatus || (existing && existing.factStatus) || 'advisory') : 'advisory_unverified'
+            };
+          }
+          function _recordIssueEdge(edge) {
+            if (typeof TM !== 'undefined' && TM.MemoryIssueGovernance && typeof TM.MemoryIssueGovernance.recordIssueEdge === 'function') {
+              return TM.MemoryIssueGovernance.recordIssueEdge(GM, edge);
+            }
+            return null;
+          }
           p1.current_issues_update.forEach(function(iu) {
             if (!iu.action) return;
             if (iu.action === 'add' && iu.title) {
+              var _issueMeta = _normalizeIssueUpdate(iu, null);
               var newIssue = {
                 id: 'issue_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
                 title: iu.title,
@@ -1168,9 +1192,19 @@
                 description: iu.description || '',
                 status: 'pending',
                 raisedTurn: GM.turn,
-                raisedDate: typeof getTSText === 'function' ? getTSText(GM.turn) : ''
+                raisedDate: typeof getTSText === 'function' ? getTSText(GM.turn) : '',
+                sourceType: _issueMeta.sourceType,
+                authorityLevel: _issueMeta.authorityLevel,
+                confidence: _issueMeta.confidence,
+                evidenceRefs: _issueMeta.evidenceRefs,
+                basisRefs: _issueMeta.basisRefs,
+                generatedBy: _issueMeta.generatedBy,
+                factStatus: _issueMeta.factStatus
               };
               GM.currentIssues.push(newIssue);
+              if (iu.supersedes || iu.replacesId) {
+                _recordIssueEdge({ type: 'supersedes', src: newIssue.id, dst: iu.supersedes || iu.replacesId, reason: iu.reason || iu.edgeReason || 'current issue add' });
+              }
               addEB('\u65F6\u5C40', '\u65B0\u8981\u52A1\uFF1A' + iu.title);
               _dbg('[Issues] add: ' + iu.title);
             } else if (iu.action === 'resolve' && iu.id) {
@@ -1179,15 +1213,31 @@
                 _ri.status = 'resolved';
                 _ri.resolvedTurn = GM.turn;
                 _ri.resolvedDate = typeof getTSText === 'function' ? getTSText(GM.turn) : '';
+                _ri.factStatus = 'resolved_advisory';
+                if (typeof TM !== 'undefined' && TM.MemoryIssueGovernance && typeof TM.MemoryIssueGovernance.createIssueResolutionEdge === 'function') TM.MemoryIssueGovernance.createIssueResolutionEdge(GM, iu.id, iu.id, GM.turn);
+                else _recordIssueEdge({ type: 'supersedes', src: 'issue_resolution:' + iu.id, dst: 'strategic_issue:' + iu.id, reason: iu.reason || 'issue_resolution' });
                 addEB('\u65F6\u5C40', '\u8981\u52A1\u89E3\u51B3\uFF1A' + _ri.title);
                 _dbg('[Issues] resolve: ' + _ri.title);
               }
             } else if (iu.action === 'update' && iu.id) {
               var _ui = GM.currentIssues.find(function(i) { return i.id === iu.id; });
               if (_ui) {
+                var _updatedMeta = _normalizeIssueUpdate(iu, _ui);
                 if (iu.description) _ui.description = iu.description;
                 if (iu.title) _ui.title = iu.title;
                 if (iu.category) _ui.category = iu.category;
+                _ui.sourceType = _updatedMeta.sourceType;
+                _ui.authorityLevel = _updatedMeta.authorityLevel;
+                _ui.confidence = _updatedMeta.confidence;
+                if (Array.isArray(iu.evidenceRefs) || Array.isArray(iu.basisRefs) || !_ui.evidenceRefs || !_ui.evidenceRefs.length) _ui.evidenceRefs = _updatedMeta.evidenceRefs;
+                _ui.basisRefs = _updatedMeta.basisRefs;
+                if (iu.factStatus || !_ui.factStatus || _updatedMeta.factStatus === 'advisory_unverified') _ui.factStatus = _updatedMeta.factStatus;
+                if (iu.supersedes || iu.replacesId) {
+                  _recordIssueEdge({ type: 'supersedes', src: _ui.id, dst: iu.supersedes || iu.replacesId, reason: iu.reason || iu.edgeReason || 'current issue update' });
+                }
+                if (iu.contradicts) {
+                  _recordIssueEdge({ type: 'contradicts', src: _ui.id, dst: iu.contradicts, reason: iu.reason || iu.edgeReason || 'current issue contradiction' });
+                }
                 _dbg('[Issues] update: ' + _ui.title);
               }
             }
@@ -1916,14 +1966,21 @@
                 _sc1qSource: dcf.source_type || (srcCommit && srcCommit.source_type) || '',
                 _sc1qSourceConvId: dcf.source_conv_id || '',
                 _sc1qTarget: (srcCommit && srcCommit.required_npc_action) || '',
-                _sc1qPlayerEmphasis: (srcCommit && srcCommit.player_emphasis) || ''
+                _sc1qPlayerEmphasis: (srcCommit && srcCommit.player_emphasis) || '',
+                sourceRefs: [{ type: 'dialogueCommitment', id: dcf.source_conv_id || (srcCommit && srcCommit.source_conv_id) || ('sc1q-' + _curT + '-' + nm + '-' + arr.length), authority: 'court_report', turn: _curT, role: 'commitment_source' }],
+                basisRefs: []
               };
+              target.basisRefs = target.sourceRefs;
               arr.push(target);
             } else {
               if (dcf.status) target.status = dcf.status;
               if (dcf.feedback) target.feedback = dcf.feedback;
               if (dcf.progressPercent != null) target.progress = Math.max(0, Math.min(100, parseInt(dcf.progressPercent, 10) || 0));
               target.lastUpdateTurn = _curT;
+              if (!Array.isArray(target.sourceRefs) || !target.sourceRefs.length) {
+                target.sourceRefs = [{ type: 'dialogueCommitment', id: dcf.source_conv_id || (srcCommit && srcCommit.source_conv_id) || target.id, authority: 'court_report', turn: _curT, role: 'commitment_source' }];
+              }
+              if (!Array.isArray(target.basisRefs) || !target.basisRefs.length) target.basisRefs = target.sourceRefs;
             }
             if (target.status === 'completed') {
               addEB('对话·履行', nm + '·' + String(taskRef).slice(0, 30) + '·' + String(dcf.feedback || '').slice(0, 40));
@@ -4861,6 +4918,17 @@
         });
         // 过滤掉无法修正的幻觉NPC行动
         p1.npc_actions = p1.npc_actions.filter(function(a) { return !a._hallucinated; });
+      }
+
+      if (p1 && global.TM && global.TM.MemoryTurnInference && typeof global.TM.MemoryTurnInference.enqueuePostTurnCandidates === 'function') {
+        ctx.meta.memoryWriteback = global.TM.MemoryTurnInference.enqueuePostTurnCandidates(GM, p1, { sourceId: 'SC1', forceDraft: true, autoAcceptTrusted: true });
+      }
+
+      if (p1 && global.TM && global.TM.MemoryTurnArchive && typeof global.TM.MemoryTurnArchive.archiveTurn === 'function') {
+        ctx.meta.memoryArchive = global.TM.MemoryTurnArchive.archiveTurn(GM, p1, { sourceId: 'SC1', sourceType: 'aiTurnResult' });
+      }
+      if (ctx.meta.memoryArchive && ctx.meta.memoryArchive.archived && global.TM && global.TM.MemoryTurnRollup && typeof global.TM.MemoryTurnRollup.rebuildFromArchive === 'function') {
+        ctx.meta.memoryRollup = global.TM.MemoryTurnRollup.rebuildFromArchive(GM, { turn: GM && GM.turn });
       }
 
     ctx.results.sc1 = p1;

@@ -1094,7 +1094,7 @@ function _fmtRatio(raw) {
 
 function renderDianshiStage(container) {
   var exam = P.keju.currentExam;
-  var stats = exam.statistics;
+  var stats = exam.statistics || {};  // 防御：殿试阶段若 statistics 未填(codex 改动遗留)·下方 stats.passedCount 直读会崩"科举面板打不开"
   var dianshiCount = exam.dianshiCandidates ? exam.dianshiCandidates.length : 0;
 
   container.innerHTML =
@@ -1807,16 +1807,38 @@ function openKeyiSession(opts) {
     resolved: false
   };
 
-  // 筛全体在京官员（像常朝那样·含文武·排除后妃/太后/公主/太监·玩家除外）
+  var _keyiPlayerFaction = (typeof _cc3_resolvePlayerFaction === 'function')
+    ? _cc3_resolvePlayerFaction()
+    : ((P.playerInfo && P.playerInfo.factionName) || '');
+  var _keyiOfficialWhitelist = /尚书|侍郎|侍读|侍讲|学士|大学士|首辅|次辅|阁臣|内阁|巡抚|总督|提督|经略|督师|总兵|副将|参将|游击|守备|千户|百户|指挥使|指挥同知|指挥佥事|都督|都指挥|京卫|锦衣卫|御史|给事中|都察|科道|道御史|寺卿|少卿|寺丞|郎中|员外郎|主事|中书|翰林|通政|光禄|鸿胪|太仆|太常|太医院|太学|国子祭酒|博士|监正|监副|主簿|府尹|知府|同知|通判|推官|知州|知县|布政|参政|参议|按察|学政|提学|盐运|府丞|司礼|秉笔|掌印|总管|提督东厂|提督西厂|提督内官|镇守|戍守|经制|提刑|按抚|宣慰|宣抚|安抚使|大行|侍中|常侍|内臣|少傅|少保|少师|太傅|太保|太师/;
   var attendees = (GM.chars || []).filter(function(c){
     if (!c || c.alive === false || c.isPlayer) return false;
-    if (!_isAtCapital(c)) return false;
-    // 排除后妃·嫔·贵人·太后·太妃·公主/郡主
-    if (c.spouse) return false;
-    var role = c.role || '';
-    if (/\u540E|\u5983|\u5AD4|\u8D35\u4EBA|\u592A\u540E|\u592A\u5983|\u516C\u4E3B|\u90E1\u4E3B|\u592A\u76D1|\u5B66\u751F/.test(role)) return false;
-    var t = (c.officialTitle || c.title || '');
-    if (/\u7687\u540E|\u8D35\u5983|\u8D24\u5983|\u6DD1\u5983|\u5BB8\u5983|\u5AAC\u5983|\u5BB9\u534E|\u5145\u4EAA|\u592A\u540E|\u592A\u5983|\u516C\u4E3B|\u90E1\u4E3B|\u592A\u76D1/.test(t)) return false;
+    if (typeof _cc3_isOwnFaction === 'function') {
+      if (!_cc3_isOwnFaction(c, _keyiPlayerFaction)) return false;
+    } else if (_keyiPlayerFaction && c.faction && c.faction !== _keyiPlayerFaction) {
+      return false;
+    }
+    if (typeof _cc3_isCourtOfficial === 'function') {
+      if (!_cc3_isCourtOfficial(c)) return false;
+    } else {
+      if (c.spouse) return false;
+      var role = c.role || '';
+      if (/\u540E|\u5983|\u5AD4|\u8D35\u4EBA|\u592A\u540E|\u592A\u5983|\u516C\u4E3B|\u90E1\u4E3B|\u592A\u76D1|\u5B66\u751F/.test(role)) return false;
+      var t = (c.officialTitle || c.title || '');
+      if (!t) return false;
+      if (/\u7687\u540E|\u8D35\u5983|\u8D24\u5983|\u6DD1\u5983|\u5BB8\u5983|\u5AAC\u5983|\u5BB9\u534E|\u5145\u4EAA|\u592A\u540E|\u592A\u5983|\u516C\u4E3B|\u90E1\u4E3B|\u592A\u76D1|\u76D1\u751F$|\u79C0\u624D$|\u4E3E\u4EBA$|\u751F\u5458$|\u7AE5\u751F|\u5EB6\u5409\u58EB$|\u5E73\u6C11|\u5E03\u8863|\u8349\u6C11|\u5EB6\u4EBA|\u767E\u59D3|\u4F7F\u8282|\u5916\u4F7F|\u5546\u9986|\u6B96\u6C11/.test(t)) return false;
+      if (!_keyiOfficialWhitelist.test(t)) return false;
+    }
+    if (typeof _cc3_classifyAbsent === 'function') {
+      if (_cc3_classifyAbsent(c)) return false;
+    } else {
+      if (typeof _isAtCapital === 'function' && !_isAtCapital(c)) return false;
+      if (c._imprisoned || c.imprisoned || c._inJail || c._jailed) return false;
+      if (c._exiled || c._banished || c._retired || c._zhi_shi) return false;
+      if (c._mourning || c._inMourning || c._fled || c._missing) return false;
+      if (typeof c.health === 'number' && c.health <= 10) return false;
+      if (c._sickLeave || c._sick || c._punished || c._restricted || c._reflecting) return false;
+    }
     return true;
   });
   if (attendees.length < 3) { toast('\u4EAC\u4E2D\u5B98\u5458\u4E0D\u8DB3\u4E09\u4EBA\u00B7\u65E0\u6CD5\u5F00\u79D1\u8BAE'); return; }
@@ -2121,11 +2143,13 @@ async function _keyiStreamRound() {
     var tokens = 800;
     var bubble = _$(streamId); var txt = bubble ? bubble.querySelector('.keyi-bubble-text') : null;
     var full = '';
+    var _keyiTier = (typeof _useSecondaryTier === 'function' && _useSecondaryTier()) ? 'secondary' : undefined;
     try {
       if (typeof callAIMessagesStream === 'function') {
         full = await callAIMessagesStream(
           [{ role: 'user', content: prompt }], tokens,
           {
+            tier: _keyiTier,
             onChunk: function(t){
               if (!txt) return;
               // 解析第一行 stance
@@ -2138,7 +2162,7 @@ async function _keyiStreamRound() {
           }
         );
       } else {
-        full = await callAISmart(prompt, tokens, { maxRetries: 1 });
+        full = await callAISmart(prompt, tokens, { maxRetries: 1, tier: _keyiTier });
       }
     } catch(e) {
       console.warn('[\u79D1\u8BAE\u6D41\u5F0F] \u53D1\u8A00\u5931\u8D25', s.name, e);
@@ -2310,7 +2334,8 @@ async function _keyiGenAllStances() {
       '\u8FD4\u56DE JSON: [{"name":"","stance":"support|oppose|abstain","reason":""}, ...]\u00B7\u53EA\u8F93\u51FA JSON\u3002';
     try {
       var _tokBudget = (P.conf && P.conf.maxOutputTokens) || (P.conf && P.conf._detectedMaxOutput) || 4000;
-      var raw = await callAISmart(prompt, _tokBudget, { maxRetries: 1 });
+      var _keyiVoteTier = (typeof _useSecondaryTier === 'function' && _useSecondaryTier()) ? 'secondary' : undefined;
+      var raw = await callAISmart(prompt, _tokBudget, { maxRetries: 1, tier: _keyiVoteTier });
       var parsed = (typeof extractJSON === 'function') ? extractJSON(raw) : null;
       if (!parsed) { var m = raw.match(/\[[\s\S]*\]/); if (m) try { parsed = JSON.parse(m[0]); } catch(_){} }
       if (Array.isArray(parsed)) {

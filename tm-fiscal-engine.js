@@ -1732,6 +1732,25 @@
     };
   }
 
+  // 从国库确定性支出·走 ledger（扣 stock + 回写标量·面板即时反映）。amounts:{money,grain,cloth}。
+  //   供"建军招募开销/补饷"等复用——AI 定额、此处落账，绝不让花费飘在叙事里；国库不足则尽扣并记欠（deficit）。
+  function spendFromGuoku(amounts, sinkTag) {
+    var G = getGame();
+    if (!G) return { ok: false, reason: 'no GM' };
+    amounts = amounts || {};
+    var L = ensureGuoku(G);
+    reconcileLedgerScalar(L.money, G.guoku.money, G.guoku.balance);
+    reconcileLedgerScalar(L.grain, G.guoku.grain, null);
+    reconcileLedgerScalar(L.cloth, G.guoku.cloth, null);
+    var out = {};
+    ['money', 'grain', 'cloth'].forEach(function(kind) {
+      var amt = safeNumber(amounts[kind], 0);
+      out[kind] = (amt > 0) ? deductFromLedger(L[kind], amt, sinkTag || '支出') : { deducted: 0, deficit: 0 };
+    });
+    syncAccountScalars(G.guoku, L);
+    return { ok: true, deducted: out };
+  }
+
   function fixedTick(ctx) {
     try { return fixedCollect(ctx); } catch (e) {
       if (global.TM && global.TM.errors && global.TM.errors.capture) global.TM.errors.capture(e, 'FixedExpense.tick');
@@ -1757,7 +1776,8 @@
     triggerSurvey: triggerSurvey,
     adjustPlayerCompliance: adjustPlayerCompliance,
     adjustPlayerDivisionCorruption: adjustPlayerDivisionCorruption,
-    triggerPlayerSurvey: triggerPlayerSurvey
+    triggerPlayerSurvey: triggerPlayerSurvey,
+    spendFromGuoku: spendFromGuoku
   };
 
   global.FiscalEngine = global.FiscalEngine || {};

@@ -105,6 +105,18 @@ var CY={open:false,topic:"",selected:[],messages:[],speaking:false,abortCtrl:nul
 /**
  * 打开科举面板
  */
+// 历史记录里的 date 字段形态不一：有的是 {year,month} 对象，有的是字符串("天启七年"/getTSText)，
+// 有的整个缺失(_kejuArchiveExam / AI 写入 / 旧存档)。统一成可显示字符串，缺失就返回空，绝不抛错。
+function _kejuFmtDate(d){
+  if(d==null) return '';
+  if(typeof d==='string') return d;
+  if(typeof d==='object'){
+    if(d.year!=null) return d.year+'年'+(d.month!=null?d.month+'月':'');
+    if(d.text) return String(d.text);
+  }
+  return '';
+}
+
 function openKejuPanel(){
   if(!P.keju) P.keju = {enabled:false,history:[],currentExam:null};
   if(!P.keju.history) P.keju.history = [];
@@ -135,7 +147,7 @@ function openKejuPanel(){
       (P.keju.examSubjects?'<p>\u8003\u8BD5\u79D1\u76EE\uFF1A'+escHtml(P.keju.examSubjects)+'</p>':'')+
       (P.keju.quotaPerExam?'<p>\u6BCF\u79D1\u53D6\u58EB\uFF1A'+P.keju.quotaPerExam+'\u4EBA\u8FDB\u5165\u6BBE\u8BD5</p>':'')+
       (P.keju.specialRules?'<p>\u7279\u6B8A\u89C4\u5219\uFF1A'+escHtml(P.keju.specialRules)+'</p>':'')+
-      '<p>\u4E0A\u6B21\u79D1\u4E3E\uFF1A'+(P.keju.lastExamDate?P.keju.lastExamDate.year+'\u5E74'+P.keju.lastExamDate.month+'\u6708':'\u4ECE\u672A\u4E3E\u529E')+'</p>';
+      '<p>\u4E0A\u6B21\u79D1\u4E3E\uFF1A'+(_kejuFmtDate(P.keju.lastExamDate)||'\u4ECE\u672A\u4E3E\u529E')+'</p>';
 
     // 显示筹办状态
     if(GM.keju && GM.keju.preparingExam) {
@@ -150,10 +162,13 @@ function openKejuPanel(){
       content+='<div style="background:var(--bg-2);padding:1rem;border-radius:8px;margin-bottom:1rem;">'+
         '<h4 style="color:var(--gold);margin-bottom:0.5rem;">历史记录</h4>';
       P.keju.history.slice(-5).reverse().forEach(function(h){
+        if(!h) return;
+        var _kd = _kejuFmtDate(h.date) || '时间不详';
+        var _t3 = Array.isArray(h.topThree) ? h.topThree : [];
         content+='<div style="padding:0.5rem;background:var(--bg-3);margin-bottom:0.3rem;border-radius:4px;">'+
-          '<p><strong>'+h.date.year+'年'+h.date.month+'月</strong></p>'+
-          '<p style="font-size:0.85rem;color:var(--txt-d);">录取'+h.passedCount+'人，质量：'+h.quality+'</p>'+
-          '<p style="font-size:0.85rem;color:var(--txt-d);">状元：'+h.topThree[0]+'，榜眼：'+h.topThree[1]+'，探花：'+h.topThree[2]+'</p>'+
+          '<p><strong>'+_kd+'</strong></p>'+
+          '<p style="font-size:0.85rem;color:var(--txt-d);">录取'+(h.passedCount!=null?h.passedCount:'?')+'人，质量：'+(h.quality||'—')+'</p>'+
+          '<p style="font-size:0.85rem;color:var(--txt-d);">状元：'+(_t3[0]||'—')+'，榜眼：'+(_t3[1]||'—')+'，探花：'+(_t3[2]||'—')+'</p>'+
           '</div>';
       });
       content+='</div>';

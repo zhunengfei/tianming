@@ -41,6 +41,11 @@
       && TM.FactionNpcLlmDecision);
   }
 
+  function _partyClassEnabled() {
+    return !!(global.TM && TM.PartyClassLlmCalibrator && typeof TM.PartyClassLlmCalibrator.run === 'function'
+      && (!global.P || !P.conf || P.conf.partyClassLlmEnabled !== false));
+  }
+
   function _ensureTurnLedger(turn) {
     if (!global.GM) return null;
     turn = _safeNum(turn) || _turn();
@@ -203,18 +208,51 @@
 
   function cancelInTurnTimers() {
     _cancelTimers('in-turn');
+    _cancelTimers('party-class-llm');
   }
 
   function cancelAllTimers() {
     _cancelTimers('all');
   }
 
+  function _schedulePartyClassLlm(turn, phase, source, delay) {
+    if (!_partyClassEnabled()) return 0;
+    _setTimer(turn, 'party-class-llm', phase || 'player-action', delay, function() {
+      if (!global.TM || !TM.PartyClassLlmCalibrator || typeof TM.PartyClassLlmCalibrator.run !== 'function') {
+        return { skipped: true, reason: 'party/class calibrator missing' };
+      }
+      return TM.PartyClassLlmCalibrator.run({
+        source: source || 'npc-dispatcher-party-class',
+        phase: phase || 'player-action',
+        turn: turn,
+        priority: 'background'
+      }).then(function(result) {
+        var detail = result && result.applied;
+        var count = _safeNum(result && result.appliedCount);
+        if (!count && detail && typeof detail === 'object') {
+          count = _safeNum(detail.relations) + _safeNum(detail.classes) + _safeNum(detail.parties)
+            + _safeNum(detail.factions) + _safeNum(detail.courtIssues) + _safeNum(detail.issueGoalLinks)
+            + _safeNum(detail.goals);
+        }
+        if (result && typeof result === 'object') {
+          result.appliedDetail = detail || null;
+          result.applied = count > 0;
+          result.appliedCount = count;
+          result.attempted = result.attempted || 1;
+        }
+        return result;
+      });
+    });
+    return 1;
+  }
+
   function scheduleInTurnRuns(opts) {
     opts = opts || {};
     cancelInTurnTimers();
-    if (!_enabled()) return { scheduled: 0, reason: 'precision off', dispatcher: true };
     var conf = _conf();
     var turn = _turn(opts);
+    var partyClassScheduled = _schedulePartyClassLlm(turn, 'player-action', 'in-turn-player-action', conf.inTurnFirstDelayMs);
+    if (!_enabled()) return { scheduled: partyClassScheduled, partyClassScheduled: partyClassScheduled, reason: partyClassScheduled ? 'npc precision off; party-class scheduled' : 'precision off', dispatcher: true };
     var maxRuns = Math.max(0, Math.floor(_safeNum(opts.maxRuns) || conf.inTurnMaxPerTurn));
     var step = Math.max(0, conf.inTurnRepeatDelayMs - conf.inTurnFirstDelayMs);
     var scheduled = 0;
@@ -230,15 +268,16 @@
         scheduled++;
       })(i);
     }
-    return { scheduled: scheduled, inTurnScheduled: scheduled, turn: turn, dispatcher: true };
+    return { scheduled: scheduled + partyClassScheduled, inTurnScheduled: scheduled, partyClassScheduled: partyClassScheduled, turn: turn, dispatcher: true };
   }
 
   function scheduleTurnRuns(opts) {
     opts = opts || {};
     cancelAllTimers();
-    if (!_enabled()) return { scheduled: 0, reason: 'precision off', dispatcher: true };
     var conf = _conf();
     var turn = _turn(opts);
+    var partyClassScheduled = 0;
+    if (!_enabled()) return { scheduled: 0, partyClassScheduled: partyClassScheduled, reason: 'precision off', dispatcher: true };
     var scheduled = 0;
     var eagerScheduled = 0;
     var inTurnScheduled = 0;
@@ -268,7 +307,7 @@
         scheduled++;
       })(i);
     }
-    return { scheduled: scheduled, eagerScheduled: eagerScheduled, inTurnScheduled: inTurnScheduled, turn: turn, dispatcher: true };
+    return { scheduled: scheduled + partyClassScheduled, eagerScheduled: eagerScheduled, inTurnScheduled: inTurnScheduled, partyClassScheduled: partyClassScheduled, turn: turn, dispatcher: true };
   }
 
   function getDiagnostics(turn) {

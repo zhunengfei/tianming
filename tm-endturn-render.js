@@ -23,7 +23,7 @@
 //   §9 [L1600] 角色高亮工具 + 史官弹窗
 // ============================================================
 
-function _endTurn_render(shizhengji, zhengwen, playerStatus, playerInner, edicts, xinglu, oldVars, changeReportHtml, queueResult, suggestions, tyrantResult, turnSummary, shiluText, szjTitle, szjSummary, personnelChanges, hourenXishuo) {
+function _endTurn_render(shizhengji, zhengwen, playerStatus, playerInner, edicts, xinglu, oldVars, changeReportHtml, queueResult, suggestions, tyrantResult, turnSummary, shiluText, szjTitle, szjSummary, personnelChanges, hourenXishuo, recordLineage) {
   // 本地获取结束回合按钮（旧代码曾引用闭包外 btn，导致 ReferenceError）
   var btn = (typeof _$ === 'function' ? (_$("btn-end") || _$("btn-end-turn")) : null);
   if (!btn) btn = { textContent:'', style:{} };  // stub，防止 btn.textContent 抛错
@@ -1160,7 +1160,33 @@ function _endTurn_render(shizhengji, zhengwen, playerStatus, playerInner, edicts
   var _fullHtml = layer1Html + layer2Html;
   // 收集本回合玩家下的诏令（edicts 参数存的是按分类的原文）
   var _thisTurnEdicts = edicts || {};
+  var _lineageBasisRefs = [];
+  try {
+    if (recordLineage && Array.isArray(recordLineage.basis_refs)) _lineageBasisRefs = recordLineage.basis_refs;
+    else if (recordLineage && Array.isArray(recordLineage.basisRefs)) _lineageBasisRefs = recordLineage.basisRefs;
+  } catch(_) { _lineageBasisRefs = []; }
+  var _recordMeta = null;
+  var _evidenceRefs = [];
+  try {
+    if (window.TM && TM.MemorySourceBound && typeof TM.MemorySourceBound.buildRecordMetadata === 'function') {
+      _recordMeta = TM.MemorySourceBound.buildRecordMetadata(GM, {
+        type: 'shijiHistory',
+        turn: GM.turn - 1,
+        text: [shizhengji, zhengwen, shiluText, szjTitle, szjSummary, turnSummary].filter(Boolean).join('\n'),
+        authority: 'official_record',
+        visibility: 'public',
+        role: 'record',
+        lane: 'L6_retrieved_evidence',
+        aiBasisRefs: _lineageBasisRefs,
+        maxBasisRefs: 24
+      });
+      _evidenceRefs = _recordMeta.basisRefs;
+    } else if (window.TM && TM.MemoryEvidenceRegistry && typeof TM.MemoryEvidenceRegistry.buildBasisRefs === 'function') {
+      _evidenceRefs = TM.MemoryEvidenceRegistry.buildBasisRefs(GM, { maxRefs: 16 });
+    }
+  } catch(_) { _evidenceRefs = []; }
   GM.shijiHistory.push({
+    id: _recordMeta && _recordMeta.id,
     turn: GM.turn-1, time: getTSText(GM.turn-1),
     shizhengji: shizhengji, zhengwen: zhengwen,
     playerStatus: playerStatus, playerInner: playerInner,
@@ -1168,6 +1194,16 @@ function _endTurn_render(shizhengji, zhengwen, playerStatus, playerInner, edicts
     // 新增字段
     shilu: shiluText, szjTitle: szjTitle, szjSummary: szjSummary,
     personnel: personnelChanges, houren: hourenXishuo,
+    sourceType: 'official_record',
+    authorityLevel: 'official_record',
+    confidence: 0.72,
+    sourceRefs: _recordMeta ? _recordMeta.sourceRefs : [],
+    basisRefs: _recordMeta ? _recordMeta.basisRefs : _evidenceRefs,
+    evidenceRefs: _evidenceRefs,
+    contentHash: _recordMeta && _recordMeta.contentHash,
+    basisMaxAuthorityRank: _recordMeta && _recordMeta.basisMaxAuthorityRank,
+    generatedBy: 'endturn.sc1d',
+    factStatus: 'recorded_turn',
     edicts: _thisTurnEdicts,  // 保留玩家诏令全文以便史记回顾+下回合 AI 上下文
     html: _fullHtml
   });
@@ -1187,7 +1223,36 @@ function _endTurn_render(shizhengji, zhengwen, playerStatus, playerInner, edicts
 
   // 8. 写入起居注
   if(!GM.qijuHistory)GM.qijuHistory=[];
-  GM.qijuHistory.push({turn:GM.turn-1,time:getTSText(GM.turn-1),zhengwen:zhengwen});
+  var _qijuMeta = null;
+  try {
+    if (window.TM && TM.MemorySourceBound && typeof TM.MemorySourceBound.buildRecordMetadata === 'function') {
+      _qijuMeta = TM.MemorySourceBound.buildRecordMetadata(GM, {
+        type: 'qijuHistory',
+        turn: GM.turn - 1,
+        text: zhengwen || '',
+        authority: 'official_record',
+        visibility: 'public',
+        role: 'record',
+        lane: 'L6_retrieved_evidence',
+        aiBasisRefs: _lineageBasisRefs,
+        fallbackBasisRefs: _recordMeta && _recordMeta.sourceRefs || [],
+        maxBasisRefs: 16
+      });
+    }
+  } catch(_) { _qijuMeta = null; }
+  GM.qijuHistory.push({
+    id: _qijuMeta && _qijuMeta.id,
+    turn:GM.turn-1,time:getTSText(GM.turn-1),zhengwen:zhengwen,
+    sourceType: 'official_record',
+    authorityLevel: 'official_record',
+    confidence: 0.72,
+    sourceRefs: _qijuMeta ? _qijuMeta.sourceRefs : [],
+    basisRefs: _qijuMeta ? _qijuMeta.basisRefs : [],
+    evidenceRefs: _qijuMeta ? _qijuMeta.basisRefs : [],
+    contentHash: _qijuMeta && _qijuMeta.contentHash,
+    factStatus: 'recorded_narrative',
+    generatedBy: 'endturn.render'
+  });
   renderQiju();
 
   // 9. 清空输入
@@ -1264,7 +1329,7 @@ function _endTurn_render(shizhengji, zhengwen, playerStatus, playerInner, edicts
   if (typeof TM_SaveDB !== 'undefined' && typeof _prepareGMForSave === 'function') {
     (async function() {
       try {
-        if (typeof _awaitPostTurnJobsForSave === 'function') await _awaitPostTurnJobsForSave(['sc25']);
+        if (typeof _awaitPostTurnJobsForSave === 'function') await _awaitPostTurnJobsForSave(typeof _postTurnSaveRequiredIds === 'function' ? _postTurnSaveRequiredIds() : ['sc25', 'sc25c']);
         _prepareGMForSave();
     // A-1·端回合自动封存·走 selective snapshot·deepClone(GM) 2-5s 同步 → 400-600ms
     var _autoT0 = Date.now();
@@ -1308,6 +1373,14 @@ function _endTurn_render(shizhengji, zhengwen, playerStatus, playerInner, edicts
       // 玩家操作
       var playerInput={edicts:edicts,xinglu:xinglu,memorialResponses:(GM.memorials||[]).map(function(m){return{from:m.from,type:m.type,status:m.status,reply:m.reply};}),tyrantActivities:GM._turnTyrantActivities||[]};
       // AI推演全部结果（从GM临时存储中提取）
+      try {
+        if (window.TM && TM.MemoryTrace && typeof TM.MemoryTrace.finalizeTurnTrace === 'function') {
+          var _mtTrace = TM.MemoryTrace.finalizeTurnTrace(GM);
+          if (_mtTrace && _mtTrace.summary && typeof recordMemoryDiagnostic === 'function') {
+            recordMemoryDiagnostic('trace', { status: 'finalized', summary: _mtTrace.summary });
+          }
+        }
+      } catch(_mtE) {}
       var aiResults=GM._turnAiResults||{};
       // 变量变化
       var varChanges={_timeScale: P.time ? P.time.perTurn : '1m', _customDays: P.time ? P.time.customDays : null};
@@ -1339,7 +1412,7 @@ function _endTurn_render(shizhengji, zhengwen, playerStatus, playerInner, edicts
     if(_asTurns>0&&GM.turn%_asTurns===0){
       (async function(){
         try{
-          if (typeof _awaitPostTurnJobsForSave === 'function') await _awaitPostTurnJobsForSave(['sc25']);
+          if (typeof _awaitPostTurnJobsForSave === 'function') await _awaitPostTurnJobsForSave(typeof _postTurnSaveRequiredIds === 'function' ? _postTurnSaveRequiredIds() : ['sc25', 'sc25c']);
           if (typeof _prepareGMForSave === 'function') _prepareGMForSave();
           // A-1·N 回合 autoSave 走 selective snapshot
           var _asd=deepClone(P);

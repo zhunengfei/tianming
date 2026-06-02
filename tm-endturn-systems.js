@@ -80,6 +80,24 @@ async function _endTurn_updateSystems(timeRatio, zhengwen) {
     }
   } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] HujiDeepFill(early) 失败:') : console.error('[endTurn] HujiDeepFill(early) 失败:', e); }
   // 标记已早跑，后文跳过
+  try {
+    if (typeof TM !== 'undefined' && TM.HujiGovernanceLoop && typeof TM.HujiGovernanceLoop.tick === 'function') {
+      TM.HujiGovernanceLoop.tick(GM, {
+        source: 'endturn-huji-governance',
+        turn: GM.turn,
+        monthRatio: monthRatio
+      });
+    }
+  } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] HujiGovernanceLoop failed:') : console.error('[endTurn] HujiGovernanceLoop failed:', e); }
+  try {
+    if (typeof TM !== 'undefined' && TM.HujiRuntimeBridge && typeof TM.HujiRuntimeBridge.maintain === 'function') {
+      TM.HujiRuntimeBridge.maintain(GM, {
+        source: 'endturn-huji-runtime-bridge',
+        turn: GM.turn,
+        monthRatio: monthRatio
+      });
+    }
+  } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] HujiRuntimeBridge failed:') : console.error('[endTurn] HujiRuntimeBridge failed:', e); }
   GM._hujiEarlyTicked = true;
 
   // 6.02 帑廪引擎回合结算（八源+八支+月度流水+年末决算）
@@ -90,6 +108,15 @@ async function _endTurn_updateSystems(timeRatio, zhengwen) {
   } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] GuokuEngine.tick 失败:') : console.error('[endTurn] GuokuEngine.tick 失败:', e); }
 
   // 6.03 内帑引擎回合结算（6 源+5 支+月度+年末+危机检查）
+  try {
+    if (typeof TM !== 'undefined' && TM.HujiRuntimeBridge && typeof TM.HujiRuntimeBridge.enforceAfterFiscalTick === 'function') {
+      TM.HujiRuntimeBridge.enforceAfterFiscalTick(GM, {
+        source: 'endturn-huji-post-fiscal',
+        turn: GM.turn,
+        monthRatio: monthRatio
+      });
+    }
+  } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] HujiRuntimeBridge post-fiscal failed:') : console.error('[endTurn] HujiRuntimeBridge post-fiscal failed:', e); }
   try {
     if (typeof NeitangEngine !== 'undefined') {
       NeitangEngine.tick({ turn: GM.turn, monthRatio: monthRatio, _monthRatio: monthRatio });
