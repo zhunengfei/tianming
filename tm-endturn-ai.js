@@ -477,6 +477,8 @@
     var oldVars = ctx.input.oldVars;
     var timeRatio = ctx.input.timeRatio;
     var sysP = ctx.prompt.sysP;
+    // [1C·sysBlocks·2026-06-02] sysPFor(scId)：按 profile 取精简 sysP；取不到则回退整条 sysP(安全)。
+    var sysPFor = (ctx.prompt && ctx.prompt.sysPFor) ? ctx.prompt.sysPFor : function(){ return sysP; };
     var tp = ctx.prompt.tp || "";
     var sc = ctx.prompt.sc;
     var _shiluR = ctx.prompt._shiluR, _shiluMin = ctx.prompt._shiluMin, _shiluMax = ctx.prompt._shiluMax;
@@ -1169,7 +1171,7 @@
         '  · 四个检索源：(1) NPC 个人记忆 (2) 长期事势(ChronicleTracker) (3) 史记本传(shijiHistory) (4) 已埋伏笔(_foreshadows)\n' +
         '  · 适合查询的场景：「此人是否真在那回合背叛过」「某改革当年具体推进到哪里」「玩家曾埋下何种伏笔」「某事件距今多少回合」\n' +
         '  · keywords 用具体名词(角色名/事件关键词/政策名)·turnRange 可选(若不填则全档案)·participant 仅 NPC 记忆源使用·minImportance 仅 NPC 记忆源使用';
-      var _sc0Body = {model:P.ai.model||"gpt-4o", messages:[{role:"system",content:_maybeCacheSys(sysP)},{role:"user",content:tp0}], temperature:0.6, max_tokens:_tok(12000)};
+      var _sc0Body = {model:P.ai.model||"gpt-4o", messages:[{role:"system",content:_maybeCacheSys(sysPFor('sc0'))},{role:"user",content:tp0}], temperature:0.6, max_tokens:_tok(12000)};
       if (_modelFamily === 'openai') _sc0Body.response_format = { type: 'json_object' };
       var _sc0Call = await _callEndturnAI(_sc0Body, { id: 'sc0', label: '局势分析', priority: 'normal' });
       {
@@ -1240,7 +1242,7 @@
             + '  · source_type/source_conv_id 必填·apply 时按此 dedup\n'
             + '  · willingness∈[0,1]·根据 NPC 答话语气推断·拒绝/敷衍 < 0.4·热情 > 0.7';
 
-          var _sc1qBody = { model: P.ai.model || 'gpt-4o', messages: [{role:'system', content:_maybeCacheSys(sysP)}, {role:'user', content:tp1q}], temperature: 0.3, max_tokens: _tok(3500) };
+          var _sc1qBody = { model: P.ai.model || 'gpt-4o', messages: [{role:'system', content:_maybeCacheSys(sysPFor('sc1q'))}, {role:'user', content:tp1q}], temperature: 0.3, max_tokens: _tok(3500) };
           // Phase 6 Q1·sc1q strict json_schema (P.ai.openaiStrict=true)·否则 json_object
           var _sc1qRf = _selectResponseFormat(_modelFamily, _buildSc1qJsonSchema);
           if (_sc1qRf) _sc1qBody.response_format = _sc1qRf;
@@ -1400,10 +1402,11 @@
               try {
                 var qText = (q.query || '') + ' ' + keywords.join(' ');
                 if (qText.trim()) {
-                  var vecHits = await SemanticRecall.searchSyncSafe(qText.trim(), { topK: 4, threshold: 0.55 });
+                  var vecHits = await SemanticRecall.searchSyncSafe(qText.trim(), { topK: 4, threshold: (typeof P !== 'undefined' && P && P.conf && P.conf.semanticRecallThreshold != null) ? P.conf.semanticRecallThreshold : 0.45 });
                   if (vecHits && vecHits.length) {
                     vecHits.forEach(function(v) {
-                      allHits.push({ source: 'vector', sub: v.sub, turn: v.turn, text: v.text, sim: v.sim });
+                      // S6(2026-06-03): 带上 origin 稳定 id + sourceRef(指回 shiji/chronicle/foreshadow/eventHistory 源)，令向量 hit 可被 dedup/supersedes/contradicts lineage 治理。
+                      allHits.push({ source: 'vector', sub: v.sub, id: v.id, turn: v.turn, text: v.text, sim: v.sim, sourceRefs: v.id ? [{ type: v.sub || 'vector', id: v.id }] : [] });
                     });
                   }
                 }
@@ -1433,6 +1436,10 @@
                 // 加权总分
                 return vs * 0.45 + imp * 0.20 + rec * 0.15 + sp * 0.15 + dw * 0.05;
               };
+              // S1(2026-06-03): 与 compileFromGM 一致——对命中本回合焦点实体的记忆做 relevance 加成(Gen-Agents)，活召回路也享同等提升。
+              if (global.TM && global.TM.MemoryRetrieval && typeof global.TM.MemoryRetrieval.applyFocusRelevance === 'function' && typeof global.TM.MemoryRetrieval.turnFocusTerms === 'function') {
+                try { global.TM.MemoryRetrieval.applyFocusRelevance(allHits, global.TM.MemoryRetrieval.turnFocusTerms(GM, {})); } catch (_focusRecallE) {}
+              }
               if (global.TM && global.TM.MemoryRetrieval && typeof global.TM.MemoryRetrieval.rankHitsDetailed === 'function') {
                 var _rankedRecall = global.TM.MemoryRetrieval.rankHitsDetailed(allHits, { turn: _curT, GM: GM });
                 allHits = _rankedRecall.ranked || [];
@@ -1875,7 +1882,7 @@
           var tp05 = '\u4EE5\u4E0B\u662F\u8FD1\u671F\u7684\u5B8C\u6574\u4E8B\u4EF6\u8BB0\u5F55\u3001\u5DF2\u57CB\u4F0F\u7B14\u3001AI\u8BB0\u5FC6\u548C\u73A9\u5BB6\u51B3\u7B56\uFF1A\n' + _recentHistory + '\n\n';
           tp05 += '\u8BF7\u8FD4\u56DEJSON\uFF1A\n{"causal_chains":"\u8FD1\u671F\u4E8B\u4EF6\u4E4B\u95F4\u7684\u5B8C\u6574\u56E0\u679C\u5173\u7CFB\u94FE(200\u5B57)","unresolved":"\u5C1A\u672A\u89E3\u51B3\u7684\u7EBF\u7D22\u548C\u60AC\u5FF5\u2014\u2014\u54EA\u4E9B\u4F0F\u7B14\u5E94\u8BE5\u5F15\u7206(150\u5B57)","patterns":"\u53CD\u590D\u51FA\u73B0\u7684\u6A21\u5F0F\u548C\u52A0\u901F\u7684\u8D8B\u52BF(100\u5B57)","player_impact":"\u73A9\u5BB6\u8FD1\u671F\u51B3\u7B56\u7684\u7D2F\u79EF\u5F71\u54CD\u2014\u2014\u54EA\u4E9B\u540E\u679C\u5373\u5C06\u663E\u73B0(150\u5B57)","npc_memories":"\u5404NPC\u5BF9\u8FD1\u671F\u4E8B\u4EF6\u7684\u8BB0\u5FC6\u548C\u60C5\u7EEA\u53D8\u5316(100\u5B57)","momentum":"\u5F53\u524D\u4E16\u754C\u7684\u60EF\u6027\u65B9\u5411\u2014\u2014\u5982\u679C\u6CA1\u6709\u5E72\u9884\uFF0C\u4E8B\u60C5\u4F1A\u5F80\u54EA\u4E2A\u65B9\u5411\u53D1\u5C55(80\u5B57)"}\n';
           tp05 += '\u8FD9\u662F\u4F60\u7684\u6DF1\u5EA6\u5185\u90E8\u5206\u6790\u3002\u8BF7\u5145\u5206\u601D\u8003\u6BCF\u4E00\u6761\u56E0\u679C\u94FE\u3002';
-          var _sc05Body = {model:P.ai.model||"gpt-4o", messages:[{role:"system",content:_maybeCacheSys(sysP)},{role:"user",content:tp05}], temperature:0.5, max_tokens:_tok(5000)};
+          var _sc05Body = {model:P.ai.model||"gpt-4o", messages:[{role:"system",content:_maybeCacheSys(sysPFor('sc05'))},{role:"user",content:tp05}], temperature:0.5, max_tokens:_tok(5000)};
           var _sc05Call = await _callEndturnAI(_sc05Body, { id: 'sc05', label: '因果合成', priority: 'normal' });
           {
             var data05 = _sc05Call.data;
@@ -3388,7 +3395,7 @@
            + 'YOU MUST RETURN JSON ONLY. 不要包裹 markdown 代码块·不要前言·不要解释·不要附加任何 prose。\n'
            + '第一个字符必须是 `{`·最后一个字符必须是 `}`。任何非 JSON 字符都会导致整回合推演失败·后续 sc1b/sc1c/sc1d/sc2 等子调用会全部降级。\n'
            + '若某段叙事字段超出长度·宁可截短不要省略 JSON 结构。';
-      var _sc1Body = {model:P.ai.model||"gpt-4o",messages:[{role:"system",content:_maybeCacheSys(sysP)},{role:"user",content:tp1}],temperature:_sc1Temp,max_tokens:_tok(_sc1BaseTok)};
+      var _sc1Body = {model:P.ai.model||"gpt-4o",messages:[{role:"system",content:_maybeCacheSys(sysPFor('sc1'))},{role:"user",content:tp1}],temperature:_sc1Temp,max_tokens:_tok(_sc1BaseTok)};
       // Phase 6 Q1·strict json_schema 优先 (P.ai.openaiStrict=true)·否则 json_object
       var _sc1Rf = _selectResponseFormat(_modelFamily, _buildSc1JsonSchema);
       if (_sc1Rf) _sc1Body.response_format = _sc1Rf;
@@ -3702,7 +3709,7 @@
         tp1d += '{"shilu_text":"实录' + _shiluMin + '-' + _shiluMax + '字。纯文言史官体，仿《资治通鉴》《明实录》，以月日/是月/上命为句式，只记可验证事实，不评论。","szj_title":"时政记副标题，七字对仗两句，用顿号或逗号分隔。","shizhengji":"时政记正文' + _szjMin + '-' + _szjMax + '字。仿朝政纪要体，分3-5段，逐条复述玩家诏令/奏疏批复/问对朝议，并写执行者、执行过程、阻力、实际效果、遗留隐患。不得编造 SC1 账本没有的变化。","szj_summary":"时政记总结一句话，概括局势与隐患。"}';
         tp1d += '\n可选字段 basis_refs：数组，列出 shilu_text/shizhengji 所依据的 SC1 字段、诏令、问对或奏疏摘要；不得把 basis_refs 当作新增事实。';
         var _sc1dBaseTok = Math.min(_effectiveOutCap || 7000, 7000);
-        var _sc1dBody = {model:P.ai.model||'gpt-4o', messages:[{role:'system', content:_maybeCacheSys(sysP)}, {role:'user', content:tp1d}], temperature:Math.max(0.35, Math.min(0.75, _modelTemp || 0.6)), max_tokens:_tok(_sc1dBaseTok)};
+        var _sc1dBody = {model:P.ai.model||'gpt-4o', messages:[{role:'system', content:_maybeCacheSys(sysPFor('sc1d'))}, {role:'user', content:tp1d}], temperature:Math.max(0.35, Math.min(0.75, _modelTemp || 0.6)), max_tokens:_tok(_sc1dBaseTok)};
         if (_modelFamily === 'openai') _sc1dBody.response_format = { type:'json_object' };
         var _sc1dCall = await _callEndturnAI(_sc1dBody, {
           id: 'sc1d',

@@ -2014,6 +2014,49 @@
           });
         }
 
+        // #1·帝王治术 court-level 涟漪：本回合问对赏罚的集体后果（滥刑→在京群臣震恐离心·广恩→归心；有界封顶·经 canonical adjustCharacterLoyalty·prompt 已去重）
+        if (GM._wdRewardPunish && Array.isArray(GM._wdRewardPunish)) {
+          var _ccRp = GM._wdRewardPunish.filter(function(r){ return r && r.turn === GM.turn; });
+          if (_ccRp.length) {
+            var _ccHarsh = 0, _ccGrace = 0, _ccTargets = {};
+            _ccRp.forEach(function(r){ _ccTargets[r.target] = true; if (r.type === 'reward') _ccGrace++; else _ccHarsh += (r.detail === 'imprison' ? 3 : (r.detail === 'cane' || r.detail === 'demote') ? 2 : 1); });
+            var _ccDelta = 0, _ccStress = 0, _ccTag = '';
+            if (_ccHarsh >= 3) { _ccDelta = -1; _ccStress = 3; _ccTag = '滥刑·群臣自危'; }
+            else if (_ccGrace >= 2 && _ccHarsh === 0) { _ccDelta = 1; _ccStress = -2; _ccTag = '广恩·朝堂归心'; }
+            if (_ccDelta !== 0) {
+              var _ccN = 0;
+              (GM.chars || []).forEach(function(c) {
+                if (!c || c.isPlayer || c.alive === false || _ccTargets[c.name]) return;
+                if (typeof _wdIsAtCapital === 'function' && !_wdIsAtCapital(c)) return;
+                if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(c, _ccDelta, '帝王治术·' + _ccTag, { source:'wendui-court-conduct' });
+                else c.loyalty = Math.max(0, Math.min(100, ((typeof c.loyalty === 'number') ? c.loyalty : 50) + _ccDelta));
+                if (_ccStress) c.stress = Math.max(0, Math.min(100, (c.stress || 0) + _ccStress));
+                _ccN++;
+              });
+              if (_ccN && typeof addEB === 'function') addEB('朝堂', '帝王治术（' + _ccTag + '）·在京 ' + _ccN + ' 员忠诚' + (_ccDelta > 0 ? '+' : '') + _ccDelta);
+            }
+          }
+        }
+
+        // ④ 朝堂噤声：本回合屡拒忠谏（拒见 warn 求见）→ 在京忠正之臣集体心灰、噤声自保（接 #1 帝王治术涟漪·只伤忠正者·谄佞本不谏）
+        if (Array.isArray(GM._wdRefusedCounsel)) {
+          var _rcThis = GM._wdRefusedCounsel.filter(function(r){ return r && r.turn === GM.turn; });
+          if (_rcThis.length >= 2) {
+            var _silN = 0;
+            (GM.chars || []).forEach(function(c){
+              if (!c || c.isPlayer || c.alive === false) return;
+              if (typeof _wdIsAtCapital === 'function' && !_wdIsAtCapital(c)) return;
+              if ((c.loyalty || 50) < 55) return;  // 只忠正之臣会因"进言无用"心灰
+              if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(c, -1, '帝屡拒忠谏·群臣噤声自保', { source:'wendui-counsel-chill' });
+              else c.loyalty = Math.max(0, Math.min(100, ((typeof c.loyalty === 'number') ? c.loyalty : 50) - 1));
+              c.stress = Math.max(0, Math.min(100, (c.stress || 0) + 2));
+              _silN++;
+            });
+            GM._courtSilenced = GM.turn;  // 噤声标记（供求见/进谏意愿参考）
+            if (_silN && typeof addEB === 'function') addEB('朝堂', '帝屡拒忠谏（' + _rcThis.length + ' 起）·群臣噤声自保（在京 ' + _silN + ' 忠正之臣离心）');
+          }
+        }
+
         // Phase 2.5·dialogue_commitment_feedback apply (与 commitment_update 故意分离·source_conv_id 关联)
         // SC1 输出此字段·sc1q→SC1→apply 闭环·apply 时根据 source_conv_id 找对应 commit·非命中则新建 (sc1q-only commit)
         if (p1.dialogue_commitment_feedback && Array.isArray(p1.dialogue_commitment_feedback)) {

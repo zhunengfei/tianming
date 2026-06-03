@@ -163,7 +163,9 @@ var ChronicleSystem = {
           content: parsed.chronicle || result,
           afterword: parsed.afterword || '',
           read: false,
-          generatedAt: Date.now()
+          generatedAt: Date.now(),
+          authorityLevel: 'official_record',
+          confidence: 0.8
         };
 
         // 限制年度正史数量

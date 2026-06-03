@@ -109,6 +109,8 @@
     var diagnostics = { kept: [], suppressed: [], guaranteed: 0, filled: 0, dropped: 0 };
 
     function canFit(zone) {
+      // S4: per-zone cap — a zone whose own maxTokens is set cannot exceed it (prevents one section ballooning).
+      if (zone.maxTokens && zone.tokenEstimate > zone.maxTokens) return false;
       return !maxTokens || (used + zone.tokenEstimate <= maxTokens);
     }
 

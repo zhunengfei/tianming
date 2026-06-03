@@ -58,6 +58,8 @@
         sourceType: track.sourceType || null,
         sourceId: track.sourceId || null,
         status: track.status || 'active',
+        authorityLevel: track.authorityLevel || 'official_record',
+        confidence: track.confidence != null ? track.confidence : 0.7,
         result: null,
         lastUpdateTurn: G.turn || 1
       };

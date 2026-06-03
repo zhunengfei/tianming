@@ -119,7 +119,8 @@ function _cy_jishiAdd(kind, topic, speaker, line, meta) {
       mediation: !!meta.mediation,
       playerInterject: !!meta.playerInterject,
       rescued: !!meta.rescued,
-      secret: !!meta.secret
+      secret: !!meta.secret,
+      outcome: meta.outcome || ''   // 决议结论(仅 final 决议条有意义·史官实录纪事「结论」区块读此)
     });
 
     if (meta.final || meta.leaked || meta.playerInterject) {

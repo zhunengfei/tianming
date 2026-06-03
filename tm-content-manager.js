@@ -41,7 +41,16 @@
   };
 
   function desktop() {
-    return !!(window.tianming && window.tianming.isDesktop);
+    // 移植 S1.x 纠正（推翻 S0.3 的 isNative）：本文件这些闸内部全是 `window.tianming.X`，
+    // 真实语义是「有没有 IPC 桥」=仅 electron，而非「有没有原生能力」(isNative)。
+    // S0.3 误读成 isNative → capacitor(isNative=true) 会撞进 window.tianming 支（null→崩）。
+    // 回正为读 caps.ipc：
+    //   • electron → ipc=true（≡ 旧 isDesktop，零回归）
+    //   • web/浏览器 → false（≡ 旧，零回归）
+    //   • capacitor → false ⇒ 走 else 的 TM.OnlineClient 浏览器路（= owner「在线一致」，
+    //     CORS 由 CapacitorHttp 原生补丁兜；磁盘类工坊/热更的 capacitor 原生实现属 S1.4/S3）。
+    if (window.TM && window.TM.platform && window.TM.platform.caps) return !!window.TM.platform.caps.ipc;
+    return !!(window.tianming && window.tianming.isDesktop); // TM.platform 未就绪时兜底
   }
 
   function esc(s) {
@@ -169,11 +178,15 @@
       '.tm-tab:hover{background:rgba(214,177,93,.12);color:#f6e5b7;}',
       '.tm-tab.is-active{background:linear-gradient(180deg,rgba(142,38,28,.86),rgba(63,20,15,.92));border-color:rgba(214,177,93,.72);color:#ffe3a1;}',
       '.tm-online-shell>div:last-child{min-height:0;display:grid;grid-template-rows:auto 1fr;}',
-      '.tm-online-body{min-height:0;padding:1rem;overflow-y:auto;overflow-x:hidden;}',
+      '.tm-online-body{min-height:0;padding:1rem;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:rgba(214,177,93,.4) transparent;}',
+      '.tm-online-body::-webkit-scrollbar{width:9px;}',
+      '.tm-online-body::-webkit-scrollbar-thumb{background:rgba(214,177,93,.32);border:2px solid transparent;background-clip:padding-box;border-radius:6px;}',
+      '.tm-online-body::-webkit-scrollbar-thumb:hover{background:rgba(214,177,93,.55);background-clip:padding-box;}',
       '.tm-grid-2{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(280px,.9fr);gap:.8rem;}',
       '.tm-grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.55rem;}',
       '.tm-panel{border:1px solid rgba(214,177,93,.25);background:linear-gradient(180deg,rgba(255,244,199,.055),rgba(0,0,0,.13));padding:.9rem;min-width:0;}',
-      '.tm-panel h4{margin:0 0 .65rem;color:var(--gold,#d8b56a);font-size:.92rem;font-weight:800;}',
+      '.tm-panel h4{margin:0 0 .65rem;color:var(--gold,#d8b56a);font-size:.92rem;font-weight:800;display:flex;align-items:center;gap:.5rem;}',
+      '.tm-panel h4::before{content:"";flex:0 0 auto;width:4px;height:.95rem;background:linear-gradient(180deg,#f0d68a,#a9762e);box-shadow:0 0 6px rgba(214,177,93,.4);}',
       '.tm-copy{font-size:.76rem;line-height:1.65;color:rgba(234,223,203,.72);}',
       '.tm-field{display:grid;gap:.28rem;margin-top:.65rem;}',
       '.tm-field label{font-size:.72rem;color:rgba(214,177,93,.92);}',
@@ -204,6 +217,39 @@
       '.tm-progress{height:7px;background:rgba(255,255,255,.08);border:1px solid rgba(214,177,93,.22);margin-top:.5rem;overflow:hidden;}',
       '.tm-progress i{display:block;height:100%;background:linear-gradient(90deg,#a92f25,#d9b96b);}',
       '.tm-account-seal{display:grid;place-items:center;min-height:138px;border:1px solid rgba(214,177,93,.22);background:radial-gradient(circle,rgba(157,39,28,.35),rgba(0,0,0,.08) 62%);color:#f0d58a;font-size:.85rem;text-align:center;padding:1rem;}',
+      // 已登录身份牌
+      '.tm-acct-card{display:grid;grid-template-columns:auto 1fr;gap:.85rem;align-items:center;padding:.85rem .9rem;border:1px solid rgba(214,177,93,.32);background:linear-gradient(120deg,rgba(157,39,28,.28),rgba(255,244,199,.05) 70%);}',
+      '.tm-acct-seal{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;border:2px solid rgba(214,177,93,.7);background:radial-gradient(circle at 50% 38%,rgba(183,70,53,.6),rgba(10,7,5,.92));color:#ffe6ad;font-size:1.6rem;font-weight:800;box-shadow:inset 0 0 10px rgba(0,0,0,.5),0 0 0 1px rgba(255,238,184,.18);text-shadow:0 1px 2px rgba(0,0,0,.6);}',
+      '.tm-acct-name{font-size:1.18rem;font-weight:800;color:#f7e7b8;line-height:1.2;}',
+      '.tm-acct-sub{margin-top:.25rem;font-size:.74rem;color:rgba(234,223,203,.66);word-break:break-all;}',
+      '.tm-acct-badge{display:inline-flex;align-items:center;min-height:20px;padding:0 .42rem;margin-top:.4rem;border:1px solid rgba(99,186,132,.5);background:rgba(50,128,79,.16);color:#bfe7c8;font-size:.66rem;}',
+      // 登录主区（邮箱验证码）
+      '.tm-loginbox{margin-top:.7rem;border:1px solid rgba(214,177,93,.34);border-left:3px solid rgba(214,177,93,.85);background:linear-gradient(180deg,rgba(255,244,199,.06),rgba(0,0,0,.16));padding:.7rem .8rem .85rem;}',
+      '.tm-loginbox-h{display:flex;align-items:center;gap:.5rem;font-size:.82rem;font-weight:800;color:#f2d487;}',
+      '.tm-loginbox-h .tm-tagchip{margin-left:auto;}',
+      // 次要区（账号密码）
+      '.tm-subform{margin-top:.7rem;border:1px dashed rgba(214,177,93,.28);background:rgba(0,0,0,.16);padding:.55rem .75rem .75rem;}',
+      '.tm-subform.is-collapsed .tm-subform-body{display:none;}',
+      '.tm-subform-head{display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.76rem;color:rgba(234,223,203,.74);user-select:none;}',
+      '.tm-subform-head .tm-caret{margin-left:auto;color:var(--gold,#d8b56a);transition:transform .18s ease;}',
+      '.tm-subform.is-collapsed .tm-subform-head .tm-caret{transform:rotate(-90deg);}',
+      // 步骤徽标
+      '.tm-step{flex:0 0 auto;width:18px;height:18px;border-radius:50%;display:inline-grid;place-items:center;border:1px solid rgba(214,177,93,.6);background:rgba(214,177,93,.12);color:#f0d58a;font-size:.66rem;font-weight:700;}',
+      // 健康点
+      '.tm-dot{flex:0 0 auto;width:9px;height:9px;border-radius:50%;background:#7c5a2a;box-shadow:0 0 0 2px rgba(0,0,0,.25);}',
+      '.tm-dot.on{background:#6fcf97;box-shadow:0 0 7px rgba(111,207,151,.7);}',
+      '.tm-dot.off{background:#c9624a;box-shadow:0 0 6px rgba(201,98,74,.5);}',
+      // 标签 chip
+      '.tm-tags{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.4rem;}',
+      '.tm-tagchip{display:inline-flex;align-items:center;min-height:20px;padding:0 .45rem;border:1px solid rgba(214,177,93,.3);background:rgba(214,177,93,.09);color:rgba(240,213,138,.92);font-size:.66rem;}',
+      // 分隔线带字
+      '.tm-or{display:flex;align-items:center;gap:.6rem;margin:.85rem 0 .15rem;color:rgba(234,223,203,.5);font-size:.7rem;}',
+      '.tm-or::before,.tm-or::after{content:"";flex:1;height:1px;background:rgba(214,177,93,.22);}',
+      // 总览 feature 卡
+      '.tm-feat{border:1px solid rgba(214,177,93,.2);background:rgba(0,0,0,.18);padding:.6rem .65rem;}',
+      '.tm-feat-h{display:flex;align-items:center;gap:.4rem;margin-bottom:.35rem;}',
+      '.tm-feat-h b{color:#f2d487;font-size:.78rem;}',
+      '.tm-feat-h .tm-pill{margin-left:auto;}',
       '.tm-update-ritual{position:fixed;inset:0;z-index:2700;display:none;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 20%,rgba(154,47,34,.24),transparent 30%),rgba(2,1,1,.86);backdrop-filter:blur(5px);}',
       '.tm-update-ritual.show{display:flex;}',
       '.tm-update-box{width:min(900px,92vw);max-height:min(740px,90vh);display:grid;grid-template-rows:auto minmax(0,1fr) auto;background:linear-gradient(180deg,rgba(42,24,17,.98),rgba(10,7,5,.99));border:1px solid rgba(214,177,93,.7);box-shadow:0 28px 82px rgba(0,0,0,.72),inset 0 0 0 1px rgba(255,238,184,.07);color:#eadfcb;}',
@@ -421,9 +467,10 @@
   }
 
   function featureCard(title, enabled, desc) {
-    return '<div class="tm-card">' +
-      '<div style="display:flex;justify-content:space-between;gap:.5rem;align-items:center;margin-bottom:.35rem;">' +
-        '<b style="color:#f2d487;">' + esc(title) + '</b>' +
+    return '<div class="tm-feat">' +
+      '<div class="tm-feat-h">' +
+        '<span class="tm-dot ' + (enabled ? 'on' : 'off') + '"></span>' +
+        '<b>' + esc(title) + '</b>' +
         pill(enabled ? '可用' : '未启用', enabled ? 'good' : 'off') +
       '</div>' +
       '<div class="tm-copy">' + esc(desc) + '</div>' +
@@ -461,13 +508,45 @@
             kv('服务器时间', h.serverTime || '未返回') +
             kv('离线策略', h.offlineMode || '本地游戏可离线运行') +
           '</div>' +
-          '<div class="tm-status">建议玩家先看这里：若服务正常，再分别进入热更、工坊或账号页；若服务不可用，当前局和本地内容不应被锁死。</div>' +
+          '<div class="tm-status">服务正常时，进入工坊或账号页；服务不可用时，当前局与本地内容照常，不会被锁死。</div>' +
+          '<div class="tm-actions">' +
+            action('进入创意工坊', 'TMContentManager.switchTab(\'workshop\')', 'primary') +
+            action('账号登录', 'TMContentManager.switchTab(\'account\')') +
+          '</div>' +
           '<details class="tm-copy" style="margin-top:.75rem;"><summary style="cursor:pointer;color:var(--gold);">联网端点</summary><pre style="white-space:pre-wrap;font-family:inherit;margin:.45rem 0 0;">' + esc(JSON.stringify(endpoints, null, 2)) + '</pre></details>' +
         '</aside>' +
       '</div>';
   }
 
+  function renderWebUpdateNotice() {
+    var ver = (state.onlineStatus && state.onlineStatus.version) || '';
+    return '' +
+      '<div class="tm-grid-2">' +
+        '<section class="tm-panel">' +
+          '<h4>游戏更新</h4>' +
+          '<div class="tm-copy">网页版始终运行服务器上的最新在线版本，<b style="color:#f2d487;">无需手动更新</b>。前端热更新与安装包更新是桌面客户端专属功能。</div>' +
+          '<div class="tm-status">想要离线游玩、自动热更、本地落盘装包，可下载桌面客户端；网页版与桌面版共用同一套在线工坊与账号体系。</div>' +
+          '<div class="tm-actions">' +
+            action('进入创意工坊', 'TMContentManager.switchTab(\'workshop\')', 'primary') +
+            action('账号登录', 'TMContentManager.switchTab(\'account\')') +
+          '</div>' +
+        '</section>' +
+        '<aside class="tm-panel">' +
+          '<h4>版本信息</h4>' +
+          '<div class="tm-kv">' +
+            kv('运行模式', '网页在线版') +
+            kv('更新方式', '随服务器自动最新') +
+            kv('在线服务版本', ver || '未连接') +
+            kv('离线策略', '本地游戏可离线运行') +
+          '</div>' +
+          '<div class="tm-status">公告与版本说明见「联网总览」与游戏内邸报。</div>' +
+        '</aside>' +
+      '</div>' +
+      '<section class="tm-panel" style="margin-top:.8rem;"><h4>游戏公告摘要</h4><div class="tm-pack-list">' + changelogSummary(3) + '</div></section>';
+  }
+
   function renderUpdateTabV2() {
+    if (!desktop()) return renderWebUpdateNotice();
     var s = state.status || {};
     var url = state.feedUrl || state.defaultFeedUrl || '';
     var h = state.hotStatus || {};
@@ -599,52 +678,129 @@
     '</div>';
   }
 
+  function ratingStars(p) {
+    var avg = Number(p.rating || 0), cnt = Number(p.ratingCount || 0);
+    var full = Math.round(avg);
+    var stars = '';
+    for (var i = 1; i <= 5; i++) stars += (i <= full ? '★' : '☆');
+    return '<span style="color:#e8c46a;font-size:.82rem;letter-spacing:1px;">' + stars + '</span>' +
+      '<span style="color:rgba(234,223,203,.6);font-size:.72rem;margin-left:.35rem;">' + (cnt ? (avg.toFixed(1) + ' · ' + cnt + ' 评') : '暂无评分') + '</span>';
+  }
+
+  function rateControl(p) {
+    var loggedIn = !!(state.accountSession && state.accountSession.user) || (window.TM && TM.OnlineClient && TM.OnlineClient.isLoggedIn());
+    if (!loggedIn) return '';
+    var btns = '';
+    for (var i = 1; i <= 5; i++) {
+      btns += '<span onclick="TMContentManager.ratePack(' + jsArg(p.id || '') + ',' + i + ')" title="' + i + ' 星" style="cursor:pointer;color:#e8c46a;font-size:.95rem;padding:0 1px;">★</span>';
+    }
+    return '<div style="margin-top:.35rem;font-size:.72rem;color:rgba(234,223,203,.6);">我来评：' + btns + '</div>';
+  }
+
   function catalogPackRowV2(p) {
     var disabled = !p.packageUrl;
+    var tags = Array.isArray(p.tags) ? p.tags.filter(Boolean) : [];
+    var tagHtml = tags.length ? '<div class="tm-tags">' + tags.slice(0, 6).map(function(t){ return '<span class="tm-tagchip">' + esc(t) + '</span>'; }).join('') + '</div>' : '';
     return '<div class="tm-pack">' +
       '<div>' +
         '<div class="tm-pack-title">' + esc(p.title || p.id) + '</div>' +
-        '<div class="tm-pack-meta">' + esc(p.id || '未命名') + ' / v' + esc(p.version || '1.0.0') + ' / 作者 ' + esc(p.author || '佚名') + '</div>' +
+        '<div class="tm-pack-meta">v' + esc(p.version || '1.0.0') + ' · 作者 ' +
+          '<span onclick="TMContentManager.loadAuthorPacks(' + jsArg(p.authorId != null ? p.authorId : '') + ',' + jsArg(p.author || '') + ')" style="color:var(--gold,#d8b56a);cursor:pointer;text-decoration:underline;">' + esc(p.author || '佚名') + '</span>' +
+          (p.downloads ? ' · 下载 ' + p.downloads : '') + '</div>' +
+        '<div style="margin-top:.3rem;">' + ratingStars(p) + '</div>' +
         (p.description ? '<div class="tm-pack-desc">' + esc(p.description) + '</div>' : '') +
+        tagHtml +
+        rateControl(p) +
       '</div>' +
       '<div class="tm-actions" style="margin-top:0;justify-content:flex-end;">' +
-        action('在线安装', 'TMContentManager.installCatalogPack(' + jsArg(p.packageUrl || '') + ',' + jsArg(p.sha256 || '') + ')', 'primary', disabled) +
+        action('在线安装', 'TMContentManager.installCatalogPack(' + jsArg(p.packageUrl || '') + ',' + jsArg(p.sha256 || '') + ',' + jsArg(p.id || '') + ')', 'primary', disabled) +
       '</div>' +
     '</div>';
+  }
+
+  function webInstalledRow(rec) {
+    var upd = (state.workshopUpdates || {})[rec.packId];
+    var badge = upd ? '<span style="border:1px solid #7ec98b;color:#7ec98b;font-size:.66rem;padding:.05rem .3rem;margin-left:.4rem;">有新版 ' + esc(upd.to) + '</span>' : '';
+    return '<div class="tm-pack">' +
+      '<div>' +
+        '<div class="tm-pack-title">' + esc(rec.title || rec.packId) + badge + '</div>' +
+        '<div class="tm-pack-meta">' + esc(rec.packId) + ' / v' + esc(rec.version || '1.0.0') + '</div>' +
+      '</div>' +
+      '<div class="tm-actions" style="margin-top:0;justify-content:flex-end;">' +
+        (upd ? action('更新到 ' + upd.to, 'TMContentManager.updateWorkshopPack(' + jsArg(rec.packId) + ')', 'primary') : '') +
+        action('卸载', 'TMContentManager.uninstallWebPack(' + jsArg(rec.packId) + ')', 'danger') +
+      '</div>' +
+    '</div>';
+  }
+
+  function renderLocalWorkshopSection() {
+    if (desktop()) {
+      var localRows = state.packs.length ? state.packs.map(packRowV2).join('') : '<div class="tm-empty">尚未安装创意工坊内容包。</div>';
+      return '<section class="tm-panel">' +
+        '<h4>本地工坊</h4>' +
+        '<div class="tm-copy">本地工坊承接玩家手动导入的 .tm-pack、zip 或单个剧本 JSON。启用的剧本包会在开局前并入剧本列表，停用后不再参与。</div>' +
+        '<div class="tm-actions">' +
+          action('导入工坊包', 'TMContentManager.importPack()', 'primary') +
+          action('刷新列表', 'TMContentManager.refreshPacks()') +
+          action('打开目录', 'TMContentManager.openWorkshopDir()') +
+          action('包格式说明', 'TMContentManager.openFormatDoc()') +
+        '</div>' +
+        '<div class="tm-pack-list">' + localRows + '</div>' +
+      '</section>';
+    }
+    var recs = state.webInstalled || [];
+    var rows = recs.length ? recs.map(webInstalledRow).join('') : '<div class="tm-empty">尚未安装工坊剧本。从右侧在线目录安装。</div>';
+    return '<section class="tm-panel">' +
+      '<h4>已装工坊剧本</h4>' +
+      '<div class="tm-copy">从在线工坊安装的剧本（存于浏览器，开局前并入剧本列表）。点「检查更新」可在作者发布新版后更新到最新。</div>' +
+      '<div class="tm-actions">' +
+        action('检查更新', 'TMContentManager.checkWorkshopUpdates()', 'primary') +
+      '</div>' +
+      '<div class="tm-pack-list">' + rows + '</div>' +
+    '</section>';
   }
 
   function renderWorkshopTabV2() {
     var c = state.catalog || {};
     var user = state.accountSession && state.accountSession.user;
-    var localRows = state.packs.length ? state.packs.map(packRowV2).join('') : '<div class="tm-empty">尚未安装创意工坊内容包。</div>';
+    var authorBack = state.catalogAuthorView ? '<div style="margin:.2rem 0 .5rem;"><span onclick="TMContentManager.loadWorkshopCatalog()" style="color:var(--gold,#d8b56a);cursor:pointer;text-decoration:underline;font-size:.78rem;">← 返回全部目录</span></div>' : '';
     var onlineRows = c.packs && c.packs.length ? c.packs.map(catalogPackRowV2).join('') : '<div class="tm-empty">尚未载入在线目录。检查服务后，可从官方目录安装工坊包。</div>';
     return '' +
       '<div class="tm-grid-2">' +
-        '<section class="tm-panel">' +
-          '<h4>本地工坊</h4>' +
-          '<div class="tm-copy">本地工坊承接玩家手动导入的 .tm-pack、zip 或单个剧本 JSON。启用的剧本包会在开局前并入剧本列表，停用后不再参与。</div>' +
-          '<div class="tm-actions">' +
-            action('导入工坊包', 'TMContentManager.importPack()', 'primary') +
-            action('刷新列表', 'TMContentManager.refreshPacks()') +
-            action('打开目录', 'TMContentManager.openWorkshopDir()') +
-            action('包格式说明', 'TMContentManager.openFormatDoc()') +
-          '</div>' +
-          '<div class="tm-pack-list">' + localRows + '</div>' +
-        '</section>' +
+        renderLocalWorkshopSection() +
         '<section class="tm-panel">' +
           '<h4>在线工坊目录</h4>' +
           '<div class="tm-copy">在线目录由服务器发布 catalog.json。玩家可在游戏内刷新、查看并安装，不需要跳出到网页下载。</div>' +
           '<div class="tm-field"><label for="tm-workshop-catalog">工坊目录地址</label><input class="tm-input" id="tm-workshop-catalog" value="' + esc(state.catalogUrl || state.defaultCatalogUrl || '') + '" placeholder="https://example.com/tianming/workshop/catalog.json"></div>' +
+          '<div class="tm-grid-2" style="gap:.5rem;">' +
+            '<div class="tm-field"><label for="tm-workshop-q">搜索</label><input class="tm-input" id="tm-workshop-q" value="' + esc(state.catalogQuery || '') + '" placeholder="标题 / 作者 / 标签关键词" onkeydown="if(event.key===\'Enter\')TMContentManager.loadWorkshopCatalog()"></div>' +
+            '<div class="tm-field"><label for="tm-workshop-sort">排序</label><select class="tm-input" id="tm-workshop-sort" onchange="TMContentManager.loadWorkshopCatalog()">' +
+              '<option value="new"' + (state.catalogSort === 'new' || !state.catalogSort ? ' selected' : '') + '>最新</option>' +
+              '<option value="hot"' + (state.catalogSort === 'hot' ? ' selected' : '') + '>最热（下载）</option>' +
+              '<option value="rating"' + (state.catalogSort === 'rating' ? ' selected' : '') + '>评分最高</option>' +
+            '</select></div>' +
+          '</div>' +
           '<div class="tm-actions">' +
-            action('刷新在线目录', 'TMContentManager.loadWorkshopCatalog()', 'primary') +
+            action('刷新 / 搜索', 'TMContentManager.loadWorkshopCatalog()', 'primary') +
           '</div>' +
           '<div class="tm-status">' + esc(state.catalogMessage || (c.title ? (c.title + (c.updatedAt ? ' / ' + c.updatedAt : '')) : '尚未载入在线工坊目录。')) + '</div>' +
+          authorBack +
           '<div class="tm-pack-list">' + onlineRows + '</div>' +
         '</section>' +
       '</div>' +
+      (desktop() ? renderUrlPublishSection(user) : renderWebPublishSection(user));
+  }
+
+  function publishStatusHtml(user) {
+    return '<div class="tm-status ' + (state.publishMessage && /失败|错误|请先/.test(state.publishMessage) ? 'warn' : '') + '">' + esc(state.publishMessage || (user ? '当前作者：' + (user.nickname || user.username) : '请先登录账号。')) + '</div>';
+  }
+
+  // 桌面端：登记一个已自托管的 .tm-pack URL（服务器只存元数据 + 地址）。
+  function renderUrlPublishSection(user) {
+    return '' +
       '<section class="tm-panel" style="margin-top:.8rem;">' +
         '<h4>发布到在线工坊</h4>' +
-        '<div class="tm-copy">当前版本先支持“登记发布”：作者登录后，提交已经托管好的 .tm-pack 下载地址、哈希和说明，服务器会把它加入在线目录。真正的二进制上传通道可在下一步接对象存储或服务器上传接口。</div>' +
+        '<div class="tm-copy">登记发布：作者登录后，提交已经托管好的 .tm-pack 下载地址、哈希和说明，服务器会登记到在线目录（经审核后上架）。</div>' +
         '<div class="tm-grid-2" style="margin-top:.7rem;">' +
           '<div>' +
             '<div class="tm-field"><label for="tm-publish-title">标题</label><input class="tm-input" id="tm-publish-title" placeholder="例如：天启朝边镇扩展包"></div>' +
@@ -661,45 +817,155 @@
           action(user ? '登记发布' : '登录后发布', 'TMContentManager.publishWorkshopPack()', 'primary', !user) +
           action('刷新在线目录', 'TMContentManager.loadWorkshopCatalog()') +
         '</div>' +
-        '<div class="tm-status ' + (state.publishMessage && /失败|错误|请先/.test(state.publishMessage) ? 'warn' : '') + '">' + esc(state.publishMessage || (user ? '当前作者：' + (user.nickname || user.username) : '请先登录账号。')) + '</div>' +
+        publishStatusHtml(user) +
       '</section>';
+  }
+
+  // 网页：从玩家自己的剧本库选一个纯文本剧本，上传到工坊（服务器自持 -> 待审）。
+  function renderWebPublishSection(user) {
+    var scns = (window.P && Array.isArray(P.scenarios)) ? P.scenarios : [];
+    var opts = scns.map(function(s){
+      return '<option value="' + esc(s.id) + '">' + esc((s.name || s.id) + (s.era ? '（' + s.era + '）' : '')) + '</option>';
+    }).join('') || '<option value="">（剧本库为空）</option>';
+    return '' +
+      '<section class="tm-panel" style="margin-top:.8rem;">' +
+        '<h4>发布到在线工坊</h4>' +
+        '<div class="tm-copy">从你的剧本库选择一个剧本，上传到在线工坊（纯文本剧本）。提交后经审核通过，其他玩家即可在工坊浏览并安装。带立绘 / 音频等资源的大包请用桌面版发布。</div>' +
+        '<div class="tm-grid-2" style="margin-top:.7rem;">' +
+          '<div>' +
+            '<div class="tm-field"><label for="tm-webpub-scn">选择剧本</label><select class="tm-input" id="tm-webpub-scn">' + opts + '</select></div>' +
+            '<div class="tm-field"><label for="tm-webpub-title">标题</label><input class="tm-input" id="tm-webpub-title" placeholder="留空则用剧本名"></div>' +
+            '<div class="tm-field"><label for="tm-webpub-version">版本</label><input class="tm-input" id="tm-webpub-version" value="1.0.0"></div>' +
+          '</div>' +
+          '<div>' +
+            '<div class="tm-field"><label for="tm-webpub-tags">标签</label><input class="tm-input" id="tm-webpub-tags" placeholder="剧本 明末"></div>' +
+            '<div class="tm-field"><label for="tm-webpub-desc">简介</label><input class="tm-input" id="tm-webpub-desc" placeholder="给玩家看的简短说明"></div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="tm-actions">' +
+          action(user ? '提交发布（待审核）' : '登录后发布', 'TMContentManager.webPublishScenario()', 'primary', !user) +
+          action('刷新在线目录', 'TMContentManager.loadWorkshopCatalog()') +
+        '</div>' +
+        publishStatusHtml(user) +
+      '</section>';
+  }
+
+  function renderResetPanel(recoveryOn) {
+    if (!state.accountResetOpen) return '';
+    return '' +
+      '<section class="tm-panel" style="margin-top:.8rem;">' +
+        '<h4>找回密码</h4>' +
+        '<div class="tm-copy">输入注册时填写的邮箱，收到验证码后重置密码。' + (recoveryOn ? '' : '（服务器尚未配置邮件服务，找回暂不可用。）') + '</div>' +
+        '<div class="tm-grid-2" style="margin-top:.6rem;">' +
+          '<div class="tm-field"><label for="tm-reset-email">邮箱</label><input class="tm-input" id="tm-reset-email" placeholder="注册时填写的邮箱"></div>' +
+          '<div class="tm-field"><label for="tm-reset-code">验证码</label><input class="tm-input" id="tm-reset-code" placeholder="邮件里的 6 位验证码"></div>' +
+        '</div>' +
+        '<div class="tm-field"><label for="tm-reset-pass">新密码</label><input class="tm-input" id="tm-reset-pass" type="password" placeholder="至少 8 位"></div>' +
+        '<div class="tm-actions">' +
+          action('发送验证码', 'TMContentManager.accountRequestReset()', 'primary') +
+          action('重置密码', 'TMContentManager.accountReset()') +
+          action('收起', 'TMContentManager.toggleReset()') +
+        '</div>' +
+        '<div class="tm-status ' + (state.accountResetMessage && /失败|错误|无效|至少|缺少|不正确/.test(state.accountResetMessage) ? 'warn' : '') + '">' + esc(state.accountResetMessage || '') + '</div>' +
+      '</section>';
+  }
+
+  function accountSeal(user) {
+    var nm = (user && (user.nickname || user.username)) || '';
+    var ch = nm ? Array.from(nm)[0] : '宾';
+    return '<div class="tm-acct-seal">' + esc(ch) + '</div>';
+  }
+
+  function renderAccountAside(user) {
+    return '<aside class="tm-panel">' +
+      '<h4>账号权限</h4>' +
+      '<div class="tm-kv">' +
+        kv('工坊作者', user ? (user.nickname || user.username) : '未登录') +
+        kv('注册时间', user && user.createdAt || '未登录') +
+        kv('最近登录', user && user.lastLoginAt || '未登录') +
+        kv('找回邮箱', user ? (user.email || '未设置') : '未登录') +
+      '</div>' +
+      '<div class="tm-status">账号是增强功能，不是启动门槛。设置找回邮箱后，忘记密码也能找回；云存档与跨设备同步将基于此账号。</div>' +
+    '</aside>';
+  }
+
+  function renderAccountLoggedIn(user, recoveryOn) {
+    var noEmail = !user.email;
+    var warn = state.accountMessage && /失败|错误|至少|已存在|请|不正确/.test(state.accountMessage);
+    return '' +
+      '<div class="tm-grid-2">' +
+        '<section class="tm-panel">' +
+          '<h4>账号</h4>' +
+          '<div class="tm-acct-card">' +
+            accountSeal(user) +
+            '<div><div class="tm-acct-name">' + esc(user.nickname || user.username) + '</div>' +
+              '<div class="tm-acct-sub">@' + esc(user.username) + (user.email ? ' · ' + esc(user.email) : '') + '</div>' +
+              '<span class="tm-acct-badge">● 已登录</span></div>' +
+          '</div>' +
+          (noEmail
+            ? '<div class="tm-loginbox" style="border-left-color:#d6a14a;margin-top:.7rem;">' +
+              '<div class="tm-loginbox-h">补设找回邮箱</div>' +
+              '<div class="tm-copy" style="margin:.3rem 0 .1rem;">尚未设置邮箱，忘记密码时将无法找回，建议现在补设。</div>' +
+              '<div class="tm-field"><label for="tm-setemail">邮箱</label><input class="tm-input" id="tm-setemail" placeholder="your@example.com"></div>' +
+              '<div class="tm-actions">' + action('保存邮箱', 'TMContentManager.accountSetEmail()', 'primary') + '</div></div>'
+            : '') +
+          '<div class="tm-actions">' +
+            action('刷新身份', 'TMContentManager.accountRefresh()', 'primary') +
+            action('退出登录', 'TMContentManager.accountLogout()', 'danger') +
+          '</div>' +
+          '<div class="tm-status ' + (warn ? 'warn' : '') + '">' + esc(state.accountMessage || '账号已连接，可在创意工坊以作者身份发布、评分。') + '</div>' +
+        '</section>' +
+        renderAccountAside(user) +
+      '</div>' +
+      renderResetPanel(recoveryOn);
+  }
+
+  function renderAccountLoggedOut(accountsOn, recoveryOn) {
+    var pwOpen = !!state.accountPwOpen;
+    var warn = state.accountMessage && /失败|错误|至少|已存在|请|不正确/.test(state.accountMessage);
+    return '' +
+      '<div class="tm-grid-2">' +
+        '<section class="tm-panel">' +
+          '<h4>账号登录</h4>' +
+          '<div class="tm-copy">账号用于工坊作者身份、评分、订阅与跨设备同步。' + (accountsOn ? '' : '（账号服务连接中……）') + '离线开局、读档与本地工坊始终不受影响。</div>' +
+          '<div class="tm-loginbox">' +
+            '<div class="tm-loginbox-h"><span class="tm-dot on"></span>邮箱验证码登录<span class="tm-tagchip">推荐 · 免密</span></div>' +
+            '<div class="tm-field"><label for="tm-elogin-email"><span class="tm-step">1</span> 邮箱（新邮箱自动注册）</label><input class="tm-input" id="tm-elogin-email" value="' + esc(state.emailLoginAddr || '') + '" placeholder="输入邮箱，点发送验证码"></div>' +
+            '<div class="tm-field"><label for="tm-elogin-code"><span class="tm-step">2</span> 验证码</label><input class="tm-input" id="tm-elogin-code" placeholder="邮件里的 6 位验证码"></div>' +
+            '<div class="tm-actions">' +
+              action('发送验证码', 'TMContentManager.accountEmailCodeRequest()', 'primary') +
+              action('登录', 'TMContentManager.accountEmailLogin()') +
+            '</div>' +
+          '</div>' +
+          '<div class="tm-subform ' + (pwOpen ? '' : 'is-collapsed') + '">' +
+            '<div class="tm-subform-head" onclick="TMContentManager.accountTogglePw()">' +
+              '<span>或：账号密码登录 / 注册</span><span class="tm-caret">▾</span>' +
+            '</div>' +
+            '<div class="tm-subform-body">' +
+              '<div class="tm-field"><label for="tm-account-name">账号</label><input class="tm-input" id="tm-account-name" placeholder="3-24 位中文/英文/数字/下划线"></div>' +
+              '<div class="tm-field"><label for="tm-account-pass">密码</label><input class="tm-input" id="tm-account-pass" type="password" placeholder="至少 8 位"></div>' +
+              '<div class="tm-field"><label for="tm-account-nickname">昵称（注册时可填）</label><input class="tm-input" id="tm-account-nickname" placeholder="显示在工坊作者栏"></div>' +
+              '<div class="tm-field"><label for="tm-account-email">邮箱（注册时填，用于找回密码）</label><input class="tm-input" id="tm-account-email" placeholder="建议填写，否则无法找回密码"></div>' +
+              '<div class="tm-actions">' +
+                action('登录', 'TMContentManager.accountLogin()', 'primary') +
+                action('注册并登录', 'TMContentManager.accountRegister()') +
+              '</div>' +
+              '<div style="margin-top:.45rem;"><span onclick="TMContentManager.toggleReset()" style="color:var(--gold,#d8b56a);font-size:.76rem;cursor:pointer;text-decoration:underline;">忘记密码？</span></div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="tm-status ' + (warn ? 'warn' : '') + '">' + esc(state.accountMessage || '尚未登录。') + '</div>' +
+        '</section>' +
+        renderAccountAside(null) +
+      '</div>' +
+      renderResetPanel(recoveryOn);
   }
 
   function renderAccountTabV2() {
     var h = state.onlineStatus || {};
     var accountsOn = !!(h.features && h.features.accounts);
-    var session = state.accountSession || {};
-    var user = session.user;
-    return '' +
-      '<div class="tm-grid-2">' +
-        '<section class="tm-panel">' +
-          '<h4>账号登录</h4>' +
-          '<div class="tm-copy">账号用于在线工坊作者身份、后续云存档、订阅内容与跨设备同步。没有登录时，本地开局、读档、热更和本地工坊仍然可以使用。</div>' +
-          '<div class="tm-account-seal">' +
-            '<div><div style="font-size:1.25rem;font-weight:800;margin-bottom:.35rem;">' + esc(user ? (user.nickname || user.username) : (accountsOn ? '账号服务可用' : '等待连接账号服务')) + '</div><div>' + esc(user ? ('已登录：' + user.username) : '登录后可发布在线工坊内容。') + '</div></div>' +
-          '</div>' +
-          '<div class="tm-field"><label for="tm-account-name">账号</label><input class="tm-input" id="tm-account-name" value="" placeholder="3-24 位中文/英文/数字/下划线"></div>' +
-          '<div class="tm-field"><label for="tm-account-pass">密码</label><input class="tm-input" id="tm-account-pass" type="password" value="" placeholder="至少 8 位"></div>' +
-          '<div class="tm-field"><label for="tm-account-nickname">昵称（注册时可填）</label><input class="tm-input" id="tm-account-nickname" value="" placeholder="显示在工坊作者栏"></div>' +
-          '<div class="tm-actions">' +
-            action('登录', 'TMContentManager.accountLogin()', 'primary') +
-            action('注册并登录', 'TMContentManager.accountRegister()') +
-            action('刷新身份', 'TMContentManager.accountRefresh()') +
-            action('退出登录', 'TMContentManager.accountLogout()', 'danger', !user) +
-          '</div>' +
-          '<div class="tm-status ' + (state.accountMessage && /失败|错误|至少|已存在|请/.test(state.accountMessage) ? 'warn' : '') + '">' + esc(state.accountMessage || (user ? '账号已连接。' : '尚未登录。')) + '</div>' +
-        '</section>' +
-        '<aside class="tm-panel">' +
-          '<h4>账号权限</h4>' +
-          '<div class="tm-kv">' +
-            kv('工坊作者', user ? (user.nickname || user.username) : '未登录') +
-            kv('注册时间', user && user.createdAt || '未登录') +
-            kv('最近登录', user && user.lastLoginAt || '未登录') +
-            kv('离线模式', '始终保留') +
-          '</div>' +
-          '<div class="tm-status">设计原则：账号是增强功能，不是启动门槛。当前已实装注册、登录、退出、身份刷新和工坊作者发布身份。</div>' +
-        '</aside>' +
-      '</div>';
+    var recoveryOn = !!(h.features && h.features.accountRecovery);
+    var user = (state.accountSession || {}).user;
+    return user ? renderAccountLoggedIn(user, recoveryOn) : renderAccountLoggedOut(accountsOn, recoveryOn);
   }
 
   function renderApplyEntries(entries) {
@@ -929,9 +1195,18 @@
     state.onlineApiUrl = loadOnlineApiUrl();
     await loadChangelog();
     if (!desktop()) {
-      state.status = { error: '当前是网页环境，在线更新和本地工坊安装只在桌面版启用。' };
-      state.hotMessage = '当前是网页环境，热更新只在桌面版启用。';
-      state.onlineMessage = '当前是网页环境，在线服务只在桌面版启用。';
+      // 网页环境：本体更新 / 前端热更 / 本地落盘装包是桌面专属；但在线工坊浏览、
+      // 安装（下剧本 JSON 并入剧本库）与账号走 TM.OnlineClient，照常可用。
+      var webApi = (window.TM && TM.OnlineClient) ? TM.OnlineClient.getApiUrl() : (state.defaultOnlineApiUrl || '');
+      state.defaultOnlineApiUrl = webApi || state.defaultOnlineApiUrl || '';
+      if (!state.defaultCatalogUrl && webApi) state.defaultCatalogUrl = webApi + 'workshop/catalog';
+      if (!state.onlineApiUrl) state.onlineApiUrl = loadOnlineApiUrl();
+      if (!state.catalogUrl) state.catalogUrl = loadCatalogUrl();
+      if (window.TM && TM.OnlineClient) state.accountSession = TM.OnlineClient.getSession();
+      state.status = { error: '网页版：本体更新与本地落盘装包为桌面专属功能。' };
+      state.hotMessage = '网页版：前端热更为桌面专属；网页本身始终是最新在线版本。';
+      state.onlineMessage = '';
+      await refreshWebInstalled();
       render();
       return;
     }
@@ -958,7 +1233,11 @@
   }
 
   async function refreshAccountSession() {
-    if (!desktop() || !window.tianming.accountSession) return null;
+    if (!desktop()) {
+      state.accountSession = (window.TM && TM.OnlineClient) ? TM.OnlineClient.getSession() : state.accountSession;
+      return state.accountSession;
+    }
+    if (!window.tianming.accountSession) return null;
     var res = await window.tianming.accountSession();
     if (res && res.success) state.accountSession = res.session || null;
     return state.accountSession;
@@ -1014,13 +1293,21 @@
     saveOnlineApiUrl(state.onlineApiUrl);
     state.onlineMessage = '正在连接在线服务...';
     render();
-    var res = await window.tianming.onlineServiceStatus(state.onlineApiUrl);
-    if (res && res.success) {
-      state.onlineStatus = res.health || null;
-      state.onlineMessage = '在线服务连接成功。';
-    } else {
+    try {
+      var health;
+      if (desktop()) {
+        var res = await window.tianming.onlineServiceStatus(state.onlineApiUrl);
+        if (!res || !res.success) throw new Error((res && res.error) || '未知错误');
+        health = res.health || null;
+      } else {
+        if (state.onlineApiUrl && window.TM && TM.OnlineClient) TM.OnlineClient.setApiUrl(state.onlineApiUrl);
+        health = await TM.OnlineClient.health(state.onlineApiUrl || undefined);
+      }
+      state.onlineStatus = health || null;
+      state.onlineMessage = (health && health.ok !== false) ? '在线服务连接成功。' : '在线服务返回异常。离线游戏不受影响。';
+    } catch (e) {
       state.onlineStatus = null;
-      state.onlineMessage = '在线服务不可用：' + ((res && res.error) || '未知错误') + '。离线游戏不受影响。';
+      state.onlineMessage = '在线服务不可用：' + (e && e.message || '未知错误') + '。离线游戏不受影响。';
     }
     render();
   }
@@ -1128,30 +1415,254 @@
     await loadWorkshopScenarios(true);
   }
 
+  function catalogUrlWithParams() {
+    var base = state.catalogUrl || state.defaultCatalogUrl || '';
+    if (!base) return base;
+    var parts = [];
+    if (state.catalogSort && state.catalogSort !== 'new') parts.push('sort=' + encodeURIComponent(state.catalogSort));
+    if (state.catalogQuery) parts.push('q=' + encodeURIComponent(state.catalogQuery));
+    if (!parts.length) return base;
+    return base + (base.indexOf('?') >= 0 ? '&' : '?') + parts.join('&');
+  }
+
   async function loadWorkshopCatalog() {
     var input = document.getElementById('tm-workshop-catalog');
     state.catalogUrl = input ? input.value.trim() : state.catalogUrl;
     if (!state.catalogUrl) state.catalogUrl = state.defaultCatalogUrl || '';
+    var qEl = document.getElementById('tm-workshop-q');
+    var sortEl = document.getElementById('tm-workshop-sort');
+    if (qEl) state.catalogQuery = qEl.value.trim();
+    if (sortEl) state.catalogSort = sortEl.value || 'new';
+    state.catalogAuthorView = '';
     saveCatalogUrl(state.catalogUrl);
     state.catalogMessage = '正在载入在线工坊目录...';
     render();
-    var res = await window.tianming.loadWorkshopCatalog(state.catalogUrl);
-    if (res && res.success) {
-      state.catalog = res.catalog || null;
-      state.catalogMessage = '已载入 ' + ((state.catalog && state.catalog.packs && state.catalog.packs.length) || 0) + ' 个在线工坊包。';
-    } else {
-      state.catalogMessage = '载入在线目录失败：' + ((res && res.error) || '未知错误');
+    try {
+      var catalog;
+      var url = catalogUrlWithParams();
+      if (desktop()) {
+        var res = await window.tianming.loadWorkshopCatalog(url);
+        if (!res || !res.success) throw new Error((res && res.error) || '未知错误');
+        catalog = res.catalog || null;
+      } else {
+        catalog = await TM.OnlineClient.catalog(url);
+      }
+      state.catalog = catalog || null;
+      state.catalogMessage = '已载入 ' + ((catalog && catalog.packs && catalog.packs.length) || 0) + ' 个在线工坊包。' + (state.catalogQuery ? '（搜索：' + state.catalogQuery + '）' : '');
+    } catch (e) {
+      state.catalogMessage = '载入在线目录失败：' + (e && e.message || '未知错误');
     }
     render();
   }
 
-  async function installCatalogPack(packageUrl, sha256, overwrite) {
+  async function ratePack(id, score) {
+    if (!(window.TM && TM.OnlineClient && TM.OnlineClient.isLoggedIn())) { state.catalogMessage = '请先登录账号再评分。'; render(); return; }
+    try {
+      var res = await TM.OnlineClient.ratePack(id, score, state.onlineApiUrl || undefined);
+      if (res && res.success) {
+        state.catalogMessage = '已评分：' + score + ' 星（' + id + ' 当前 ' + (res.rating != null ? res.rating : '') + ' 分 / ' + (res.ratingCount || 0) + ' 评）。';
+        await loadWorkshopCatalog();
+      } else {
+        state.catalogMessage = '评分失败：' + ((res && res.error) || '未知错误');
+        render();
+      }
+    } catch (e) {
+      state.catalogMessage = '评分失败：' + (e && e.message || '未知错误');
+      render();
+    }
+  }
+
+  // 网页工坊存储：独立 IndexedDB（不碰主存档库 / current_project，避免被启动期 saveP 覆写）。
+  // 镜像桌面端「磁盘 pack 库 + 启动重新合并」范式：这里存原始剧本 JSON，开局前由
+  // loadWorkshopScenarios() 重新 mergeScenarioData 并入 P.scenarios。
+  var WS_DB_NAME = 'tianming_workshop', WS_STORE = 'packs', _wsDb = null;
+  function wsOpen() {
+    return new Promise(function(resolve, reject){
+      if (_wsDb) return resolve(_wsDb);
+      if (!window.indexedDB) return reject(new Error('当前环境不支持 IndexedDB'));
+      var req = indexedDB.open(WS_DB_NAME, 1);
+      req.onupgradeneeded = function(e){
+        var db = e.target.result;
+        if (!db.objectStoreNames.contains(WS_STORE)) db.createObjectStore(WS_STORE, { keyPath: 'packId' });
+      };
+      req.onsuccess = function(e){ _wsDb = e.target.result; resolve(_wsDb); };
+      req.onerror = function(){ reject(req.error || new Error('打开网页工坊库失败')); };
+    });
+  }
+  function wsPut(record) {
+    return wsOpen().then(function(db){ return new Promise(function(res, rej){
+      var tx = db.transaction(WS_STORE, 'readwrite');
+      tx.objectStore(WS_STORE).put(record);
+      tx.oncomplete = function(){ res(true); };
+      tx.onerror = function(){ rej(tx.error); };
+    }); });
+  }
+  function wsGetAll() {
+    return wsOpen().then(function(db){ return new Promise(function(res, rej){
+      var tx = db.transaction(WS_STORE, 'readonly');
+      var rq = tx.objectStore(WS_STORE).getAll();
+      rq.onsuccess = function(){ res(rq.result || []); };
+      rq.onerror = function(){ rej(rq.error); };
+    }); });
+  }
+  function wsDelete(packId) {
+    return wsOpen().then(function(db){ return new Promise(function(res, rej){
+      var tx = db.transaction(WS_STORE, 'readwrite');
+      tx.objectStore(WS_STORE).delete(packId);
+      tx.oncomplete = function(){ res(true); };
+      tx.onerror = function(){ rej(tx.error); };
+    }); });
+  }
+
+  function findCatalogPack(packId, packageUrl) {
+    var packs = (state.catalog && state.catalog.packs) || [];
+    for (var i = 0; i < packs.length; i++) {
+      if (packId && packs[i].id === packId) return packs[i];
+    }
+    for (var j = 0; j < packs.length; j++) {
+      if (packageUrl && packs[j].packageUrl === packageUrl) return packs[j];
+    }
+    return null;
+  }
+
+  // 网页安装：把工坊剧本的 JSON 直接下载并入剧本库（IndexedDB），无需本地落盘。
+  // 带资源（立绘/音频）的 .tm-pack 打包文件在网页解析为 JSON 会失败，提示改用桌面版。
+  async function installCatalogPackWeb(packageUrl, sha256, packId, metaOverride) {
+    if (!window.P) { say('剧本库尚未就绪，请稍后再试。'); return; }
+    // metaOverride 来自更新流（带权威 version/title）；普通安装则查当前 catalog。
+    var meta = metaOverride || findCatalogPack(packId, packageUrl) || {};
+    state.catalogMessage = '正在下载在线剧本...';
+    render();
+    try {
+      // 相对地址按 catalog 地址解析（对齐桌面端 resolveRemoteUrl(ref, catalogUrl)）
+      var resolvedUrl = packageUrl;
+      try { resolvedUrl = new URL(packageUrl, state.catalogUrl || state.defaultCatalogUrl || location.href).toString(); } catch (e0) {}
+      var resp = await fetch(resolvedUrl, { mode: 'cors', cache: 'no-store' });
+      if (!resp.ok) throw new Error('下载失败 HTTP ' + resp.status);
+      var text = await resp.text();
+      if (text.length > 16 * 1024 * 1024) throw new Error('剧本体积超过网页安装上限（16MB），请用桌面版安装。');
+      var data;
+      try { data = JSON.parse(text); }
+      catch (e) { throw new Error('此工坊包为打包资源（含立绘/音频等），网页版仅支持纯文本剧本，请用桌面版安装。'); }
+      var pack = {
+        id: String(meta.id || packId || data.id || 'workshop-pack'),
+        title: String(meta.title || data.name || data.title || '工坊剧本'),
+        assetBase: '' // 网页安装无本地资源目录；纯文本剧本不应含包内相对资源
+      };
+      var n = mergeScenarioData(pack, data);
+      if (!n) throw new Error('没有可安装的剧本数据。');
+      // 持久化到独立工坊库；开局前 loadWorkshopScenarios 会重新合并（抗启动期 P 覆写）。
+      // 存 version/packageUrl 供后续「检查更新」比对（订阅=安装）。
+      await wsPut({ packId: pack.id, title: pack.title, data: data, enabled: true,
+        installedAt: new Date().toISOString(),
+        version: String(meta.version || data.version || '1.0.0'),
+        packageUrl: packageUrl, sha256: String(meta.sha256 || '') });
+      await refreshWebInstalled();
+      state.catalogMessage = '已安装到剧本库：' + pack.title + '（共 ' + n + ' 个剧本，可在「选择剧本」开局）。';
+      say('已安装工坊剧本：' + pack.title);
+      try {
+        var scnPage = document.getElementById('scn-page');
+        if (scnPage && scnPage.classList.contains('show') && typeof showScnSelect === 'function') showScnSelect();
+      } catch (e2) {}
+      render();
+    } catch (e) {
+      state.catalogMessage = '网页安装失败：' + (e && e.message || '未知错误');
+      render();
+    }
+  }
+
+  function _verParts(v) { return String(v || '0').split('.').map(function(x){ return parseInt(x, 10) || 0; }); }
+  function _verGt(a, b) {
+    var pa = _verParts(a), pb = _verParts(b), n = Math.max(pa.length, pb.length);
+    for (var i = 0; i < n; i++) { var x = pa[i] || 0, y = pb[i] || 0; if (x !== y) return x > y; }
+    return false;
+  }
+
+  async function refreshWebInstalled() {
+    if (desktop()) return;
+    try { state.webInstalled = await wsGetAll(); } catch (e) { state.webInstalled = state.webInstalled || []; }
+  }
+
+  // 订阅=安装：检查已装工坊包是否有新版（作者发新版 + owner 审核通过后）。
+  async function checkWorkshopUpdates() {
+    if (desktop()) { state.catalogMessage = '桌面端工坊更新走本体/热更通道。'; render(); return; }
+    state.catalogMessage = '正在检查工坊更新...';
+    render();
+    var recs = [];
+    try { recs = await wsGetAll(); } catch (e) {}
+    var updates = {};
+    for (var i = 0; i < recs.length; i++) {
+      var r = recs[i];
+      try {
+        var res = await TM.OnlineClient.packMeta(r.packId, state.onlineApiUrl || undefined);
+        if (res && res.success && res.pack && _verGt(res.pack.version, r.version || '0')) {
+          updates[r.packId] = { from: r.version || '?', to: res.pack.version, pack: res.pack };
+        }
+      } catch (e) {}
+    }
+    state.workshopUpdates = updates;
+    await refreshWebInstalled();
+    var cnt = Object.keys(updates).length;
+    state.catalogMessage = cnt ? ('发现 ' + cnt + ' 个工坊包有新版，可点「更新」。') : '已安装的工坊包均为最新。';
+    render();
+  }
+
+  async function updateWorkshopPack(packId) {
+    if (desktop()) return;
+    var info = (state.workshopUpdates || {})[packId];
+    var pack = info && info.pack;
+    if (!pack) {
+      try { var res = await TM.OnlineClient.packMeta(packId, state.onlineApiUrl || undefined); pack = res && res.pack; } catch (e) {}
+    }
+    if (!pack || !pack.packageUrl) { state.catalogMessage = '无法获取该工坊包的最新地址。'; render(); return; }
+    await installCatalogPackWeb(pack.packageUrl, pack.sha256 || '', packId, { version: pack.version, title: pack.title, sha256: pack.sha256 });
+    if (state.workshopUpdates) delete state.workshopUpdates[packId];
+    await refreshWebInstalled();
+    render();
+  }
+
+  async function uninstallWebPack(packId) {
+    if (desktop()) return;
+    if (!confirm('卸载工坊剧本：' + packId + '？（会从剧本库移除）')) return;
+    try {
+      if (typeof clearWorkshopPack === 'function') clearWorkshopPack(packId);
+      await wsDelete(packId);
+      if (typeof buildIndices === 'function') buildIndices();
+    } catch (e) {}
+    if (state.workshopUpdates) delete state.workshopUpdates[packId];
+    await refreshWebInstalled();
+    state.catalogMessage = '已卸载工坊剧本：' + packId;
+    try { var sp = document.getElementById('scn-page'); if (sp && sp.classList.contains('show') && typeof showScnSelect === 'function') showScnSelect(); } catch (e) {}
+    render();
+  }
+
+  async function loadAuthorPacks(authorId, name) {
+    state.catalogMessage = '正在载入作者作品...';
+    state.catalog = null;
+    render();
+    try {
+      var res = await TM.OnlineClient.authorPacks({ authorId: authorId, name: name }, state.onlineApiUrl || undefined);
+      if (res && res.success) {
+        state.catalog = { type: 'tianming-workshop-catalog', title: '作者：' + (res.author || name || ''), packs: res.packs || [], updatedAt: '' };
+        state.catalogAuthorView = res.author || name || '';
+        state.catalogMessage = '作者「' + (res.author || name || '') + '」共 ' + ((res.packs || []).length) + ' 个作品。';
+      } else {
+        state.catalogMessage = '载入作者作品失败：' + ((res && res.error) || '未知错误');
+      }
+    } catch (e) {
+      state.catalogMessage = '载入作者作品失败：' + (e && e.message || '未知错误');
+    }
+    render();
+  }
+
+  async function installCatalogPack(packageUrl, sha256, packId, overwrite) {
     if (!packageUrl) return;
+    if (!desktop()) return installCatalogPackWeb(packageUrl, sha256, packId);
     state.catalogMessage = '正在下载并安装在线工坊包...';
     render();
     var res = await window.tianming.installWorkshopPackFromUrl(packageUrl, sha256 || '', !!overwrite);
     if (res && res.exists && !overwrite) {
-      if (confirm(res.error + '\n是否覆盖安装？')) return installCatalogPack(packageUrl, sha256, true);
+      if (confirm(res.error + '\n是否覆盖安装？')) return installCatalogPack(packageUrl, sha256, packId, true);
       state.catalogMessage = '已取消覆盖安装。';
       render();
       return;
@@ -1167,30 +1678,91 @@
   }
 
   async function accountRefresh() {
-    if (!desktop() || !window.tianming.accountMe) return;
     state.accountMessage = '正在刷新账号身份...';
     render();
-    var res = await window.tianming.accountMe(state.onlineApiUrl || state.defaultOnlineApiUrl || '');
-    if (res && res.success) {
-      state.accountSession = res.session || state.accountSession || null;
-      state.accountMessage = (res.loggedIn || (res.user || state.accountSession && state.accountSession.user)) ? '账号身份已刷新。' : '尚未登录。';
-    } else {
-      state.accountMessage = '刷新账号身份失败：' + ((res && res.error) || '未知错误');
+    try {
+      if (desktop()) {
+        if (!window.tianming.accountMe) { state.accountMessage = '账号系统不可用。'; render(); return; }
+        var res = await window.tianming.accountMe(state.onlineApiUrl || state.defaultOnlineApiUrl || '');
+        if (!res || !res.success) throw new Error((res && res.error) || '未知错误');
+        state.accountSession = res.session || state.accountSession || null;
+        state.accountMessage = (res.loggedIn || (res.user || (state.accountSession && state.accountSession.user))) ? '账号身份已刷新。' : '尚未登录。';
+      } else {
+        var me = await TM.OnlineClient.me(state.onlineApiUrl || undefined);
+        state.accountSession = TM.OnlineClient.getSession();
+        state.accountMessage = (me && me.loggedIn) ? '账号身份已刷新。' : '尚未登录。';
+      }
+    } catch (e) {
+      state.accountMessage = '刷新账号身份失败：' + (e && e.message || '未知错误');
     }
+    render();
+  }
+
+  async function accountEmailCodeRequest() {
+    if (desktop()) { state.accountMessage = '请在网页版用邮箱登录。'; render(); return; }
+    var el = document.getElementById('tm-elogin-email');
+    var email = el ? el.value.trim() : '';
+    if (!email) { state.accountMessage = '请填写邮箱。'; render(); return; }
+    state.emailLoginAddr = email;
+    state.accountMessage = '正在发送登录验证码...';
+    render();
+    try {
+      if (state.onlineApiUrl && window.TM && TM.OnlineClient) TM.OnlineClient.setApiUrl(state.onlineApiUrl);
+      var res = await TM.OnlineClient.emailCodeRequest(email, state.onlineApiUrl || undefined);
+      if (res && res.success) {
+        state.accountMessage = res.devCode ? ('【测试模式】登录验证码：' + res.devCode) : '验证码已发送到邮箱，请查收（含垃圾箱）。';
+      } else {
+        state.accountMessage = '发送失败：' + ((res && res.error) || '未知错误');
+      }
+    } catch (e) { state.accountMessage = '发送失败：' + (e && e.message || '未知错误'); }
+    render();
+  }
+
+  async function accountEmailLogin() {
+    if (desktop()) { state.accountMessage = '请在网页版用邮箱登录。'; render(); return; }
+    var ee = document.getElementById('tm-elogin-email');
+    var ce = document.getElementById('tm-elogin-code');
+    var email = ee ? ee.value.trim() : (state.emailLoginAddr || '');
+    var code = ce ? ce.value.trim() : '';
+    if (!email || !code) { state.accountMessage = '请填写邮箱与验证码。'; render(); return; }
+    state.accountMessage = '正在登录...';
+    render();
+    try {
+      var res = await TM.OnlineClient.emailLogin(email, code, state.onlineApiUrl || undefined);
+      if (res && res.success) {
+        state.emailLoginAddr = '';
+        await refreshAccountSession();
+        state.accountMessage = '邮箱登录成功。';
+      } else {
+        state.accountMessage = '登录失败：' + ((res && res.error) || '未知错误');
+      }
+    } catch (e) { state.accountMessage = '登录失败：' + (e && e.message || '未知错误'); }
     render();
   }
 
   async function accountLogin() {
     var name = document.getElementById('tm-account-name');
     var pass = document.getElementById('tm-account-pass');
+    var uname = name ? name.value.trim() : '';
+    var upass = pass ? pass.value : '';
     state.accountMessage = '正在登录...';
     render();
-    var res = await window.tianming.accountLogin(state.onlineApiUrl || state.defaultOnlineApiUrl || '', name ? name.value.trim() : '', pass ? pass.value : '');
-    if (res && res.success) {
-      await refreshAccountSession();
-      state.accountMessage = '登录成功。';
-    } else {
-      state.accountMessage = '登录失败：' + ((res && res.error) || '未知错误');
+    try {
+      var res;
+      if (desktop()) {
+        res = await window.tianming.accountLogin(state.onlineApiUrl || state.defaultOnlineApiUrl || '', uname, upass);
+      } else {
+        if (state.onlineApiUrl && window.TM && TM.OnlineClient) TM.OnlineClient.setApiUrl(state.onlineApiUrl);
+        res = await TM.OnlineClient.login({ username: uname, password: upass }, state.onlineApiUrl || undefined);
+      }
+      if (res && res.success) {
+        await refreshAccountSession();
+        state.accountMessage = '登录成功。';
+      } else {
+        state.accountMessage = '登录失败：' + ((res && res.error) || '未知错误');
+      }
+    } catch (e) {
+      state.accountMessage = '登录失败：' + (e && e.message || '未知错误');
     }
     render();
   }
@@ -1199,14 +1771,105 @@
     var name = document.getElementById('tm-account-name');
     var pass = document.getElementById('tm-account-pass');
     var nick = document.getElementById('tm-account-nickname');
+    var mail = document.getElementById('tm-account-email');
+    var uname = name ? name.value.trim() : '';
+    var upass = pass ? pass.value : '';
+    var unick = nick ? nick.value.trim() : '';
+    var umail = mail ? mail.value.trim() : '';
     state.accountMessage = '正在注册...';
     render();
-    var res = await window.tianming.accountRegister(state.onlineApiUrl || state.defaultOnlineApiUrl || '', name ? name.value.trim() : '', pass ? pass.value : '', nick ? nick.value.trim() : '');
-    if (res && res.success) {
-      await refreshAccountSession();
-      state.accountMessage = '注册并登录成功。';
-    } else {
-      state.accountMessage = '注册失败：' + ((res && res.error) || '未知错误');
+    try {
+      var res;
+      if (desktop()) {
+        res = await window.tianming.accountRegister(state.onlineApiUrl || state.defaultOnlineApiUrl || '', uname, upass, unick);
+      } else {
+        if (state.onlineApiUrl && window.TM && TM.OnlineClient) TM.OnlineClient.setApiUrl(state.onlineApiUrl);
+        res = await TM.OnlineClient.register({ username: uname, password: upass, nickname: unick, email: umail }, state.onlineApiUrl || undefined);
+      }
+      if (res && res.success) {
+        await refreshAccountSession();
+        state.accountMessage = '注册并登录成功。' + (!umail && !desktop() ? '（未填邮箱，建议在右侧补设以便找回密码）' : '');
+      } else {
+        state.accountMessage = '注册失败：' + ((res && res.error) || '未知错误');
+      }
+    } catch (e) {
+      state.accountMessage = '注册失败：' + (e && e.message || '未知错误');
+    }
+    render();
+  }
+
+  function toggleReset() {
+    state.accountResetOpen = !state.accountResetOpen;
+    if (state.accountResetOpen) state.accountResetMessage = '';
+    render();
+  }
+
+  async function accountRequestReset() {
+    if (desktop()) { state.accountResetMessage = '请在网页版找回密码。'; render(); return; }
+    var emailEl = document.getElementById('tm-reset-email');
+    var email = emailEl ? emailEl.value.trim() : '';
+    if (!email) { state.accountResetMessage = '请填写邮箱。'; render(); return; }
+    state.accountResetMessage = '正在发送验证码...';
+    render();
+    try {
+      var res = await TM.OnlineClient.requestReset(email, state.onlineApiUrl || undefined);
+      if (res && res.success) {
+        state.accountResetMessage = res.devCode
+          ? ('【测试模式】验证码：' + res.devCode + '（服务器未配置邮件服务）')
+          : '若该邮箱已注册，验证码已发送，请查收邮件（含垃圾箱）。';
+      } else {
+        state.accountResetMessage = '发送失败：' + ((res && res.error) || '未知错误');
+      }
+    } catch (e) {
+      state.accountResetMessage = '发送失败：' + (e && e.message || '未知错误');
+    }
+    render();
+  }
+
+  async function accountReset() {
+    if (desktop()) { state.accountResetMessage = '请在网页版找回密码。'; render(); return; }
+    var emailEl = document.getElementById('tm-reset-email');
+    var codeEl = document.getElementById('tm-reset-code');
+    var passEl = document.getElementById('tm-reset-pass');
+    var email = emailEl ? emailEl.value.trim() : '';
+    var code = codeEl ? codeEl.value.trim() : '';
+    var pass = passEl ? passEl.value : '';
+    if (!email || !code) { state.accountResetMessage = '请填写邮箱与验证码。'; render(); return; }
+    if (pass.length < 8) { state.accountResetMessage = '新密码至少 8 位。'; render(); return; }
+    state.accountResetMessage = '正在重置密码...';
+    render();
+    try {
+      var res = await TM.OnlineClient.resetPassword(email, code, pass, state.onlineApiUrl || undefined);
+      if (res && res.success) {
+        state.accountResetMessage = '密码已重置，请用新密码登录。';
+        state.accountResetOpen = false;
+        state.accountMessage = '密码已重置，请用新密码登录。';
+      } else {
+        state.accountResetMessage = '重置失败：' + ((res && res.error) || '未知错误');
+      }
+    } catch (e) {
+      state.accountResetMessage = '重置失败：' + (e && e.message || '未知错误');
+    }
+    render();
+  }
+
+  async function accountSetEmail() {
+    if (desktop()) { state.accountMessage = '请在网页版设置邮箱。'; render(); return; }
+    var el = document.getElementById('tm-setemail');
+    var email = el ? el.value.trim() : '';
+    if (!email) { state.accountMessage = '请填写邮箱。'; render(); return; }
+    state.accountMessage = '正在保存邮箱...';
+    render();
+    try {
+      var res = await TM.OnlineClient.setEmail(email, state.onlineApiUrl || undefined);
+      if (res && res.success) {
+        state.accountSession = TM.OnlineClient.getSession();
+        state.accountMessage = '邮箱已保存，可用于找回密码。';
+      } else {
+        state.accountMessage = '保存邮箱失败：' + ((res && res.error) || '未知错误');
+      }
+    } catch (e) {
+      state.accountMessage = '保存邮箱失败：' + (e && e.message || '未知错误');
     }
     render();
   }
@@ -1214,13 +1877,28 @@
   async function accountLogout() {
     state.accountMessage = '正在退出登录...';
     render();
-    var res = await window.tianming.accountLogout(state.onlineApiUrl || state.defaultOnlineApiUrl || '');
+    try {
+      if (desktop()) {
+        var res = await window.tianming.accountLogout(state.onlineApiUrl || state.defaultOnlineApiUrl || '');
+        state.accountMessage = res && res.success ? '已退出登录。' : ('退出登录失败：' + ((res && res.error) || '未知错误'));
+      } else {
+        await TM.OnlineClient.logout(state.onlineApiUrl || undefined);
+        state.accountMessage = '已退出登录。';
+      }
+    } catch (e) {
+      state.accountMessage = '退出登录失败：' + (e && e.message || '未知错误');
+    }
     state.accountSession = null;
-    state.accountMessage = res && res.success ? '已退出登录。' : ('退出登录失败：' + ((res && res.error) || '未知错误'));
     render();
   }
 
   async function publishWorkshopPack() {
+    if (!desktop()) {
+      // 网页发布（纯文本剧本上传）属后续阶段；当前网页只读，先引导到桌面端。
+      state.publishMessage = '网页版暂不支持发布工坊内容，请用桌面版发布；网页可正常浏览与安装。';
+      render();
+      return;
+    }
     var title = document.getElementById('tm-publish-title');
     var url = document.getElementById('tm-publish-url');
     var sha = document.getElementById('tm-publish-sha');
@@ -1245,6 +1923,46 @@
       state.publishMessage = '发布失败：' + ((res && res.error) || '未知错误');
       render();
     }
+  }
+
+  // 网页发布：从玩家剧本库选一个纯文本剧本，上传到 /workshop/upload（落服务器自持 -> 待审）。
+  async function webPublishScenario() {
+    if (!window.P || !Array.isArray(P.scenarios)) { state.publishMessage = '剧本库尚未就绪。'; render(); return; }
+    if (!(window.TM && TM.OnlineClient && TM.OnlineClient.isLoggedIn())) { state.publishMessage = '请先登录账号再发布。'; render(); return; }
+    var sel = document.getElementById('tm-webpub-scn');
+    var titleEl = document.getElementById('tm-webpub-title');
+    var verEl = document.getElementById('tm-webpub-version');
+    var tagsEl = document.getElementById('tm-webpub-tags');
+    var descEl = document.getElementById('tm-webpub-desc');
+    var sid = sel ? sel.value : '';
+    var scn = P.scenarios.filter(function(s){ return s && s.id === sid; })[0];
+    if (!scn) { state.publishMessage = '请选择一个有效剧本。'; render(); return; }
+    var title = (titleEl && titleEl.value.trim()) || scn.name || sid;
+    // 导出干净剧本：剔除 _ 前缀的运行时 / 来源私有字段
+    var clean = {};
+    Object.keys(scn).forEach(function(k){ if (k.charAt(0) !== '_') clean[k] = scn[k]; });
+    var meta = {
+      title: title,
+      id: String(scn.id || title),
+      version: (verEl && verEl.value.trim()) || '1.0.0',
+      description: (descEl && descEl.value.trim()) || '',
+      type: 'scenario',
+      tags: tagsEl ? tagsEl.value : '',
+      filename: 'scenario.json'
+    };
+    state.publishMessage = '正在上传到工坊...';
+    render();
+    try {
+      var res = await TM.OnlineClient.uploadScenario(meta, clean);
+      if (res && res.success) {
+        state.publishMessage = '已提交工坊：' + ((res.pack && res.pack.title) || title) + '（待审核，通过后其他玩家可见可装）。';
+      } else {
+        state.publishMessage = '发布失败：' + ((res && res.error) || '未知错误');
+      }
+    } catch (e) {
+      state.publishMessage = '发布失败：' + (e && e.message || '未知错误');
+    }
+    render();
   }
 
   function scenarioIdExists(id) {
@@ -1318,8 +2036,9 @@
       single.id = data.id || pack.id;
       single.era = data.era || data.dynasty || '';
       single.name = data.name || data.title || pack.title;
-      single.role = data.role || '';
+      single.role = data.role || data.emperor || '';
       single.background = data.background || data.overview || '';
+      single.desc = data.desc || data.overview || data.background || '';
       single.overview = data.overview || data.background || '';
       single.opening = data.opening || data.openingText || '';
       single.active = data.active !== false;
@@ -1342,8 +2061,28 @@
     return scenarios.length;
   }
 
+  // 网页：从独立工坊库重新合并已安装剧本到 P.scenarios（启动 + 每次开「选择剧本」前调用，
+  // 抗 restoreP 等启动期对 P 的覆写）。mergeScenarioData 内含 clearWorkshopPack，幂等可重入。
+  async function loadWorkshopScenariosWeb(silent) {
+    if (!window.P) return;
+    try {
+      var records = await wsGetAll();
+      var count = 0;
+      (records || []).forEach(function(rec){
+        if (rec && rec.enabled !== false && rec.data) {
+          count += mergeScenarioData({ id: rec.packId, title: rec.title, assetBase: '' }, rec.data);
+        }
+      });
+      if (count && !silent) say('已载入工坊剧本 ' + count + ' 个');
+    } catch(e) {
+      console.warn('[TMContentManager] web load workshop failed', e);
+    }
+  }
+
   async function loadWorkshopScenarios(silent) {
-    if (!desktop() || !window.tianming.loadEnabledWorkshopScenarios || !window.P) return;
+    if (!window.P) return;
+    if (!desktop()) return loadWorkshopScenariosWeb(silent);
+    if (!window.tianming.loadEnabledWorkshopScenarios) return;
     try {
       if (window.tianming.listWorkshopPacks) {
         var list = await window.tianming.listWorkshopPacks();
@@ -1385,12 +2124,25 @@
     togglePack: togglePack,
     uninstallPack: uninstallPack,
     loadWorkshopCatalog: loadWorkshopCatalog,
+    ratePack: ratePack,
+    checkWorkshopUpdates: checkWorkshopUpdates,
+    updateWorkshopPack: updateWorkshopPack,
+    uninstallWebPack: uninstallWebPack,
+    loadAuthorPacks: loadAuthorPacks,
     installCatalogPack: installCatalogPack,
     publishWorkshopPack: publishWorkshopPack,
+    webPublishScenario: webPublishScenario,
     accountLogin: accountLogin,
+    accountEmailCodeRequest: accountEmailCodeRequest,
+    accountEmailLogin: accountEmailLogin,
     accountRegister: accountRegister,
     accountRefresh: accountRefresh,
     accountLogout: accountLogout,
+    accountTogglePw: function(){ state.accountPwOpen = !state.accountPwOpen; render(); },
+    toggleReset: toggleReset,
+    accountRequestReset: accountRequestReset,
+    accountReset: accountReset,
+    accountSetEmail: accountSetEmail,
     applyUpdateFromChangelog: openApplyUpdateFromChangelog,
     closeApplyUpdate: closeApplyUpdate,
     reloadAppliedUpdate: reloadAppliedUpdate,
