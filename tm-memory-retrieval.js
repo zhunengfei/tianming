@@ -371,6 +371,9 @@
     return 0.65;
   }
 
+  // S5b(2026-06-03): 连续 salience 衰减——穿过原 5 桶锚点(dt=1→1.0/5→0.85/15→0.65/50→0.45/远→0.30)的单调线性插值，
+  // 取代阶梯硬跳，使"老但曾重要"的记忆渐进降权而非突降；边界值与原桶一致(保 golden 排序·recency 仅占评分 0.15)。
+  function _recLerp(d, d0, v0, d1, v1) { return v0 + (v1 - v0) * (d - d0) / (d1 - d0); }
   function recencyOf(hit, opts) {
     hit = hit || {};
     opts = opts || {};
@@ -379,10 +382,11 @@
     if (!cur || !turn) return 0.55;
     var dt = cur - turn;
     if (dt <= 1) return 1.0;
-    if (dt <= 5) return 0.85;
-    if (dt <= 15) return 0.65;
-    if (dt <= 50) return 0.45;
-    return 0.3;
+    if (dt <= 5) return _recLerp(dt, 1, 1.0, 5, 0.85);
+    if (dt <= 15) return _recLerp(dt, 5, 0.85, 15, 0.65);
+    if (dt <= 50) return _recLerp(dt, 15, 0.65, 50, 0.45);
+    if (dt <= 150) return _recLerp(dt, 50, 0.45, 150, 0.30);
+    return 0.30;
   }
 
   function sourcePriorityOf(hit) {

@@ -39,6 +39,11 @@
     return removed;
   }
 
+  // S5(2026-06-03): pin/resident/supersededBy/markedFalse 控制受保护——治"治理控制被 FIFO 剪掉而失效(pin 丢/旧事实复活)"。
+  function isControlProtected(c) {
+    return !!(c && (c.pinned === true || c.resident === true || c.supersededBy || c.markedFalse === true));
+  }
+
   function pruneControls(GM, opts) {
     opts = opts || {};
     var controls = ensure(GM);
@@ -47,14 +52,20 @@
     var keys = Object.keys(controls);
     var pruned = 0;
     if (limit && keys.length > limit) {
-      keys.sort(function(a, b) {
+      var need = keys.length - limit;
+      var ordered = keys.slice().sort(function(a, b) {
         var ca = controls[a] || {};
         var cb = controls[b] || {};
         return Number(ca._seq || ca.updatedTurn || 0) - Number(cb._seq || cb.updatedTurn || 0);
-      }).slice(0, keys.length - limit).forEach(function(key) {
-        delete controls[key];
-        pruned++;
       });
+      // pass 1: 先剪最老的「普通」控制；受保护项跳过
+      for (var i = 0; i < ordered.length && pruned < need; i++) {
+        if (!isControlProtected(controls[ordered[i]])) { delete controls[ordered[i]]; pruned++; }
+      }
+      // pass 2: 兜底——仍超限(几乎全受保护)才剪最老受保护项，保证 limit
+      for (var j = 0; j < ordered.length && pruned < need; j++) {
+        if (controls[ordered[j]]) { delete controls[ordered[j]]; pruned++; }
+      }
     }
     pruned += pruneEdges(GM, opts.edgesLimit || DEFAULT_EDGE_LIMIT);
     return {

@@ -280,6 +280,72 @@
     ].filter(Boolean).join(' '), 900);
   }
 
+  // —— S3（2026-06-03·DELETE/forget）：AI 吐 memory_forgets 标某事实作废(恩怨已了/承诺已兑现/事实更正)。
+  // 候选走 draft 人审(type 非 character_memory → autoAccept lane 不收)，接受后由 writegate 把目标翻 tombstone。
+  function forgetCandidates(GM, aiResult, opts) {
+    opts = opts || {};
+    var turn = Number((GM && GM.turn) || opts.turn || 0);
+    var readRefs = traceReadContextRefs(GM, opts);
+    var out = [];
+    var forgets = []
+      .concat(arr(aiResult && aiResult.memory_forgets))
+      .concat(arr(aiResult && aiResult.forgets))
+      .concat(arr(aiResult && aiResult.memory_invalidations));
+    forgets.forEach(function(item, i) {
+      if (!item) return;
+      var targetId = clean(item.target_id || item.targetId || item.id, 160);
+      var targetFactKey = clean(item.target_fact_key || item.targetFactKey || item.factKey, 200);
+      var actor = clean(item.actor || item.char || item.name || item.character, 120);
+      var memoryType = normalizeMemoryType({ memory_type: item.memory_type || item.memoryType });
+      var reasonText = clean(item.reason || item.memory || item.why || item.note, 400);
+      var confidence = clamp01(item.confidence);
+      var explicitRefs = refsFromItem(item, ['source_refs', 'sourceRefs', 'basis_refs', 'basisRefs', 'evidenceRefs']);
+      var reasons = [];
+      if (!(targetId || targetFactKey || actor)) reasons.push({ code: 'missing_forget_target', message: 'forget has no target id/factKey/actor' });
+      if (!reasonText) reasons.push({ code: 'missing_reason', message: 'forget has no reason' });
+      if (confidence == null) reasons.push({ code: 'missing_confidence', message: 'forget has no confidence' });
+      else if (confidence < Number(opts.minConfidence || 0.55)) reasons.push({ code: 'low_confidence', message: 'forget confidence below review threshold' });
+      if (!explicitRefs.length) reasons.push({ code: 'missing_source_refs', message: 'forget has no explicit source refs' });
+      var locator = targetId || targetFactKey || actor || ('idx-' + i);
+      var sourceId = clean(item.sourceId || opts.sourceId || ('turn-' + turn), 120);
+      var sourceType = clean(item.sourceType || opts.sourceType || 'aiTurnResult', 80);
+      var aiRef = sourceRef(sourceType, sourceId, reasonText || locator, turn);
+      var candidate = {
+        id: clean(item.id, 120) || ('memory-forget-' + turn + '-' + i),
+        type: 'memory_forget',
+        body: reasonText || ('forget ' + locator),
+        safeBody: reasonText || ('forget ' + locator),
+        authority: 'ai_extracted',
+        source: 'ai_extracted',
+        turn: turn,
+        ownerScope: 'system',
+        readScope: 'system',
+        lane: 'L5_advisory_context',
+        reason: 'turn-inference:memory-forget',
+        sourceRefs: mergeRefs(refsFromItem(item, ['source_refs', 'sourceRefs']), [aiRef]),
+        basisRefs: mergeRefs(refsFromItem(item, ['basis_refs', 'basisRefs', 'evidenceRefs']), readRefs),
+        extra: {
+          confidence: confidence,
+          reason: reasonText,
+          forget: {
+            id: targetId,
+            factKey: targetFactKey,
+            actor: actor,
+            memoryType: memoryType,
+            readScope: clean(item.target_read_scope || item.targetReadScope || item.readScope, 60)
+          }
+        }
+      };
+      if (reasons.length) {
+        candidate.status = 'quarantined';
+        candidate.reviewStatus = 'quarantined';
+        candidate.reasons = reasons;
+      }
+      out.push(candidate);
+    });
+    return out;
+  }
+
   function chronicleCandidates(GM, aiResult, opts) {
     opts = opts || {};
     var turn = Number((GM && GM.turn) || opts.turn || 0);
@@ -521,12 +587,14 @@
     return []
       .concat(chronicleCandidates(GM, aiResult || {}, opts))
       .concat(issueCandidates(GM, aiResult || {}, opts))
-      .concat(characterMemoryCandidates(GM, aiResult || {}, opts));
+      .concat(characterMemoryCandidates(GM, aiResult || {}, opts))
+      .concat(forgetCandidates(GM, aiResult || {}, opts));
   }
 
   ns.characterMemoryCandidates = characterMemoryCandidates;
   ns.chronicleCandidates = chronicleCandidates;
   ns.issueCandidates = issueCandidates;
+  ns.forgetCandidates = forgetCandidates;
   ns.evaluateCharacterMemoryUpdate = evaluateCharacterMemoryUpdate;
   ns.collectPostTurnCandidates = collectPostTurnCandidates;
   ns.enqueueCandidates = enqueueCandidates;

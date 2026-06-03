@@ -28,18 +28,22 @@
     warnings: ['warnings', 'low authority or cautionary memories']
   };
 
+  // S4(2026-06-03): 本地表数值对齐 MemoryEvidenceRegistry(canonical)，消除 F4 残留漂移 footgun。
+  // authorityRank() 已 prefer ER；本表仅在 ER 不可用时作防御回退，对齐后即便回退也不产生口径分歧。
   var AUTHORITY_RANK = {
     engine_state: 100,
-    player_pin: 96,
-    rule_validated: 92,
-    court_report: 82,
-    structured_chronicle: 76,
-    event_log: 70,
-    official_record: 70,
-    ai_extracted: 58,
-    ai_summary: 44,
-    vector: 36,
-    rumor: 18
+    player_pin: 90,
+    rule_validated: 80,
+    official_record: 72,
+    court_report: 66,
+    structured_chronicle: 60,
+    event_log: 58,
+    rule_validated_summary: 55,
+    ai_extracted: 45,
+    ai_summary: 30,
+    vector: 28,
+    procedural: 26,
+    rumor: 20
   };
 
   var SOURCE_SECTION = {
@@ -295,10 +299,12 @@
         { id: 'memory-context-header', lane: 'L6_retrieved_evidence', text: '<memory-context schema-version="memory-context/v0">\n', mustKeep: true, order: 0, source: 'MemoryContextCompiler' }
       ];
       var order = 10;
+      // S4: 低权威/大体量 section 的 per-zone 上限(占预算比)，防其 balloon 挤占其余高价值区。
+      var ZONE_CAP_FRAC = { warnings: 0.25 };
       SECTION_ORDER.forEach(function(key) {
         var sectionText = renderSection(key, sections[key]);
         if (!sectionText) return;
-        zones.push({
+        var z = {
           id: 'memory-context-' + key,
           lane: key === 'coreFacts' ? 'L1_world_truth' : (key === 'chronology' ? 'L7_chronicle_context' : 'L6_retrieved_evidence'),
           text: sectionText,
@@ -306,7 +312,11 @@
           score: sections[key].reduce(function(max, hit) { return Math.max(max, Number(hit._compilerScore || 0)); }, 0) / 1200,
           source: 'MemoryContextCompiler',
           reason: key
-        });
+        };
+        // S4: 载重权威 section 永不被预算裁掉(ST「mandatory memory never trimmed」)。coreFacts=hard_state/法令/承诺/裁断级世界硬事实。
+        if (key === 'coreFacts') z.mustKeep = true;
+        if (ZONE_CAP_FRAC[key] && opts.maxTokens) z.maxTokens = Math.max(1, Math.floor(Number(opts.maxTokens) * ZONE_CAP_FRAC[key]));
+        zones.push(z);
       });
       zones.push({ id: 'memory-context-footer', lane: 'L6_retrieved_evidence', text: '</memory-context>\n', mustKeep: true, order: 999999, source: 'MemoryContextCompiler' });
       packed = CZ.packZones(zones, { maxTokens: opts.maxTokens });

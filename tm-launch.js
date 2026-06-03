@@ -216,7 +216,7 @@ function previewScenario(sid) {
   h += '</div>';
 
   // 按钮
-  h += '<div style="display:flex;gap:var(--space-3);">';
+  h += '<div class="tm-setup-actions" style="display:flex;gap:var(--space-3);">';
   h += '<button class="bt bp" style="flex:2;padding:var(--space-3);font-size:var(--text-base);font-weight:var(--weight-bold);letter-spacing:0.1em;" onclick="document.getElementById(\'_scnPreview\').remove();_startWithDifficulty(\'' + sid + '\')">'+tmIcon('scroll',16)+' \u5F00\u59CB\u6E38\u620F</button>';
   h += '<button class="bt bs" style="flex:1;padding:var(--space-3);" onclick="document.getElementById(\'_scnPreview\').remove();">\u6401\u7F6E</button>';
   h += '</div>';
@@ -395,7 +395,7 @@ function _showGameSetupModal(sid) {
   h += '<hr class="ink-divider" style="margin:var(--space-3) 0;">';
 
   // 按钮
-  h += '<div style="display:flex;gap:var(--space-3);">';
+  h += '<div class="tm-setup-actions" style="display:flex;gap:var(--space-3);">';
   h += '<button class="bt bp" style="flex:2;padding:var(--space-3);font-size:var(--text-base);font-weight:var(--weight-bold);letter-spacing:0.1em;" onclick="_finalizeStartGame(\''+sid+'\')">'+tmIcon('scroll',16)+' 开卷推演</button>';
   h += '<button class="bt bs" style="flex:1;padding:var(--space-3);" onclick="document.getElementById(\'_gameSetupModal\').remove();_startWithDifficulty(\''+sid+'\');">返回</button>';
   h += '</div>';

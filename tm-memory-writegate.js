@@ -178,6 +178,35 @@
     return removed;
   }
 
+  var _PROTECTED_ACCEPTED_AUTHORITY = { engine_state: 1, player_pin: 1, rule_validated: 1 };
+  function isAcceptedProtected(GM, item) {
+    if (!item) return false;
+    var st = clean(item.status || 'active', 40);
+    if (st === 'deleted_tombstone' || st === 'archived') return false; // tombstoned/archived 优先淘汰
+    if (_PROTECTED_ACCEPTED_AUTHORITY[clean(item.authority, 60).toLowerCase()]) return true;
+    var controls = GM && GM._memoryControls;
+    if (controls && typeof controls === 'object' && !Array.isArray(controls)) {
+      var MC = root.TM && root.TM.MemoryControls;
+      var c = (MC && typeof MC.keyFor === 'function' && controls[MC.keyFor(item)]) || controls[item.id] || (item.factKey && controls[item.factKey]);
+      if (c && (c.pinned === true || c.resident === true)) return true;
+    }
+    return false;
+  }
+  // S5(2026-06-03): _memoryAccepted 容量淘汰避让 pin/resident/高权威——治"pinned 记忆被 80-cap FIFO 淘汰"隐患。
+  function capAcceptedProtected(GM, list, limit) {
+    if (!Array.isArray(list)) return 0;
+    limit = Math.max(0, Number(limit || 0));
+    if (!limit || list.length <= limit) return 0;
+    var need = list.length - limit;
+    var removed = 0;
+    for (var i = 0; i < list.length && removed < need; ) {
+      if (!isAcceptedProtected(GM, list[i])) { list.splice(i, 1); removed++; }
+      else i++;
+    }
+    while (removed < need && list.length > limit) { list.shift(); removed++; } // 全受保护时兜底，保证 cap
+    return removed;
+  }
+
   function pruneQueues(GM, opts) {
     opts = opts || {};
     if (!GM) return { pruned: 0 };
@@ -187,7 +216,7 @@
     pruned += capList(GM._memoryWriteQueue, caps.writeQueue || DEFAULT_CAPS.writeQueue);
     pruned += capList(GM._memoryDraftInbox, caps.draftInbox || DEFAULT_CAPS.draftInbox);
     pruned += capList(GM._memoryQuarantine, caps.quarantine || DEFAULT_CAPS.quarantine);
-    pruned += capList(GM._memoryAccepted, caps.accepted || DEFAULT_CAPS.accepted);
+    pruned += capAcceptedProtected(GM, GM._memoryAccepted, caps.accepted || DEFAULT_CAPS.accepted);
     pruned += capList(GM._memoryAuditEvents, caps.auditEvents || DEFAULT_CAPS.auditEvents);
     return {
       pruned: pruned,
@@ -291,6 +320,130 @@
     return item;
   }
 
+  function clamp01w(value) {
+    value = Number(value);
+    if (!isFinite(value)) return null;
+    return Math.max(0, Math.min(1, value));
+  }
+
+  // —— S2（2026-06-03·恩德/关系 netting）：character_memory 同 actor 同立场类堆积不净账之治本 ——
+  // 只对「立场类」记忆（受恩/恩怨/承诺）按 (actor, stanceType, readScope) 塌缩成一条演化累加记录；
+  // 普通事实型 character memory 不动（仍走 exact-factKey 去重，避免误并无关事实）。
+  var _STANCE_TYPE_MAP = {
+    favor: 'favor', reward: 'favor', gratitude: 'favor', gratitude_debt: 'favor', boon: 'favor', kindness: 'favor',
+    grudge: 'grudge', fear: 'grudge', resentment: 'grudge', grievance: 'grudge', enmity: 'grudge',
+    commitment: 'commitment', commit: 'commitment', promise: 'commitment', pledge: 'commitment'
+  };
+  function stanceTypeOf(memoryType) {
+    return _STANCE_TYPE_MAP[clean(memoryType, 60).toLowerCase()] || null;
+  }
+  function characterStanceKey(item) {
+    if (!item) return '';
+    var t = clean(item.type, 40);
+    if (t !== 'character_memory' && t !== 'character_belief') return '';
+    var extra = item.extra || {};
+    var st = stanceTypeOf(extra.memoryType);
+    if (!st) return '';
+    var actor = clean(extra.actor || (Array.isArray(item.entities) && item.entities[0]) || '', 80).toLowerCase();
+    if (!actor) return '';
+    return ['char-stance', actor, st, clean(item.readScope || 'public', 60).toLowerCase()].join('|');
+  }
+  function findAcceptedStanceMate(GM, item, stanceKey) {
+    if (!GM || !item || !stanceKey || !Array.isArray(GM._memoryAccepted)) return null;
+    for (var i = GM._memoryAccepted.length - 1; i >= 0; i--) {
+      var old = GM._memoryAccepted[i];
+      if (!old || old.id === item.id) continue;
+      if (clean(old.status || 'active', 40) !== 'active') continue;
+      if (characterStanceKey(old) === stanceKey) return old;
+    }
+    return null;
+  }
+  function mergeRefsCap(existing, incoming, cap) {
+    cap = cap || 8;
+    var out = copyRefs(existing);
+    var seen = {};
+    out.forEach(function(r) { var id = refId(r); if (id) seen[id] = true; });
+    copyRefs(incoming).forEach(function(r) {
+      var id = refId(r);
+      if (id && seen[id]) return;
+      if (id) seen[id] = true;
+      out.push(r);
+    });
+    return out.slice(-cap);
+  }
+
+  // —— S3（2026-06-03·DELETE/forget）：AI 可吐 memory_forget 候选标某事实作废；走 draft 人审，
+  // 接受后把目标 active accepted 翻 deleted_tombstone + markedFalse/archived 控制(三重抑制)·绝不自动接受。
+  // AI forget 只能作废 AI 级低权威记忆；engine_state/player_pin/裁断/编年/朝堂记录等权威事实受保护(对称于"AI 不能写 hard_state")。
+  var _FORGET_PROTECTED_AUTHORITY = {
+    engine_state: 1, player_pin: 1, rule_validated: 1, rule_validated_summary: 1,
+    court_report: 1, court_resolution: 1, structured_chronicle: 1, event_log: 1, historiography_summary: 1
+  };
+  function isForgettableTarget(old) {
+    if (!old) return false;
+    if (clean(old.type, 40) === 'hard_state') return false;
+    if (_FORGET_PROTECTED_AUTHORITY[clean(old.authority, 60).toLowerCase()]) return false;
+    return true;
+  }
+  function resolveForgetTargets(GM, spec) {
+    var targets = [];
+    if (!GM || !Array.isArray(GM._memoryAccepted) || !spec) return targets;
+    var wantId = clean(spec.id, 160);
+    var wantFactKey = clean(spec.factKey, 200).toLowerCase();
+    var wantActor = clean(spec.actor, 80).toLowerCase();
+    var wantStance = spec.memoryType ? stanceTypeOf(spec.memoryType) : null;
+    var wantReadScope = clean(spec.readScope || '', 60).toLowerCase();
+    for (var i = 0; i < GM._memoryAccepted.length; i++) {
+      var old = GM._memoryAccepted[i];
+      if (!old || clean(old.status || 'active', 40) !== 'active') continue;
+      var match = false;
+      if (wantId && old.id === wantId) match = true;
+      else if (wantFactKey && acceptedFactKey(old) === wantFactKey) match = true;
+      else if (wantActor) {
+        var oe = old.extra || {};
+        var oActor = clean(oe.actor || (Array.isArray(old.entities) && old.entities[0]) || '', 80).toLowerCase();
+        var ot = clean(old.type, 40);
+        if (oActor === wantActor && (ot === 'character_memory' || ot === 'character_belief')) {
+          var ok = true;
+          if (wantStance) ok = ok && (stanceTypeOf(oe.memoryType) === wantStance);
+          if (wantReadScope) ok = ok && (clean(old.readScope || 'public', 60).toLowerCase() === wantReadScope);
+          if (ok) match = true;
+        }
+      }
+      if (match && isForgettableTarget(old)) targets.push(old); // S3 guard: never tombstone authoritative facts
+    }
+    return targets;
+  }
+  function applyForget(GM, item, opts) {
+    opts = opts || {};
+    ensureQueues(GM);
+    var spec = (item.extra && item.extra.forget) || {};
+    var reasonText = clean(item.body || (item.extra && item.extra.reason) || 'forgotten', 160);
+    var targets = resolveForgetTargets(GM, spec);
+    var applied = 0;
+    targets.forEach(function(t) {
+      t.status = 'deleted_tombstone';
+      t.tombstonedAtTurn = Number((GM && GM.turn) || item.turn || 0);
+      t.tombstoneReason = reasonText;
+      setGovernanceControl(GM, t.id, { markedFalse: true, archived: true, pinned: false, resident: false, reason: 'forgotten: ' + reasonText }, opts);
+      pushGovernanceEdge(GM, 'invalidates', item.id, t.id, 'accepted memory forgotten: ' + reasonText, opts);
+      applied++;
+    });
+    item.status = 'archived';
+    item.reviewStatus = applied ? 'forget_applied' : 'forget_noop';
+    item.forgetApplied = applied;
+    GM._memoryAuditEvents.push({
+      id: item.id, action: 'forget_applied', targets: applied, spec: spec,
+      reviewer: clean(opts.reviewer || item.reviewedBy || 'writegate', 80),
+      turn: Number((GM && GM.turn) || item.turn || 0)
+    });
+    recordLifecycleWrite(GM, {
+      id: 'WRITEGATE_FORGET', stage: 'accepted-governance', sourceId: item.id,
+      status: item.status, candidates: 1, added: 0, archived: applied, items: [item]
+    });
+    return { decision: 'forget', targets: applied };
+  }
+
   function findAcceptedDuplicate(GM, item, factKey) {
     if (!GM || !item || !factKey) return null;
     for (var i = GM._memoryAccepted.length - 1; i >= 0; i--) {
@@ -309,10 +462,59 @@
     opts = opts || {};
     if (!GM || !item) return { decision: 'skip', reason: 'missing_input' };
     ensureQueues(GM);
+    if (clean(item.type, 40) === 'memory_forget') return applyForget(GM, item, opts); // S3: forget directive, not an injectable fact
     var factKey = acceptedFactKey(item);
     item.factKey = item.factKey || factKey;
     item.extra = item.extra && typeof item.extra === 'object' && !Array.isArray(item.extra) ? item.extra : {};
     item.extra.factKey = item.factKey;
+
+    // S2 stance netting: collapse same (actor, stanceType, readScope) into ONE evolving accumulator.
+    var stanceKey = hasExplicitGovernanceRefs(item) ? '' : characterStanceKey(item);
+    if (stanceKey) {
+      var mate = findAcceptedStanceMate(GM, item, stanceKey);
+      if (mate) {
+        mate.extra = (mate.extra && typeof mate.extra === 'object' && !Array.isArray(mate.extra)) ? mate.extra : {};
+        var prevCount = Number(mate.extra.eventCount) || 1;
+        var prevWeighted = Number(mate.extra.weightedSum);
+        if (!isFinite(prevWeighted)) {
+          var mc = clamp01w(mate.extra.confidence);
+          prevWeighted = (mc != null ? mc : 1) * prevCount;
+        }
+        var addConf = clamp01w(item.extra && item.extra.confidence);
+        mate.extra.eventCount = prevCount + 1;
+        mate.extra.weightedSum = prevWeighted + (addConf != null ? addConf : 1);
+        if (mate.extra.firstTurn == null) mate.extra.firstTurn = Number(mate.turn || 0);
+        mate.extra.lastTurn = Number((GM && GM.turn) || item.turn || 0);
+        if (item.body) mate.body = item.body;          // latest event -> representative "近事"
+        if (item.safeBody) mate.safeBody = item.safeBody;
+        mate.turn = Number((GM && GM.turn) || item.turn || mate.turn || 0);
+        mate.sourceRefs = mergeRefsCap(mate.sourceRefs, item.sourceRefs, 8);
+        mate.basisRefs = mergeRefsCap(mate.basisRefs, item.basisRefs, 8);
+        item.status = 'archived';
+        item.reviewStatus = 'merged';
+        item.mergedInto = mate.id;
+        item.stanceKey = stanceKey;
+        GM._memoryAuditEvents.push({
+          id: item.id, action: 'stance_merged', mergedInto: mate.id, stanceKey: stanceKey,
+          eventCount: mate.extra.eventCount,
+          reviewer: clean(opts.reviewer || item.reviewedBy || 'writegate', 80),
+          turn: Number((GM && GM.turn) || item.turn || 0)
+        });
+        recordLifecycleWrite(GM, {
+          id: 'WRITEGATE_STANCE_MERGE', stage: 'accepted-governance', sourceId: item.id,
+          status: item.status, candidates: 1, added: 0, archived: 1, items: [item]
+        });
+        return { decision: 'merged', mergedInto: mate.id, stanceKey: stanceKey, eventCount: mate.extra.eventCount };
+      }
+      // first of this stance: initialize the accumulator on the item itself
+      item.extra = (item.extra && typeof item.extra === 'object' && !Array.isArray(item.extra)) ? item.extra : {};
+      if (item.extra.eventCount == null) item.extra.eventCount = 1;
+      if (item.extra.weightedSum == null) {
+        var c0 = clamp01w(item.extra.confidence);
+        item.extra.weightedSum = (c0 != null ? c0 : 1);
+      }
+      if (item.extra.firstTurn == null) item.extra.firstTurn = Number(item.turn || (GM && GM.turn) || 0);
+    }
 
     var duplicate = hasExplicitGovernanceRefs(item) ? null : findAcceptedDuplicate(GM, item, factKey);
     if (duplicate) {
@@ -494,7 +696,7 @@
       var key = acceptedKey(item);
       if (!key || seen[key]) return;
       var governed = governAcceptedMemory(GM, item, opts);
-      if (governed && governed.decision === 'duplicate') return;
+      if (governed && (governed.decision === 'duplicate' || governed.decision === 'merged' || governed.decision === 'forget')) return;
       if (item.status !== 'active' || item.reviewStatus !== 'accepted') return;
       seen[key] = true;
       item.acceptedAtTurn = Number((GM && GM.turn) || item.turn || 0);

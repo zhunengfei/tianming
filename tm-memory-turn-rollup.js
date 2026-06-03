@@ -329,6 +329,55 @@
     return list.length > limit ? list.slice(list.length - limit) : list;
   }
 
+  // S7(2026-06-03): 第二层折叠——把多个「年」chronicle rollup 折成「era 大略」高层 recap(RAPTOR collapsed-tree:
+  // 年=细节 / era=数年大略·两层并存·检索层按预算取合适粒度)。治"v6 仅 turn->year 单层、3 层金字塔只在 legacy anchors 喂 sc05"。
+  function buildEraRollups(GM, chronicleRollups, opts) {
+    opts = opts || {};
+    var eraSize = Math.max(2, Number(opts.eraSize || 4));
+    var rolls = (Array.isArray(chronicleRollups) ? chronicleRollups.slice() : [])
+      .filter(function(r) { return r && (r.body || r.text); })
+      .sort(function(a, b) { return Number(a.startTurn || a.turn || 0) - Number(b.startTurn || b.turn || 0); });
+    if (rolls.length < 2) return []; // 不足两年·无需折叠
+    var out = [];
+    for (var g = 0; g < rolls.length; g += eraSize) {
+      var group = rolls.slice(g, g + eraSize);
+      if (group.length < 2) continue; // 单年不折(避免与年 rollup 重复)
+      var startTurns = group.map(function(r) { return Number(r.startTurn || r.turn || 0); });
+      var endTurns = group.map(function(r) { return Number(r.endTurn || r.turn || 0); });
+      var startTurn = Math.min.apply(Math, startTurns);
+      var endTurn = Math.max.apply(Math, endTurns);
+      var firstYear = group[0].yearKey || ('T' + startTurn);
+      var lastYear = group[group.length - 1].yearKey || ('T' + endTurn);
+      var lines = group.map(function(r) {
+        var yk = r.yearKey || ('T' + (r.startTurn || r.turn || 0));
+        var b = String(r.body || r.text || '').replace(/^.*?chronicle rollup[:：]\s*/i, '');
+        return yk + '：' + clean(b, 110);
+      });
+      var body = '编年大略 ' + firstYear + '–' + lastYear + '：' + joinLines(lines, 1000);
+      var refs = group.map(function(r) {
+        return sourceRef('memoryChronicleRollup', r.id || ('chronicle-rollup-' + slug(r.yearKey || (r.startTurn || r.turn), 'year')), body, { turn: r.endTurn || r.turn });
+      });
+      out.push({
+        id: 'era-rollup-' + slug(firstYear, 'era') + '-' + slug(lastYear, 'era'),
+        schemaVersion: SCHEMA_VERSION,
+        projectionVersion: PROJECTION_VERSION,
+        type: 'historiography_summary',
+        body: body,
+        authority: 'structured_chronicle',
+        visibility: 'public',
+        turn: endTurn,
+        startTurn: startTurn,
+        endTurn: endTurn,
+        lane: 'L7_chronicle_context',
+        factStatus: 'historiography_summary',
+        role: 'rollup',
+        sourceRefs: compactRefs(refs, endTurn),
+        extra: { stream: 'eraRollup', tier: 2, yearCount: group.length, firstYear: firstYear, lastYear: lastYear }
+      });
+    }
+    return out.slice(-DEFAULT_CAP);
+  }
+
   function rebuildFromArchive(GM, opts) {
     opts = opts || {};
     if (!GM) return { schemaVersion: SCHEMA_VERSION, rebuilt: false, reason: 'missing_gm', chronicleRollups: 0, issueChains: 0, characterDossiers: 0 };
@@ -339,6 +388,7 @@
     GM._memoryChronicleRollups = cap(chronicle, opts.chronicleCap || DEFAULT_CAP);
     GM._memoryIssueChains = cap(issues, opts.issueCap || DEFAULT_CAP);
     GM._memoryCharacterDossiers = cap(characters, opts.characterCap || DEFAULT_CAP);
+    GM._memoryEraRollups = cap(buildEraRollups(GM, GM._memoryChronicleRollups, opts), opts.eraCap || DEFAULT_CAP); // S7: 第二层 era 折叠
     var result = {
       schemaVersion: SCHEMA_VERSION,
       projectionVersion: PROJECTION_VERSION,
@@ -346,7 +396,8 @@
       archiveBundles: bundles.length,
       chronicleRollups: GM._memoryChronicleRollups.length,
       issueChains: GM._memoryIssueChains.length,
-      characterDossiers: GM._memoryCharacterDossiers.length
+      characterDossiers: GM._memoryCharacterDossiers.length,
+      eraRollups: GM._memoryEraRollups.length
     };
     if (Array.isArray(GM._memoryAuditEvents)) {
       GM._memoryAuditEvents.push({
@@ -366,4 +417,5 @@
   ns.SCHEMA_VERSION = SCHEMA_VERSION;
   ns.PROJECTION_VERSION = PROJECTION_VERSION;
   ns.rebuildFromArchive = rebuildFromArchive;
+  ns.buildEraRollups = buildEraRollups;
 })(typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this));

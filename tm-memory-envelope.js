@@ -979,6 +979,15 @@
       factStatus: 'historiography_summary',
       stream: 'chronicleRollup'
     });
+    projectList(GM._memoryEraRollups, { // S7(2026-06-03): 第二层 era 大略折叠投影进 chronology
+      idPrefix: 'memory-era-rollup',
+      sourceType: 'memoryEraRollup',
+      type: 'historiography_summary',
+      authority: 'structured_chronicle',
+      lane: 'L7_chronicle_context',
+      factStatus: 'historiography_summary',
+      stream: 'eraRollup'
+    });
     projectList(GM._memoryIssueChains, {
       idPrefix: 'memory-issue-chain',
       sourceType: 'memoryIssueChain',
@@ -1138,11 +1147,12 @@
       if (!actor) return;
       if (!byActor[actor]) byActor[actor] = { count: 0, fav: 0, grd: 0, commit: 0, latest: '', latestTurn: -1 };
       var g = byActor[actor];
-      g.count++;
+      var ec = Number(extra.eventCount) || 1; // S2: stance accumulator carries merged event count
+      g.count += ec;
       var mt = String(extra.memoryType || '').toLowerCase();
-      if (mt === 'favor' || mt === 'reward' || mt === 'gratitude') g.fav++;
-      else if (mt === 'grudge' || mt === 'fear' || mt === 'resentment') g.grd++;
-      else if (mt === 'commitment') g.commit++;
+      if (mt === 'favor' || mt === 'reward' || mt === 'gratitude' || mt === 'gratitude_debt' || mt === 'boon' || mt === 'kindness') g.fav += ec;
+      else if (mt === 'grudge' || mt === 'fear' || mt === 'resentment' || mt === 'grievance' || mt === 'enmity') g.grd += ec;
+      else if (mt === 'commitment' || mt === 'commit' || mt === 'promise' || mt === 'pledge') g.commit += ec;
       var it = Number(item.turn || 0);
       if (it >= g.latestTurn) { g.latestTurn = it; g.latest = item.safeBody || item.body || ''; }
     });
@@ -1153,6 +1163,8 @@
       if (g.fav) parts.push('受恩' + g.fav);
       if (g.grd) parts.push('恩怨' + g.grd);
       if (g.commit) parts.push('承诺' + g.commit);
+      if (g.fav || g.grd) parts.push('净' + ((g.fav - g.grd) >= 0 ? '+' : '') + (g.fav - g.grd)); // S2: favor-grudge net
+
       var body = actor + '·对帝立场综述：' + parts.join('·') + (g.latest ? ('；近事：' + clean(g.latest, 60)) : '');
       var id = 'character-stance-' + actor;
       out.push(makeEnvelope({

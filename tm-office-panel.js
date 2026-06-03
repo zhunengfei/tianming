@@ -1178,7 +1178,9 @@ async function submitOfficeCh(){if(!GM.officeChanges)GM.officeChanges=[];if(GM.o
 // ============================================================
 //  编年
 // ============================================================
-function renderBiannian(){
+function renderBiannian(force){
+  // 性能·编年面板隐藏时跳过重渲（切到 gt-biannian 时由 switchGTab force 渲染）
+  if(!force && typeof _gtTabVisible==='function' && !_gtTabVisible('gt-biannian')) return;
   // 类型→(label,cat,icon) 映射
   var _BN_TYPE = {
     keju:             {label:'\u79D1\u4E3E\u884C\u671D',     cat:'keju',     icon:'\u6587'},

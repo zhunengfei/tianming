@@ -234,7 +234,7 @@ function renderLetterPanel() {
           if (_isRouteBlocked) _inds += '<div class="hy-ind hy-ind-blocked" title="\u9A7F\u8DEF\u963B\u65AD">\u2715</div>';
 
           var _initial = escHtml(String(ch.name||'?').charAt(0));
-          var _portrait = ch.portrait ? '<img src="' + escHtml(ch.portrait) + '">' : _initial;
+          var _portrait = ch.portrait ? '<img loading="lazy" decoding="async" src="' + escHtml(ch.portrait) + '">' : _initial;
           var _travel = '';
           if (ch._travelTo) {
             var _rd4 = (typeof ch._travelRemainingDays === 'number' && ch._travelRemainingDays > 0) ? ch._travelRemainingDays : 0;
@@ -292,7 +292,7 @@ function renderLetterPanel() {
 
   // 新头部
   var _initial = escHtml(String(target||'?').charAt(0));
-  var _portraitHtml = (ch && ch.portrait) ? '<img src="' + escHtml(ch.portrait) + '">' : _initial;
+  var _portraitHtml = (ch && ch.portrait) ? '<img loading="lazy" decoding="async" src="' + escHtml(ch.portrait) + '">' : _initial;
   var html = '<div class="hy-hist-head"><div class="hy-hist-title-wrap">';
   html += '<div class="hy-hist-portrait">' + _portraitHtml + '</div>';
   html += '<div><div class="hy-hist-name">\u4E0E ' + escHtml(target) + ' \u7684\u4E66\u4FE1</div>';
@@ -2190,7 +2190,7 @@ function renderGameState(){
             return '<span style="font-size:0.55rem;padding:0 3px;border-radius:2px;border:1px solid '+_tc+';color:'+_tc+';margin-right:2px;">'+d.name+'</span>';
           }).filter(Boolean).join('');
         }
-        var _portraitThumb = ch.portrait ? '<img src="'+escHtml(ch.portrait)+'" style="width:32px;height:32px;object-fit:cover;border-radius:4px;flex-shrink:0;margin-right:6px;">' : '';
+        var _portraitThumb = ch.portrait ? '<img loading="lazy" decoding="async" src="'+escHtml(ch.portrait)+'" style="width:32px;height:32px;object-fit:cover;border-radius:4px;flex-shrink:0;margin-right:6px;">' : '';
         return "<div class=\"cd\" style=\"padding:0.5rem 0.6rem;margin-bottom:0.35rem;cursor:pointer;border-left:3px solid var(--gold-500);\" onclick=\"openCharDetail('"+ch.name.replace(/'/g,"\\'")+"')\">"
           +"<div style=\"display:flex;align-items:center;\">"+_portraitThumb
           +"<div style=\"flex:1;\"><div style=\"display:flex;justify-content:space-between;align-items:center;\">"
@@ -2299,13 +2299,17 @@ function _renderEdictSuggestions() {
     {id:'edict-eco', label:'\u7ECF\u6D4E', color:'var(--gold-400)'},
     {id:'edict-oth', label:'\u5176\u4ED6', color:'var(--ink-300)'}
   ];
-  var _unused = (GM._edictSuggestions || []).filter(function(s) { return !s.used; });
+  // 性能·预存原始插入顺序索引 Map·避免 sort 比较器内每次 indexOf 造成 O(n² log n)
+  var _edSugAll = GM._edictSuggestions || [];
+  var _edSugOrder = new Map();
+  for (var _eoi = 0; _eoi < _edSugAll.length; _eoi++) _edSugOrder.set(_edSugAll[_eoi], _eoi);
+  var _unused = _edSugAll.filter(function(s) { return !s.used; });
   // 按回合倒序（本回合最上·以往回合依次下排·同回合按原入库顺序）
   _unused.sort(function(a, b) {
     var ta = a.turn || 0, tb = b.turn || 0;
     if (tb !== ta) return tb - ta;
-    // 同回合：保持插入顺序·取原数组索引
-    return (GM._edictSuggestions || []).indexOf(a) - (GM._edictSuggestions || []).indexOf(b);
+    // 同回合：保持插入顺序·取预存原数组索引（O(1)）
+    return (_edSugOrder.get(a) || 0) - (_edSugOrder.get(b) || 0);
   });
   // 按来源映射 src 类
   var _srcClsMap = {

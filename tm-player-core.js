@@ -319,6 +319,19 @@ function addEventLog(text) {
   addEB('系统', text);
 }
 
+// 性能·通用 tab 面板可见性判定（与 _rwIsPanelVisible 同机制·供纪录类面板懒渲染 guard 用·找不到则默认渲染走安全侧）
+function _gtTabVisible(panelId){
+  var panel=(typeof _$==='function')?_$(panelId):document.getElementById(panelId);
+  if(!panel)return true;
+  if(panel.style&&panel.style.display==='none')return false;
+  if(panel.style&&(panel.style.display==='block'||panel.style.display==='flex'))return true;
+  if(typeof window!=='undefined'&&window.getComputedStyle){
+    var st=window.getComputedStyle(panel);
+    if(st&&st.display==='none')return false;
+  }
+  return true;
+}
+
 // 游戏标签切换
 function switchGTab(btn,panelId){
   document.querySelectorAll(".g-tab-btn").forEach(function(b){b.classList.remove("active");});
@@ -344,6 +357,11 @@ function switchGTab(btn,panelId){
   if(panelId==='gt-wenyuan' && typeof renderWenyuan==='function') {
     setTimeout(function(){ try { renderWenyuan(); } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'Wenyuan') : console.error('[Wenyuan]', e); } }, 30);
   }
+  // 性能·纪录类面板原由 renderGameState 尾部无条件重渲（即便隐藏）·改为切到该页时才强制渲染（force=true）
+  if(panelId==='gt-memorial' && typeof renderMemorials==='function'){ try{ renderMemorials(true); }catch(e){ (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e,'Memorial') : console.warn('[Memorial]',e); } }
+  if(panelId==='gt-biannian' && typeof renderBiannian==='function'){ try{ renderBiannian(true); }catch(e){ (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e,'Biannian') : console.warn('[Biannian]',e); } }
+  if(panelId==='gt-shiji' && typeof renderShijiList==='function'){ try{ renderShijiList(true); }catch(e){ (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e,'ShijiList') : console.warn('[ShijiList]',e); } }
+  if(panelId==='gt-jishi' && typeof renderJishi==='function'){ try{ renderJishi(true); }catch(e){ (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e,'Jishi') : console.warn('[Jishi]',e); } }
 }
 
 // ============================================================

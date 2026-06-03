@@ -651,8 +651,10 @@ async function genMemorialsAI(count){
   } catch(e) { console.warn('[genMemorialsAI]', e.message || e); }
   renderMemorials();
 }
-function renderMemorials(){
+function renderMemorials(force){
   var el=_$("zouyi-list");if(!el)return;
+  // 性能·奏疏面板隐藏时跳过重渲（切到 gt-memorial 时由 switchGTab force 渲染·面板可见的其它调用照常）
+  if(!force && typeof _gtTabVisible==='function' && !_gtTabVisible('gt-memorial')) return;
   var _isYanyi = P.conf && P.conf.gameMode === 'yanyi';
 
   // 在途奏疏提示（保留）
