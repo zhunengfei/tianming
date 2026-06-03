@@ -389,6 +389,19 @@ function ok(cond, msg) {
     ok(!AA.applyRemove({}, 'ai.key').ok, 'applyRemove 拒绝 blocked path');
     ok(AA.dispatchTool(draftC, 'removeEntity', { path: 'factions.清' }).ok && draftC.factions.length === 1, 'removeEntity 走 dispatch 删势力');
 
+    console.log('— UI·X applySelectedDiffs 逐条接受/拒绝 —');
+    const xCur = { name: '原名', factions: [{ name: '甲', power: 5 }, { name: '乙', power: 3 }], time: { year: 1627 } };
+    const xDraft = { name: '新名', factions: [{ name: '甲改', power: 5 }, { name: '乙', power: 3 }, { name: '丙', power: 1 }], time: { year: 1628 } };
+    const xDiffs = AA.computeDiff(xCur, xDraft);
+    ok(JSON.stringify(AA.applySelectedDiffs(xCur, xDraft, xDiffs, () => true)) === JSON.stringify(xDraft), '接受全部 == draft');
+    ok(JSON.stringify(AA.applySelectedDiffs(xCur, xDraft, xDiffs, () => false)) === JSON.stringify(xCur), '拒绝全部 == current（原状）');
+    const xRejAdd = AA.applySelectedDiffs(xCur, xDraft, xDiffs, d => d.path !== 'factions.2');
+    ok(xRejAdd.factions.length === 2 && xRejAdd.factions.every(f => f !== undefined) && xRejAdd.name === '新名' && xRejAdd.time.year === 1628, '拒绝新增元素：数组 compact 无洞·其余改动保留');
+    const xRejName = AA.applySelectedDiffs(xCur, xDraft, xDiffs, d => d.path !== 'name');
+    ok(xRejName.name === '原名' && xRejName.factions.length === 3 && xRejName.factions[0].name === '甲改', '拒绝单个标量改：仅该字段回原·其余仍是 draft');
+    const xRejRemove = AA.applySelectedDiffs({ items: ['a', 'b', 'c'] }, { items: ['a', 'c'] }, AA.computeDiff({ items: ['a', 'b', 'c'] }, { items: ['a', 'c'] }), () => false);
+    ok(JSON.stringify(xRejRemove.items) === JSON.stringify(['a', 'b', 'c']), '拒绝删除：放回 before·原数组复原');
+
     console.log('\n全部通过 (' + pass + ' 断言)');
   } catch (e) {
     console.error('\n测试失败: ' + (e && e.message || e));

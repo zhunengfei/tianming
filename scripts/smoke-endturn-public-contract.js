@@ -79,7 +79,7 @@ assert(aiModuleLines >= 2600 && aiModuleLines <= 4500, 'tm-endturn-ai.js line co
 const applyModulePath = path.join(ROOT, 'tm-endturn-apply.js');
 assert(fs.existsSync(applyModulePath), 'tm-endturn-apply.js exists');
 const applyModuleLines = fs.readFileSync(applyModulePath, 'utf8').split('\n').length;
-assert(applyModuleLines >= 4550 && applyModuleLines <= 5050, 'tm-endturn-apply.js line count 4550-5050, actual ' + applyModuleLines);  // Phase 2.5 加 dialogue_commitment_feedback apply 后 ~4905
+assert(applyModuleLines >= 4550 && applyModuleLines <= 5300, 'tm-endturn-apply.js line count 4550-5300, actual ' + applyModuleLines);  // Phase 2.5 ~4905·2026-06-03 问对 sprint(④朝堂噤声 +~18)累至 ~5172·上限 5050→5300
 assert(followupModuleLines.length >= 2200 && followupModuleLines.length <= 3500,
   'tm-endturn-followup.js line count 2200-3500, actual ' + followupModuleLines.length);  // Phase 0-7 全做后 ~3315
 

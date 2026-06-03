@@ -60,4 +60,13 @@ const idxSun = compiled.text.indexOf('孙传庭记得');
 assert(idxBi >= 0 && idxSun >= 0, 'both memories present under generous budget');
 assert(idxBi < idxSun, 'focus-relevant memory (毕自严) ranks before non-focus memory (孙传庭)');
 
+// 4) S1(2026-06-03): applyFocusRelevance 也吃 SC_RECALL 活路的 hit 形态(source/turn/text/sim·无预设 relevance)
+const recallHits = [
+  { source: 'vector', turn: 30, text: '毕自严受赐辽饷复核之恩。', sim: 0.5 },
+  { source: 'vector', turn: 30, text: '某桩与本回合无关之琐事。', sim: 0.5 }
+];
+MR.applyFocusRelevance(recallHits, focus);
+assert(typeof recallHits[0].relevance === 'number' && recallHits[0].relevance > 0.75, 'recall-shaped focus hit boosted from default base 0.75');
+assert(recallHits[1].relevance === undefined, 'non-focus recall-shaped hit left untouched');
+
 console.log('smoke-memory-focus-relevance ok');

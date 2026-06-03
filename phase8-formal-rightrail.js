@@ -353,6 +353,8 @@
     var raw = String(p.status || '') + String(p.currentAgenda || '') + String(p.demand || '') + String(p.wish || '');
     if (rightWenduiHasUnansweredLetter(p.name || personKey(p))) return '前日来函未获回复，亲至求见。';
     if (/求见|候见|请见|请对|待对/.test(raw)) return compactText(raw, 58);
+    var _ag = (typeof window !== 'undefined' && window._wdDeriveAudienceAgenda) ? window._wdDeriveAudienceAgenda((typeof findCharByName === 'function' ? findCharByName(p.name) : null) || p) : null;
+    if (_ag && _ag.brief) return _ag.brief;
     if (stress > 60) return '面带忧色，似有为难之事。';
     if (loyalty > 90 && stress > 30) return '神色凝重，欲进忠言。';
     if (ambition > 80 && loyalty > 60) return '精神抖擞，欲呈策论。';
