@@ -1188,32 +1188,60 @@
       var r = findRegion(path.dataset.regionId || path.dataset.id);
       if (r) openFactionDossier(ownerKey(r), r);
     });
-    stage.addEventListener('mousemove', function(e){
-      var path = regionPathFromPoint(e);
+    // 性能·hover tooltip 改 rAF 节流 + 同省早退·避免每次 mousemove 都查找+重建 innerHTML+reflow
+    var _hoverEvt = null, _hoverRaf = null, _hoverLastId = null;
+    function _mapHoverTick(){
+      _hoverRaf = null;
+      var e = _hoverEvt; if (!e) return;
       var tip = document.getElementById('tmf-map-tip');
       if (!tip) return;
-      if (!path) {
-        tip.classList.remove('show');
-        return;
-      }
-      var r = findRegion(path.dataset.regionId || path.dataset.id);
-      if (!r) return;
-      var data = r.data || {};
-      tip.innerHTML = '<b>' + esc(r.title || r.name) + '</b><span>' + esc(ownerName(r)) + ' · ' + esc(data.officialPosition || r.terrain || '未记') + '</span>';
+      var path = regionPathFromPoint(e);
+      if (!path) { tip.classList.remove('show'); _hoverLastId = null; return; }
+      // 位置每帧跟随鼠标（廉价·无 innerHTML 重建）
       tip.style.left = (e.clientX + 12) + 'px';
       tip.style.top = (e.clientY + 12) + 'px';
+      var rid = path.dataset.regionId || path.dataset.id;
+      if (rid === _hoverLastId) { tip.classList.add('show'); return; } // 同省·不再查找/不重建 innerHTML
+      _hoverLastId = rid;
+      var r = findRegion(rid);
+      if (!r) { tip.classList.remove('show'); return; }
+      var data = r.data || {};
+      tip.innerHTML = '<b>' + esc(r.title || r.name) + '</b><span>' + esc(ownerName(r)) + ' · ' + esc(data.officialPosition || r.terrain || '未记') + '</span>';
       tip.classList.add('show');
+    }
+    stage.addEventListener('mousemove', function(e){
+      _hoverEvt = e;
+      if (_hoverRaf) return;
+      _hoverRaf = (window.requestAnimationFrame || function(cb){ return setTimeout(cb, 16); })(_mapHoverTick);
     });
   }
 
+  // 性能·按 map 引用+regions 长度缓存的反向索引·把 findRegion 从每次 O(regions×7) 线性扫描降到 O(1)
+  var _regionIndexCache = { map: null, len: -1, index: null };
+  function _buildRegionIndex(map){
+    var idx = new Map();
+    var regs = map && Array.isArray(map.regions) ? map.regions : [];
+    for (var i = 0; i < regs.length; i++) {
+      var r = regs[i];
+      var keys = [r.id, r.name, r.title, r.officialName, r.sourceId, r.mapRegionId, r.adminBinding];
+      for (var j = 0; j < keys.length; j++) {
+        var v = keys[j];
+        if (v == null) continue;
+        var k = String(v);
+        if (!idx.has(k)) idx.set(k, r); // 与原 .find 一致：数组靠前者优先
+      }
+    }
+    return idx;
+  }
   function findRegion(id){
     var map = getMapData();
-    var key = String(id == null ? '' : id);
-    return map && Array.isArray(map.regions) ? map.regions.find(function(r){
-      return [r.id, r.name, r.title, r.officialName, r.sourceId, r.mapRegionId, r.adminBinding].some(function(v){
-        return String(v == null ? '' : v) === key;
-      });
-    }) : null;
+    if (!map || !Array.isArray(map.regions)) return null;
+    if (_regionIndexCache.map !== map || _regionIndexCache.len !== map.regions.length) {
+      _regionIndexCache.map = map;
+      _regionIndexCache.len = map.regions.length;
+      _regionIndexCache.index = _buildRegionIndex(map);
+    }
+    return _regionIndexCache.index.get(String(id == null ? '' : id)) || null;
   }
 
   function metric(value, fallback){

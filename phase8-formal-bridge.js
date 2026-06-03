@@ -673,13 +673,19 @@
         });
       });
     }
-    if (Array.isArray(gm._npcClaims)) gm._npcClaims.forEach(function(x){
-      add(x, '人物承诺', {
-        title: (x.from || x.name || '人物') + '之诺',
-        text: x.content || x.text || '',
-        meta: [x.from, x.verified ? '已验' : '待验'].filter(Boolean)
+    if (gm._npcCommitments && typeof gm._npcCommitments === 'object') {
+      Object.keys(gm._npcCommitments).forEach(function(_nm){
+        (gm._npcCommitments[_nm] || []).forEach(function(c){
+          if (!c || !c.task) return;
+          var _stLabel = ({pending:'待办',executing:'执行中',completed:'已履',failed:'失诺',delayed:'延宕'})[c.status] || c.status || '待办';
+          add({ turn: c.assignedTurn || turn }, '人物承诺', {
+            title: _nm + '之诺',
+            text: c.task + (c.npcPromise ? '——“' + c.npcPromise + '”' : ''),
+            meta: [_nm, _stLabel].filter(Boolean)
+          });
+        });
       });
-    });
+    }
     if (gm._npcCognition && typeof gm._npcCognition === 'object') {
       Object.keys(gm._npcCognition).slice(0, 24).forEach(function(name){
         var cog = gm._npcCognition[name] || {};
@@ -2399,7 +2405,7 @@
       'body.tm-phase8-formal .tmv3-feed.collapsed .tmv3-acts{margin:0;display:block;}',
       'body.tm-phase8-formal .tmv3-feed.collapsed .tmv3-list{display:none!important;}',
       // list·scroll·稀薄 scrollbar
-      'body.tm-phase8-formal .tmv3-feed .tmv3-list{flex:1 1 auto;overflow-y:auto;padding:0 4px 8px 4px;display:block;scrollbar-width:thin;scrollbar-color:rgba(218,179,93,.32) transparent;}',
+      'body.tm-phase8-formal .tmv3-feed .tmv3-list{flex:1 1 auto;overflow-y:auto;padding:0 4px 8px 4px;display:block;scrollbar-width:thin;scrollbar-color:rgba(218,179,93,.32) transparent;contain:content;}',
       'body.tm-phase8-formal .tmv3-feed .tmv3-list::-webkit-scrollbar{width:3px;}',
       'body.tm-phase8-formal .tmv3-feed .tmv3-list::-webkit-scrollbar-thumb{background:rgba(218,179,93,.36);}',
       'body.tm-phase8-formal .tmv3-feed .tmv3-list::-webkit-scrollbar-track{background:transparent;}',
