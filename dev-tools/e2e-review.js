@@ -23,7 +23,7 @@ const { chromium } = require(PW);
   }, { timeout: 15000 });
   await page.evaluate(() => {
     const p = document.getElementById('tm-aa-panel'); if (p) p.classList.add('open');
-    document.body.classList.add('je-guoshi-docked');
+    document.body.classList.add('je-guoshi-docked'); document.body.classList.add('je-guoshi-settings-open');
   });
 
   // 记录审阅前剧本指纹（验证只读不改）

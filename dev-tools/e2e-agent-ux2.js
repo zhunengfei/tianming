@@ -73,6 +73,8 @@ const { chromium } = require(PW);
     const s = document.querySelector('#tm-aa-summary');
     return s && s.style.display !== 'none' && /改动说明/.test(s.textContent);
   }, { timeout: 15000 });
+  // UI·P 流式：等打字机收尾（光标消失）再读，否则 rationale 还没揭显
+  await page.waitForFunction(() => { const s = document.querySelector('#tm-aa-summary'); return s && !s.querySelector('.tm-aa-caret'); }, { timeout: 15000 });
   const summaryInfo = await page.evaluate(() => {
     const s = document.querySelector('#tm-aa-summary');
     return { visible: s.style.display !== 'none', text: s.textContent };

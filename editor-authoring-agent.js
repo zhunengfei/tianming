@@ -213,6 +213,47 @@
   }
 
   // 方向C · 引用感知：深walk 整个剧本，找出所有引用某实体名的位置（改名/删除前查死链）
+  // 方向W · 实体捆绑：把一个势力 + 它的人物 + 相关关系打成可跨剧本复用的包（纯函数·确定性）。
+  function buildEntityBundle(scenario, factionName) {
+    var sc = scenario || {};
+    var fname = String(factionName || '').trim();
+    if (!fname) return null;
+    var faction = (sc.factions || []).filter(function(f) { return f && f.name === fname; })[0] || null;
+    var characters = (sc.characters || []).filter(function(c) { return c && c.faction === fname; });
+    var charNames = {}; characters.forEach(function(c) { if (c && c.name) charNames[c.name] = true; });
+    var relations = (sc.relations || []).filter(function(r) {
+      if (!r) return false;
+      return (r.from && charNames[r.from]) || (r.to && charNames[r.to]) || (r.a && charNames[r.a]) || (r.b && charNames[r.b]);
+    });
+    function clone(x) { try { return JSON.parse(JSON.stringify(x)); } catch (e) { return x; } }
+    return { type: 'tm-entity-bundle', version: 1, faction: fname, factionData: faction ? clone(faction) : null, characters: clone(characters), relations: clone(relations) };
+  }
+  // 把捆绑包合并进目标剧本（返回新剧本·势力去重·人物重名自动改名·关系按改名重映射）。
+  function mergeEntityBundle(targetScenario, bundle) {
+    function clone(x) { try { return JSON.parse(JSON.stringify(x)); } catch (e) { return x; } }
+    var sc = clone(targetScenario || {});
+    if (!bundle || bundle.type !== 'tm-entity-bundle') return { scenario: sc, added: { factions: 0, characters: 0, relations: 0 }, error: '不是有效的实体捆绑包' };
+    sc.factions = sc.factions || []; sc.characters = sc.characters || []; sc.relations = sc.relations || [];
+    var added = { factions: 0, characters: 0, relations: 0 }, rename = {};
+    if (bundle.factionData && bundle.factionData.name) {
+      if (!sc.factions.some(function(f) { return f && f.name === bundle.factionData.name; })) { sc.factions.push(clone(bundle.factionData)); added.factions++; }
+    }
+    var existing = {}; sc.characters.forEach(function(c) { if (c && c.name) existing[c.name] = true; });
+    (bundle.characters || []).forEach(function(c) {
+      if (!c || !c.name) return;
+      var nc = clone(c), name = nc.name;
+      if (existing[name]) { var n = 2; while (existing[name + '（' + n + '）']) n++; nc.name = name + '（' + n + '）'; rename[name] = nc.name; }
+      existing[nc.name] = true; sc.characters.push(nc); added.characters++;
+    });
+    (bundle.relations || []).forEach(function(r) {
+      if (!r) return;
+      var nr = clone(r);
+      ['from', 'to', 'a', 'b'].forEach(function(k) { if (nr[k] && rename[nr[k]]) nr[k] = rename[nr[k]]; });
+      sc.relations.push(nr); added.relations++;
+    });
+    return { scenario: sc, added: added, renamed: rename };
+  }
+
   function _findReferences(draft, name, opts) {
     opts = opts || {};
     var target = String(name == null ? '' : name).trim();
@@ -381,15 +422,77 @@
     return { ok: v.length === 0, violations: v, details: { orphanLeaves: orphans.length } };
   }
 
+  // 方向E · 真实运行时校验（把 tm-invariants 的运行时不变量按剧本 schema draft 化，agent 改完跑真体检并自修）
+  /** ④ 角色完整性（对齐 tm-invariants 'chars'）：缺名/重名/死人占职 */
+  function vRuntimeChars(draft) {
+    var v = [];
+    var chars = (draft && draft.characters) || [];
+    if (!Array.isArray(chars) || !chars.length) return { ok: true, violations: [], details: { skipped: '无 characters' } };
+    var noName = 0, seen = {}, dup = [], players = 0;
+    chars.forEach(function(c) {
+      if (!c) return;
+      if (!c.name) { noName++; return; }
+      if (seen[c.name]) dup.push(c.name); else seen[c.name] = true;
+      if (c.isPlayer) players++;
+    });
+    // 注：officialTitle 是角色的描述性字段（可能记历史官职），不代表实际任职；"死人占职"由 runtime-office（holder 须在世）抓，此处不据 officialTitle 误报。
+    if (noName) v.push(noName + ' 个角色缺 name（运行时会渲染异常）');
+    if (dup.length) v.push('重名角色（运行时按名索引会冲突）: ' + dup.slice(0, 5).join('/') + (dup.length > 5 ? '…' : ''));
+    return { ok: v.length === 0, violations: v, details: { total: chars.length, dup: dup.length, noName: noName, players: players } };
+  }
+  /** ⑤ 官制 holder 一致性（对齐 tm-invariants 'officeTree'）：holder 须为存在且在世的角色 */
+  function vRuntimeOffice(draft) {
+    var v = [];
+    var tree = draft && draft.officeTree;
+    if (!Array.isArray(tree) || !tree.length) return { ok: true, violations: [], details: { skipped: '无 officeTree' } };
+    var charByName = {};
+    (draft.characters || []).forEach(function(c) { if (c && c.name) charByName[c.name] = c; });
+    var phantom = [], dead = [];
+    (function walk(nodes) {
+      (nodes || []).forEach(function(n) {
+        if (!n) return;
+        (n.positions || []).forEach(function(p) {
+          if (p && p.holder && p.holder !== '空缺' && p.holder !== '') {
+            var ch = charByName[p.holder];
+            if (!ch) phantom.push(p.holder);
+            else if (ch.alive === false) dead.push(p.holder);
+          }
+        });
+        if (Array.isArray(n.subs)) walk(n.subs);
+        if (Array.isArray(n.children)) walk(n.children);
+      });
+    })(tree);
+    if (phantom.length) v.push(phantom.length + ' 个官职 holder 指向不存在的角色: ' + phantom.slice(0, 5).join('/') + (phantom.length > 5 ? '…' : ''));
+    if (dead.length) v.push(dead.length + ' 个官职 holder 已故: ' + dead.slice(0, 5).join('/'));
+    return { ok: v.length === 0, violations: v, details: { phantomHolders: phantom.length, deadHolders: dead.length } };
+  }
+  /** ⑥ 启动必备（运行时能否 boot）：名称/至少一势力一角色/有玩家角色 */
+  function vRuntimeBoot(draft) {
+    var v = [];
+    if (!draft || typeof draft !== 'object') return { ok: false, violations: ['剧本为空'] };
+    if (!draft.name) v.push('缺剧本名称 name（运行时标题/存档名依赖）');
+    var facs = Array.isArray(draft.factions) ? draft.factions : [];
+    var chars = Array.isArray(draft.characters) ? draft.characters : [];
+    if (!facs.length) v.push('没有任何势力 factions（运行时无从加载势力面）');
+    if (!chars.length) v.push('没有任何角色 characters');
+    else if (!chars.some(function(c) { return c && c.isPlayer; })) v.push('没有标记 isPlayer 的玩家角色（运行时无主角入口）');
+    return { ok: v.length === 0, violations: v, details: { factions: facs.length, characters: chars.length } };
+  }
+
   var _checks = {
     'admin-population': vAdminPopulation,
     'faction-refs': vFactionRefs,
-    'region-coverage': vRegionCoverage
+    'region-coverage': vRegionCoverage,
+    'runtime-chars': vRuntimeChars,
+    'runtime-office': vRuntimeOffice,
+    'runtime-boot': vRuntimeBoot
   };
+  // validateDraft 默认只跑这 3 个结构检查（轻量·供频繁自查）；运行时检查(runtime-*)只在 preflight 跑（finish 前体检）。
+  var _defaultChecks = ['admin-population', 'faction-refs', 'region-coverage'];
 
   /** 聚合校验·返回 {ok, violations, results, stats}（沿用 tm-invariants 报告形状） */
   function validateDraft(draft, groupName) {
-    var groups = groupName ? [groupName] : Object.keys(_checks);
+    var groups = groupName ? [groupName] : _defaultChecks;
     var all = [];
     var results = {};
     groups.forEach(function(g) {
@@ -418,6 +521,29 @@
         failed: groups.filter(function(g) { return results[g] && !results[g].ok; }).length
       }
     };
+  }
+
+  // 方向E · 运行时体检裁决：跑全部检查，把"会影响运行"的归为 blockers、其余为 warnings，给"能否加载"verdict。
+  var _BOOT_CRITICAL = ['runtime-boot', 'faction-refs', 'runtime-office', 'runtime-chars'];
+  function preflight(draft) {
+    var groups = Object.keys(_checks);   // 体检跑全部检查（结构 + 运行时）
+    var results = {}, blockers = [], warnings = [];
+    groups.forEach(function(g) {
+      var r;
+      try { r = _checks[g](draft) || { ok: true, violations: [] }; }
+      catch (e) { r = { ok: false, violations: ['检查异常: ' + (e.message || e)] }; }
+      results[g] = r;
+      if (r.violations && r.violations.length) {
+        var bucket = _BOOT_CRITICAL.indexOf(g) >= 0 ? blockers : warnings;
+        r.violations.forEach(function(m) { bucket.push('[' + g + '] ' + m); });
+      }
+    });
+    var rep = { results: results, ok: blockers.length === 0 && warnings.length === 0 };
+    var bootable = blockers.length === 0;
+    var summary = bootable
+      ? (warnings.length ? '可运行，但有 ' + warnings.length + ' 处建议改进' : '✓ 运行时体检通过，可正常加载')
+      : '✗ 有 ' + blockers.length + ' 处会影响运行的问题，建议先修';
+    return { ok: rep.ok, bootable: bootable, blockers: blockers, warnings: warnings, summary: summary, results: rep.results };
   }
 
   /** 注册自定义校验（供后续 slice 扩展） */
@@ -834,10 +960,15 @@
     },
     {
       name: 'validateDraft',
-      description: '校验当前草稿（父>=子人口/势力引用/区划覆盖），返回违规列表。每改完一批应调用以自查。',
+      description: '校验当前草稿（人口/势力引用/区划覆盖/角色/官制/启动必备），返回违规列表。每改完一批应调用以自查。',
       parameters: { type: 'object', properties: {
-        group: { type: 'string', description: '可选：只跑某组 admin-population/faction-refs/region-coverage' }
+        group: { type: 'string', description: '可选：只跑某组 admin-population/faction-refs/region-coverage/runtime-chars/runtime-office/runtime-boot' }
       } }
+    },
+    {
+      name: 'preflight',
+      description: '运行时体检：检查剧本能否被游戏正常加载（启动必备/角色完整/官制 holder/势力引用），区分会影响运行的 blockers 与建议性 warnings。改完、finish 之前应跑一次；有 blockers 就继续修到 bootable。',
+      parameters: { type: 'object', properties: {} }
     },
     {
       name: 'listGaps',
@@ -876,6 +1007,21 @@
       name: 'note',
       description: '记录一条计划/进度备注（不改剧本，只写进过程记录，便于多步任务自我规划、也让用户看到思路）。',
       parameters: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }
+    },
+    {
+      name: 'askClarification',
+      description: '当用户需求含糊到无法动手（缺关键信息：放哪个势力 / 侧重什么属性 / 数量 / 风格 / 时代背景等）时，提出 1-3 个具体问题让玩家先回答，再继续。需求已经清楚就别用、直接做，别没事找事问。',
+      parameters: { type: 'object', properties: {
+        questions: { type: 'array', items: { type: 'string' }, description: '1-3 个具体、好回答的问题' }
+      }, required: ['questions'] }
+    },
+    {
+      name: 'flagUncertain',
+      description: '当你某处改动没把握（史实存疑、玩家可能想要别的、靠推测填充的内容）时，标记该路径，提醒玩家重点复核。只标真没把握的，别滥用。',
+      parameters: { type: 'object', properties: {
+        path: { type: 'string', description: '没把握的改动路径，如 characters[3].bio 或 factions[1].leader' },
+        reason: { type: 'string', description: '为什么没把握（一句话）' }
+      }, required: ['path', 'reason'] }
     },
     {
       name: 'recordConvention',
@@ -967,6 +1113,7 @@
       case 'findReferences': return _findReferences(draft, input.name, { limit: input.limit });
       case 'renameEntity': return _renameEntity(draft, input.oldName, input.newName);
       case 'validateDraft': return validateDraft(draft, input.group);
+      case 'preflight': { var pf = preflight(draft); return { ok: pf.ok, bootable: pf.bootable, summary: pf.summary, blockers: pf.blockers, warnings: pf.warnings.slice(0, 12) }; }
       case 'listGaps': {
         var gaps = _computeGaps(draft, surfaces || _getFieldSurfaces());
         if (!gaps.requiredMissing.length && !gaps.optionalMissing.length) {
@@ -1023,9 +1170,13 @@
         return { ok: fails.length === 0, applied: done, failures: fails.slice(0, 5) };
       }
       case 'note': return { ok: true, note: String(input.text || '').slice(0, 500) };
+      case 'askClarification': return { ok: true, clarify: true, questions: (Array.isArray(input.questions) ? input.questions : []).filter(Boolean).slice(0, 3) };
+      case 'flagUncertain': return { ok: true, flagged: String(input.path || ''), reason: String(input.reason || '') };
       case 'recordConvention': return { ok: true, recorded: String(input.convention || '').slice(0, 200) };
       case 'proposePlan': return { ok: true, plan: true, steps: Array.isArray(input.steps) ? input.steps : [], summary: input.summary || '' };
       case 'submitReview': return { ok: true, review: true, findings: Array.isArray(input.findings) ? input.findings : [], summary: input.summary || '' };
+      case 'submitAnswer': return { ok: true, answered: true, answer: String(input.answer || '') };
+      case 'submitExplanation': return { ok: true, explained: true, summary: input.summary || '', points: Array.isArray(input.points) ? input.points : [] };
       case 'finish': return { ok: true, finish: true, summary: input.summary || '' };
       default: return { ok: false, reason: '未知工具: ' + name };
     }
@@ -1039,6 +1190,30 @@
       if (Array.isArray(draft[k])) counts.push(k + ':' + draft[k].length);
     });
     return '顶层字段: ' + keys.join(', ') + (counts.length ? '\n数组规模: ' + counts.join(' / ') : '');
+  }
+
+  // 方向J · 从（官方）剧本学习：抽取剧本现有实体作 few-shot 范例，锚定新内容的笔法与字段丰满度。
+  // 编辑官方剧本(天启/绍宋)时这些即官方范例。开关式·空 scenario 返 ''。
+  function buildExemplars(scenario, opts) {
+    opts = opts || {};
+    var perColl = opts.perColl || 1;
+    var capEach = opts.capEach || 700;
+    var colls = opts.collections || ['characters', 'factions', 'events'];
+    var sc = scenario || {};
+    var blocks = [];
+    colls.forEach(function(coll) {
+      var arr = sc[coll];
+      if (!Array.isArray(arr) || !arr.length) return;
+      var samples = [];
+      for (var i = 0; i < arr.length && samples.length < perColl; i++) {
+        var it = arr[i];
+        if (!it || typeof it !== 'object') continue;
+        var s = ''; try { s = JSON.stringify(it); } catch (e) { s = ''; }
+        if (s) samples.push(s.length > capEach ? s.slice(0, capEach) + '…' : s);
+      }
+      if (samples.length) blocks.push('▸ ' + coll + ' 范例：\n' + samples.join('\n'));
+    });
+    return blocks.join('\n\n');
   }
 
   /** tool_result 内容文本（喂回模型）。带违规时明列，让 agent 知道修什么。 */
@@ -1060,7 +1235,7 @@
     }, required: ['steps'] }
   };
   function _planTools() {
-    var readNames = { getField: 1, searchEntities: 1, globalSearch: 1, findReferences: 1, listGaps: 1, listCollection: 1, describeSchema: 1 };
+    var readNames = { getField: 1, searchEntities: 1, globalSearch: 1, findReferences: 1, listGaps: 1, listCollection: 1, describeSchema: 1, validateDraft: 1, preflight: 1 };
     return AGENT_TOOLS.filter(function(t) { return readNames[t.name]; }).concat([PROPOSE_PLAN_TOOL]);
   }
   // 方向D · 审阅模式：只读工具 + submitReview（产出结构化体检报告，不动剧本）
@@ -1079,8 +1254,36 @@
     }, required: ['findings'] }
   };
   function _reviewTools() {
-    var readNames = { getField: 1, searchEntities: 1, globalSearch: 1, findReferences: 1, listGaps: 1, listCollection: 1, describeSchema: 1, validateDraft: 1 };
+    var readNames = { getField: 1, searchEntities: 1, globalSearch: 1, findReferences: 1, listGaps: 1, listCollection: 1, describeSchema: 1, validateDraft: 1, preflight: 1 };
     return AGENT_TOOLS.filter(function(t) { return readNames[t.name]; }).concat([SUBMIT_REVIEW_TOOL]);
+  }
+  // 方向L · 剧本问答：只读工具 + submitAnswer（查清后直接回答，不动剧本）
+  var SUBMIT_ANSWER_TOOL = {
+    name: 'submitAnswer',
+    description: '用查到的事实回答玩家关于本剧本的问题，结束问答。问答模式下绝不调用任何修改工具。',
+    parameters: { type: 'object', properties: {
+      answer: { type: 'string', description: '基于剧本事实的回答（中文·具体·可点名相关实体/数字）' }
+    }, required: ['answer'] }
+  };
+  function _qaTools() {
+    var readNames = { getField: 1, searchEntities: 1, globalSearch: 1, findReferences: 1, listGaps: 1, listCollection: 1, describeSchema: 1 };
+    return AGENT_TOOLS.filter(function(t) { return readNames[t.name]; }).concat([SUBMIT_ANSWER_TOOL]);
+  }
+  // 方向N · 解释/教学：只读工具 + submitExplanation（讲解剧本设计意图与机制脉络，不动剧本）
+  var SUBMIT_EXPLANATION_TOOL = {
+    name: 'submitExplanation',
+    description: '把对本剧本的讲解（设计意图、机制脉络、新手该懂什么）按主题给出，结束讲解。讲解模式下绝不调用任何修改工具。',
+    parameters: { type: 'object', properties: {
+      summary: { type: 'string', description: '一段总览：这是个什么剧本、玩家扮演谁、核心看点' },
+      points: { type: 'array', description: '逐主题讲解', items: { type: 'object', properties: {
+        topic: { type: 'string', description: '主题，如"玩家处境""核心矛盾""关键人物""机制要点""上手建议"' },
+        detail: { type: 'string', description: '该主题的讲解（具体、可点名实体）' }
+      } } }
+    }, required: ['points'] }
+  };
+  function _explainTools() {
+    var readNames = { getField: 1, searchEntities: 1, globalSearch: 1, findReferences: 1, listGaps: 1, listCollection: 1, describeSchema: 1 };
+    return AGENT_TOOLS.filter(function(t) { return readNames[t.name]; }).concat([SUBMIT_EXPLANATION_TOOL]);
   }
   // 方向B · 把玩家的「剧本约定」拼成系统提示词里的一段（空则不注入）
   function _conventionsBlock(conventions) {
@@ -1118,23 +1321,49 @@
     ].join('\n');
   }
 
-  function _buildSystemPrompt(conventions) {
+  function _buildQaSystemPrompt(conventions) {
     return [
-      '你是历史策略游戏「天命」的剧本编辑助手。通过调用工具编辑剧本草稿，满足用户需求。',
-      '⓪ 多步/复杂任务先用 note 记一句计划（1. 2. 3.）再动手；用 listCollection/describeSchema 看清现状与字段、bulkAdd/multiEdit 一次多改提效。',
-      '规则：① 只用工具修改/查询，不要直接输出 JSON 剧本正文。② 中文显示名（人物/势力/地名）保持中文，禁止英译。',
-      '③ 先用 getField/searchEntities/listGaps 查看现状与规格缺口再改；不确定东西在哪个集合时用 globalSearch 全局检索定位。与用户需求相关的必需缺口顺手补齐，让剧本完整可玩。④ 每改完一批用 validateDraft 自查，有违规继续修。⑤ 改好且校验通过后调用 finish——summary 要向玩家说清「改了什么、为什么这么改」（具体到关键实体/字段，2-4 句中文），不要只写"完成"。',
-      '⑥ 若发现该玩家/剧本有值得长期沿用的约定（命名规律、文风、设定惯例），可调 recordConvention 记一条（仅在确有发现时，别凑数）。⑦ 改名优先用 renameEntity（联动所有引用、不留死链）；删除实体前先 findReferences 查谁引用了它。',
+      '你是历史策略游戏「天命」的剧本问答助手，现在处于【问答模式】：用剧本里的事实回答玩家的问题，只读、绝不修改剧本。',
+      '用 globalSearch（全局检索）/searchEntities/findReferences（查引用）/listCollection/getField/describeSchema 查清后再答；',
+      '回答要基于剧本真实数据、具体（点名相关实体/给出数字）、诚实（查不到就说没有/不确定，别编）。查证后调用 submitAnswer 给出回答；绝不调用任何修改工具。',
       _conventionsBlock(conventions),
       '',
       buildSchemaGuide()
     ].join('\n');
   }
 
-  function _buildInitialUser(draft, userRequest, surfaces, editorContext) {
+  function _buildExplainSystemPrompt(conventions) {
+    return [
+      '你是历史策略游戏「天命」的剧本讲解员，现在处于【讲解模式】：给接手这个剧本的作者/玩家做 onboarding，只读、绝不修改剧本。',
+      '用 globalSearch/searchEntities/findReferences/listCollection/getField/describeSchema 充分了解剧本后，讲清楚：',
+      '· 这是个什么剧本、设定在什么时代、玩家扮演谁、处境如何；· 核心矛盾/冲突与各方势力格局；· 关键人物及其立场动机；· 上手该先关注什么、机制怎么联动、有哪些坑或看点。',
+      '讲解要基于剧本真实数据、点名具体实体、像老师带新人那样有条理；诚实（查不到的别编）。查证后调用 submitExplanation 按主题提交；绝不调用任何修改工具。',
+      _conventionsBlock(conventions),
+      '',
+      buildSchemaGuide()
+    ].join('\n');
+  }
+
+  function _buildSystemPrompt(conventions) {
+    return [
+      '你是历史策略游戏「天命」的剧本编辑助手。通过调用工具编辑剧本草稿，满足用户需求。',
+      '⓪ 多步/复杂任务先用 note 记一句计划（1. 2. 3.）再动手；用 listCollection/describeSchema 看清现状与字段、bulkAdd/multiEdit 一次多改提效。若需求含糊到无法动手（缺关键信息），先用 askClarification 问 1-3 个具体问题再继续；需求清楚就直接做。',
+      '规则：① 只用工具修改/查询，不要直接输出 JSON 剧本正文。② 中文显示名（人物/势力/地名）保持中文，禁止英译。',
+      '③ 先用 getField/searchEntities/listGaps 查看现状与规格缺口再改；不确定东西在哪个集合时用 globalSearch 全局检索定位。与用户需求相关的必需缺口顺手补齐，让剧本完整可玩。④ 每改完一批用 validateDraft 自查，有违规继续修。⑤ 改好后用 preflight 跑运行时体检（确保游戏能正常加载），有 blockers 继续修到 bootable，再调用 finish——summary 要向玩家说清「改了什么、为什么这么改」（具体到关键实体/字段，2-4 句中文），不要只写"完成"。',
+      '⑥ 若发现该玩家/剧本有值得长期沿用的约定（命名规律、文风、设定惯例），可调 recordConvention 记一条（仅在确有发现时，别凑数）。⑦ 改名优先用 renameEntity（联动所有引用、不留死链）；删除实体前先 findReferences 查谁引用了它。⑧ 对没把握的改动（史实存疑、靠推测填充）调 flagUncertain 标一下路径，提醒玩家重点复核（只标真没把握的）。',
+      _conventionsBlock(conventions),
+      '',
+      buildSchemaGuide()
+    ].join('\n');
+  }
+
+  function _buildInitialUser(draft, userRequest, surfaces, editorContext, exemplars) {
     var lines = [
       '【用户需求】\n' + (userRequest || '')
     ];
+    if (exemplars) {   // 方向J · few-shot 范例：参考其笔法与字段丰满度（编辑官方剧本时即官方范例）
+      lines.push('\n【参考范例·新增/改写内容请贴近这些范例的笔法、字段完整度与设定风格】\n' + String(exemplars).slice(0, 6000));
+    }
     if (editorContext) {   // 上下文感知：玩家在编辑器里正看着什么，指代优先指它
       lines.push('\n【当前编辑上下文】\n玩家正在编辑器中查看：' + editorContext
         + '\n（若需求中有"他/她/它/这个/当前/这名/此"等指代而未点名，优先理解为上述当前选中项。）');
@@ -1161,6 +1390,25 @@
       lines.push('\n【已知规格缺口·运行时必需但缺失】(' + gaps.requiredMissing.length + ' 项)\n' + gaps.requiredMissing.slice(0, 30).join('、'));
     }
     lines.push('\n开始：先用读工具充分查证，再调用 submitReview 提交结构化报告。不要修改剧本。');
+    return lines.join('\n');
+  }
+
+  // 方向L · 问答模式的初始 user：玩家的问题 + 草稿现状
+  function _buildQaUser(draft, question, surfaces, editorContext) {
+    var lines = ['【玩家的问题】\n' + (String(question || '').trim() || '（未给出问题）')];
+    if (editorContext) lines.push('\n【当前编辑上下文】玩家正在查看：' + editorContext + '（指代未点名时优先指它）。');
+    lines.push('\n【剧本现状】\n' + _draftSummary(draft));
+    lines.push('\n开始：先用 globalSearch/searchEntities/findReferences/listCollection 等查清，再调用 submitAnswer 回答。不要修改剧本。');
+    return lines.join('\n');
+  }
+
+  // 方向N · 讲解模式的初始 user：玩家关注点（可空）+ 剧本现状
+  function _buildExplainUser(draft, focus, surfaces, editorContext) {
+    var f = String(focus || '').trim();
+    var lines = [f ? ('【本次讲解侧重】\n' + f + '\n（在整体讲解基础上重点讲以上方面。）') : '【任务】给接手这个剧本的人做一次全面 onboarding 讲解。'];
+    if (editorContext) lines.push('\n【当前编辑上下文】玩家正在查看：' + editorContext + '（可优先讲到）。');
+    lines.push('\n【剧本现状】\n' + _draftSummary(draft));
+    lines.push('\n开始：先用读工具充分了解剧本，再调用 submitExplanation 按主题讲解。不要修改剧本。');
     return lines.join('\n');
   }
 
@@ -1198,7 +1446,8 @@
     var surfaces = _getFieldSurfaces(opts);
     var continuing = !!(Array.isArray(opts.priorConversation) && opts.priorConversation.length);
     var editorContext = opts.editorContext || '';
-    var userText = continuing ? _buildFollowUpUser(draft, userRequest, surfaces, editorContext) : _buildInitialUser(draft, userRequest, surfaces, editorContext);
+    var exemplars = opts.exemplars || '';   // 方向J · few-shot 范例
+    var userText = continuing ? _buildFollowUpUser(draft, userRequest, surfaces, editorContext) : _buildInitialUser(draft, userRequest, surfaces, editorContext, exemplars);
     var priorTokens = 0;
     if (continuing) { try { priorTokens = _estimateTokens(JSON.stringify(opts.priorConversation)); } catch (e) {} }
     var toolsTokens = 0; try { toolsTokens = _estimateTokens(JSON.stringify(tools)); } catch (e) {}   // tools schema 每轮都发
@@ -1281,18 +1530,21 @@
     var perms = { allowedCollections: opts.allowedCollections || null, allowDestructive: opts.allowDestructive !== false };   // 方向F · 权限（默认无限制·全放行）
     var planOnly = !!opts.planOnly;   // 计划模式：只读 + proposePlan，不动手
     var reviewOnly = !!opts.reviewOnly;   // 方向D · 审阅模式：只读 + submitReview，不动剧本
-    var tools = reviewOnly ? _reviewTools() : (planOnly ? _planTools() : (opts.tools || AGENT_TOOLS));
+    var qaOnly = !!opts.qaOnly;   // 方向L · 问答模式：只读 + submitAnswer，不动剧本
+    var explainOnly = !!opts.explainOnly;   // 方向N · 讲解模式：只读 + submitExplanation，不动剧本
+    var tools = explainOnly ? _explainTools() : (qaOnly ? _qaTools() : (reviewOnly ? _reviewTools() : (planOnly ? _planTools() : (opts.tools || AGENT_TOOLS))));
     var conventions = (opts.conventions != null ? opts.conventions : loadConventions()) || '';   // 方向B · 剧本约定（每次 run 注入·等价 CLAUDE.md）
-    var system = reviewOnly ? _buildReviewSystemPrompt(conventions) : (planOnly ? _buildPlanSystemPrompt(conventions) : _buildSystemPrompt(conventions));
+    var system = explainOnly ? _buildExplainSystemPrompt(conventions) : (qaOnly ? _buildQaSystemPrompt(conventions) : (reviewOnly ? _buildReviewSystemPrompt(conventions) : (planOnly ? _buildPlanSystemPrompt(conventions) : _buildSystemPrompt(conventions))));
     var surfaces = _getFieldSurfaces(opts);   // 刀A · 规格（游戏运行时要什么）
     var editorContext = opts.editorContext || '';   // 上下文感知：编辑器当前焦点（模块/集合/选中实体）
+    var exemplars = opts.exemplars || '';   // 方向J · few-shot 范例（开关式·编辑官方剧本时即官方范例）
     var conversation, _priorTokens = 0;   // 维度1 · 对话式追问：有 priorConversation 则接着上轮线程改
     if (Array.isArray(opts.priorConversation) && opts.priorConversation.length) {
       conversation = opts.priorConversation.slice();
       conversation.push({ role: 'user', text: _buildFollowUpUser(draft, userRequest, surfaces, editorContext) });
       try { _priorTokens = _estimateTokens(JSON.stringify(opts.priorConversation)); } catch (e) {}
     } else {
-      conversation = [{ role: 'user', text: reviewOnly ? _buildReviewUser(draft, userRequest, surfaces, editorContext) : _buildInitialUser(draft, userRequest, surfaces, editorContext) }];
+      conversation = [{ role: 'user', text: explainOnly ? _buildExplainUser(draft, userRequest, surfaces, editorContext) : (qaOnly ? _buildQaUser(draft, userRequest, surfaces, editorContext) : (reviewOnly ? _buildReviewUser(draft, userRequest, surfaces, editorContext) : _buildInitialUser(draft, userRequest, surfaces, editorContext, exemplars))) }];
     }
     var transcript = [];
     var iterations = 0, finishAttempts = 0;
@@ -1300,6 +1552,9 @@
     var finished = false, stopReason = 'maxIterations';
     var _planResult = null;   // 计划模式产出（proposePlan 的步骤）
     var _reviewResult = null;   // 方向D · 审阅模式产出（submitReview 的报告）
+    var _qaResult = null;   // 方向L · 问答模式产出（submitAnswer 的回答）
+    var _explainResult = null;   // 方向N · 讲解模式产出（submitExplanation）
+    var _clarifyResult = null;   // 方向K · 交互式澄清产出（askClarification 的问题）
     var _finishSummary = '';   // 改动说明：finish 时 agent 给的"做了什么+为什么"
     var control = { aborted: false };   // 刀E · 本次运行的中断句柄
     _activeRun = control;
@@ -1311,7 +1566,7 @@
     function record(name, input, result) {
       transcript.push({ name: name, input: input, result: result });
       if (typeof opts.onStep === 'function') {
-        try { opts.onStep({ name: name, input: input, result: result, iteration: iterations }); } catch (e) {}
+        try { opts.onStep({ name: name, input: input, result: result, iteration: iterations, tokensUsed: tokensUsed }); } catch (e) {}
       }
     }
 
@@ -1362,6 +1617,9 @@
               }
               if (c.name === 'proposePlan' && result && result.plan) { _planResult = { steps: result.steps, summary: result.summary }; finishAccepted = true; }
               if (c.name === 'submitReview' && result && result.review) { _reviewResult = { findings: result.findings, summary: result.summary }; finishAccepted = true; }
+              if (c.name === 'submitAnswer' && result && result.answered) { _qaResult = { answer: result.answer }; finishAccepted = true; }
+              if (c.name === 'submitExplanation' && result && result.explained) { _explainResult = { summary: result.summary, points: result.points }; finishAccepted = true; }
+              if (c.name === 'askClarification' && result && result.clarify) { _clarifyResult = { questions: result.questions }; finishAccepted = true; }
             }
             record(c.name, c.input, result);
             toolResults.push({ id: c.id, name: c.name, content: _resultToText(result) });
@@ -1370,7 +1628,7 @@
           conversation.push({ role: 'assistant', text: text, toolCalls: calls });
           conversation.push({ role: 'tool', toolResults: toolResults });
           tokensUsed += _estimateTokens(JSON.stringify(toolResults));
-          if (finishAccepted) { finished = true; stopReason = _reviewResult ? 'reviewed' : (_planResult ? 'planned' : 'finish'); return; }
+          if (finishAccepted) { finished = true; stopReason = _clarifyResult ? 'needsClarification' : (_explainResult ? 'explained' : (_qaResult ? 'answered' : (_reviewResult ? 'reviewed' : (_planResult ? 'planned' : 'finish')))); return; }
           if (finishAttempts >= maxFinishAttempts) { stopReason = 'finishBlocked'; return; }
           return step();
         })
@@ -1390,14 +1648,76 @@
       if (_activeRun === control) _activeRun = null;   // 刀E · 收尾清句柄
       return {
         draft: draft, transcript: transcript, conversation: conversation,
-        iterations: iterations, finished: finished, plan: _planResult, review: _reviewResult,
+        iterations: iterations, finished: finished, plan: _planResult, review: _reviewResult, answer: _qaResult, explanation: _explainResult, clarification: _clarifyResult,
         finalValidation: validateDraft(draft), stopReason: stopReason,
         tokensUsed: tokensUsed, finishAttempts: finishAttempts,
         summary: _finishSummary,   // 改动说明：做了什么+为什么
         notes: transcript.filter(function(t) { return t.name === 'note'; }).map(function(t) { return (t.input && t.input.text) || ''; }).filter(Boolean),
         // 方向B · agent 回写：发现的可长期沿用约定（交玩家「记住」）
-        suggestedConventions: transcript.filter(function(t) { return t.name === 'recordConvention'; }).map(function(t) { return (t.input && t.input.convention) || ''; }).filter(Boolean)
+        suggestedConventions: transcript.filter(function(t) { return t.name === 'recordConvention'; }).map(function(t) { return (t.input && t.input.convention) || ''; }).filter(Boolean),
+        // 置信度标注：agent 没把握的改动（path + reason），UI 在 diff 里高亮
+        uncertainties: transcript.filter(function(t) { return t.name === 'flagUncertain' && t.input && t.input.path; }).map(function(t) { return { path: t.input.path, reason: t.input.reason || '' }; })
       };
+    });
+  }
+
+  /**
+   * 方向H · 子代理 / 任务分解编排：大需求先分解成有序子任务（只读计划阶段），
+   * 再逐个子任务在【同一 draft】上聚焦执行（共享可变 draft = 自动合并）。
+   * 取代单 agent 线性硬啃——每个子任务范围小、不易超迭代上限/跑偏。
+   * @param {object} draft @param {string} userRequest
+   * @param {object} [opts] 透传 runAuthoringLoop 的 opts（editorContext/conventions/allowedCollections/allowDestructive/onStep/onText…）
+   *   额外：opts.onSubtask({phase,index,total,task})·opts.subMaxIterations(每子任务迭代上限·默认 10)·opts.maxSubtasks(默认 12)
+   * @returns {Promise<{orchestrated, steps, subResults, draft, finalValidation, summary, stopReason}>}
+   */
+  function runOrchestrated(draft, userRequest, opts) {
+    opts = opts || {};
+    var notify = function(p) { if (typeof opts.onSubtask === 'function') { try { opts.onSubtask(p); } catch (e) {} } };
+    // Phase 1 · 分解：只读计划模式产出子任务步骤
+    notify({ phase: 'decompose' });
+    var planOpts = Object.assign({}, opts, { planOnly: true, onSubtask: undefined });
+    return runAuthoringLoop(draft, userRequest, planOpts).then(function(planRes) {
+      var steps = ((planRes.plan && planRes.plan.steps) || []).filter(function(s) { return s && String(s).trim(); });
+      var maxSub = opts.maxSubtasks || 12;
+      if (steps.length > maxSub) steps = steps.slice(0, maxSub);
+      // 退化：没分解出多步 → 单次普通执行（不值得编排）
+      if (steps.length <= 1) {
+        notify({ phase: 'single' });
+        var oneOpts = Object.assign({}, opts, { planOnly: false, reviewOnly: false, onSubtask: undefined });
+        return runAuthoringLoop(draft, userRequest, oneOpts).then(function(r) {
+          return { orchestrated: false, steps: steps, subResults: [r], draft: draft, finalValidation: r.finalValidation, summary: r.summary, stopReason: r.stopReason };
+        });
+      }
+      notify({ phase: 'plan', steps: steps });
+      var subResults = [], i = 0, aborted = false;
+      function next() {
+        if (aborted || i >= steps.length) return Promise.resolve();
+        var idx = i++; var task = String(steps[idx]);
+        notify({ phase: 'subtask', index: idx + 1, total: steps.length, task: task });
+        var subOpts = Object.assign({}, opts, {
+          planOnly: false, reviewOnly: false,
+          maxIterations: opts.subMaxIterations || 10,
+          onSubtask: undefined,
+          priorConversation: null   // 每子任务独立聚焦线程（共享 draft 即合并）
+        });
+        var prompt = '【子任务 ' + (idx + 1) + '/' + steps.length + '】' + task
+          + '\n（这是大任务的一步，只完成这一步、别越界做其它步骤；完成后用 validateDraft 自查并 finish。整体目标："' + userRequest + '"）';
+        return runAuthoringLoop(draft, prompt, subOpts).then(function(r) {
+          subResults.push({ task: task, result: r });
+          if (r.stopReason === 'aborted') aborted = true;   // 中断则停止后续子任务
+          return next();
+        });
+      }
+      return next().then(function() {
+        var doneN = subResults.filter(function(s) { return s.result.finished; }).length;
+        var summary = '已分解为 ' + steps.length + ' 个子任务，完成 ' + doneN + ' 个'
+          + (aborted ? '（已中断）' : '') + '：' + steps.map(function(s, k) { return (k + 1) + '. ' + s; }).join('；');
+        return {
+          orchestrated: true, steps: steps, subResults: subResults, draft: draft,
+          finalValidation: validateDraft(draft), summary: summary,
+          stopReason: aborted ? 'aborted' : 'finish'
+        };
+      });
     });
   }
 
@@ -1432,6 +1752,60 @@
     }
     walk(before, after, '');
     return out;
+  }
+
+  // UI·X · 逐条接受/拒绝改动（Cursor/Claude Code edit-review 范式）：从 current 出发，只应用【接受】的 hunk。
+  // 模型：clone(draft)（draft 已含全部改动·内部一致无索引漂移）起手，把【拒绝】的 hunk 逐个 revert 回原状；
+  // 受影响的数组最后 compact 去 undefined 洞。比"按顶层字段整块替换"细一档，且对独立标量编辑完全安全。
+  // isAccepted(d) 默认接受（拒绝是 opt-out）。current=当前剧本·draft=agent 改完的草稿·diffs=computeDiff(current,draft)。
+  function applySelectedDiffs(current, draft, diffs, isAccepted) {
+    function clone(x) { try { return JSON.parse(JSON.stringify(x)); } catch (e) { return x; } }
+    function segs(path) { return String(path || '').split('.').filter(function(s) { return s !== ''; }); }
+    function getAt(root, path) {
+      var ss = segs(path), o = root;
+      for (var i = 0; i < ss.length; i++) { if (o == null) return undefined; o = o[ss[i]]; }
+      return o;
+    }
+    function setAt(root, path, val) {
+      var ss = segs(path); if (!ss.length) return;
+      var o = root;
+      for (var i = 0; i < ss.length - 1; i++) {
+        var k = ss[i];
+        if (o[k] == null || typeof o[k] !== 'object') { o[k] = /^\d+$/.test(ss[i + 1]) ? [] : {}; }
+        o = o[k];
+      }
+      o[ss[ss.length - 1]] = val;
+    }
+    function delAt(root, path) {
+      var ss = segs(path); if (!ss.length) return;
+      var o = root;
+      for (var i = 0; i < ss.length - 1; i++) { if (o == null) return; o = o[ss[i]]; }
+      if (o == null) return;
+      var last = ss[ss.length - 1];
+      if (Array.isArray(o) && /^\d+$/.test(last)) { o[+last] = undefined; }   // 留洞·稍后 compact
+      else { try { delete o[last]; } catch (e) {} }
+    }
+    function parentArrayPath(path) {   // 若该路径末段是数组数字索引，返回父数组路径，否则 ''
+      var ss = segs(path); if (ss.length < 1) return '';
+      var last = ss[ss.length - 1]; if (!/^\d+$/.test(last)) return '';
+      return ss.slice(0, ss.length - 1).join('.');
+    }
+    var accept = (typeof isAccepted === 'function') ? isAccepted : function() { return true; };
+    var result = clone(draft);
+    var touched = {};
+    (diffs || []).forEach(function(d) {
+      if (accept(d)) return;   // 接受 → 保留 draft 的值，不动
+      var path = String(d.path || ''), pa = parentArrayPath(path);
+      if (pa) touched[pa] = 1;
+      if (d.type === 'changed') setAt(result, path, clone(d.before));
+      else if (d.type === 'added') delAt(result, path);                 // 拒绝新增 → 删
+      else if (d.type === 'removed') setAt(result, path, clone(d.before));   // 拒绝删除 → 放回
+    });
+    Object.keys(touched).forEach(function(pp) {
+      var arr = getAt(result, pp);
+      if (Array.isArray(arr)) setAt(result, pp, arr.filter(function(x) { return x !== undefined; }));
+    });
+    return result;
   }
 
   /** 旧编辑器（editor.html）：body = 全局 scriptData。 */
@@ -1525,7 +1899,13 @@
     AGENT_TOOLS: AGENT_TOOLS,
     dispatchTool: dispatchTool,
     computeGaps: _computeGaps,
+    preflight: preflight,
+    buildExemplars: buildExemplars,
+    buildEntityBundle: buildEntityBundle,
+    mergeEntityBundle: mergeEntityBundle,
+    applySelectedDiffs: applySelectedDiffs,
     runAuthoringLoop: runAuthoringLoop,
+    runOrchestrated: runOrchestrated,
     // S5
     ENTITY_TEMPLATES: ENTITY_TEMPLATES,
     buildSchemaGuide: buildSchemaGuide,

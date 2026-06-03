@@ -145,11 +145,16 @@
 
   // ─── paint·圆 brush·支持线段插值 ───────────────────────────
 
+  // 移植 S2.4c·笔压 → 笔刷半径系数（仅 pen 指针·pressure 0..1 → 0.35..1.0；触屏/鼠标恒 1）
+  function _penScale(e){
+    return (e && e.pointerType === 'pen' && e.pressure > 0) ? (0.35 + 0.65 * Math.min(1, e.pressure)) : 1;
+  }
+
   function paintAt(wx, wy){
     var s = getState();
     if (!s.maskCtx) return;
     var p = ringToMask([wx, wy]);
-    var r = s.brushSize * s.resolution;
+    var r = s.brushSize * s.resolution * (s.pressureScale || 1);
     var ctx = s.maskCtx;
 
     if (s.mode === 'add'){
@@ -449,6 +454,7 @@
     }
     s.painting = true;
     s.lastWX = wx; s.lastWY = wy;
+    s.pressureScale = _penScale(e);   // S2.4c·笔压（仅笔·触屏/鼠标=1）
     paintAt(wx, wy);
     ME.requestRender();
     return true;
@@ -460,6 +466,7 @@
     s.previewWX = wx; s.previewWY = wy;
     s.showPreview = true;
     if (s.painting){
+      s.pressureScale = _penScale(e);   // S2.4c·笔压
       paintLine(s.lastWX, s.lastWY, wx, wy);
       s.lastWX = wx; s.lastWY = wy;
     }

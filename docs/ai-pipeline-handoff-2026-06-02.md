@@ -52,3 +52,36 @@ owner（misfit）让 Claude 当「演绎脑」、零外部 API 跑通了天启 T
 加油。改完核心 prompt 记得 node 验 + 真跑一回合看推演没崩。
 
 — 2026-06-02 的我
+
+---
+
+## 追记 · 接班的我（2026-06-02 当晚，owner 在线指挥）
+
+**① sysP 去重的离线部分全做完了，且全部 node 验过、零行为变更。** 关键纠错与进度：
+
+### 纠错（上面信里的雷）
+- 上面写「拆 `tp +=` 链」**是错的**。实读代码：`build()` 里 `tp`（L101–~1769）是 **sc 的 user prompt base**；真正要去重的 **sysP** 是另一条独立链 `var sysP = _promptComposer.buildBase(...)` 起（**L1770–~3396，~1626 行，689 处 `sysP +=`**）。1A 拆的是 **sysP 链**。
+
+### 实现：offset-marker 切片（owner 拍板，比 doc 字面"重写累加器"更稳）
+- **刀1A**：`sysP +=` 689 行**一字未动**；在 ~21 个安全顶层边界插 `_mark('块名')`（`_mark` 记 `sysP.slice(_segPrev)` 并推进）。收尾组装 `ctx.prompt._segs`（有序段）+ `ctx.prompt.sysBlocks`（同名归并）+ **运行时 diff=0 自检**；截断/失配 → `_segs=null` 回退整条 sysP。段序见下。
+- **刀1B**：`global.TM.Endturn.AI.prompt.SYS_PROFILES`（NPC/FAC/LITE 保留段集）+ `SYS_PROFILE_OF`（sc→profile）+ `ctx.prompt.sysPFor(scId)`（按 profile 选段拼接·代码序·FULL/未知/无分块→整条 sysP）。**`SYS_PROFILE_OF 当前留空 = 全 FULL = 零行为变更`**。
+- **刀1C**：tm-endturn-ai.js（5）+ tm-endturn-followup.js（18）= **23 个调用点**全部 `_maybeCacheSys(sysP)` → `_maybeCacheSys(sysPFor('scXX'))`；两文件各加 `var sysPFor = ctx.prompt.sysPFor || function(){return sysP;}` 绑定。sc2 的 `_tmPrepareSc2Messages(sysP,…)` 主路**故意没动**（保 smoke 断言），只换其 fallback。
+
+### 段序（21 段·代码序首尾相接）
+`base→worldState→events→digest→context→player→npcDeep→worldState→base→npcDeep→letters→npcDeep→worldState→personnel→base→worldState→personnel→socialRules→base→roster→tail`
+- 永保（全 profile）：**base**(规则+JSON输出契约)、**worldState**、**roster**、**context**、**events**
+- 可丢（LITE/FAC）：**digest**(最大单块)、**npcDeep**、**letters**、**personnel**、**socialRules**、**player**
+
+### 验证
+- 三文件 `node -c` 全 OK；`smoke-endturn-token-guard` 全断言过。
+- 离线单测：`_segs` 重构恒等 + `sysPFor` 的 FULL=全量/未知=全量/LITE 保序省字 均过。
+- 备份：`web/backups/2026-06-02-1A-sysblocks/`（prompt/ai/followup 三 .bak）。
+
+### 还差（**必须开游戏**，故 owner 让缓到下次会话）
+1. 据「各 profile 实际字数 log」逐个填 `SYS_PROFILE_OF`：sc17/27/28/25/07→`LITE`、sc16/16L/18/18L→`FAC`（改那一张表即可，不动 build/调用点）。
+   - **（2026-06-03 补）字数 log 已落地**：tm-endturn-prompt.js 收尾成功分支打 `[sysBlocks] FULL=…字 | NPC=…(省x%) | FAC=…(省x%) | LITE=…(省x%)`（DebugLog('ai') 开时每回合一行）。开游戏开 ai 调试即见各档真实省比，照此填表。
+   - 已核对：模板里 sc17/27/28/07/25 + sc16/16L/18/18L 共 9 个 scId **均有真实调用点**，取消注释即生效。roster（人名/地名防幻觉白名单）NPC/FAC/LITE **三档都保留**，裁剪不丢护栏。
+2. 跑一回合冒烟：endTurn 不崩、T→T+1、各 sc 字段完整、**无幻觉人名/地名告警**（防 roster 被误丢的关键检验）、看 DebugLog 有无 `[sysBlocks] RECON MISMATCH`/回退。
+3. 没问题再逐步扩大裁剪面。**全完工前不 ship、不 commit（沿用纪律）。**
+
+— 接班的我

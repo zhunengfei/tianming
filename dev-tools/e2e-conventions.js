@@ -28,7 +28,7 @@ const { chromium } = require(PW);
 
   await page.evaluate(() => {
     const p = document.getElementById('tm-aa-panel'); if (p) p.classList.add('open');
-    document.body.classList.add('je-guoshi-docked');
+    document.body.classList.add('je-guoshi-docked'); document.body.classList.add('je-guoshi-settings-open');
   });
 
   // ---- B1: 约定框 输入→保存→读 ----
@@ -54,6 +54,8 @@ const { chromium } = require(PW);
     const s = document.querySelector('#tm-aa-summary');
     return s && s.style.display !== 'none' && s.querySelector('.sug-keep');
   }, { timeout: 15000 });
+  // UI·P 流式：等打字机收尾（光标消失）再读，否则建议约定 span 文本还没揭显
+  await page.waitForFunction(() => { const s = document.querySelector('#tm-aa-summary'); return s && !s.querySelector('.tm-aa-caret'); }, { timeout: 15000 });
   const sugText = await page.evaluate(() => { const r = document.querySelector('.tm-aa-sug .sug-row span'); return r ? r.textContent : ''; });
   await page.locator('.tm-aa-sug .sug-keep').first().click();
   const afterKeep = await page.evaluate(() => ({

@@ -465,6 +465,9 @@ console.log('天命游戏脚本开始加载...');
 </script>
 
 <script src="tm-env-detect.js?v=2026042714"></script>
+<script src="tm-platform.js?v=20260603"></script>
+<!-- 固定虚拟分辨率+整体等比缩放适配（移植 Phase 2 重做）·仅 capacitor/?fit=1·须在 platform 后尽早加载防闪 -->
+<script src="tm-fixed-fit.js?v=20260603-anchor"></script>
 <script src="tm-debug-logger.js?v=2026052801"></script>
 <script src="tm-diagnostics-foundation.js?v=2026050401"></script>
 <script src="tm-ui-foundation.js?v=2026050401"></script>
@@ -786,13 +789,33 @@ console.log('天命游戏脚本开始加载...');
 <script src="tm-test.js" defer></script>
 <!-- 官方剧本 -->
 <script src="scenarios/tianqi7-1627.js?v=2026042821"></script>
-<script src="data/scenario-supplements/tianqi7-official-runtime-snapshot.js?v=20260515-laterjin-liaodong"></script>
+<!-- 性能·7MB 官方运行时快照延迟到首屏后空闲注入（原为同步解析·占首屏 JS 约 32%）。
+     快照 IIFE 加载即自应用·自带 setTimeout 重试 + tm:p-restored 自愈·幂等去重·
+     远早于玩家在启动页点选剧本（需数秒）；启动路径 _tmStartApplyOfficialSnapshot 再幂等兜底。 -->
+<script>
+(function(){
+  function _loadTianqiSnapshot(){
+    if (window.__tmTianqiSnapLoaded) return;
+    window.__tmTianqiSnapLoaded = true;
+    var s = document.createElement('script');
+    s.src = 'data/scenario-supplements/tianqi7-official-runtime-snapshot.js?v=20260515-laterjin-liaodong';
+    s.async = true;
+    (document.head || document.documentElement).appendChild(s);
+  }
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(_loadTianqiSnapshot, { timeout: 3000 });
+  } else {
+    window.addEventListener('load', function(){ setTimeout(_loadTianqiSnapshot, 600); });
+  }
+})();
+</script>
 
 <!-- 测试框架（?test=1 自动运行） -->
 <script src="tm-test-harness.js?v=2026042714" defer></script>
 
 <!-- 邸报·更新公告 -->
 <script src="tm-changelog.js?v=20260519-remote-changelog"></script>
+<script src="tm-online-client.js?v=20260603-online-client"></script>
 <script src="tm-content-manager.js?v=20260519-update-apply"></script>
 <script src="preview/img/east-asia-basemap-data.js?v=20260514-formal-map"></script>
 <script src="phase8-formal-bridge.js?v=20260527-mapdiag-trycatch"></script>
@@ -804,6 +827,15 @@ console.log('天命游戏脚本开始加载...');
 <script src="phase8-formal-records.js?v=20260526-split-skeleton"></script>
 <script src="phase8-formal-rightrail.js?v=20260527-toast-alias"></script>
 <script src="preview/scenario-editor-sandbox-bridge.js?v=20260524-scenario-editor-sandbox"></script>
+
+<!-- Capacitor 启动钩子（移植 Phase 3）·Capgo 热更 notifyAppReady + 在线·仅原生端·桌面/web no-op -->
+<script src="tm-capacitor-boot.js?v=20260603-capgo-online"></script>
+
+<!-- 触屏手势桥（移植 Phase 2·S2.x）·长按=右键(contextmenu)·仅触屏设备挂载·鼠标零影响 -->
+<script src="tm-touch-gestures.js?v=20260603-longpress-rclick"></script>
+
+<!-- 触屏工效层（移植 Phase 2·S2.1）·仅 @media(pointer:coarse) 生效·桌面零影响·置尾以压过御案注入样式 -->
+<link rel="stylesheet" href="tm-touch.css?v=20260603-s21-touch">
 
 </body>
 </html>

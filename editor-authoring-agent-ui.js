@@ -24,6 +24,231 @@
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
   function _clone(o) { try { return JSON.parse(JSON.stringify(o)); } catch (e) { return o; } }   // 维度3 · 撤销快照
+
+  // UI 借鉴 Claude Code/Codex · 轻量安全 markdown 渲染（先转义、再套 md；支持代码块/行内码/标题/有序无序列表/加粗/斜体）
+  function _mdInline(s) {
+    return String(s)
+      .replace(/`([^`]+)`/g, '<code class="md-ic">$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+  }
+  function _md(src) {
+    var escd = String(src == null ? '' : src).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    var blocks = [];
+    escd = escd.replace(/```([\s\S]*?)```/g, function(_, code) { blocks.push(_renderCodeBlock(code)); return '%%MDCODE' + (blocks.length - 1) + '%%'; });
+    var lines = _mdExtractTables(escd.split('\n'), blocks);   // UI·AE · 先抽 GFM 表格成块占位
+    var out = [], listType = null, items = [];
+    function flush() { if (listType) { out.push('<' + listType + ' class="md-list">' + items.join('') + '</' + listType + '>'); listType = null; items = []; } }
+    lines.forEach(function(line) {
+      var bm = line.match(/^\s*[-*]\s+(.+)$/), nm = line.match(/^\s*\d+[.、]\s+(.+)$/), hm = line.match(/^\s*(#{1,4})\s+(.+)$/);
+      if (/^\s*%%MD(?:CODE|TABLE)\d+%%\s*$/.test(line)) { flush(); out.push(line.trim()); }
+      else if (bm) { if (listType !== 'ul') flush(); listType = 'ul'; items.push('<li>' + _mdInline(bm[1]) + '</li>'); }
+      else if (nm) { if (listType !== 'ol') flush(); listType = 'ol'; items.push('<li>' + _mdInline(nm[1]) + '</li>'); }
+      else if (hm) { flush(); out.push('<div class="md-h md-h' + hm[1].length + '">' + _mdInline(hm[2]) + '</div>'); }
+      else if (line.trim() === '') { flush(); }
+      else { flush(); out.push('<div class="md-p">' + _mdInline(line) + '</div>'); }
+    });
+    flush();
+    return out.join('').replace(/%%MD(?:CODE|TABLE)(\d+)%%/g, function(_, i) { return blocks[+i] || ''; });
+  }
+  // UI·AE · GFM 表格：表头行 + 分隔行(---|:--:)+数据行 → <table>。在【已转义】行上做，cell 走 _mdInline。
+  function _mdIsTableSep(line) { return line.indexOf('-') >= 0 && /^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)*\|?\s*$/.test(line); }
+  function _mdSplitRow(line) { return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(function(c) { return c.trim(); }); }
+  function _mdExtractTables(lines, blocks) {
+    var out = [];
+    for (var i = 0; i < lines.length; i++) {
+      if (i + 1 < lines.length && lines[i].indexOf('|') >= 0 && _mdIsTableSep(lines[i + 1]) && lines[i].trim() !== '') {
+        var header = _mdSplitRow(lines[i]);
+        var aligns = _mdSplitRow(lines[i + 1]).map(function(s) { var l = /^:/.test(s), r = /:$/.test(s); return (l && r) ? 'center' : (r ? 'right' : (l ? 'left' : '')); });
+        var rows = [header], j = i + 2;
+        for (; j < lines.length && lines[j].indexOf('|') >= 0 && lines[j].trim() !== ''; j++) rows.push(_mdSplitRow(lines[j]));
+        var n = header.length;
+        rows = rows.map(function(r) { while (r.length < n) r.push(''); return r.slice(0, n); });
+        blocks.push(_mdRenderTable(rows, aligns));
+        out.push('%%MDTABLE' + (blocks.length - 1) + '%%');
+        i = j - 1;
+      } else { out.push(lines[i]); }
+    }
+    return out;
+  }
+  function _mdRenderTable(rows, aligns) {
+    function cell(tag, c, i) { var a = aligns[i] ? ' style="text-align:' + aligns[i] + '"' : ''; return '<' + tag + a + '>' + _mdInline(c) + '</' + tag + '>'; }
+    var thead = '<thead><tr>' + rows[0].map(function(c, i) { return cell('th', c, i); }).join('') + '</tr></thead>';
+    var tbody = '<tbody>' + rows.slice(1).map(function(r) { return '<tr>' + r.map(function(c, i) { return cell('td', c, i); }).join('') + '</tr>'; }).join('') + '</tbody>';
+    return '<table class="md-table">' + thead + tbody + '</table>';
+  }
+  function _mdLine(s) { return _mdInline(String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')); }   // 行内版（短字段·不分块）
+
+  // UI·AA · 代码块复制 + 轻语法高亮（Claude.ai/ChatGPT 网页端招牌）：单遍 tokenizer 在【已转义】文本上包 span。
+  //   字符串整体先吃掉(故串内数字不会被单独着色)·"key": 标键名·true/false/null 关键字·数字。XSS 安全(只插自有 span)。
+  function _highlightCode(s) {
+    return String(s).replace(/("(?:[^"\\]|\\.)*")(\s*:)?|\b(true|false|null)\b|(-?\d+(?:\.\d+)?)/g, function(m, str, colon, kw, num) {
+      if (str !== undefined && str !== '') {
+        if (colon) return '<span class="tok-key">' + str + '</span><span class="tok-punct">' + colon + '</span>';
+        return '<span class="tok-str">' + str + '</span>';
+      }
+      if (kw !== undefined && kw !== '') return '<span class="tok-kw">' + kw + '</span>';
+      if (num !== undefined && num !== '') return '<span class="tok-num">' + num + '</span>';
+      return m;
+    });
+  }
+  // 把围栏代码渲染成 带语言标签 + 复制键 的代码卡。code 已被 _md 整体 HTML 转义；提取首行语言；
+  //   data-code 存转义体(getAttribute 解码即还原原文·供复制)。
+  function _renderCodeBlock(code) {
+    var lang = '', body = String(code);
+    var m = body.match(/^([A-Za-z0-9_+#.-]{1,20})\n([\s\S]*)$/);
+    if (m) { lang = m[1]; body = m[2]; }
+    body = body.replace(/^\n+/, '').replace(/\n+$/, '');
+    var dataAttr = body.replace(/"/g, '&quot;');   // 供复制：getAttribute('data-code') 会把实体解码回原文
+    return '<div class="md-codewrap"><div class="md-codebar"><span class="md-lang">' + (lang || 'code') + '</span>'
+      + '<button type="button" class="md-copy" title="复制代码">⧉ 复制</button></div>'
+      + '<pre class="md-code" data-code="' + dataAttr + '">' + _highlightCode(body) + '</pre></div>';
+  }
+  // UI·AA · 代码块复制键委托（document 级·绑一次·过滤 .md-copy）：复制 data-code 解码后的原文
+  function _ensureCodeCopy() {
+    if (ui._codeCopyBound) return;
+    ui._codeCopyBound = true;
+    document.addEventListener('click', function(ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest('.md-copy') : null;
+      if (!btn) return;
+      var wrap = btn.closest('.md-codewrap'); if (!wrap) return;
+      var pre = wrap.querySelector('pre.md-code');
+      var code = pre ? (pre.getAttribute('data-code') != null ? pre.getAttribute('data-code') : pre.textContent) : '';
+      try { navigator.clipboard.writeText(code).then(function() { var o = btn.textContent; btn.textContent = '✓ 已复制'; setTimeout(function() { btn.textContent = o; }, 900); }, function() { setStatus('复制失败（浏览器限制）'); }); }
+      catch (e) { setStatus('复制失败'); }
+    });
+  }
+
+  // UI·AH · 行内实体引用跳转（Claude Code 点 file:line 跳转的剧本版）：把结果里出现的剧本实体名渲成可点链接，
+  //   点了让编辑器导航到那个实体（编辑器需暴露 revealEntity·旧编辑器无则优雅降级）。
+  function _entityNameMap() {
+    var sc = (ui.adapter && ui.adapter.getScenario) ? ui.adapter.getScenario() : null;
+    if (!sc) return null;
+    var map = {};
+    ['factions', 'characters'].forEach(function(field) {
+      (sc[field] || []).forEach(function(e) { var n = e && (e.name || e.title || e.id); n = n && String(n); if (n && n.length >= 2 && !map[n]) map[n] = field; });
+    });
+    return Object.keys(map).length ? map : null;
+  }
+  function _linkifyEntities(container) {
+    if (!container) return;
+    var map = _entityNameMap(); if (!map) return;
+    var names = Object.keys(map).sort(function(a, b) { return b.length - a.length; });   // 长名优先，避免子串误匹配
+    var reSrc = '(' + names.map(function(n) { return n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }).join('|') + ')';
+    var test = new RegExp(reSrc), reg = new RegExp(reSrc, 'g');
+    var targets = [];
+    (function walk(node) {
+      for (var c = node.firstChild; c; c = c.nextSibling) {
+        if (c.nodeType === 3) { if (test.test(c.nodeValue)) targets.push(c); }
+        else if (c.nodeType === 1 && !/^(a|code|pre|kbd|button)$/i.test(c.tagName) && !(c.classList && c.classList.contains('je-entity-ref'))) walk(c);
+      }
+    })(container);
+    targets.forEach(function(tn) {
+      var text = tn.nodeValue, frag = document.createDocumentFragment(), last = 0, m, any = false;
+      reg.lastIndex = 0;
+      while ((m = reg.exec(text))) {
+        any = true;
+        if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+        var name = m[0], a = document.createElement('a');
+        a.className = 'je-entity-ref'; a.setAttribute('data-field', map[name]); a.setAttribute('data-name', name);
+        a.setAttribute('role', 'link'); a.textContent = name; a.title = '跳到剧本里的「' + name + '」';
+        frag.appendChild(a);
+        last = m.index + name.length;
+        if (reg.lastIndex === m.index) reg.lastIndex++;
+      }
+      if (any) { if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last))); tn.parentNode.replaceChild(frag, tn); }
+    });
+  }
+  // 流式则吐完字再 linkify（避免打字机清空已 linkify 的文本节点）；瞬显则直接 linkify
+  function _streamThenLink(el, stream) {
+    if (!el) return;
+    function done() { _linkifyEntities(el); _applyClamp(ui.els.summary, 280); }
+    if (stream) _typewrite(el, { onDone: done });
+    else done();
+  }
+  // UI·AK · 长内容折叠「显示更多」（Claude.ai/ChatGPT 超长消息招牌）：结果卡超阈值则夹高 + 渐隐 + 展开/收起。
+  function _applyClamp(el, maxPx) {
+    if (!el) return;
+    if (ui._clampBtn && ui._clampBtn.parentNode) ui._clampBtn.parentNode.removeChild(ui._clampBtn);   // 去旧按钮
+    ui._clampBtn = null;
+    el.classList.remove('tm-aa-clamped', 'tm-aa-clamp-open');
+    maxPx = maxPx || 280;
+    if (el.scrollHeight <= maxPx + 40) return;   // 不够长 → 不夹
+    el.style.setProperty('--clamp-max', maxPx + 'px');
+    el.classList.add('tm-aa-clamped');
+    var btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'tm-aa-clamp-btn'; btn.textContent = '显示更多 ▾';
+    btn.addEventListener('click', function() {
+      var open = el.classList.toggle('tm-aa-clamp-open');
+      btn.textContent = open ? '收起 ▴' : '显示更多 ▾';
+    });
+    if (el.parentNode) el.parentNode.insertBefore(btn, el.nextSibling); else el.appendChild(btn);   // 按钮放卡外（不被 overflow 裁）
+    ui._clampBtn = btn;
+  }
+  function _ensureEntityNav() {
+    if (ui._entNavBound) return;
+    ui._entNavBound = true;
+    document.addEventListener('click', function(ev) {
+      var a = ev.target && ev.target.closest ? ev.target.closest('.je-entity-ref') : null;
+      if (!a) return;
+      ev.preventDefault();
+      var field = a.getAttribute('data-field'), name = a.getAttribute('data-name');
+      var app = global.TM_SCENARIO_EDITOR_RESET_APP;
+      if (app && typeof app.revealEntity === 'function') {
+        var ok = app.revealEntity(field, name);
+        setStatus(ok ? ('已跳到「' + name + '」') : ('未在剧本里找到「' + name + '」'));
+      } else { setStatus('当前编辑器不支持跳转'); }
+    });
+  }
+
+  // UI·P · 流式打字机：对已渲染好的容器，逐字「揭显」其文本节点 + 闪烁光标，模拟 Claude Code/Codex 桌面端的 token 流式吐字。
+  // 纯 UI 层（不动网络/relay）：先把最终 markdown 渲染好，再把文本节点清空、按节奏补回，结构与事件绑定不受影响。
+  // 守护：尊重 prefers-reduced-motion、太长(>6000 字)或无字直接瞬显；同一时刻仅一个动画，新动画/重置即取消旧的。
+  function _cancelTypewriter() { if (ui._tw && ui._tw.cancel) { try { ui._tw.cancel(); } catch (e) {} } ui._tw = null; }
+  function _typewrite(container, opts) {
+    opts = opts || {};
+    _cancelTypewriter();
+    if (!container) { if (opts.onDone) opts.onDone(); return null; }
+    var reduce = false;
+    try { reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+    // 采集文本节点（跳过 script/style；保留含可见字符的节点）
+    var nodes = [], total = 0;
+    (function walk(n) {
+      for (var c = n.firstChild; c; c = c.nextSibling) {
+        if (c.nodeType === 3) { if (c.nodeValue && /\S/.test(c.nodeValue)) { nodes.push({ node: c, full: c.nodeValue }); total += c.nodeValue.length; } }
+        else if (c.nodeType === 1 && !/^(script|style)$/i.test(c.tagName)) walk(c);
+      }
+    })(container);
+    if (reduce || total === 0 || total > 6000) { if (opts.onDone) opts.onDone(); return null; }
+    nodes.forEach(function(o) { o.node.nodeValue = ''; });
+    var caret = document.createElement('span'); caret.className = 'tm-aa-caret'; caret.textContent = '▌';
+    var idx = 0, pos = 0, timer = null, ended = false;
+    var perTick = Math.max(2, Math.round(total / 80));   // ~80 tick → 约 1.3s 走完，长文按比例提速
+    function placeCaret() {
+      if (caret.parentNode) caret.parentNode.removeChild(caret);
+      var cur = nodes[Math.min(idx, nodes.length - 1)];
+      if (cur && cur.node.parentNode) cur.node.parentNode.insertBefore(caret, cur.node.nextSibling);
+    }
+    function revealAll() { nodes.forEach(function(o) { o.node.nodeValue = o.full; }); if (caret.parentNode) caret.parentNode.removeChild(caret); }
+    function finish() { if (ended) return; ended = true; if (timer) clearTimeout(timer); revealAll(); if (ui._tw === api) ui._tw = null; if (opts.onDone) opts.onDone(); }
+    function cancel() { if (ended) return; ended = true; if (timer) clearTimeout(timer); revealAll(); if (ui._tw === api) ui._tw = null; }
+    function tick() {
+      if (ended) return;
+      var budget = perTick;
+      while (budget > 0 && idx < nodes.length) {
+        var o = nodes[idx], remain = o.full.length - pos, take = Math.min(budget, remain);
+        o.node.nodeValue = o.full.slice(0, pos + take); pos += take; budget -= take;
+        if (pos >= o.full.length) { idx++; pos = 0; }
+      }
+      placeCaret();
+      if (idx >= nodes.length) { finish(); } else { timer = setTimeout(tick, 16); }
+    }
+    var api = { cancel: cancel, finish: finish };
+    ui._tw = api;
+    placeCaret();   // 同步先把光标插入 DOM：消除「已清空文本但光标未插」的窗口（否则外部"等光标消失"会误判流式已结束）
+    timer = setTimeout(tick, 16);
+    return api;
+  }
   // 上下文感知：编辑器当前焦点（模块/集合/选中实体），喂给 agent 解析"他/这个/当前"等指代
   function _editorContext() {
     try { return (ui.adapter && typeof ui.adapter.getContext === 'function') ? (ui.adapter.getContext() || '') : ''; }
@@ -41,23 +266,100 @@
       'border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.5);font-family:inherit;font-size:13px;overflow:hidden}',
       '#' + PANEL_ID + '.open{display:flex}',
       '#tm-aa-hd{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#262a3d;border-bottom:1px solid #3a3f55}',
+      '.tm-aa-resize{position:absolute;left:0;top:0;bottom:0;width:6px;cursor:ew-resize;z-index:5}.tm-aa-resize:hover{background:rgba(122,92,255,.3)}',
+      '.tm-aa-search{position:sticky;top:-10px;z-index:6;display:flex;align-items:center;gap:4px;margin:-4px -2px 2px;padding:4px 6px;background:#13151f;border:1px solid #3a3f55;border-radius:7px}',
+      '.tm-aa-search[hidden]{display:none}',
+      '.tm-aa-search input{flex:1;min-width:0;background:#0e1018;color:#e8e8f0;border:1px solid #2c3145;border-radius:5px;padding:3px 6px;font-size:11px;font-family:inherit}',
+      '.tm-aa-search .tm-aa-search-n{color:#8b90a8;font-size:10px;white-space:nowrap;font-variant-numeric:tabular-nums}',
+      '.tm-aa-search button{background:#2c3145;color:#b7bcd6;border:none;border-radius:5px;padding:2px 7px;font-size:11px;cursor:pointer;line-height:1.4}.tm-aa-search button:hover{background:#3a3f55;color:#e8e8f0}',
+      '.tm-aa-hl{background:rgba(232,200,106,.32);color:inherit;border-radius:2px}.tm-aa-hl.active{background:#e8c86a;color:#1a1206}',
+      '#tm-aa-fs{background:none;border:none;color:#8b90a8;font-size:13px;cursor:pointer;line-height:1;padding:0 3px}#tm-aa-fs:hover{color:#e8e8f0}',
       '#tm-aa-hd b{font-size:13px}',
       '#tm-aa-hd .sub{font-size:11px;color:#8b90a8;margin-left:6px}',
       '#tm-aa-x{background:none;border:none;color:#8b90a8;font-size:18px;cursor:pointer;line-height:1}',
-      '#tm-aa-body{padding:10px 12px;overflow:auto;display:flex;flex-direction:column;gap:8px}',
+      '#tm-aa-body{padding:10px 12px;overflow:auto;display:flex;flex-direction:column;gap:8px;position:relative}',
+      '#tm-aa-composer{display:flex;flex-direction:column;gap:8px;position:relative}',
       '#tm-aa-req{width:100%;box-sizing:border-box;background:#13151f;color:#e8e8f0;border:1px solid #3a3f55;',
-      'border-radius:8px;padding:8px;font-family:inherit;font-size:13px;resize:vertical;min-height:54px}',
+      'border-radius:8px;padding:8px 8px 8px 8px;font-family:inherit;font-size:13px;resize:none;min-height:54px;max-height:180px;overflow:auto;display:block}',
+      '.tm-aa-charcount{position:absolute;right:18px;font-size:10px;color:#6b7088;pointer-events:none;background:rgba(19,21,31,.82);padding:0 4px;border-radius:4px;z-index:1}',
+      '.tm-aa-charcount[hidden]{display:none}',
       '#tm-aa-go{background:#7a5cff;color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:13px}',
       '#tm-aa-go:disabled{opacity:.5;cursor:default}',
+      '#tm-aa-go.stopbtn{background:#c0413b}#tm-aa-go.stopbtn:hover{background:#d2554f}',
       '#tm-aa-status{font-size:12px;color:#9aa0bd;min-height:16px}',
+      '#tm-aa-meter{font-size:11px;color:#bfa9ff;font-variant-numeric:tabular-nums;padding:2px 0}',
+      '.tm-aa-empty{background:#191c2b;border:1px dashed #3a3f55;border-radius:8px;padding:10px 11px}',
+      '.tm-aa-empty .emp-title{color:#b7bcd6;font-size:11px;margin-bottom:8px;line-height:1.5}',
+      '.tm-aa-empty .emp-chips{display:flex;flex-wrap:wrap;gap:6px}',
+      '.tm-aa-empty .emp-chip{background:#262a3d;color:#dfe3f5;border:1px solid #3a3f55;border-radius:13px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:inherit}.tm-aa-empty .emp-chip:hover{background:#323750;border-color:#5a6080}',
+      '.tm-aa-logwrap{position:relative}',
       '.tm-aa-log{background:#13151f;border:1px solid #2c3145;border-radius:8px;padding:6px 8px;max-height:150px;overflow:auto;font-size:11px;line-height:1.5}',
+      '.tm-aa-tobottom{position:absolute;right:9px;bottom:7px;background:#2c3145;color:#dfe3f5;border:1px solid #4a4f68;border-radius:11px;padding:2px 9px;font-size:10px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4);z-index:2}.tm-aa-tobottom:hover{background:#3a4060}',
+      '.tm-aa-tobottom[hidden]{display:none}',
       '.tm-aa-log .ln{color:#b7bcd6}.tm-aa-log .bad{color:#ff8f8f}.tm-aa-log .fin{color:#7fe0a0}',
+      '.tm-aa-step{margin:1px 0}.tm-aa-step>summary{cursor:pointer;list-style:none;padding:1px 0;line-height:1.5;outline:none}',
+      '.tm-aa-step>summary::-webkit-details-marker{display:none}.tm-aa-step>summary::before{content:"▸ ";color:#8b90a8}.tm-aa-step[open]>summary::before{content:"▾ "}',
+      '.tm-aa-step.fin>summary{color:#7fe0a0}.tm-aa-step.ln>summary{color:#b7bcd6}.tm-aa-step.bad>summary{color:#ff8f8f}',
+      '.tm-aa-step:not([open])>.tm-aa-step-body{display:none}',
+      '.tm-aa-think{margin:2px 0}.tm-aa-think>summary{cursor:pointer;list-style:none;color:#9aa0bd;font-style:italic;font-size:11px;padding:1px 0;outline:none}',
+      '.tm-aa-think>summary::-webkit-details-marker{display:none}.tm-aa-think>summary::before{content:"▸ ";font-style:normal;color:#8b90a8}.tm-aa-think[open]>summary::before{content:"▾ "}',
+      '.tm-aa-think:not([open])>.tm-aa-think-body{display:none}',
+      '.tm-aa-think-body{padding:2px 0 3px 14px;border-left:1px solid #2c3145;margin:2px 0 2px 3px}',
+      '.tm-aa-think-body .tk-line{color:#9aa0bd;font-style:italic;font-size:11px;line-height:1.5;margin:1px 0;white-space:pre-wrap;word-break:break-word}',
+      '.tm-aa-step-body{padding:2px 0 4px 12px;border-left:1px solid #2c3145;margin:2px 0 2px 3px}',
+      '.tm-aa-step-body .sb-row{margin:2px 0}.tm-aa-step-body .sb-k{display:inline-block;color:#8b90a8;font-size:10px;margin-right:4px}',
+      '.tm-aa-step-body pre{margin:1px 0;white-space:pre-wrap;word-break:break-all;font-family:ui-monospace,Consolas,monospace;font-size:10px;line-height:1.45;color:#9aa0bd;max-height:120px;overflow:auto}',
+      '.tm-aa-checklist{background:#191c2b;border:1px solid #3a3f55;border-radius:8px;padding:6px 8px;margin-bottom:6px}',
+      '.tm-aa-checklist .cl-head{font-size:11px;color:#bfa9ff;font-weight:bold;margin-bottom:3px}',
+      '.tm-aa-checklist .cl-item{font-size:11px;line-height:1.7;color:#9aa0bd;display:flex;gap:6px;align-items:baseline}',
+      '.tm-aa-checklist .cl-item .cl-ic{width:12px;text-align:center;flex:none}',
+      '.tm-aa-checklist .cl-item.done{color:#7fe0a0}.tm-aa-checklist .cl-item.done .cl-ic{color:#7fe0a0}',
+      '.tm-aa-checklist .cl-item.run{color:#e8c86a}.tm-aa-checklist .cl-item.run .cl-ic{color:#e8c86a}',
+      '.tm-aa-checklist .cl-item.pend{color:#6b7088}',
+      '.tm-aa-msg-user{position:relative;margin:8px 0 6px auto;max-width:88%;width:fit-content;padding:5px 9px;background:rgba(122,92,255,.16);border:1px solid rgba(122,92,255,.32);border-radius:9px 9px 3px 9px;font-size:11px;line-height:1.55;color:#e2def7}',
+      '.tm-aa-msg-user .mu-who{color:#bfa9ff;font-weight:bold;margin-right:6px;font-size:10px}',
+      '.tm-aa-msg-acts{position:absolute;top:-11px;right:6px;display:none;gap:1px;background:#262a3d;border:1px solid #3a3f55;border-radius:6px;padding:1px 2px;box-shadow:0 2px 6px rgba(0,0,0,.3)}',
+      '.tm-aa-msg-user:hover .tm-aa-msg-acts{display:inline-flex}',
+      '.mu-act{background:none;border:none;color:#b7bcd6;cursor:pointer;font-size:11px;padding:1px 5px;border-radius:4px;line-height:1.5}.mu-act:hover{background:#3a3f55;color:#e8e8f0}',
       '.tm-aa-sec{font-size:11px;color:#8b90a8;text-transform:none;margin-top:2px}',
       '.tm-aa-diff{background:#13151f;border:1px solid #2c3145;border-radius:8px;padding:6px 8px;max-height:180px;overflow:auto;font-size:11px;line-height:1.5}',
       '.tm-aa-diff .add{color:#7fe0a0}.tm-aa-diff .rm{color:#ff8f8f}.tm-aa-diff .ch{color:#e8c86a}',
+      '.tm-aa-diff .uncertain{background:rgba(232,200,106,.10);border-left:2px solid #e8c86a;padding-left:5px;margin-left:-7px}',
+      '.tm-aa-diff .tm-aa-unc{display:block;color:#e8c86a;font-size:10px;margin-top:1px}',
       '.tm-aa-summary{background:#191c2b;border:1px solid #3a3f55;border-left:3px solid #7a5cff;border-radius:8px;padding:7px 10px;font-size:12px;line-height:1.55;color:#d8dcf0}',
       '.tm-aa-summary b{color:#bfa9ff;font-size:11px;display:block;margin-bottom:3px}',
       '.tm-aa-summary .note{color:#9aa0bd;font-size:11px;margin-top:3px}',
+      '.tm-aa-summary.tm-aa-clamped{max-height:var(--clamp-max,280px);overflow:hidden;position:relative;flex:0 0 auto}',
+      '.tm-aa-summary.tm-aa-clamped::after{content:"";position:absolute;left:0;right:0;bottom:0;height:44px;background:linear-gradient(rgba(25,28,43,0),#191c2b);pointer-events:none}',
+      '.tm-aa-summary.tm-aa-clamp-open{max-height:none;overflow:visible}.tm-aa-summary.tm-aa-clamp-open::after{display:none}',
+      '.tm-aa-clamp-btn{align-self:flex-start;background:none;border:none;color:#bfa9ff;font-size:11px;cursor:pointer;padding:2px 0;margin-top:-4px}.tm-aa-clamp-btn:hover{text-decoration:underline}',
+      '.tm-aa-errcard{background:rgba(192,65,59,.10);border:1px solid #5d3a3a;border-left:3px solid #c0413b;border-radius:8px;padding:8px 10px}',
+      '.tm-aa-errcard .ec-head{color:#ff8f8f;font-weight:bold;font-size:11px;margin-bottom:3px}',
+      '.tm-aa-errcard .ec-msg{color:#e2c0c0;font-size:11px;line-height:1.55;white-space:pre-wrap;word-break:break-word}',
+      '.tm-aa-errcard .ec-acts{display:flex;gap:6px;margin-top:7px}',
+      '.tm-aa-errcard .ec-retry{background:#c0413b;color:#fff;border:none;border-radius:6px;padding:3px 12px;font-size:11px;cursor:pointer}.tm-aa-errcard .ec-retry:hover{background:#d2554f}',
+      '.tm-aa-errcard .ec-copy{background:#3a3f55;color:#dfe3f5;border:none;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer}.tm-aa-errcard .ec-copy:hover{background:#4a5068}',
+      '.md-p{margin:2px 0;line-height:1.6}.md-h{font-weight:bold;color:#cfd3ee;margin:4px 0 2px}.md-h1{font-size:13px}.md-h2,.md-h3,.md-h4{font-size:12px}',
+      '.md-list{margin:3px 0;padding-left:18px}.md-list li{margin:1px 0;line-height:1.6}',
+      '.md-ic{background:rgba(184,154,83,.14);color:#e8c86a;padding:0 4px;border-radius:3px;font-family:ui-monospace,Consolas,monospace;font-size:11px}',
+      '.md-code{background:#0e1018;border:1px solid #2c3145;border-radius:0 0 6px 6px;border-top:none;padding:6px 8px;margin:0;overflow:auto;font-family:ui-monospace,Consolas,monospace;font-size:11px;line-height:1.5;white-space:pre-wrap;color:#c8cce8}',
+      '.md-codewrap{margin:4px 0;position:relative}',
+      '.md-codebar{display:flex;align-items:center;justify-content:space-between;background:#13151f;border:1px solid #2c3145;border-radius:6px 6px 0 0;padding:2px 6px 2px 8px}',
+      '.md-codebar .md-lang{color:#8b90a8;font-size:10px;font-family:ui-monospace,Consolas,monospace;text-transform:lowercase}',
+      '.md-codebar .md-copy{background:none;border:none;color:#9aa0bd;cursor:pointer;font-size:10px;padding:1px 5px;border-radius:4px;opacity:0;transition:opacity .12s}',
+      '.md-codewrap:hover .md-copy{opacity:1}.md-codebar .md-copy:hover{background:#2c3145;color:#e8e8f0}',
+      '.md-code .tok-str{color:#9ad6a0}.md-code .tok-key{color:#7fb4e8}.md-code .tok-num{color:#e0b863}.md-code .tok-kw{color:#c98ad6}.md-code .tok-punct{color:#8b90a8}',
+      '.md-p strong{color:#e8e8f0}.md-p em{color:#cfd3ee}',
+      '.md-table{border-collapse:collapse;margin:5px 0;font-size:11px;max-width:100%;display:block;overflow:auto}',
+      '.md-table th,.md-table td{border:1px solid #2c3145;padding:3px 7px;text-align:left;line-height:1.5}',
+      '.md-table th{background:#191c2b;color:#cfd3ee;font-weight:bold;white-space:nowrap}',
+      '.md-table td{color:#d8dcf0}.md-table tbody tr:nth-child(even) td{background:rgba(255,255,255,.025)}',
+      '.tm-aa-stream{display:block}',
+      '.je-entity-ref{color:#bfa9ff;text-decoration:underline dotted;text-underline-offset:2px;cursor:pointer}.je-entity-ref:hover{color:#d4c6ff;text-decoration-style:solid;background:rgba(122,92,255,.12);border-radius:3px}',
+      '.tm-aa-caret{display:inline-block;color:#bfa9ff;font-weight:400;margin-left:1px;animation:tm-aa-blink 1.05s step-end infinite}',
+      '@keyframes tm-aa-blink{50%{opacity:0}}',
+      '.tm-aa-summary .tm-aa-cl-copy{margin-left:8px;background:#3a3f55;color:#e8e8f0;border:none;border-radius:6px;padding:1px 8px;font-size:10px;cursor:pointer}',
+      '.tm-aa-summary pre.tm-aa-cl{white-space:pre-wrap;margin:5px 0 0;font-family:inherit;font-size:11px;line-height:1.6;color:#d8dcf0;max-height:200px;overflow:auto}',
       '.tm-aa-sug{margin-top:6px;padding-top:5px;border-top:1px solid #3a3f55}.tm-aa-sug b{color:#e8c86a}',
       '.tm-aa-sug .sug-row{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:11px;color:#d8dcf0}.tm-aa-sug .sug-row span{flex:1}',
       '.tm-aa-sug .sug-keep{background:#3a3f55;color:#e8e8f0;border:none;border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer}.tm-aa-sug .sug-keep:disabled{opacity:.6;cursor:default}',
@@ -65,7 +367,13 @@
       '.tm-aa-finding .sev{font-weight:bold;font-size:11px}.tm-aa-finding .sev.rm{color:#ff8f8f}.tm-aa-finding .sev.ch{color:#e8c86a}.tm-aa-finding .sev.add{color:#7fe0a0}',
       '.tm-aa-finding b{color:#cfd3ee;font-size:12px}.tm-aa-finding .loc{color:#8b90a8;font-size:10px}',
       '.tm-aa-finding .iss{color:#d8dcf0;font-size:11px;margin-top:2px;line-height:1.5}.tm-aa-finding .sug{color:#9aa0bd;font-size:11px;margin-top:2px;line-height:1.5}',
-      '.tm-aa-diff-group{margin-bottom:6px;border-bottom:1px solid #2c3145;padding-bottom:4px}.tm-aa-diff-head{display:block;cursor:pointer;color:#e8e8f0;padding:2px 0;font-size:12px}.tm-aa-diff-head input{margin-right:5px;vertical-align:middle}',
+      '.tm-aa-diff-group{margin-bottom:6px;border-bottom:1px solid #2c3145;padding-bottom:4px}.tm-aa-diff-head{display:flex;align-items:center;gap:6px;color:#e8e8f0;padding:2px 0;font-size:12px}',
+      '.tm-aa-diff-head .grp-tog{margin-left:auto;background:#2c3145;color:#b7bcd6;border:none;border-radius:5px;padding:1px 7px;font-size:10px;cursor:pointer}.tm-aa-diff-head .grp-tog:hover{background:#3a3f55}',
+      '.tm-aa-hunk{display:flex;align-items:flex-start;gap:6px;margin:2px 0}',
+      '.tm-aa-hunk .hunk-tog{flex:0 0 auto;width:18px;height:18px;line-height:16px;text-align:center;border-radius:5px;border:1px solid #3a4d3a;background:rgba(127,224,160,.14);color:#7fe0a0;cursor:pointer;font-size:11px;padding:0}',
+      '.tm-aa-hunk .hunk-body{flex:1;min-width:0}',
+      '.tm-aa-hunk.rejected .hunk-tog{border-color:#5d3a3a;background:rgba(255,143,143,.14);color:#ff8f8f}',
+      '.tm-aa-hunk.rejected .hunk-body{opacity:.42;text-decoration:line-through}',
       '.tm-aa-val.ok{color:#7fe0a0}.tm-aa-val.bad{color:#ff8f8f}',
       '#tm-aa-actions{display:flex;gap:8px}',
       '#tm-aa-apply{flex:1;background:#2e9e5b;color:#fff;border:none;border-radius:8px;padding:8px;cursor:pointer}',
@@ -82,14 +390,21 @@
     var panel = document.createElement('div');
     panel.id = PANEL_ID;
     panel.innerHTML = [
+      '<div class="tm-aa-resize" id="tm-aa-resize" title="拖动调整宽度"></div>',   // UI·AI · 左缘拖拽调宽
       '<div id="tm-aa-hd"><span><b>AI 剧本助手</b><span class="sub">' + esc(ui.adapter.label || '') + '</span></span>',
-      '<button id="tm-aa-x" title="关闭">×</button></div>',
+      '<button id="tm-aa-fs" title="全屏 / 还原">⛶</button><button id="tm-aa-x" title="关闭">×</button></div>',
       '<div id="tm-aa-body">',
-      '<textarea id="tm-aa-req" placeholder="描述你想要的修改，例如：把主角势力改名为「西凉军」并补两个文官"></textarea>',
-      '<button id="tm-aa-go">生成</button>',
+      '<div class="tm-aa-search" id="tm-aa-search" hidden><input type="text" id="tm-aa-search-in" placeholder="在结果里查找…"><span class="tm-aa-search-n" id="tm-aa-search-n">0/0</span><button type="button" id="tm-aa-search-prev" title="上一个">↑</button><button type="button" id="tm-aa-search-next" title="下一个">↓</button><button type="button" id="tm-aa-search-x" title="关闭 (Esc)">×</button></div>',
+      '<div id="tm-aa-composer">',   // UI iteration2 · 输入区聚成一块（docked 下 sticky 钉底）
       '<div id="tm-aa-status"></div>',
+      '<textarea id="tm-aa-req" placeholder="描述你想要的修改，例如：把主角势力改名为「西凉军」并补两个文官"></textarea>',
+      '<span class="tm-aa-charcount" id="tm-aa-charcount" hidden></span>',
+      '<button id="tm-aa-go">生成</button>',
+      '</div>',
+      '<div id="tm-aa-meter" style="display:none"></div>',
+      '<div class="tm-aa-empty" id="tm-aa-empty" style="display:none"></div>',
       '<div class="tm-aa-sec" data-sec="log" style="display:none">执行过程</div>',
-      '<div class="tm-aa-log" id="tm-aa-loglist" style="display:none"></div>',
+      '<div class="tm-aa-logwrap" id="tm-aa-logwrap" style="display:none"><div class="tm-aa-log" id="tm-aa-loglist"></div><button type="button" class="tm-aa-tobottom" id="tm-aa-tobottom" hidden>↓ 最新</button></div>',
       '<div class="tm-aa-summary" id="tm-aa-summary" style="display:none"></div>',
       '<div class="tm-aa-sec" data-sec="diff" style="display:none">改动预览</div>',
       '<div class="tm-aa-diff" id="tm-aa-difflist" style="display:none"></div>',
@@ -103,22 +418,42 @@
     ui.els = {
       panel: panel,
       req: panel.querySelector('#tm-aa-req'),
+      charCount: panel.querySelector('#tm-aa-charcount'),
       go: panel.querySelector('#tm-aa-go'),
       status: panel.querySelector('#tm-aa-status'),
+      meter: panel.querySelector('#tm-aa-meter'),
+      empty: panel.querySelector('#tm-aa-empty'),
       logSec: panel.querySelector('[data-sec="log"]'),
+      logWrap: panel.querySelector('#tm-aa-logwrap'),
       log: panel.querySelector('#tm-aa-loglist'),
+      toBottom: panel.querySelector('#tm-aa-tobottom'),
       summary: panel.querySelector('#tm-aa-summary'),
       diffSec: panel.querySelector('[data-sec="diff"]'),
       diff: panel.querySelector('#tm-aa-difflist'),
       val: panel.querySelector('#tm-aa-val'),
       actions: panel.querySelector('#tm-aa-actions'),
       apply: panel.querySelector('#tm-aa-apply'),
-      discard: panel.querySelector('#tm-aa-discard')
+      discard: panel.querySelector('#tm-aa-discard'),
+      resize: panel.querySelector('#tm-aa-resize'),
+      fs: panel.querySelector('#tm-aa-fs'),
+      body: panel.querySelector('#tm-aa-body'),
+      composer: panel.querySelector('#tm-aa-composer'),
+      search: panel.querySelector('#tm-aa-search'),
+      searchIn: panel.querySelector('#tm-aa-search-in'),
+      searchCount: panel.querySelector('#tm-aa-search-n')
     };
-    panel.querySelector('#tm-aa-x').addEventListener('click', function() { panel.classList.remove('open'); });
-    ui.els.go.addEventListener('click', onGenerate);
+    panel.querySelector('#tm-aa-x').addEventListener('click', function() { if (panel._fs) _toggleFullscreen(); panel.classList.remove('open'); });
+    if (ui.els.fs) ui.els.fs.addEventListener('click', _toggleFullscreen);   // UI·AI · 全屏切换
+    _ensurePanelResize();   // UI·AI · 左缘拖拽调宽 + 载入持久宽度
+    _ensureSearch();   // UI·AJ · 过程区内搜索（⌘F）
+    ui.els.go.addEventListener('click', onGoClick);   // UI·Q · 运行中此键=停止
     ui.els.apply.addEventListener('click', onApply);
     ui.els.discard.addEventListener('click', onDiscard);
+    _ensureLogFollow();   // UI·AB · 滚动跟随 + 回到底部
+    _renderEmpty();   // UI·AD · 空状态欢迎 + 建议提示
+    ui.els.req.addEventListener('input', _syncEmpty);   // 有字则隐欢迎态
+    ui.els.req.addEventListener('input', _autoGrowReq);   // UI·AF · 自增高 + 字数
+    _syncEmpty(); _autoGrowReq();
     return panel;
   }
 
@@ -130,25 +465,386 @@
 
   function setStatus(t) { if (ui.els) ui.els.status.textContent = t || ''; }
 
-  function resetResults() {
+  // 方向I · 可观测性：运行中实时 token / 耗时 / 轮次计量条。
+  function _fmtTok(n) { n = n || 0; return n >= 1000 ? (Math.round(n / 100) / 10) + 'k' : String(n); }
+  function _renderMeter(done) {
+    if (!ui.els || !ui.els.meter) return;
+    if (!ui._runStart) { ui.els.meter.style.display = 'none'; return; }
+    var sec = Math.round((Date.now() - ui._runStart) / 1000);
+    var tok = ui._lastTokens || 0, iter = ui._lastIter || 0;
+    ui.els.meter.style.display = '';
+    ui.els.meter.textContent = (done ? '✓ 用时 ' : '⏱ ') + sec + 's · ' + (done ? '约 ' : '~') + _fmtTok(tok) + ' tokens' + (iter ? ' · ' + iter + ' 轮' : '');
+  }
+  // 集中管理运行态：切换 running/禁用生成键 + 启停实时计量
+  function setRunning(on) {
+    ui.running = on;
+    ui._stopping = false;
+    if (on && ui.els && ui.els.empty) ui.els.empty.style.display = 'none';   // UI·AD · 一跑就隐欢迎态
+    // UI·Q · 运行中「生成」键变形为「■ 停止」(不禁用·桌面端范式)；收尾恢复「生成」
+    if (ui.els && ui.els.go) { ui.els.go.disabled = false; ui.els.go.textContent = on ? '■ 停止' : '生成'; ui.els.go.classList.toggle('stopbtn', on); }
+    if (on) {
+      ui._runStart = Date.now(); ui._lastTokens = 0; ui._lastIter = 0;
+      if (ui._meterTimer) clearInterval(ui._meterTimer);
+      ui._meterTimer = setInterval(function() { _renderMeter(false); }, 400);
+      _renderMeter(false);
+    } else {
+      if (ui._meterTimer) { clearInterval(ui._meterTimer); ui._meterTimer = null; }
+      _renderMeter(true);   // 收尾定格总用时/tokens
+    }
+  }
+
+  // 方向M · 运行历史/审计日志（持久·可搜·跨刷新存活·不存大快照避 quota·cap 50）
+  var HISTORY_KEY = 'tm_aa_run_history';
+  function _loadHistory() { try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch (e) { return []; } }
+  function _saveHistory(h) { try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(-50))); } catch (e) {} }
+  function _runSummaryOf(res) {
+    if (!res) return '';
+    if (res.clarification) return '需澄清：' + ((res.clarification.questions || []).slice(0, 2).join('；'));
+    if (res.plan) return '出计划：' + (res.plan.summary || ((res.plan.steps || []).length + ' 步'));
+    if (res.review) return '审阅：' + (res.review.summary || ((res.review.findings || []).length + ' 条问题'));
+    if (res.answer) return '回答：' + String(res.answer.answer || '').slice(0, 100);
+    return res.summary || '（无说明）';
+  }
+  function _logRun(kind, request, res) {
+    ui._histSeq = (ui._histSeq || 0) + 1;
+    var rec = {
+      id: 'r' + Date.now() + '-' + ui._histSeq,
+      ts: Date.now(),
+      when: (function() { try { return new Date().toLocaleString('zh-CN', { hour12: false }); } catch (e) { return ''; } })(),
+      kind: kind,
+      request: String(request || '').slice(0, 200),
+      summary: String(_runSummaryOf(res) || '').slice(0, 240),
+      tokensUsed: (res && res.tokensUsed) || 0,
+      iterations: (res && res.iterations) || 0,
+      stopReason: (res && res.stopReason) || '',
+      applied: false
+    };
+    var h = _loadHistory(); h.push(rec); _saveHistory(h);
+    ui._lastRunId = rec.id;
+    if (typeof ui._onHistoryChange === 'function') { try { ui._onHistoryChange(); } catch (e) {} }
+    return rec.id;
+  }
+  function markLastApplied() {   // onApply 后把最近一条 run 标记为已应用
+    if (!ui._lastRunId) return;
+    var h = _loadHistory();
+    for (var i = h.length - 1; i >= 0; i--) { if (h[i].id === ui._lastRunId) { h[i].applied = true; break; } }
+    _saveHistory(h);
+    if (typeof ui._onHistoryChange === 'function') { try { ui._onHistoryChange(); } catch (e) {} }
+  }
+  function listHistory(query) {   // 新→旧·可按关键词过滤
+    var h = _loadHistory().slice().reverse();
+    var q = String(query || '').trim().toLowerCase();
+    if (q) h = h.filter(function(r) { return (r.request + ' ' + r.summary + ' ' + r.kind).toLowerCase().indexOf(q) >= 0; });
+    return h;
+  }
+  function clearHistory() { try { localStorage.removeItem(HISTORY_KEY); } catch (e) {} if (typeof ui._onHistoryChange === 'function') { try { ui._onHistoryChange(); } catch (e) {} } }
+
+  // 方向O · 自动 changelog：把历史里【已应用的改动】汇总成人话版本说明（确定性·零 token·摘要本就是 agent 给的改动理由）。
+  var _CHANGE_KINDS = { '编辑': 1, '计划执行': 1, '分解执行': 1, '澄清': 1, '导入捆绑': 1 };
+  function buildChangelog(opts) {
+    opts = opts || {};
+    var onlyApplied = opts.onlyApplied !== false;   // 默认只汇总已应用的（真落地的改动）
+    var h = _loadHistory();   // 旧→新
+    var changes = h.filter(function(r) { return _CHANGE_KINDS[r.kind] && (!onlyApplied || r.applied); });
+    if (!changes.length) return { text: '', count: 0 };
+    var lines = ['## 本次更新', ''];
+    changes.forEach(function(r) {
+      var sum = String(r.summary || r.request || '').replace(/^(改动说明|回答|审阅|出计划)[:：]?/, '').trim();
+      if (sum) lines.push('- ' + sum);
+    });
+    return { text: lines.join('\n'), count: changes.length };
+  }
+
+  // 方向R · 模板/宏：玩家自定义、持久的常用指令库（一键载入输入框·可直接生成或再编辑）
+  var MACROS_KEY = 'tm_aa_macros';
+  function _loadMacros() { try { return JSON.parse(localStorage.getItem(MACROS_KEY) || '[]'); } catch (e) { return []; } }
+  function _saveMacros(m) { try { localStorage.setItem(MACROS_KEY, JSON.stringify(m.slice(0, 40))); } catch (e) {} }
+  function listMacros() { return _loadMacros(); }
+  function saveMacro(name, prompt) {
+    name = String(name || '').trim(); prompt = String(prompt || '').trim();
+    if (!name || !prompt) return false;
+    var m = _loadMacros();
+    var existing = m.filter(function(x) { return x.name === name; })[0];
+    if (existing) { existing.prompt = prompt; }   // 同名覆盖
+    else { ui._macroSeq = (ui._macroSeq || 0) + 1; m.push({ id: 'm' + Date.now() + '-' + ui._macroSeq, name: name, prompt: prompt }); }
+    _saveMacros(m);
+    if (typeof ui._onMacrosChange === 'function') { try { ui._onMacrosChange(); } catch (e) {} }
+    return true;
+  }
+  function deleteMacro(id) {
+    _saveMacros(_loadMacros().filter(function(x) { return x.id !== id; }));
+    if (typeof ui._onMacrosChange === 'function') { try { ui._onMacrosChange(); } catch (e) {} }
+  }
+  function applyMacro(id) {
+    var mm = _loadMacros().filter(function(x) { return x.id === id; })[0];
+    if (mm && ui.els && ui.els.req) {
+      ui.els.req.value = mm.prompt; ui.els.req.focus();
+      try { ui.els.req.dispatchEvent(new Event('input')); } catch (e) {}
+      setStatus('已载入模板「' + mm.name + '」· 可直接生成，或编辑后再跑');
+    }
+  }
+
+  function resetResults(keepLog) {
     if (!ui.els) return;
-    ui.els.log.innerHTML = ''; ui.els.log.style.display = 'none'; ui.els.logSec.style.display = 'none';
+    _cancelTypewriter();   // UI·P · 新一轮/重置时停掉在途的打字机动画
+    ui._thinkEl = null; ui._thinkCount = 0;   // UI·Z · 新一轮起一个新的思考折叠块
+    if (ui.els.empty) ui.els.empty.style.display = 'none';   // UI·AD · 一有动作就隐欢迎态（onDiscard 会再按需显）
+    if (ui._searchMarks && ui._searchMarks.length) { ui._searchMarks = []; ui._searchIdx = -1; _searchCount(); }   // UI·AJ · 新一轮清掉旧高亮引用（innerHTML 已换）
+    if (!keepLog) { ui.els.log.innerHTML = ''; ui.els.logWrap.style.display = 'none'; ui.els.logSec.style.display = 'none'; ui._logPinned = true; if (ui.els.toBottom) ui.els.toBottom.hidden = true; }   // UI·B · 会话流：续接时保留线程
     ui.els.diff.innerHTML = ''; ui.els.diff.style.display = 'none'; ui.els.diffSec.style.display = 'none';
-    if (ui.els.summary) { ui.els.summary.innerHTML = ''; ui.els.summary.style.display = 'none'; }
+    if (ui.els.summary) { ui.els.summary.innerHTML = ''; ui.els.summary.style.display = 'none'; ui.els.summary.classList.remove('tm-aa-clamped', 'tm-aa-clamp-open'); }
+    if (ui._clampBtn) { if (ui._clampBtn.parentNode) ui._clampBtn.parentNode.removeChild(ui._clampBtn); ui._clampBtn = null; }   // UI·AK · 清折叠按钮
+    if (ui.els.meter) { ui.els.meter.style.display = 'none'; ui._runStart = null; }
     ui.els.val.style.display = 'none';
     ui.els.actions.style.display = 'none';
+  }
+  // UI·B · 会话流：把一条用户消息作为气泡追加进过程区（开启一轮对话）
+  // UI·Y · 消息操作：每个气泡 hover 出 复制/编辑重发/重试（Claude Code/ChatGPT 招牌）。
+  //   opts.input=真正要回填的文本（display text 可能是合成标签如"🔍 审阅整个剧本")；opts.kind=重试时派发到对应运行器。
+  function _appendUserMsg(text, opts) {
+    if (!ui.els || !ui.els.log) return;
+    opts = opts || {};
+    ui.els.logSec.style.display = ''; ui.els.logWrap.style.display = '';
+    var b = document.createElement('div');
+    b.className = 'tm-aa-msg-user';
+    var input = (opts.input != null ? opts.input : text) || '';
+    b.setAttribute('data-msg', String(input).slice(0, 2000));
+    b.setAttribute('data-kind', opts.kind || 'generate');
+    b.innerHTML = '<span class="mu-who">你</span><span class="mu-text">' + esc(String(text || '').slice(0, 300)) + '</span>'
+      + '<span class="tm-aa-msg-acts">'
+      + '<button type="button" class="mu-act" data-act="copy" title="复制">⧉</button>'
+      + '<button type="button" class="mu-act" data-act="edit" title="编辑后重发">✎</button>'
+      + '<button type="button" class="mu-act" data-act="retry" title="重试这条">↻</button>'
+      + '</span>';
+    ui.els.log.appendChild(b);
+    _ensureMsgActions();
+    _logScrollMaybe(true);   // 用户刚发消息 → 强制滚到底并重新跟随
+  }
+  // UI·Y · 气泡操作的委托监听（在 log 容器上绑一次）
+  function _ensureMsgActions() {
+    if (!ui.els || !ui.els.log || ui._msgActsBound) return;
+    ui._msgActsBound = true;
+    ui.els.log.addEventListener('click', function(ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest('.mu-act') : null;
+      if (!btn) return;
+      var bubble = btn.closest('.tm-aa-msg-user'); if (!bubble) return;
+      var text = bubble.getAttribute('data-msg') || '', kind = bubble.getAttribute('data-kind') || 'generate';
+      var act = btn.getAttribute('data-act');
+      if (act === 'copy') {
+        try { navigator.clipboard.writeText(text).then(function() { var o = btn.textContent; btn.textContent = '✓'; setTimeout(function() { btn.textContent = o; }, 900); }, function() { setStatus('复制失败（浏览器限制）'); }); }
+        catch (e) { setStatus('复制失败'); }
+        return;
+      }
+      if (ui.running) { setStatus('运行中 · 先点「■ 停止」再' + (act === 'edit' ? '编辑重发' : '重试')); return; }
+      if (act === 'edit') {   // 回填输入框·不自动发·让玩家改
+        ui.els.req.value = text; try { ui.els.req.dispatchEvent(new Event('input')); } catch (e) {}
+        ui.els.req.focus();
+        setStatus('已填回输入框 · 编辑后点「生成」重发');
+        return;
+      }
+      if (act === 'retry') {   // 按原 kind 重跑
+        ui.els.req.value = text; try { ui.els.req.dispatchEvent(new Event('input')); } catch (e) {}
+        if (kind === 'review') runReview();
+        else if (kind === 'qa') runQaUI();
+        else if (kind === 'explain') runExplainUI();
+        else if (kind === 'orchestrate') runOrchestratedUI();
+        else onGenerate();
+      }
+    });
+  }
+  // UI·AB · 滚动跟随 + 回到底部：跟随只在「贴底」时生效；用户上翻则暂停跟随并浮出「↓ 最新」。
+  function _logScrollMaybe(force) {
+    var el = ui.els && ui.els.log; if (!el) return;
+    if (force) ui._logPinned = true;
+    if (ui._logPinned) { el.scrollTop = el.scrollHeight; if (ui.els.toBottom) ui.els.toBottom.hidden = true; }
+  }
+  function _ensureLogFollow() {
+    if (!ui.els || !ui.els.log || ui._logFollowBound) return;
+    ui._logFollowBound = true;
+    if (ui._logPinned == null) ui._logPinned = true;
+    var el = ui.els.log;
+    el.addEventListener('scroll', function() {
+      var nearBottom = (el.scrollHeight - el.scrollTop - el.clientHeight) < 24;
+      ui._logPinned = nearBottom;
+      if (ui.els.toBottom) ui.els.toBottom.hidden = nearBottom || (el.scrollHeight <= el.clientHeight + 2);   // 没溢出也不显
+    });
+    if (ui.els.toBottom) ui.els.toBottom.addEventListener('click', function() {
+      ui._logPinned = true; el.scrollTop = el.scrollHeight; ui.els.toBottom.hidden = true;
+    });
+  }
+
+  // UI·AI · 面板可调宽度 + 全屏（Claude Code/Codex 桌面端面板招牌）。宽度持久；docked 时同步 CSS 变量给 preview 槽宽。
+  var PANEL_W_KEY = 'tm_aa_panel_width';
+  function _applyPanelWidth(w) {
+    var p = ui.els && ui.els.panel; if (!p || p._fs) return;
+    var docked = false; try { docked = document.body.classList.contains('je-guoshi-docked'); } catch (e) {}
+    var maxW = Math.round(window.innerWidth * (docked ? 0.6 : 0.92));
+    w = Math.max(320, Math.min(w, maxW));
+    p.style.width = w + 'px';
+    try { document.body.style.setProperty('--tm-aa-dock-w', w + 'px'); } catch (e) {}   // preview 案侧槽宽随动
+    try { localStorage.setItem(PANEL_W_KEY, String(w)); } catch (e) {}
+  }
+  function _ensurePanelResize() {
+    if (!ui.els || !ui.els.resize || ui._resizeBound) return;
+    ui._resizeBound = true;
+    try { var saved = parseInt(localStorage.getItem(PANEL_W_KEY) || '0', 10); if (saved >= 320) _applyPanelWidth(saved); } catch (e) {}
+    var dragging = false;
+    ui.els.resize.addEventListener('mousedown', function(e) { if (ui.els.panel._fs) return; e.preventDefault(); dragging = true; document.body.style.userSelect = 'none'; });
+    document.addEventListener('mousemove', function(e) { if (!dragging) return; _applyPanelWidth(Math.round(ui.els.panel.getBoundingClientRect().right - e.clientX)); });
+    document.addEventListener('mouseup', function() { if (dragging) { dragging = false; document.body.style.userSelect = ''; } });
+  }
+  function _toggleFullscreen() {
+    var p = ui.els && ui.els.panel; if (!p) return;
+    if (p._fs) {
+      p.style.cssText = p._fsPrev || ''; p._fs = false;
+      if (ui.els.resize) ui.els.resize.style.display = '';
+      if (ui.els.fs) ui.els.fs.textContent = '⛶';
+    } else {
+      p._fsPrev = p.style.cssText;
+      p.style.position = 'fixed'; p.style.left = '14px'; p.style.top = '14px'; p.style.right = '14px'; p.style.bottom = '14px';
+      p.style.width = 'auto'; p.style.height = 'auto'; p.style.maxWidth = 'none'; p.style.maxHeight = 'none'; p.style.zIndex = '100000';
+      p._fs = true;
+      if (ui.els.resize) ui.els.resize.style.display = 'none';
+      if (ui.els.fs) ui.els.fs.textContent = '🗗';
+    }
+  }
+
+  // UI·AJ · 过程区内搜索（⌘F）：在结果/过程区里查关键词，高亮 + 上下跳（浏览器 find 的面板版）。
+  function _searchClear() {
+    (ui._searchMarks || []).forEach(function(m) {
+      if (m.parentNode) { var t = document.createTextNode(m.textContent); var par = m.parentNode; par.replaceChild(t, m); try { par.normalize(); } catch (e) {} }
+    });
+    ui._searchMarks = []; ui._searchIdx = -1;
+  }
+  function _searchCount() { var n = (ui._searchMarks || []).length; if (ui.els.searchCount) ui.els.searchCount.textContent = (n ? (ui._searchIdx + 1) : 0) + '/' + n; }
+  function _searchActivate() {
+    var marks = ui._searchMarks || [];
+    marks.forEach(function(m, i) { m.classList.toggle('active', i === ui._searchIdx); });
+    var cur = marks[ui._searchIdx];
+    if (cur && cur.scrollIntoView) { try { cur.scrollIntoView({ block: 'center' }); } catch (e) {} }
+  }
+  function _searchRun(query) {
+    _searchClear();
+    query = (query || '');
+    if (!query || !ui.els.body) { _searchCount(); return; }
+    var marks = [], nodes = [];
+    (function walk(n) {
+      for (var c = n.firstChild; c; c = c.nextSibling) {
+        if (c.nodeType === 3) { if (c.nodeValue && c.nodeValue.indexOf(query) >= 0) nodes.push(c); }
+        else if (c.nodeType === 1 && !/^(textarea|input|script|style|mark)$/i.test(c.tagName) && !(c.classList && c.classList.contains('tm-aa-search'))) walk(c);
+      }
+    })(ui.els.body);
+    nodes.forEach(function(tn) {
+      var text = tn.nodeValue, idx, last = 0, frag = document.createDocumentFragment(), any = false;
+      while ((idx = text.indexOf(query, last)) >= 0) {
+        any = true;
+        if (idx > last) frag.appendChild(document.createTextNode(text.slice(last, idx)));
+        var mk = document.createElement('mark'); mk.className = 'tm-aa-hl'; mk.textContent = text.substr(idx, query.length);
+        frag.appendChild(mk); marks.push(mk);
+        last = idx + query.length;
+      }
+      if (any) { if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last))); tn.parentNode.replaceChild(frag, tn); }
+    });
+    ui._searchMarks = marks; ui._searchIdx = marks.length ? 0 : -1;
+    _searchActivate(); _searchCount();
+  }
+  function _searchNav(delta) {
+    var marks = ui._searchMarks || []; if (!marks.length) return;
+    ui._searchIdx = (ui._searchIdx + delta + marks.length) % marks.length;
+    _searchActivate(); _searchCount();
+  }
+  function _searchToggle(show) {
+    if (!ui.els.search) return;
+    if (show) {
+      ui.els.search.hidden = false;
+      if (ui.els.searchIn) { ui.els.searchIn.focus(); ui.els.searchIn.select(); _searchRun(ui.els.searchIn.value); }
+    } else {
+      _searchClear(); ui.els.search.hidden = true; if (ui.els.searchIn) ui.els.searchIn.value = ''; _searchCount();
+    }
+  }
+  function _ensureSearch() {
+    if (!ui.els || !ui.els.search || ui._searchBound) return;
+    ui._searchBound = true;
+    ui.els.searchIn.addEventListener('input', function() { _searchRun(ui.els.searchIn.value); });
+    ui.els.searchIn.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') { e.preventDefault(); _searchToggle(false); ui.els.req && ui.els.req.focus(); }
+      else if (e.key === 'Enter') { e.preventDefault(); _searchNav(e.shiftKey ? -1 : 1); }
+    });
+    var prev = ui.els.search.querySelector('#tm-aa-search-prev'), next = ui.els.search.querySelector('#tm-aa-search-next'), x = ui.els.search.querySelector('#tm-aa-search-x');
+    if (prev) prev.addEventListener('click', function() { _searchNav(-1); ui.els.searchIn.focus(); });
+    if (next) next.addEventListener('click', function() { _searchNav(1); ui.els.searchIn.focus(); });
+    if (x) x.addEventListener('click', function() { _searchToggle(false); });
+    // ⌘F / Ctrl+F：仅当焦点在国师面板内时拦截（否则放行浏览器 find）
+    document.addEventListener('keydown', function(e) {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+        var p = ui.els.panel;
+        if (p && p.contains(document.activeElement)) { e.preventDefault(); _searchToggle(true); }
+      }
+    });
+  }
+
+  // UI·AD · 空状态欢迎 + 建议提示（Claude.ai/ChatGPT 新会话招牌）：面板刚开、还没跑时给个上手引导 + 可点 chips。
+  //   fill 类 → 回填输入框让玩家审阅再发；act 类（体检/审阅/讲解）→ 直接跑对应运行器。
+  var _EMPTY_CHIPS = [
+    { label: '🩺 体检（免 API）', act: 'preflight' },
+    { label: '补齐缺失字段', fill: '请用 listGaps 找出游戏运行时必需但缺失的字段，逐一补齐，让剧本完整可玩；改完用 validateDraft 自查。' },
+    { label: '校验并列问题', fill: '请用 validateDraft 全面校验本剧本，列出所有引用冲突、人口/区划不一致等问题（先只报告，不要改）。' },
+    { label: '加 3 个人物', fill: '请新增 3 名贴合本剧本背景的人物：含姓名、势力归属、官职、性格与 AI 人格；势力名必须用剧本里已存在的势力。' },
+    { label: '🔍 审阅出报告', act: 'review' },
+    { label: '📖 讲解剧本', act: 'explain' }
+  ];
+  function _renderEmpty() {
+    if (!ui.els || !ui.els.empty || ui._emptyBuilt) return;
+    ui._emptyBuilt = true;
+    var chips = _EMPTY_CHIPS.map(function(c, i) { return '<button type="button" class="emp-chip" data-i="' + i + '">' + esc(c.label) + '</button>'; }).join('');
+    ui.els.empty.innerHTML = '<div class="emp-title">👋 国师在此 · 描述你想改什么，或试试：</div><div class="emp-chips">' + chips + '</div>';
+    ui.els.empty.addEventListener('click', function(ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest('.emp-chip') : null;
+      if (!btn) return;
+      var c = _EMPTY_CHIPS[+btn.getAttribute('data-i')]; if (!c) return;
+      if (c.act === 'preflight') { runPreflightUI(); return; }
+      if (c.act === 'review') { runReview(); return; }
+      if (c.act === 'explain') { runExplainUI(); return; }
+      if (c.fill != null) {   // 回填 → 让玩家审阅后自己发（不自动跑·省 API）
+        ui.els.req.value = c.fill; try { ui.els.req.dispatchEvent(new Event('input')); } catch (e) {}
+        ui.els.req.focus(); _syncEmpty();
+      }
+    });
+  }
+  // UI·AF · 输入框自动增高 + 实时字数（Claude.ai/ChatGPT 输入框招牌）：随内容长高(到上限才滚)·右下角显字数。
+  function _autoGrowReq() {
+    var el = ui.els && ui.els.req; if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 180) + 'px';
+    var n = (el.value || '').length;
+    var cc = ui.els.charCount;
+    if (cc) {
+      cc.hidden = n === 0;
+      cc.textContent = n + ' 字';
+      cc.style.top = (el.offsetTop + el.offsetHeight - 18) + 'px';   // 贴输入框右下（body 为定位容器）
+    }
+  }
+  // 仅在「面板空闲、什么都没跑」时显示欢迎态
+  function _syncEmpty() {
+    if (!ui.els || !ui.els.empty) return;
+    var blank = !ui.running
+      && ui.els.logWrap.style.display === 'none'
+      && ui.els.summary.style.display === 'none'
+      && ui.els.actions.style.display === 'none'
+      && !(ui.els.req && ui.els.req.value.trim());
+    ui.els.empty.style.display = blank ? '' : 'none';
   }
 
   // 改动说明：把 agent 的 finish summary（做了什么+为什么）+ 计划备注醒目展示在 diff 之上；
   // 方向B · 若 agent 发现可长期沿用的约定，列出 + 给「记住」按钮（追加进持久 conventions）。
-  function renderSummary(summary, notes, suggestions) {
+  function renderSummary(summary, notes, suggestions, stream) {
     if (!ui.els || !ui.els.summary) return;
     var s = (summary || '').trim();
     var sug = (suggestions || []).filter(Boolean);
     if (!s && (!notes || !notes.length) && !sug.length) { ui.els.summary.style.display = 'none'; return; }
     var html = '';
     if (s || (notes && notes.length)) {
-      html += '<b>本次改动说明</b>' + (s ? esc(s) : '（agent 未给出说明）');
+      html += '<b>本次改动说明</b>' + (s ? _md(s) : '（agent 未给出说明）');
       if (notes && notes.length) {
         html += '<div class="note">思路：' + notes.slice(0, 4).map(function(n) { return esc(String(n).slice(0, 120)); }).join('；') + '</div>';
       }
@@ -170,18 +866,29 @@
         }
       });
     });
+    _streamThenLink(ui.els.summary, stream);   // UI·P 流式吐字 + UI·AH 实体 linkify
   }
 
+  // UI·Z · 思考过程折叠块（Claude.ai「Thought for Ns」招牌）：把本轮 agent 的多段推理（onText·原来平铺 💭 行）
+  //   收拢进一个默认收起的 <details>，标题显「💭 推理 N 步」并实时计数；点开看完整推理叙事。每轮(run)一个块。
   function appendText(text, iter) {
     if (!ui.els || !text) return;
-    ui.els.logSec.style.display = ''; ui.els.log.style.display = '';
+    ui.els.logSec.style.display = ''; ui.els.logWrap.style.display = '';
+    var blk = ui._thinkEl;
+    if (!blk || !blk.isConnected) {   // 本轮首条推理 → 建折叠块
+      blk = document.createElement('details');
+      blk.className = 'tm-aa-think';
+      blk.innerHTML = '<summary class="tm-aa-think-sum">💭 <span class="tk-label">推理中…</span></summary><div class="tm-aa-think-body"></div>';
+      ui.els.log.appendChild(blk);
+      ui._thinkEl = blk; ui._thinkCount = 0;
+    }
+    ui._thinkCount = (ui._thinkCount || 0) + 1;
     var line = document.createElement('div');
-    line.className = 'ln';
-    line.style.color = '#9aa0bd';
-    line.style.fontStyle = 'italic';
-    line.innerHTML = '#' + iter + ' 💭 ' + esc(String(text).slice(0, 200));
-    ui.els.log.appendChild(line);
-    ui.els.log.scrollTop = ui.els.log.scrollHeight;
+    line.className = 'tk-line';
+    line.textContent = '#' + iter + ' ' + String(text).slice(0, 400);
+    blk.querySelector('.tm-aa-think-body').appendChild(line);
+    var lbl = blk.querySelector('.tk-label'); if (lbl) lbl.textContent = '推理 ' + ui._thinkCount + ' 步';
+    _logScrollMaybe();
   }
 
   // 维度2 · 把工具调用 / diff 渲染成玩家看得懂的中文（rendering only · 两编辑器同享）。
@@ -212,9 +919,11 @@
       case 'describeSchema': return '查字段形状 ' + (i.kind || '(全部)');
       case 'listGaps': return '查规格缺口' + (r.requiredMissing ? '（必需缺 ' + r.requiredMissing.length + '）' : '');
       case 'validateDraft': return '校验' + (r.ok === false ? '：发现 ' + ((r.violations || []).length) + ' 处问题' : '：通过');
+      case 'preflight': return '🩺 运行时体检' + (r.bootable === false ? '：' + ((r.blockers || []).length) + ' 处阻塞' : (r.bootable === true ? '：可运行' : ''));
       case 'bulkAdd': return '批量新增 ' + (r.added != null ? r.added : '') + ' 项到 ' + (_COLL_CN[i.collection] || i.collection || '');
       case 'multiEdit': return '一次改 ' + (r.applied != null ? r.applied : (i.edits || []).length) + ' 处';
       case 'note': return '📝 ' + _shortVal(i.text);
+      case 'flagUncertain': return '⚠ 标记待核 ' + _friendlyPath(i.path) + (i.reason ? '（' + _shortVal(i.reason) + '）' : '');
       case 'recordConvention': return '📌 记下约定：' + _shortVal(i.convention);
       case 'finish': return '✓ 完成：' + (i.summary || '');
       default: return n + '(' + JSON.stringify(i).slice(0, 60) + ')';
@@ -223,39 +932,103 @@
 
   function appendLog(step) {
     if (!ui.els) return;
-    ui.els.logSec.style.display = ''; ui.els.log.style.display = '';
+    if (step && step.tokensUsed != null) ui._lastTokens = step.tokensUsed;   // 方向I · 实时计量
+    if (step && step.iteration != null) ui._lastIter = step.iteration;
+    ui.els.logSec.style.display = ''; ui.els.logWrap.style.display = '';
     var r = step.result || {};
     var cls = (step.name === 'finish' && r.ok) ? 'fin' : (r.ok ? 'ln' : 'bad');
     var detail = r.ok ? '' : (' — ' + esc(r.reason || ''));
     if (r.violations && r.violations.length) detail += ' [' + esc(r.violations.slice(0, 3).join('; ')) + ']';
-    var line = document.createElement('div');
-    line.className = cls;
-    line.innerHTML = '#' + step.iteration + ' ' + esc(_friendlyStep(step)) + detail;
-    ui.els.log.appendChild(line);
-    ui.els.log.scrollTop = ui.els.log.scrollHeight;
+    // UI·C · 工具调用折叠卡片：收起=友好摘要，点开=完整 input/output（像 Claude Code 的工具卡）
+    var inputStr = ''; try { inputStr = JSON.stringify(step.input); } catch (e) { inputStr = String(step.input == null ? '' : step.input); }
+    var resultStr = ''; try { resultStr = JSON.stringify(step.result); } catch (e) { resultStr = String(step.result == null ? '' : step.result); }
+    var card = document.createElement('details');
+    card.className = 'tm-aa-step ' + cls;
+    card.innerHTML = '<summary>#' + step.iteration + ' ' + esc(_friendlyStep(step)) + detail + '</summary>'
+      + '<div class="tm-aa-step-body">'
+      + (inputStr && inputStr !== '{}' ? '<div class="sb-row"><span class="sb-k">输入</span><pre>' + esc(inputStr.slice(0, 600)) + (inputStr.length > 600 ? '…' : '') + '</pre></div>' : '')
+      + (resultStr && resultStr !== '{}' ? '<div class="sb-row"><span class="sb-k">结果</span><pre>' + esc(resultStr.slice(0, 600)) + (resultStr.length > 600 ? '…' : '') + '</pre></div>' : '')
+      + '</div>';
+    ui.els.log.appendChild(card);
+    _logScrollMaybe();
   }
 
-  function _diffEntryHtml(d) {
+  // UI·X · 每条改动渲染成可【接受/拒绝】的 hunk（idx=在 diffs 数组里的稳定下标·拒绝集 ui._diffRejected）
+  function _diffEntryHtml(d, uncReason, idx) {
     var p = _friendlyPath(d.path);
-    if (d.type === 'added') return '<div class="add">＋ 新增 ' + esc(p) + '：' + esc(_shortVal(d.after)) + '</div>';
-    if (d.type === 'removed') return '<div class="rm">－ 删除 ' + esc(p) + '</div>';
-    return '<div class="ch">✎ 改 ' + esc(p) + '：' + esc(_shortVal(d.before)) + ' → ' + esc(_shortVal(d.after)) + '</div>';
+    var warn = uncReason ? '<span class="tm-aa-unc">⚠ 待核：' + esc(uncReason) + '</span>' : '';
+    var cls = uncReason ? ' uncertain' : '';
+    var body;
+    if (d.type === 'added') body = '<span class="hunk-body add' + cls + '">＋ 新增 ' + esc(p) + '：' + esc(_shortVal(d.after)) + warn + '</span>';
+    else if (d.type === 'removed') body = '<span class="hunk-body rm' + cls + '">－ 删除 ' + esc(p) + warn + '</span>';
+    else body = '<span class="hunk-body ch' + cls + '">✎ 改 ' + esc(p) + '：' + esc(_shortVal(d.before)) + ' → ' + esc(_shortVal(d.after)) + warn + '</span>';
+    var rejected = ui._diffRejected && ui._diffRejected.has(idx);
+    return '<div class="tm-aa-hunk' + (rejected ? ' rejected' : '') + '" data-diff-idx="' + idx + '">'
+      + '<button type="button" class="hunk-tog" data-diff-idx="' + idx + '" title="' + (rejected ? '已拒绝·点击接受' : '已接受·点击拒绝') + '">' + (rejected ? '✗' : '✓') + '</button>'
+      + body + '</div>';
   }
-  // 逐项纳入：按顶层字段分组 + 每组一个勾选框（默认勾选），应用时只取勾中的字段
-  function renderDiff(diffs) {
+  // 置信度标注：某 diff 路径是否被 agent 标为没把握（前缀双向匹配），返回理由或 ''
+  function _uncReasonFor(path, uncList) {
+    var dp = String(path || '');
+    for (var i = 0; i < (uncList || []).length; i++) {
+      var up = String(uncList[i].path || ''); if (!up) continue;
+      if (dp === up || dp.indexOf(up) === 0 || up.indexOf(dp) === 0) return uncList[i].reason || '（未注明原因）';
+    }
+    return '';
+  }
+  // UI·X · 逐条接受/拒绝（Cursor/Claude Code edit-review）：每条改动一个 ✓/✗ 开关，应用时只落接受的；
+  //   组级「全拒/全收」批量切；置信度低的条目 ⚠ 高亮。renderDiff 存 diffs+unc 并重置拒绝集，_paintDiff 负责画。
+  function renderDiff(diffs, uncertainties) {
     if (!ui.els) return;
     ui.els.diffSec.style.display = ''; ui.els.diff.style.display = '';
-    ui.els.diffSec.textContent = '改动预览（勾选要应用的字段）';
+    ui._lastDiffs = diffs || [];
+    ui._lastUnc = uncertainties || [];
+    if (!ui._diffRejected) ui._diffRejected = new Set();
+    ui._diffRejected.clear();   // 新一批 diff 默认全接受
+    (ui._lastDiffs).forEach(function(d, i) { d.__idx = i; });   // 稳定下标
+    _paintDiff();
+    ui.els.diff.onclick = function(ev) {   // 委托（每次重渲覆盖·不叠加）
+      var t = ev.target;
+      var tog = t.closest ? t.closest('.hunk-tog') : null;
+      if (tog) { _toggleHunk(+tog.getAttribute('data-diff-idx')); return; }
+      var grp = t.closest ? t.closest('.grp-tog') : null;
+      if (grp) { _toggleGroup((grp.getAttribute('data-group-idxs') || '').split(',').filter(Boolean).map(Number)); return; }
+    };
+  }
+  function _diffHeaderText() {
+    var diffs = ui._lastDiffs || [], rej = ui._diffRejected || new Set();
+    var totalUnc = diffs.filter(function(d) { return _uncReasonFor(d.path, ui._lastUnc); }).length;
+    if (!diffs.length) return '改动预览';
+    var acc = diffs.length - rej.size;
+    return '改动预览 · 接受 ' + acc + '/' + diffs.length + ' 处' + (rej.size ? '（✗' + rej.size + '）' : '') + (totalUnc ? ' · ⚠ ' + totalUnc + ' 待核' : '');
+  }
+  function _paintDiff() {
+    var diffs = ui._lastDiffs || [], unc = ui._lastUnc || [];
+    ui.els.diffSec.textContent = _diffHeaderText();
     if (!diffs.length) { ui.els.diff.innerHTML = '<div class="ln" style="color:#8b90a8">（无改动）</div>'; return; }
     var groups = {}, order = [];
     diffs.forEach(function(d) { var top = String(d.path || '').split(/[.\[]/)[0] || '(根)'; if (!groups[top]) { groups[top] = []; order.push(top); } groups[top].push(d); });
-    var html = order.map(function(field) {
+    ui.els.diff.innerHTML = order.map(function(field) {
       var es = groups[field];
-      var inner = es.slice(0, 40).map(_diffEntryHtml).join('');
-      if (es.length > 40) inner += '<div class="ln">… 还有 ' + (es.length - 40) + ' 处</div>';
-      return '<div class="tm-aa-diff-group"><label class="tm-aa-diff-head"><input type="checkbox" data-diff-field="' + esc(field) + '" checked> <b>' + esc(_COLL_CN[field] || field) + '</b> <span style="color:#8b90a8">(' + es.length + ' 处)</span></label>' + inner + '</div>';
+      var inner = es.slice(0, 40).map(function(d) { return _diffEntryHtml(d, _uncReasonFor(d.path, unc), d.__idx); }).join('');
+      if (es.length > 40) inner += '<div class="ln">… 还有 ' + (es.length - 40) + ' 处（默认接受）</div>';
+      var gUnc = es.filter(function(d) { return _uncReasonFor(d.path, unc); }).length;
+      var idxs = es.slice(0, 40).map(function(d) { return d.__idx; });
+      var allRej = idxs.every(function(i) { return ui._diffRejected.has(i); });
+      return '<div class="tm-aa-diff-group" data-group="' + esc(field) + '"><div class="tm-aa-diff-head"><b>' + esc(_COLL_CN[field] || field) + '</b> <span style="color:#8b90a8">(' + es.length + ' 处' + (gUnc ? ' · ⚠' + gUnc : '') + ')</span><button type="button" class="grp-tog" data-group-idxs="' + idxs.join(',') + '">' + (allRej ? '全收' : '全拒') + '</button></div>' + inner + '</div>';
     }).join('');
-    ui.els.diff.innerHTML = html;
+  }
+  function _toggleHunk(idx) {
+    if (!ui._diffRejected) ui._diffRejected = new Set();
+    if (ui._diffRejected.has(idx)) ui._diffRejected.delete(idx); else ui._diffRejected.add(idx);
+    _paintDiff();
+  }
+  function _toggleGroup(idxs) {
+    if (!idxs.length) return;
+    if (!ui._diffRejected) ui._diffRejected = new Set();
+    var allRej = idxs.every(function(i) { return ui._diffRejected.has(i); });
+    idxs.forEach(function(i) { if (allRej) ui._diffRejected.delete(i); else ui._diffRejected.add(i); });   // 全拒→全收，否则全拒
+    _paintDiff();
   }
 
   function renderValidation(report) {
@@ -268,11 +1041,12 @@
   }
 
   // 方向D · 审阅报告：总评进 summary 块、findings 按严重度排序着色进 diff 区（只读·无应用）
-  function renderReview(review) {
+  function renderReview(review, stream) {
     if (!ui.els) return;
     if (ui.els.summary) {
-      ui.els.summary.innerHTML = '<b>剧本审阅报告</b>' + esc((review && review.summary) || '（无总评）');
+      ui.els.summary.innerHTML = '<b>剧本审阅报告</b><span class="tm-aa-stream">' + esc((review && review.summary) || '（无总评）') + '</span>';
       ui.els.summary.style.display = '';
+      _streamThenLink(ui.els.summary.querySelector('.tm-aa-stream'), stream);   // UI·P 吐字 + UI·AH linkify（总评部分）
     }
     ui.els.diffSec.style.display = ''; ui.els.diff.style.display = '';
     var findings = ((review && review.findings) || []).slice();
@@ -286,9 +1060,21 @@
       var sevCls = sev === '高' ? 'rm' : (sev === '中' ? 'ch' : 'add');
       return '<div class="tm-aa-finding"><span class="sev ' + sevCls + '">[' + esc(sev) + ']</span> <b>' + esc(f.dimension || '') + '</b>'
         + (f.location ? ' <span class="loc">' + esc(String(f.location).slice(0, 50)) + '</span>' : '')
-        + '<div class="iss">' + esc(f.issue || '') + '</div>'
-        + (f.suggestion ? '<div class="sug">→ ' + esc(f.suggestion) + '</div>' : '') + '</div>';
+        + '<div class="iss">' + _mdLine(f.issue || '') + '</div>'
+        + (f.suggestion ? '<div class="sug">→ ' + _mdLine(f.suggestion) + '</div>' : '') + '</div>';
     }).join('') + (findings.length > 40 ? '<div class="ln">… 还有 ' + (findings.length - 40) + ' 条</div>' : '');
+  }
+
+  // 方向K · 交互式澄清：展示 agent 的澄清问题（玩家在输入框作答）
+  function renderClarify(questions) {
+    if (!ui.els) return;
+    questions = questions || [];
+    if (ui.els.summary) { ui.els.summary.innerHTML = '<b>先回答几个问题</b>国师需要这些信息才能改得对——请在上方输入框作答后点「提交回答并继续」。'; ui.els.summary.style.display = ''; }
+    ui.els.diffSec.style.display = ''; ui.els.diff.style.display = '';
+    ui.els.diffSec.textContent = '国师的问题（' + questions.length + '）';
+    ui.els.diff.innerHTML = questions.map(function(q, i) {
+      return '<div class="tm-aa-finding"><span class="sev ch">Q' + (i + 1) + '</span> ' + esc(typeof q === 'string' ? q : JSON.stringify(q)) + '</div>';
+    }).join('') || '<div class="ln" style="color:#8b90a8">（无问题）</div>';
   }
 
   // 计划模式 · 展示 agent 的编号计划
@@ -308,25 +1094,29 @@
   function executePlan() {
     if (ui.running || !ui.draft) return;
     resetResults();
-    ui.running = true; ui.els.go.disabled = true;
+    setRunning(true);
     setStatus('正在按计划执行…');
     AA.runAuthoringLoop(ui.draft, '按上面的计划执行这些改动；改完用 validateDraft 自查后调用 finish。', {
       priorConversation: ui.conversation,
       editorContext: _editorContext(),
+      allowedCollections: ui.allowedCollections || null,
+      allowDestructive: ui.allowDestructive !== false,
+      exemplars: ui.exemplars || null,                     // 方向J · 从官方剧本学习
       onStep: function(step) { appendLog(step); setStatus('第 ' + step.iteration + ' 轮…'); },
       onText: function(text, iter) { appendText(text, iter); }
     }).then(function(res) {
-      ui.running = false; ui.els.go.disabled = false;
+      setRunning(false);
       ui.conversation = res.conversation;
-      renderSummary(res.summary, res.notes, res.suggestedConventions);
-      renderDiff(AA.computeDiff(ui.adapter.getScenario(), ui.draft));
+      _logRun('计划执行', '(按计划执行)', res);   // 方向M
+      renderSummary(res.summary, res.notes, res.suggestedConventions, true);   // UI·P · 流式
+      renderDiff(AA.computeDiff(ui.adapter.getScenario(), ui.draft), res.uncertainties);   // 置信度标注
       renderValidation(res.finalValidation);
       ui.els.actions.style.display = '';
       ui.els.apply.className = res.finalValidation.ok ? '' : 'warn';
       ui.els.apply.textContent = res.finalValidation.ok ? '应用到剧本' : '仍有问题·确认应用';
       ui.els.discard.textContent = '放弃';
       setStatus('已按计划执行（' + res.iterations + ' 轮）· 可应用 / 放弃 / 追问');
-    }).catch(function(err) { ui.running = false; ui.els.go.disabled = false; setStatus('执行失败：' + (err && err.message || err)); });
+    }).catch(function(err) { renderError('plan-execute', '(按计划执行)', err); });   // UI·AC · 错误卡+重试
   }
 
   // 方向D · 审阅模式：只读巡查 → 出体检报告（不产生可应用改动）。输入框文字（若有）作审阅重点。
@@ -334,10 +1124,11 @@
     if (ui.running) return;
     if (!AA || typeof AA.runAuthoringLoop !== 'function') { setStatus('agent 核心未加载'); return; }
     resetResults();
+    var focus = (ui.els.req.value || '').trim();
+    _appendUserMsg(focus || '🔍 审阅整个剧本', { kind: 'review', input: focus });   // UI·B 会话流 + UI·Y 重试派发
     ui.draft = AA.makeDraft(ui.adapter.getScenario());   // 只读快照（审阅不改它）
     ui.conversation = null; ui._pendingPlan = false;
-    ui.running = true; ui.els.go.disabled = true;
-    var focus = (ui.els.req.value || '').trim();
+    setRunning(true);
     setStatus('正在审阅剧本…（agent 只读巡查，出体检报告，可能需要数十秒）');
     AA.runAuthoringLoop(ui.draft, focus, {
       reviewOnly: true,
@@ -345,48 +1136,306 @@
       onStep: function(step) { appendLog(step); setStatus('审阅中·第 ' + step.iteration + ' 轮…'); },
       onText: function(text, iter) { appendText(text, iter); }
     }).then(function(res) {
-      ui.running = false; ui.els.go.disabled = false;
-      ui.els.req.value = '';
+      setRunning(false);
+      _logRun('审阅', focus || '(全面体检)', res);   // 方向M
+      ui.els.req.value = ''; _autoGrowReq();
       ui.draft = null;   // 审阅不产生可应用改动
       if (res.review) {
-        renderReview(res.review);
+        renderReview(res.review, true);   // UI·P · 流式
         setStatus('审阅完成（' + res.iterations + ' 轮·约 ' + res.tokensUsed + ' tokens）· 仅诊断，未改动剧本');
       } else {
         setStatus('审阅结束（' + (res.stopReason || '') + '）· 未生成报告，可重试');
       }
-    }).catch(function(err) {
-      ui.running = false; ui.els.go.disabled = false;
-      setStatus('审阅失败：' + (err && err.message || err));
-    });
+    }).catch(function(err) { renderError('review', focus, err); });   // UI·AC · 错误卡+重试
   }
+
+  // 方向E · 运行时体检（确定性·无需 API）：对当前剧本跑 preflight，报告会影响运行的 blockers + 建议性 warnings
+  function runPreflightUI() {
+    if (ui.running) return;
+    if (!AA || typeof AA.preflight !== 'function') { setStatus('agent 核心未加载'); return; }
+    resetResults();
+    var pf;
+    try { pf = AA.preflight(AA.makeDraft(ui.adapter.getScenario())); }
+    catch (e) { setStatus('体检失败：' + (e && e.message || e)); return; }
+    if (ui.els.summary) { ui.els.summary.innerHTML = '<b>运行时体检</b>' + esc(pf.summary); ui.els.summary.style.display = ''; }
+    ui.els.diffSec.style.display = ''; ui.els.diff.style.display = '';
+    ui.els.diffSec.textContent = '体检结果（' + pf.blockers.length + ' 阻塞 · ' + pf.warnings.length + ' 建议）';
+    var rows = [];
+    pf.blockers.forEach(function(b) { rows.push('<div class="tm-aa-finding"><span class="sev rm">[阻塞]</span> ' + esc(b) + '</div>'); });
+    pf.warnings.slice(0, 30).forEach(function(w) { rows.push('<div class="tm-aa-finding"><span class="sev ch">[建议]</span> ' + esc(w) + '</div>'); });
+    if (!rows.length) rows.push('<div class="ln" style="color:#7fe0a0">✓ 运行时体检通过，可正常加载</div>');
+    ui.els.diff.innerHTML = rows.join('');
+    setStatus(pf.bootable ? ('✓ 运行时体检：可运行' + (pf.warnings.length ? ('·' + pf.warnings.length + ' 项建议') : '')) : ('✗ ' + pf.blockers.length + ' 处会影响运行·可让国师修'));
+  }
+
+  // 方向W · 实体捆绑：导出当前剧本某势力的包；导入捆绑包→合并进草稿→走 diff/应用审。
+  function exportBundle(factionName) {
+    if (!AA || !AA.buildEntityBundle) return null;
+    try { return AA.buildEntityBundle(ui.adapter.getScenario(), factionName); } catch (e) { return null; }
+  }
+  function importBundle(bundle) {
+    if (!AA || !AA.mergeEntityBundle) { setStatus('agent 核心未加载'); return false; }
+    var cur = ui.adapter.getScenario();
+    var res = AA.mergeEntityBundle(cur, bundle);
+    if (res.error) { setStatus('导入失败：' + res.error); return false; }
+    resetResults();
+    ui.draft = res.scenario; ui.conversation = null; ui._pendingPlan = false; ui._pendingClarify = false;
+    var renamedN = res.renamed ? Object.keys(res.renamed).length : 0;
+    var sm = '已合并捆绑包：势力 +' + res.added.factions + ' · 人物 +' + res.added.characters + ' · 关系 +' + res.added.relations + (renamedN ? ' · 重名已改 ' + renamedN + ' 个' : '');
+    _logRun('导入捆绑', '捆绑包导入', { summary: sm, tokensUsed: 0, iterations: 0, stopReason: 'imported' });   // 方向M · 记历史 + 让 markLastApplied 生效
+    renderSummary(sm, null, null);
+    renderDiff(AA.computeDiff(cur, ui.draft));
+    renderValidation(AA.validateDraft(ui.draft));
+    ui.els.actions.style.display = '';
+    ui.els.apply.className = ''; ui.els.apply.textContent = '应用到剧本'; ui.els.discard.textContent = '放弃';
+    setStatus('捆绑包已合并入草稿 · 审阅后应用');
+    return true;
+  }
+
+  // 方向O · 生成版本说明（确定性·无需 API）：汇总已应用改动 + 一键复制
+  function runChangelogUI() {
+    if (ui.running) { setStatus('请等当前运行结束'); return; }
+    resetResults();
+    var cl = buildChangelog();
+    if (!cl.count) { setStatus('暂无已应用的改动可汇总（先应用一些 agent 改动，版本说明会自动累积）'); return; }
+    if (ui.els.summary) {
+      ui.els.summary.innerHTML = '<b>版本说明（' + cl.count + ' 项改动）<button type="button" class="tm-aa-cl-copy">复制</button></b>'
+        + '<div class="tm-aa-cl-md">' + _md(cl.text) + '</div>';
+      ui.els.summary.style.display = '';
+      var btn = ui.els.summary.querySelector('.tm-aa-cl-copy');
+      if (btn) btn.addEventListener('click', function() {
+        try { navigator.clipboard.writeText(cl.text).then(function() { btn.textContent = '已复制 ✓'; }, function() { btn.textContent = '复制失败'; }); }
+        catch (e) { btn.textContent = '复制失败'; }
+      });
+    }
+    setStatus('版本说明已生成（' + cl.count + ' 项）· 可复制');
+  }
+
+  // 方向L · 剧本问答（只读）：玩家问关于剧本的问题，agent 查清后直接回答，不碰剧本
+  function runQaUI() {
+    if (ui.running) return;
+    var question = (ui.els.req.value || '').trim();
+    if (!question) { setStatus('请先在输入框输入你想问的问题'); return; }
+    if (!AA || typeof AA.runAuthoringLoop !== 'function') { setStatus('agent 核心未加载'); return; }
+    resetResults();
+    _appendUserMsg(question, { kind: 'qa', input: question });   // UI·B 会话流 + UI·Y 重试派发
+    ui.draft = AA.makeDraft(ui.adapter.getScenario());   // 只读快照
+    ui.conversation = null; ui._pendingPlan = false; ui._pendingClarify = false;
+    setRunning(true);
+    setStatus('正在查证并回答…（只读，不改剧本）');
+    AA.runAuthoringLoop(ui.draft, question, {
+      qaOnly: true,
+      editorContext: _editorContext(),
+      onStep: function(step) { appendLog(step); setStatus('查证中·第 ' + step.iteration + ' 轮…'); },
+      onText: function(text, iter) { appendText(text, iter); }
+    }).then(function(res) {
+      setRunning(false);
+      _logRun('问答', question, res);   // 方向M
+      ui.draft = null; ui.els.req.value = ''; _autoGrowReq();
+      if (res.answer) {
+        renderAnswer(question, res.answer.answer, true);   // UI·P · 流式
+        setStatus('回答完成（' + res.iterations + ' 轮·约 ' + res.tokensUsed + ' tokens）· 仅查询，未改动剧本');
+      } else {
+        setStatus('未得到回答（' + (res.stopReason || '') + '）· 可重试');
+      }
+    }).catch(function(err) { renderError('qa', question, err); });   // UI·AC · 错误卡+重试
+  }
+  function renderAnswer(question, answer, stream) {
+    if (!ui.els || !ui.els.summary) return;
+    ui.els.summary.innerHTML = '<b>问：' + esc(question) + '</b><span class="tm-aa-stream">' + _md(answer || '（无回答）') + '</span>';
+    ui.els.summary.style.display = '';
+    _streamThenLink(ui.els.summary.querySelector('.tm-aa-stream'), stream);   // UI·P 吐字 + UI·AH linkify（只对答案部分）
+  }
+
+  // 方向N · 解释/教学（只读）：讲解剧本设计意图与机制脉络，给接手者 onboarding
+  function runExplainUI() {
+    if (ui.running) return;
+    if (!AA || typeof AA.runAuthoringLoop !== 'function') { setStatus('agent 核心未加载'); return; }
+    var focus = (ui.els.req.value || '').trim();
+    resetResults();
+    _appendUserMsg(focus || '📖 讲解剧本', { kind: 'explain', input: focus });   // UI·B 会话流 + UI·Y 重试派发
+    ui.draft = AA.makeDraft(ui.adapter.getScenario());   // 只读快照
+    ui.conversation = null; ui._pendingPlan = false; ui._pendingClarify = false;
+    setRunning(true);
+    setStatus('正在通读剧本并讲解…（只读，不改剧本）');
+    AA.runAuthoringLoop(ui.draft, focus, {
+      explainOnly: true,
+      editorContext: _editorContext(),
+      onStep: function(step) { appendLog(step); setStatus('通读中·第 ' + step.iteration + ' 轮…'); },
+      onText: function(text, iter) { appendText(text, iter); }
+    }).then(function(res) {
+      setRunning(false);
+      _logRun('讲解', focus || '(全面 onboarding)', res);
+      ui.draft = null; ui.els.req.value = ''; _autoGrowReq();
+      if (res.explanation) {
+        renderExplanation(res.explanation, true);   // UI·P · 流式
+        setStatus('讲解完成（' + res.iterations + ' 轮·约 ' + res.tokensUsed + ' tokens）· 仅讲解，未改动剧本');
+      } else {
+        setStatus('未生成讲解（' + (res.stopReason || '') + '）· 可重试');
+      }
+    }).catch(function(err) { renderError('explain', focus, err); });   // UI·AC · 错误卡+重试
+  }
+  function renderExplanation(ex, stream) {
+    if (!ui.els) return;
+    if (ui.els.summary) {
+      ui.els.summary.innerHTML = '<b>剧本讲解</b><span class="tm-aa-stream">' + _md((ex && ex.summary) || '（无总览）') + '</span>'; ui.els.summary.style.display = '';
+      _streamThenLink(ui.els.summary.querySelector('.tm-aa-stream'), stream);   // UI·P 吐字 + UI·AH linkify（总览部分）
+    }
+    ui.els.diffSec.style.display = ''; ui.els.diff.style.display = '';
+    var points = (ex && ex.points) || [];
+    ui.els.diffSec.textContent = '讲解（' + points.length + ' 个主题）';
+    if (!points.length) { ui.els.diff.innerHTML = '<div class="ln" style="color:#8b90a8">（无主题）</div>'; return; }
+    ui.els.diff.innerHTML = points.slice(0, 20).map(function(p) {
+      p = p || {};
+      return '<div class="tm-aa-finding"><span class="sev ch">▸</span> <b>' + esc(p.topic || '') + '</b><div class="iss">' + _md(p.detail || '') + '</div></div>';
+    }).join('');
+  }
+
+  // UI·AC · 错误态卡片 + 一键重试（Claude.ai/ChatGPT 网页端范式）：失败不再只是一行灰状态字，
+  //   渲一张醒目错误卡（核心已 _classifyApiError 给中文可操作提示）+「重试」(按 kind 重跑) +「复制错误」。
+  function renderError(kind, request, err) {
+    setRunning(false);
+    ui._lastErr = { kind: kind, request: request || '', message: (err && err.message) || String(err || '未知错误') };
+    if (!ui.els || !ui.els.summary) { setStatus('失败：' + ui._lastErr.message); return; }
+    ui.els.summary.innerHTML = '<div class="tm-aa-errcard">'
+      + '<div class="ec-head">⚠ 运行失败</div>'
+      + '<div class="ec-msg">' + esc(ui._lastErr.message) + '</div>'
+      + '<div class="ec-acts"><button type="button" class="ec-retry">↻ 重试</button><button type="button" class="ec-copy">复制错误</button></div>'
+      + '</div>';
+    ui.els.summary.style.display = '';
+    if (ui.els.diffSec) ui.els.diffSec.style.display = 'none';
+    if (ui.els.diff) ui.els.diff.style.display = 'none';
+    if (ui.els.val) ui.els.val.style.display = 'none';
+    if (ui.els.actions) ui.els.actions.style.display = 'none';
+    var rt = ui.els.summary.querySelector('.ec-retry');
+    if (rt) rt.addEventListener('click', _retryLast);
+    var cp = ui.els.summary.querySelector('.ec-copy');
+    if (cp) cp.addEventListener('click', function() {
+      try { navigator.clipboard.writeText(ui._lastErr.message).then(function() { cp.textContent = '✓ 已复制'; setTimeout(function() { cp.textContent = '复制错误'; }, 900); }, function() {}); } catch (e) {}
+    });
+    setStatus('运行失败 · 可点「重试」重跑');
+  }
+  function _retryLast() {
+    var e = ui._lastErr; if (!e || ui.running) return;
+    if (e.kind === 'plan-execute') { executePlan(); return; }   // 计划执行：草稿/线程仍在，直接重跑
+    ui.els.req.value = e.request || '';
+    try { ui.els.req.dispatchEvent(new Event('input')); } catch (er) {}
+    if (e.kind === 'review') runReview();
+    else if (e.kind === 'qa') runQaUI();
+    else if (e.kind === 'explain') runExplainUI();
+    else if (e.kind === 'orchestrate') runOrchestratedUI();
+    else onGenerate();
+  }
+
+  // 方向H · 子代理/任务分解：大需求先分解、再逐步在同一草稿上聚焦执行（共享草稿即合并）
+  function runOrchestratedUI() {
+    if (ui.running) return;
+    var request = (ui.els.req.value || '').trim();
+    if (!request) { setStatus('请先输入需求（大任务会被分解为多步执行）'); return; }
+    if (!AA || typeof AA.runOrchestrated !== 'function') { setStatus('agent 核心未加载'); return; }
+    resetResults();
+    _appendUserMsg(request, { kind: 'orchestrate', input: request });   // UI·B 会话流 + UI·Y 重试派发
+    ui.draft = AA.makeDraft(ui.adapter.getScenario());
+    ui.conversation = null; ui._pendingPlan = false;
+    setRunning(true);
+    setStatus('正在分解任务…（先拆子任务，再逐步执行）');
+    // UI·D · 步骤清单 + 实时勾：分解任务渲染成清单，子任务 待办○/进行中⟳/完成✓ 实时更新
+    var _clSteps = [], _clEl = null;
+    function _renderChecklist(currentIdx, allDone) {
+      if (!_clSteps.length || !ui.els) return;
+      if (!_clEl) {
+        _clEl = document.createElement('div'); _clEl.className = 'tm-aa-checklist';
+        ui.els.logSec.style.display = ''; ui.els.logWrap.style.display = '';
+        ui.els.log.insertBefore(_clEl, ui.els.log.firstChild);
+      }
+      _clEl.innerHTML = '<div class="cl-head">🧩 分解为 ' + _clSteps.length + ' 个子任务' + (allDone ? '（已完成）' : '') + '</div>' + _clSteps.map(function(s, k) {
+        var st = (allDone || k < currentIdx) ? 'done' : (k === currentIdx ? 'run' : 'pend');
+        var ic = st === 'done' ? '✓' : (st === 'run' ? '⟳' : '○');
+        return '<div class="cl-item ' + st + '"><span class="cl-ic">' + ic + '</span>' + esc((k + 1) + '. ' + s) + '</div>';
+      }).join('');
+    }
+    AA.runOrchestrated(ui.draft, request, {
+      editorContext: _editorContext(),
+      allowedCollections: ui.allowedCollections || null,
+      allowDestructive: ui.allowDestructive !== false,
+      onStep: function(step) { appendLog(step); },
+      onText: function(text, iter) { appendText(text, iter); },
+      onSubtask: function(p) {
+        if (p.phase === 'decompose') setStatus('正在分解任务…');
+        else if (p.phase === 'plan') { _clSteps = p.steps || []; _renderChecklist(-1, false); setStatus('已分解为 ' + _clSteps.length + ' 个子任务'); }
+        else if (p.phase === 'single') setStatus('任务较简单，直接执行…');
+        else if (p.phase === 'subtask') { _renderChecklist(p.index - 1, false); setStatus('执行子任务 ' + p.index + '/' + p.total + '…'); }
+      }
+    }).then(function(res) {
+      setRunning(false);
+      if (_clSteps.length) _renderChecklist(_clSteps.length, true);   // 全部 ✓
+      _logRun('分解执行', request, res);   // 方向M
+      ui.els.req.value = ''; _autoGrowReq();
+      renderSummary(res.summary, null, null, true);   // UI·P · 流式
+      var diffs = AA.computeDiff(ui.adapter.getScenario(), ui.draft);
+      renderDiff(diffs);
+      renderValidation(res.finalValidation);
+      ui.els.actions.style.display = '';
+      ui.els.apply.className = res.finalValidation.ok ? '' : 'warn';
+      ui.els.apply.textContent = res.finalValidation.ok ? '应用到剧本' : '仍有问题·确认应用';
+      ui.els.discard.textContent = '放弃';
+      setStatus((res.orchestrated ? '分解执行完成（' + res.steps.length + ' 步）' : '执行完成') + (res.stopReason === 'aborted' ? '·已中断' : '') + '· 可应用 / 放弃');
+      if (ui.autonomy === 'auto' && res.finalValidation.ok && diffs.length) { onApply(); }
+    }).catch(function(err) { renderError('orchestrate', request, err); });   // UI·AC · 错误卡+重试
+  }
+
+  // UI·Q · 停止/中断生成：调 agent core 的 abort()（轮间干净收尾·不施未完成的改动）。
+  // 适用于所有运行类型(普通编辑/计划执行/审阅/问答/讲解/分解执行)——abort() 终止当前 _activeRun。
+  function onStop() {
+    if (!ui.running || ui._stopping) return;
+    ui._stopping = true;
+    var stopped = false;
+    try { stopped = !!(AA && AA.abort && AA.abort()); } catch (e) {}
+    if (ui.els && ui.els.go) { ui.els.go.textContent = '停止中…'; ui.els.go.disabled = true; }
+    _cancelTypewriter();   // 打字机若在途也立即落定
+    setStatus(stopped ? '正在停止…（本轮 API 返回后干净收尾，不施未完成的改动）' : '当前没有正在进行的运行');
+  }
+  // 「生成」键的统一入口：运行中→停止，空闲→生成
+  function onGoClick() { if (ui.running) onStop(); else onGenerate(); }
 
   function onGenerate() {
     if (ui.running) return;
     var request = (ui.els.req.value || '').trim();
     if (!request) { setStatus('请先输入需求'); return; }
     if (!AA || typeof AA.runAuthoringLoop !== 'function') { setStatus('agent 核心未加载'); return; }
-    resetResults();
-    ui.running = true;
-    ui.els.go.disabled = true;
     var planOnly = !!ui.planMode;   // 计划模式：先出计划，批准再执行
-    setStatus(planOnly ? '正在规划…（agent 先只读、出计划）' : '正在生成…（agent 多轮编辑+自校验，可能需要数十秒）');
     // 维度1 · 对话式追问：上一轮草稿/线程还在(没应用也没放弃)→接着改；计划模式总从当前剧本起新计划
     var continuing = !planOnly && !!(ui.draft && ui.conversation && ui.conversation.length && !ui._pendingPlan);
+    resetResults(continuing);   // UI·B · 会话流：续接保留线程、新对话清空
+    _appendUserMsg(request);    // 回显用户消息气泡
+    setRunning(true);
+    setStatus(planOnly ? '正在规划…（agent 先只读、出计划）' : '正在生成…（agent 多轮编辑+自校验，可能需要数十秒）');
     if (!continuing) { ui.draft = AA.makeDraft(ui.adapter.getScenario()); if (!planOnly) ui.conversation = null; }
 
     AA.runAuthoringLoop(ui.draft, request, {
       planOnly: planOnly,
       priorConversation: continuing ? ui.conversation : null,
       editorContext: _editorContext(),
+      allowedCollections: ui.allowedCollections || null,   // 方向F · 范围沙箱
+      allowDestructive: ui.allowDestructive !== false,      // 方向F · 危险操作开关
+      exemplars: ui.exemplars || null,                     // 方向J · 从官方剧本学习（开关式）
       onStep: function(step) { appendLog(step); setStatus('第 ' + step.iteration + ' 轮…'); },
       onText: function(text, iter) { appendText(text, iter); }
     }).then(function(res) {
-      ui.running = false;
-      ui.els.go.disabled = false;
+      setRunning(false);
       ui.conversation = res.conversation;   // 维度1 · 存住线程
-      ui.els.req.value = '';
-      var stopMap = { finish: '完成', maxIterations: '达迭代上限', tokenBudget: '达 token 上限', finishBlocked: '校验未过·已停', noToolCalls: 'agent 未再操作', aborted: '已停止', planned: '已出计划' };
-      if (res.plan) {                       // 计划模式：展示计划 + 批准/重规划
+      _logRun(res.clarification ? '澄清' : (res.plan ? '计划' : '编辑'), request, res);   // 方向M · 记一条历史
+      ui.els.req.value = ''; _autoGrowReq();
+      var stopMap = { finish: '完成', maxIterations: '达迭代上限', tokenBudget: '达 token 上限', finishBlocked: '校验未过·已停', noToolCalls: 'agent 未再操作', aborted: '已停止', planned: '已出计划', needsClarification: '需澄清' };
+      if (res.clarification) {              // 方向K · 交互式澄清：展示问题，玩家在输入框作答后续接
+        ui._pendingPlan = false; ui._pendingClarify = true;
+        renderClarify(res.clarification.questions);
+        ui.els.actions.style.display = '';
+        ui.els.apply.className = 'plan-approve';
+        ui.els.apply.textContent = '提交回答并继续';
+        ui.els.discard.textContent = '放弃';
+        setStatus('国师需要先澄清几点 · 请在输入框作答后点「提交回答并继续」');
+      } else if (res.plan) {                // 计划模式：展示计划 + 批准/重规划
         renderPlan(res.plan);
         ui.els.actions.style.display = '';
         ui.els.apply.className = 'plan-approve';
@@ -398,51 +1447,47 @@
         ui._pendingPlan = false;
         ui.els.discard.textContent = '放弃';
         setStatus('结束（' + (stopMap[res.stopReason] || res.stopReason) + '·' + res.iterations + ' 轮·约 ' + res.tokensUsed + ' tokens）· 可继续追加需求，或应用/放弃');
-        renderSummary(res.summary, res.notes, res.suggestedConventions);
-        renderDiff(AA.computeDiff(ui.adapter.getScenario(), ui.draft));
+        renderSummary(res.summary, res.notes, res.suggestedConventions, true);   // UI·P · 流式
+        var diffs = AA.computeDiff(ui.adapter.getScenario(), ui.draft);
+        renderDiff(diffs, res.uncertainties);   // 置信度标注：高亮没把握的改动
         renderValidation(res.finalValidation);
         ui.els.actions.style.display = '';
         ui.els.apply.className = res.finalValidation.ok ? '' : 'warn';
         ui.els.apply.textContent = res.finalValidation.ok ? '应用到剧本' : '仍有问题·确认应用';
+        // 方向F · 自主度「全自动」：校验通过且有改动则自动应用（无需玩家点）
+        if (ui.autonomy === 'auto' && res.finalValidation.ok && diffs.length) { onApply(); }
       }
-    }).catch(function(err) {
-      ui.running = false;
-      ui.els.go.disabled = false;
-      setStatus('失败：' + (err && err.message || err));
-    });
+    }).catch(function(err) { renderError('generate', request, err); });   // UI·AC · 错误卡+重试（重试走 onGenerate·仍按当前 planMode）
   }
 
-  // 逐项纳入 · 读 diff 分组勾选状态（无分组返回 null=整份应用）
-  function _selectedDiffFields() {
-    if (!ui.els || !ui.els.diff) return null;
-    var cbs = ui.els.diff.querySelectorAll('input[data-diff-field]');
-    if (!cbs.length) return null;
-    var sel = {};
-    Array.prototype.forEach.call(cbs, function(cb) { sel[cb.getAttribute('data-diff-field')] = cb.checked; });
-    return sel;
-  }
-  // 逐项纳入 · 从当前剧本起，把勾中的顶层字段整块换成草稿值（整块拷贝，避免数组索引漂移）
+  // UI·X · 逐条接受/拒绝 · 应用：只落【接受】的 hunk（拒绝集外的）。核心纯函数 applySelectedDiffs 负责
+  //   从当前剧本起、把拒绝的 hunk revert 回原状（数组 compact 无洞）。无拒绝 → 整份草稿。
   function _applyScenario() {
-    var sel = _selectedDiffFields();
-    if (!sel) return ui.draft;   // 无分组勾选 → 整份草稿
-    var cur = _clone(ui.adapter.getScenario());
-    Object.keys(sel).forEach(function(field) {
-      if (!sel[field]) return;   // 未勾 → 保留当前剧本的该字段
-      if (field in ui.draft) cur[field] = _clone(ui.draft[field]); else delete cur[field];
-    });
-    return cur;
+    var diffs = ui._lastDiffs || [], rej = ui._diffRejected || new Set();
+    if (!diffs.length || !rej.size) return ui.draft;   // 全接受 → 整份草稿
+    if (AA && typeof AA.applySelectedDiffs === 'function') {
+      return AA.applySelectedDiffs(ui.adapter.getScenario(), ui.draft, diffs, function(d) { return !rej.has(d.__idx); });
+    }
+    return ui.draft;
   }
 
   function onApply() {
+    if (ui._pendingClarify) {   // 方向K · 提交澄清回答 → 续接 onGenerate（输入框里是玩家的回答）
+      if (!(ui.els.req.value || '').trim()) { setStatus('请先在输入框回答问题'); return; }
+      ui._pendingClarify = false;
+      onGenerate();   // ui.draft + ui.conversation 仍在 → 作为续接运行，把回答当追加需求
+      return;
+    }
     if (ui._pendingPlan) { ui._pendingPlan = false; executePlan(); return; }   // 计划模式：批准 → 执行
     if (!ui.draft) return;
     try {
-      var sel = _selectedDiffFields();
-      if (sel && !Object.keys(sel).some(function(f) { return sel[f]; })) { setStatus('未勾选任何字段，未应用'); return; }
+      var diffs = ui._lastDiffs || [], rej = ui._diffRejected || new Set();
+      if (diffs.length && rej.size >= diffs.length) { setStatus('已拒绝全部改动，未应用'); return; }
       _pushCheckpoint('应用前 ' + _ckptTime());   // 方向G · 应用前自动存检查点（可多级回溯）
       ui.adapter.commit(_applyScenario());
-      var partial = sel && Object.keys(sel).some(function(f) { return !sel[f]; });
-      setStatus('已应用到剧本 ✓' + (partial ? '（仅所选字段）' : '') + '（可撤销）');
+      var partial = rej.size > 0;
+      markLastApplied();   // 方向M · 把最近一条历史标记为已应用
+      setStatus('已应用到剧本 ✓' + (partial ? '（仅接受的改动·拒绝了 ' + rej.size + ' 处）' : '') + '（可撤销）');
       ui.els.actions.style.display = 'none';
       ui.draft = null;
       ui.conversation = null;   // 维度1 · 应用后结束会话，下次从新剧本起
@@ -455,9 +1500,11 @@
     ui.draft = null;
     ui.conversation = null;   // 维度1 · 放弃后结束会话
     ui._pendingPlan = false;
+    ui._pendingClarify = false;
     if (ui.els && ui.els.discard) ui.els.discard.textContent = '放弃';
     resetResults();
     setStatus('已放弃本次改动');
+    _syncEmpty();   // UI·AD · 回到干净状态则重现欢迎态
   }
 
   // 方向G · 检查点栈：把"应用前快照"升级为可命名、多级回溯的检查点（session 内存态·不持久，避免大剧本撑爆 localStorage）。
@@ -514,6 +1561,7 @@
     fab.addEventListener('click', function() {
       var p = ensurePanel();
       p.classList.toggle('open');
+      if (p.classList.contains('open')) _syncEmpty();   // UI·AD · 开面板时按需显欢迎态
     });
     document.body.appendChild(fab);
   }
@@ -527,6 +1575,8 @@
     if (!adapter) return; // 非剧本编辑器页面
     ui.adapter = adapter;
     injectStyles();
+    _ensureCodeCopy();   // UI·AA · 代码块复制键委托
+    _ensureEntityNav();   // UI·AH · 行内实体引用跳转委托
     mountLauncher();
   }
 
@@ -534,5 +1584,5 @@
   else init();
 
   // 暴露给测试/调试
-  global.TM_AuthoringAgentUI = { init: init, _ui: ui, undo: undoLastApply, review: runReview, checkpoint: manualCheckpoint, checkpoints: listCheckpoints, restore: restoreCheckpoint };
+  global.TM_AuthoringAgentUI = { init: init, _ui: ui, undo: undoLastApply, stop: onStop, review: runReview, orchestrate: runOrchestratedUI, preflight: runPreflightUI, qa: runQaUI, explain: runExplainUI, checkpoint: manualCheckpoint, checkpoints: listCheckpoints, restore: restoreCheckpoint, history: listHistory, clearHistory: clearHistory, changelog: buildChangelog, runChangelog: runChangelogUI, macros: listMacros, saveMacro: saveMacro, deleteMacro: deleteMacro, applyMacro: applyMacro, exportBundle: exportBundle, importBundle: importBundle };
 })(typeof window !== 'undefined' ? window : this);

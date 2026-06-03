@@ -1091,10 +1091,94 @@
   function bindCanvas(){
     var c = EDITOR.canvas;
     if (!c){ console.error('[tools] canvas not ready'); return; }
-    c.addEventListener('mousedown', onMouseDown);
-    c.addEventListener('mousemove', onMouseMove);
-    c.addEventListener('mouseup', onMouseUp);
-    c.addEventListener('mouseleave', onMouseLeave);
+    // 移植 S2.3+S2.4：mouse* → pointer*（鼠标/触屏/笔统一）+ 双指 pinch 缩放 + 双指 tap=右键。
+    //   PointerEvent 继承 MouseEvent → onMouseDown/Move/Up 零改动。touch-action:none 让触屏在画布画/拖非滚页。
+    //   单指 = 画/选/拖（同鼠标）；双指张开/收拢 = pinch 缩放（ME.setZoom·围绕中点）；
+    //   双指轻点（无展开·短时）= 右键（= macOS 触控板范式·合成 button:2 走现有右键逻辑·brush 切加/减擦除）。
+    //   桌面鼠标：pointerType==='mouse' 直透原逻辑·不 capture ⇒ 零回归。
+    c.style.touchAction = 'none';
+    var _ptrs = {};         // 活跃触屏指针 id -> {x,y}
+    var _pinch = null;      // pinch 起手 { dist, zoom } 或 null
+    var _wasPinch = false;  // 本轮手势曾双指（抬指残留期忽略单指·防误画）
+    var _2fT = 0;           // 双指起手时间戳（判 tap 时长）
+    var _2fMid = null;      // 双指中点（client 坐标·tap 时合成右键位置）
+    var _2fMoved = false;   // 双指是否展开过（超死区 → 是 pinch 非 tap）
+    var PINCH_DEADZONE = 8; // px·双指距变化在此内视为静止（疑 tap·不缩放）
+    function _pdist(a, b){ var dx = a.x - b.x, dy = a.y - b.y; return Math.sqrt(dx * dx + dy * dy); }
+    function _fireRightClick(cx, cy){
+      // 合成 button:2 事件喂 onMouseDown → 复用各工具现有右键逻辑（brush 切 add/subtract）
+      var fake = { button: 2, buttons: 2, clientX: cx, clientY: cy, shiftKey: false, ctrlKey: false, altKey: false, metaKey: false, preventDefault: function(){}, stopPropagation: function(){} };
+      try { onMouseDown(fake); } catch(_){}
+    }
+
+    c.addEventListener('pointerdown', function(e){
+      if (e.pointerType === 'touch'){
+        _ptrs[e.pointerId] = { x: e.clientX, y: e.clientY };
+        try { c.setPointerCapture(e.pointerId); } catch(_){}
+        var ids = Object.keys(_ptrs);
+        if (ids.length === 2){
+          _wasPinch = true;
+          try { onMouseUp(e); } catch(_){}   // 结束第一指已开始的操作（brush 会 commit 一笔·可撤销）
+          var a = _ptrs[ids[0]], b = _ptrs[ids[1]];
+          _pinch = { dist: _pdist(a, b) || 1, zoom: EDITOR.camera.zoom };
+          _2fT = e.timeStamp; _2fMoved = false;
+          _2fMid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        }
+        if (ids.length >= 2 || _wasPinch) return;  // 双指中 / 双指尾·不当单指 down
+        onMouseDown(e);
+        return;
+      }
+      if (e.pointerType === 'pen'){ try { c.setPointerCapture(e.pointerId); } catch(_){} }
+      onMouseDown(e);  // mouse / pen 走原单指路
+    });
+
+    c.addEventListener('pointermove', function(e){
+      if (e.pointerType === 'touch'){
+        if (_ptrs[e.pointerId]) _ptrs[e.pointerId] = { x: e.clientX, y: e.clientY };
+        var ids = Object.keys(_ptrs);
+        if (ids.length >= 2 && _pinch){
+          var a = _ptrs[ids[0]], b = _ptrs[ids[1]];
+          var d = _pdist(a, b);
+          if (!_2fMoved && Math.abs(d - _pinch.dist) <= PINCH_DEADZONE){ e.preventDefault(); return; }  // 死区·疑 tap·不缩放
+          _2fMoved = true;
+          var rect = c.getBoundingClientRect();
+          var mx = (a.x + b.x) / 2 - rect.left, my = (a.y + b.y) / 2 - rect.top;
+          ME.setZoom(_pinch.zoom * (d / _pinch.dist), { x: mx, y: my });
+          e.preventDefault();
+          return;
+        }
+        if (_wasPinch) return;
+        onMouseMove(e);
+        return;
+      }
+      onMouseMove(e);  // mouse / pen
+    });
+
+    function _ptrUp(e){
+      if (e.pointerType === 'touch'){
+        var hadTwo = Object.keys(_ptrs).length === 2;
+        delete _ptrs[e.pointerId];
+        try { c.releasePointerCapture(e.pointerId); } catch(_){}
+        var n = Object.keys(_ptrs).length;
+        if (n < 2){
+          // 双指→单指：若无展开 + 短时 → 双指 tap = 右键
+          if (hadTwo && _2fT && !_2fMoved && (e.timeStamp - _2fT) < 300 && _2fMid){
+            _fireRightClick(_2fMid.x, _2fMid.y);
+          }
+          _2fT = 0; _pinch = null;
+        }
+        if (n === 0){
+          if (_wasPinch){ _wasPinch = false; return; }  // 双指收尾·别再触发单指 up
+          onMouseUp(e);
+        }
+        return;  // 还剩 1 指（双指抬一指）·等全抬·不收尾
+      }
+      if (e.pointerType === 'pen'){ try { c.releasePointerCapture(e.pointerId); } catch(_){} }
+      onMouseUp(e);  // mouse / pen
+    }
+    c.addEventListener('pointerup', _ptrUp);
+    c.addEventListener('pointercancel', _ptrUp);  // 触屏中断（系统手势打断）= 视为抬起
+    c.addEventListener('pointerleave', onMouseLeave);
     c.addEventListener('wheel', onWheel, { passive: false });
     c.addEventListener('contextmenu', function(e){ e.preventDefault(); });
     c.addEventListener('dblclick', function(e){
