@@ -343,6 +343,14 @@ function applyEdictActions(actions) {
             prevCh._displaced = { from: a.position, by: a.character, turn: GM.turn };
             if (typeof _offRemoveCharOfficeTitle === 'function') _offRemoveCharOfficeTitle(prevCh, a.position);
             else if (prevCh.officialTitle === a.position) prevCh.officialTitle = '';
+            // ⑤ 确定性夺位党争:被夺位者生怨(loyalty 降·stress 升)·对接替者积怨(AffinityMap)·跨党倾轧更烈
+            var _crossParty = !!(prevCh.party && char.party && prevCh.party !== char.party);
+            var _dpLoss = _crossParty ? 6 : 4;
+            if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(prevCh, -_dpLoss, '被夺去' + a.position + '之位', { source: 'edict-displaced', oncePerTurn: true });
+            else prevCh.loyalty = Math.max(0, ((typeof prevCh.loyalty === 'number' && isFinite(prevCh.loyalty)) ? prevCh.loyalty : 50) - _dpLoss);
+            prevCh.stress = Math.max(0, Math.min(100, (prevCh.stress || 0) + (_crossParty ? 12 : 8)));
+            if (typeof AffinityMap !== 'undefined') AffinityMap.add(prevHolder, a.character, _crossParty ? -20 : -15, '被其取代·夺位之怨');
+            if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(prevHolder, '被' + a.character + '夺去' + a.position + '之位' + (_crossParty ? '（党争倾轧）' : ''), '怨', _crossParty ? 7 : 5, a.character);
           }
         }
         // 官职公库 currentHead 跟着换

@@ -330,6 +330,8 @@
     var oldVars = ctx.input.oldVars || null;
     var timeRatio = ctx.input.timeRatio;
     var sysP = ctx.prompt.sysP || "";
+    // [1C·sysBlocks·2026-06-02] sysPFor(scId)：按 profile 取精简 sysP；取不到则回退整条 sysP(安全)。
+    var sysPFor = (ctx.prompt && ctx.prompt.sysPFor) ? ctx.prompt.sysPFor : function(){ return sysP; };
     var tp = ctx.prompt.tp || "";
     var sc = ctx.prompt.sc || null;
     var _shiluR = ctx.prompt._shiluR, _shiluMin = ctx.prompt._shiluMin || 0, _shiluMax = ctx.prompt._shiluMax || 0;
@@ -473,7 +475,7 @@
             }
             tp15n = tp15n.replace(/,\n$/, '\n');
             tp15n += '}';
-            var _b15n = { model: P.ai.model||'gpt-4o', messages: [{role:'system',content:_maybeCacheSys(sysP)},{role:'user',content:tp15n}], temperature: 0.7, max_tokens: _tok(_wantExt ? 8000 : (_wantCommon ? 5000 : 3000)) };
+            var _b15n = { model: P.ai.model||'gpt-4o', messages: [{role:'system',content:_maybeCacheSys(sysPFor('sc15n'))},{role:'user',content:tp15n}], temperature: 0.7, max_tokens: _tok(_wantExt ? 8000 : (_wantCommon ? 5000 : 3000)) };
             if (_modelFamily === 'openai') _b15n.response_format = { type: 'json_object' };
             var _c15n = await _callFollowupAI(_b15n, { id: 'sc15n', label: 'sc15n·' + _tier, priority: 'normal' });
             var _p15nParse = await _parseOrRepairJsonResult(_c15n.raw || '', _c15n.data, 'sc15n', { url: url, key: P.ai.key, body: _b15n, expectedKeys: ['mood_shifts', 'relationship_changes'], priority: 'normal' });
@@ -614,7 +616,7 @@
         tp15 += '\n■ mood_shifts: 每个受本回合事件影响的角色都应有心态变化。\n';
         tp15 += '■ relationship_changes: NPC之间的关系变动（不只是NPC与玩家的关系）。';
 
-        var _sc15Body = {model:P.ai.model||"gpt-4o", messages:[{role:"system",content:_maybeCacheSys(sysP)},{role:"user",content:tp15}], temperature:P.ai.temp||0.8, max_tokens:_tok(12000)};
+        var _sc15Body = {model:P.ai.model||"gpt-4o", messages:[{role:"system",content:_maybeCacheSys(sysPFor('sc15'))},{role:"user",content:tp15}], temperature:P.ai.temp||0.8, max_tokens:_tok(12000)};
         if (_modelFamily === 'openai') _sc15Body.response_format = { type: 'json_object' };
         var _sc15Call = await _callFollowupAI(_sc15Body, { id: 'sc15', label: '人物关系', priority: 'normal' });
         {
@@ -872,7 +874,7 @@
         var _mwBudget = Math.round(8000 * Math.max(1.0, _cpMW.scale));
         var _mwBody = {
           model: P.ai.model || "gpt-4o",
-          messages: [{ role: "system", content: _maybeCacheSys(sysP) }, { role: "user", content: tpMW }],
+          messages: [{ role: "system", content: _maybeCacheSys(sysPFor('memwrite')) }, { role: "user", content: tpMW }],
           temperature: 0.5,
           max_tokens: _mwBudget
         };
@@ -959,7 +961,7 @@
           tp16L += '势力：' + _facsLite.map(function(f){ return f.name + '(' + (f.strength||0) + ')'; }).join('、') + '\n';
           tp16L += '\n请返回 JSON·只含·{"faction_priorities":[{"faction":"势力名","priority":1-3,"urgency":"high|normal|low","reason":"为何"}],"diplomatic_shifts":[{"from":"","to":"","old_relation":"","new_relation":"","reason":""}],"power_balance_shift":"力量对比一句话(50字)"}\n';
           tp16L += '只输出最该行动的 top 3 势力·diplomatic_shifts 无变化也返回 []。';
-          var _sc16LBody = { model: P.ai.model || 'gpt-4o', messages: [{role:'system',content:_maybeCacheSys(sysP)},{role:'user',content:tp16L}], temperature: 0.5, max_tokens: _tok(2000) };
+          var _sc16LBody = { model: P.ai.model || 'gpt-4o', messages: [{role:'system',content:_maybeCacheSys(sysPFor('sc16L'))},{role:'user',content:tp16L}], temperature: 0.5, max_tokens: _tok(2000) };
           if (_modelFamily === 'openai') _sc16LBody.response_format = { type: 'json_object' };
           var _sc16LCall = await _callFollowupAI(_sc16LBody, { id: 'sc16', label: '势力推演·lite', priority: 'normal' });
           var _p16LParse = await _parseOrRepairJsonResult((_sc16LCall && _sc16LCall.raw) || '', _sc16LCall && _sc16LCall.data, '势力推演·lite', { url: url, key: P.ai.key, body: _sc16LBody, expectedKeys: ['faction_priorities', 'diplomatic_shifts'], priority: 'normal' });
@@ -1028,7 +1030,7 @@
         tp16 += '  · 必输此字段·无外交变化也必须返回 [] 空数组·NOT 省略 key\n';
         tp16 += '  · 形·{from, to, old_relation, new_relation, reason}·new_relation 从 敌对/中立/盟好/朝贡/通婚/交战 中选\n';
         tp16 += '  · SC1c 已让位·不再输出 diplomatic_shifts·所有势力间外交关系变化由 SC16 收口';
-        var _sc16Body = {model:P.ai.model||"gpt-4o", messages:[{role:"system",content:_maybeCacheSys(sysP)},{role:"user",content:tp16}], temperature:P.ai.temp||0.8, max_tokens:_tok(8000)};
+        var _sc16Body = {model:P.ai.model||"gpt-4o", messages:[{role:"system",content:_maybeCacheSys(sysPFor('sc16'))},{role:"user",content:tp16}], temperature:P.ai.temp||0.8, max_tokens:_tok(8000)};
         if (_modelFamily === 'openai') _sc16Body.response_format = { type: 'json_object' };
         var _sc16Call = await _callFollowupAI(_sc16Body, { id: 'sc16', label: '势力行动', priority: 'normal' });
         {
@@ -1085,7 +1087,7 @@
         }
         if (p1 && p1.resource_changes) tp17 += '\u672C\u56DE\u5408\u8D44\u6E90\u53D8\u5316\uFF1A' + JSON.stringify(p1.resource_changes) + '\n';
         tp17 += '\n\u8BF7\u8FD4\u56DEJSON\uFF1A{"fiscal_analysis":"\u8D22\u653F\u5B8C\u6574\u5206\u6790\u2014\u2014\u6536\u5165\u6765\u6E90\u3001\u652F\u51FA\u538B\u529B\u3001\u76C8\u4E8F\u72B6\u51B5(200\u5B57)","trade_dynamics":"\u8D38\u6613\u548C\u5546\u4E1A\u52A8\u6001(100\u5B57)","inflation_pressure":"\u901A\u80C0/\u7269\u4EF7\u538B\u529B(80\u5B57)","resource_forecast":"\u4E0B\u56DE\u5408\u8D44\u6E90\u9884\u6D4B(100\u5B57)","economic_advice":"\u7ECF\u6D4E\u5EFA\u8BAE\u2014\u2014\u5E94\u8BE5\u505A\u4EC0\u4E48\u4E0D\u5E94\u8BE5\u505A\u4EC0\u4E48(100\u5B57)","supplementary_resource_changes":{"\u53D8\u91CF\u540D":\u8865\u5145\u53D8\u5316\u91CF}}';
-        var _sc17Body = {model:P.ai.model||"gpt-4o", messages:[{role:"system",content:_maybeCacheSys(sysP)},{role:"user",content:tp17}], temperature:0.6, max_tokens:_tok(12000)};
+        var _sc17Body = {model:P.ai.model||"gpt-4o", messages:[{role:"system",content:_maybeCacheSys(sysPFor('sc17'))},{role:"user",content:tp17}], temperature:0.6, max_tokens:_tok(12000)};
         if (_modelFamily === 'openai') _sc17Body.response_format = { type: 'json_object' };
         var _sc17Call = await _callFollowupAI(_sc17Body, { id: 'sc17', label: '资源变动', priority: 'normal' });
         {
@@ -1120,7 +1122,7 @@
           tp18L += '玩家势力·' + (P.playerInfo && P.playerInfo.factionName || '本朝') + '\n';
           tp18L += '\n请返回 JSON·只含·{"war_probability":[{"between":"势力A-势力B","probability":0-1,"reason":"为何"}],"power_balance_shift":"力量对比一句话(40字)"}\n';
           tp18L += '只输出最可能爆发战争的 top 3 势力对·无则 []。';
-          var _b18L = { model: P.ai.model||'gpt-4o', messages:[{role:'system',content:_maybeCacheSys(sysP)},{role:'user',content:tp18L}], temperature: 0.4, max_tokens: _tok(1500) };
+          var _b18L = { model: P.ai.model||'gpt-4o', messages:[{role:'system',content:_maybeCacheSys(sysPFor('sc18L'))},{role:'user',content:tp18L}], temperature: 0.4, max_tokens: _tok(1500) };
           if (_modelFamily === 'openai') _b18L.response_format = { type: 'json_object' };
           var _c18L = await _callFollowupAI(_b18L, { id: 'sc18', label: '军事态势·lite', priority: 'normal' });
           var _p18L = await _parseOrRepairJsonResult(_c18L.raw||'', _c18L.data, '军事态势·lite', { url: url, key: P.ai.key, body: _b18L, expectedKeys: ['war_probability'], priority: 'normal' });
@@ -1189,7 +1191,7 @@
         tp18 += '· 每个非玩家势力本回合应至少 1 条 faction_military_actions 条目（兵力调动/作战/备战/征募等）\n';
         tp18 += '\n请返回JSON：{"military_situation":"全局军事态势分析(200字)","border_threats":"边境威胁评估(150字)","army_morale_analysis":"各军士气分析和风险(100字)","supplementary_army_changes":[{"name":"部队","faction":"所属","soldiers_delta":0,"morale_delta":0,"composition":[{"type":"兵种名","count":人数}],"equipment":[{"name":"装备名","count":数量}],"equipmentCondition":"装备状况·简陋/一般/优良","quality":"兵质","reason":"兵种/装备/兵质仅在实际变动时填(如扩编火器营/换装红衣大炮/整训提升)·否则省略这几项"}],"faction_military_actions":[{"faction":"势力名","action":"军事行动30字","targetFaction":"目标势力可空","casualties":0,"outcome":"结果30字","rationale":"动机30字"}],"recruitment_costs":[{"name":"新建军名","silver":0,"grain":0,"cloth":0,"reason":"募兵开销·依兵额兵种与本朝财力估算·量入为出"}],"war_probability":"下回合爆发战争的概率和方向(80字)"}';
         tp18 += '\n\u82e5\u672c\u56de\u5408\u660e\u786e\u53d1\u751f\u4e00\u573a\u53ef\u843d\u5730\u6218\u6597/\u5360\u57ce\uff0c\u8fd8\u5fc5\u987b\u8fd4\u56de battleResult:{winnerFactionId,loserFactionId,occupiedCityIds,casualties:{attacker,defender},affectedArmies:[{armyId,side,loss,moraleDelta,loyaltyDelta,state,commanderFate}],attackerArmyId,defenderArmyId,commanderFate:{name,outcome},postBattleEffects[]}.\u82e5\u591a\u573a\u6218\u6597\uff0c\u9009\u6700\u91cd\u5927\u4e00\u573a\u5199 battleResult\uff0c\u5176\u4f59\u7559\u5728 faction_military_actions\u3002';
-        var _sc18Body = {model:P.ai.model||"gpt-4o", messages:[{role:"system",content:_maybeCacheSys(sysP)},{role:"user",content:tp18}], temperature:0.7, max_tokens:_tok(12000)};
+        var _sc18Body = {model:P.ai.model||"gpt-4o", messages:[{role:"system",content:_maybeCacheSys(sysPFor('sc18'))},{role:"user",content:tp18}], temperature:0.7, max_tokens:_tok(12000)};
         if (_modelFamily === 'openai') _sc18Body.response_format = { type: 'json_object' };
         var _sc18Call = await _callFollowupAI(_sc18Body, { id: 'sc18', label: '军事变动', priority: 'normal' });
         {
@@ -1703,7 +1705,7 @@
               + '{"scenes":[{"id":1,"location":"地点","time":"时辰","characters":["主要人物"],"event_seed":"40字事件种子","outline_lines":["≤5 条要点·每条 30 字内"],"mood":"氛围"}],'
               + '"narrative_arc":"本回合主线弧(80字)","character_features":[{"name":"NPC名","trait":"突出特征(20字)"}],'
               + '"time_period_markers":["时代标记词·避免时代错乱"]}';
-            var _olBody = { model: P.ai.model||'gpt-4o', messages:[{role:'system',content:_maybeCacheSys(sysP)},{role:'user',content:tpOl}], temperature: 0.5, max_tokens: _tok(4000) };
+            var _olBody = { model: P.ai.model||'gpt-4o', messages:[{role:'system',content:_maybeCacheSys(sysPFor('scOl'))},{role:'user',content:tpOl}], temperature: 0.5, max_tokens: _tok(4000) };
             if (_modelFamily === 'openai') _olBody.response_format = { type:'json_object' };
             var _olCall = await _callFollowupAI(_olBody, { id: 'sc2_outline', label: '叙事大纲', priority: 'normal' });
             var _olParse = await _parseOrRepairJsonResult(_olCall.raw||'', _olCall.data, '叙事大纲', { url: url, key: P.ai.key, body: _olBody, expectedKeys: ['scenes', 'narrative_arc'], priority: 'normal' });
@@ -1727,7 +1729,7 @@
                 + '在世角色名单 (outline 引用必须在此)：' + _charNamesR.join('、') + '\n';
               if (GM._aiScenarioDigest && GM._aiScenarioDigest.periodVocabulary) tpR += '时代用语：' + GM._aiScenarioDigest.periodVocabulary.slice(0, 250) + '\n';
               tpR += '\n返回严格 JSON·\n{"anachronisms":["发现的时代错乱·每条 30字"],"name_errors":["不在名单的人名"],"missing_beats":["大纲缺失的关键节拍 (40字每条·≤3 条)"],"tone_guidance":"整体语气调整建议 (60字)"}';
-              var _rBody = { model: P.ai.model||'gpt-4o', messages:[{role:'system',content:_maybeCacheSys(sysP)},{role:'user',content:tpR}], temperature: 0.3, max_tokens: _tok(2500) };
+              var _rBody = { model: P.ai.model||'gpt-4o', messages:[{role:'system',content:_maybeCacheSys(sysPFor('scR'))},{role:'user',content:tpR}], temperature: 0.3, max_tokens: _tok(2500) };
               if (_modelFamily === 'openai') _rBody.response_format = { type:'json_object' };
               var _rCall = await _callFollowupAI(_rBody, { id: 'sc27_review', label: '大纲审查', priority: 'high' });
               var _rParse = await _parseOrRepairJsonResult(_rCall.raw||'', _rCall.data, '大纲审查', { url: url, key: P.ai.key, body: _rBody, expectedKeys: ['anachronisms', 'name_errors', 'missing_beats', 'tone_guidance'], priority: 'high' });
@@ -1752,7 +1754,7 @@
               }
               tpP += '在世角色：' + (GM.chars||[]).filter(function(c){return c.alive!==false;}).map(function(c){return c.name;}).slice(0, 30).join('、') + '\n';
               tpP += '\n请按 outline 的 scenes 顺序写出完整正文 (zhengwen·700-1500 字·章回体)·只返回 JSON·{"zhengwen":"完整正文","houren_xishuo":"同 zhengwen·后人戏说体"}';
-              var _pBody = { model: P.ai.model||'gpt-4o', messages:[{role:'system',content:_maybeCacheSys(sysP)},{role:'user',content:tpP}], temperature: 0.75, max_tokens: _tok(6000) };
+              var _pBody = { model: P.ai.model||'gpt-4o', messages:[{role:'system',content:_maybeCacheSys(sysPFor('scP'))},{role:'user',content:tpP}], temperature: 0.75, max_tokens: _tok(6000) };
               if (_modelFamily === 'openai') _pBody.response_format = { type:'json_object' };
               var _pCall = await _callFollowupAI(_pBody, { id: 'sc2_prose', label: '叙事成文', priority: 'high' });
               var _pParse = await _parseOrRepairJsonResult(_pCall.raw||'', _pCall.data, '叙事成文', { url: url, key: P.ai.key, body: _pBody, expectedKeys: ['zhengwen', 'houren_xishuo'], priority: 'high' });
@@ -1943,7 +1945,7 @@
         + "【情绪基调】若主角勤政——写出'做好事真难'(阻力、孤独、疲惫)；若主角享乐——写出'享乐真好'(感官、轻快、奉承)，但不说教。\n"
         + "\n返回纯JSON：\n"
         + "{\"houren_xishuo\":\"...(场景叙事正文)\",\"new_activities\":[{\"name\":\"...\",\"duration\":3,\"desc\":\"...\",\"effect\":{}}]}";
-      var msgs2 = (typeof _tmPrepareSc2Messages === 'function') ? _tmPrepareSc2Messages(sysP, GM.conv, tp2, _maybeCacheSys) : [{role:"system",content:_maybeCacheSys(sysP)},{role:"user",content:tp2}];
+      var msgs2 = (typeof _tmPrepareSc2Messages === 'function') ? _tmPrepareSc2Messages(sysP, GM.conv, tp2, _maybeCacheSys) : [{role:"system",content:_maybeCacheSys(sysPFor('sc2'))},{role:"user",content:tp2}];
       var _sc2Body = {model:P.ai.model||"gpt-4o",messages:msgs2,temperature:P.ai.temp||0.8,max_tokens:_tok(16000)};
       if (_modelFamily === 'openai') _sc2Body.response_format = { type: 'json_object' };
       var _sc2Call = await _callFollowupAI(_sc2Body, { id: 'sc2', label: '后人戏说', priority: 'normal' });
@@ -2081,8 +2083,8 @@
           + '"player_reputation_drift":[{"group":"群体","direction":"褒/贬/稳","perception":"印象","cause":"主因"}],'
           + '"next_turn_focus":["下回合应注意的方向"]}';
 
-        var _bodyT = { model: P.ai.model || 'gpt-4o', messages: [{role:'system',content:_maybeCacheSys(sysP)},{role:'user',content:tpTac}], temperature: 0.3, max_tokens: _tok(6000) };
-        var _bodyS = { model: P.ai.model || 'gpt-4o', messages: [{role:'system',content:_maybeCacheSys(sysP)},{role:'user',content:tpStr}], temperature: 0.5, max_tokens: _tok(6000) };
+        var _bodyT = { model: P.ai.model || 'gpt-4o', messages: [{role:'system',content:_maybeCacheSys(sysPFor('scTac'))},{role:'user',content:tpTac}], temperature: 0.3, max_tokens: _tok(6000) };
+        var _bodyS = { model: P.ai.model || 'gpt-4o', messages: [{role:'system',content:_maybeCacheSys(sysPFor('scStr'))},{role:'user',content:tpStr}], temperature: 0.5, max_tokens: _tok(6000) };
         if (_modelFamily === 'openai') { _bodyT.response_format = { type:'json_object' }; _bodyS.response_format = { type:'json_object' }; }
 
         var _callT = _callFollowupAI(_bodyT, { id: 'sc25c', label: 'sc25c·tactical', priority: 'normal' });
@@ -2228,7 +2230,7 @@
         var _c25 = (typeof _getAITier === 'function') ? _getAITier(_t25) : { key: P.ai.key, url: url, model: P.ai.model || 'gpt-4o' };
         var _u25 = (typeof _buildAIUrlForTier === 'function') ? _buildAIUrlForTier(_t25) : url;
         _dbg('[sc25] using tier:', _c25.tier || _t25, 'model:', _c25.model);
-        var _sc25Body = {model:_c25.model, messages:[{role:"system",content:_maybeCacheSys(sysP)},{role:"user",content:tp25}], temperature:0.7, max_tokens:_tok(12000)};
+        var _sc25Body = {model:_c25.model, messages:[{role:"system",content:_maybeCacheSys(sysPFor('sc25'))},{role:"user",content:tp25}], temperature:0.7, max_tokens:_tok(12000)};
         if (_tmDetectModelFamily(_c25.model, _modelFamily) === 'openai') _sc25Body.response_format = { type: 'json_object' };
         var _sc25Call = await _callFollowupAI(_sc25Body, { id: 'sc25', label: '伏笔记忆', url: _u25, key: _c25.key, priority: 'high' });
         {
@@ -2464,7 +2466,7 @@
         var _charNames27 = (GM.chars||[]).filter(function(c){return c.alive!==false;}).map(function(c){return c.name;});
         if (_charNames27.length > 0) tp27 += '\u3010\u5728\u4E16\u89D2\u8272\u540D\u5355\uFF08\u6B63\u6587\u4E2D\u63D0\u5230\u7684\u4EBA\u540D\u5FC5\u987B\u5728\u6B64\u5217\u8868\u4E2D\uFF09\u3011' + _charNames27.join('\u3001') + '\n';
         tp27 += '\u8BF7\u8FD4\u56DEJSON\uFF1A{"anachronisms":"\u53D1\u73B0\u7684\u65F6\u4EE3\u9519\u8BEF\u2014\u2014\u7528\u8BCD\u3001\u79F0\u8C13\u3001\u5236\u5EA6\u4E0D\u7B26\u5408\u65F6\u4EE3(100\u5B57)","name_errors":"\u6B63\u6587\u4E2D\u51FA\u73B0\u4F46\u4E0D\u5728\u89D2\u8272\u5217\u8868\u4E2D\u7684\u4EBA\u540D(\u5982\u6709)","enhancement":"\u53EF\u4EE5\u589E\u5F3A\u7684\u90E8\u5206\u2014\u2014\u54EA\u91CC\u53EF\u4EE5\u52A0\u5165\u66F4\u591A\u611F\u5B98\u7EC6\u8282\u3001\u5178\u6545\u5F15\u7528\u3001\u60C5\u611F\u6E32\u67D3(150\u5B57)","rewritten_passages":"\u91CD\u5199\u7684\u6BB5\u843D\u2014\u2014\u5C06\u6700\u5F31\u76842-3\u6BB5\u91CD\u5199\u5F97\u66F4\u597D(300\u5B57)","added_details":"\u5E94\u8865\u5145\u7684\u7EC6\u8282\u2014\u2014\u73AF\u5883\u63CF\u5199\u3001\u4EBA\u7269\u795E\u6001\u3001\u6C14\u6C1B\u70D8\u6258(200\u5B57)"}';
-        var _sc27Body = {model:P.ai.model||"gpt-4o", messages:[{role:"system",content:_maybeCacheSys(sysP)},{role:"user",content:tp27}], temperature:0.6, max_tokens:_tok(3000)};
+        var _sc27Body = {model:P.ai.model||"gpt-4o", messages:[{role:"system",content:_maybeCacheSys(sysPFor('sc27'))},{role:"user",content:tp27}], temperature:0.6, max_tokens:_tok(3000)};
         if (_modelFamily === 'openai') _sc27Body.response_format = { type: 'json_object' };
         var _sc27Call = await _callFollowupAI(_sc27Body, { id: 'sc27', label: '叙事质量审查', priority: 'high', timeoutMs: 60000, maxRetries: 1 });
         {
@@ -2642,7 +2644,7 @@
         tp07 += '\u00B7 unspokenConcern \u8981\u771F\u7684\u85CF\u7740\u2014\u2014\u5982\u201C\u6016\u67D0\u67D0\u7690\u5BB3\u81EA\u5DF1\u4FDD\u5929\u5B50\u201D/\u201C\u5BB6\u4E2D\u7236\u8001\u75C5\u91CD\u5374\u65E0\u6CD5\u56DE\u9645\u201D\n';
         tp07 += '\u00B7 \u5C3D\u91CF\u6840\u5356\u201C\u6211\u77E5\u9053\u67D0\u4EBA\u5728\u7B79\u5212\u67D0\u4E8B\u300C\u4F46\u540C\u50DA\u4E0D\u77E5\u300D\u201D\u7684\u8F7D\u5FC3\u4E0D\u5BF9\u79F0\n';
 
-        var _sc07Body = {model:P.ai.model||'gpt-4o', messages:[{role:'system',content:_maybeCacheSys(sysP)},{role:'user',content:tp07}], temperature:_modelTemp, max_tokens:_tok(12000)};
+        var _sc07Body = {model:P.ai.model||'gpt-4o', messages:[{role:'system',content:_maybeCacheSys(sysPFor('sc07'))},{role:'user',content:tp07}], temperature:_modelTemp, max_tokens:_tok(12000)};
         if (_modelFamily === 'openai') _sc07Body.response_format = { type:'json_object' };
 
         var _sc07Call = await _callFollowupAI(_sc07Body, { id: 'sc07', label: 'NPC 认知', priority: 'normal' });
@@ -2754,7 +2756,7 @@
         if (_changedChars.length) tp28 += '\u5173\u952E\u89D2\u8272\uFF1A' + _changedChars.map(function(c){return c.name+'\u5FE0'+c.loyalty+'\u91CE'+c.ambition+(c.stress>30?'\u538B'+c.stress:'');}).join(' ') + '\n';
         tp28 += '\n\u8BF7\u751F\u6210\u4E00\u4EFD\u6781\u9AD8\u5BC6\u5EA6\u7684\u4E16\u754C\u72B6\u6001\u5FEB\u7167\uFF0C\u4F9B\u4E0B\u56DE\u5408AI\u4F5C\u4E3A\u8BB0\u5FC6\u8D77\u70B9\u3002\u8FD4\u56DEJSON\uFF1A\n';
         tp28 += '{"world_snapshot":"\u5F53\u524D\u4E16\u754C\u7684\u5B8C\u6574\u72B6\u6001\u538B\u7F29\u2014\u2014\u5305\u542B\u6240\u6709\u5173\u952E\u53D8\u5316\u3001\u4EBA\u7269\u72B6\u6001\u3001\u52BF\u529B\u683C\u5C40\u3001\u7ECF\u6D4E\u519B\u4E8B\u3001\u793E\u4F1A\u77DB\u76FE(400\u5B57)","next_turn_seeds":"\u4E0B\u56DE\u5408\u5E94\u53D1\u5C55\u7684\u79CD\u5B50\u2014\u2014\u54EA\u4E9B\u4E8B\u60C5\u6B63\u5728\u915D\u917F\u3001\u54EA\u4E9B\u4EBA\u5373\u5C06\u884C\u52A8(200\u5B57)","tension_level":"\u5F53\u524D\u7D27\u5F20\u5EA6\u7B49\u7EA7(1-10)\u53CA\u539F\u56E0(50\u5B57)"}';
-        var _sc28Body = {model:P.ai.model||"gpt-4o", messages:[{role:"system",content:_maybeCacheSys(sysP)},{role:"user",content:tp28}], temperature:0.5, max_tokens:_tok(4000)};
+        var _sc28Body = {model:P.ai.model||"gpt-4o", messages:[{role:"system",content:_maybeCacheSys(sysPFor('sc28'))},{role:"user",content:tp28}], temperature:0.5, max_tokens:_tok(4000)};
         if (_modelFamily === 'openai') _sc28Body.response_format = { type: 'json_object' };
         var _sc28Call = await _callFollowupAI(_sc28Body, { id: 'sc28', label: '世界快照', priority: 'low' });
         {
@@ -3193,6 +3195,8 @@
         Array.prototype.push.apply(GM._convArchive, _dropping.map(function(c){
           return { role: c.role, content: c.content, _turn: GM.turn, _truncatedAt: Date.now() };
         }));
+        // 性能·_convArchive 同样无界增长（整段对话原文）·环形裁剪防存档膨胀与 deepClone 变重
+        if (GM._convArchive.length > 200) GM._convArchive = GM._convArchive.slice(-200);
         GM.conv = GM.conv.slice(-maxConv);
       }
 

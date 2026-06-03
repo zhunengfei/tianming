@@ -1180,9 +1180,8 @@ EndTurnHooks.register('after', function() {
     }
   }
 
-  // 更新高级面板
-  renderGameTech();renderGameCivic();renderRenwu();
-  renderLeftPanel();renderGameState();renderSidePanels();
+  // 更新高级面板·renderGameState 内部已重渲 Tech/Civic/Renwu/LeftPanel/SidePanels·去冗余整树重建（性能）
+  renderGameState();
 }, '处理AI高级系统变更');
 
 // 钩子 14: 播放回合结束音效

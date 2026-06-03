@@ -62,6 +62,26 @@
 
   global.TM.Endturn.AI.prompt.getCurrentChangchaoDecisions = _getCurrentChangchaoDecisions;
 
+  // [1B·sysBlocks·2026-06-02] sysP profile 表（配合 build() 的 offset-marker 分段 _segs）。
+  //   裁剪档 = 保留段名集合（O(1) 查）；FULL 走快路径直接返回整条 sysP。
+  //   ★ SYS_PROFILE_OF 当前留空 = 所有 sc 默认 FULL = 零行为变更（接线安全态）。
+  //   下次开游戏的会话据「各 profile 实际字数 log」逐个启用：sc17/27/28/25/07→LITE、sc16/18→FAC，
+  //   跑一回合冒烟看无幻觉告警后再扩。改这张表即调，不动 build()/调用点。
+  global.TM.Endturn.AI.prompt.SYS_PROFILES = {
+    NPC:  { base:1, worldState:1, events:1, context:1, player:1, npcDeep:1, letters:1, socialRules:1, roster:1, digest:1, tail:1 },
+    FAC:  { base:1, worldState:1, events:1, context:1, roster:1, tail:1 },
+    LITE: { base:1, worldState:1, context:1, roster:1, tail:1 }
+  };
+  global.TM.Endturn.AI.prompt.SYS_PROFILE_OF = {
+    // ★ 当前全注释 = 全 FULL = 零行为变更。下次开游戏：先看 DebugLog 各 profile 实际字数，
+    //   再逐批去掉 // 启用，每启用一批跑一回合冒烟（无幻觉人名地名告警 / 无 [sysBlocks] RECON MISMATCH）后再扩。
+    // —— LITE（财政/诏令/快照/体检·不产新人名地名；仅保 base+worldState+context+roster+tail）——
+    // sc17:'LITE', sc27:'LITE', sc28:'LITE', sc07:'LITE', sc25:'LITE',
+    // —— FAC（势力/军事·保 worldState+roster+events；丢 digest/npcDeep/letters/personnel/socialRules/player）——
+    // sc16:'FAC', sc16L:'FAC', sc18:'FAC', sc18L:'FAC',
+    // —— 谨慎区（语义未定·先 FULL，验过再降）：scOl/scR/scP/scTac/scStr/memwrite/sc15/sc15n/sc0/sc05 ——
+  };
+
   /**
    * §1·sysP prompt 构建 (R209 P7-γ)
    * 从 ctx.input read·写入 ctx.prompt
@@ -523,6 +543,29 @@
       tp+='  留中的政治含义：皇帝对此事不表态——上折者不知道皇帝看了没看，焦虑等待。\n';
     }
     // 留中超期的奏疏——NPC焦虑
+    // ④ 本回合面谕纳谏——皇帝当面嘉纳之谏·朝政演绎须顺此推进（接 _wdAdoptCounsel·待办落实闭环）
+    if (Array.isArray(GM._adoptedCounsel)) {
+      var _adThis = GM._adoptedCounsel.filter(function(a){ return a && a.turn === GM.turn; });
+      if (_adThis.length > 0) {
+        tp += '\n【本回合面谕纳谏——皇帝已当面嘉纳以下谏言·朝政当顺此推进】\n';
+        _adThis.forEach(function(a){
+          tp += '  · 纳' + a.advisor + '之谏' + (a.counsel ? '：' + String(a.counsel).slice(0, 50) : '') + '\n';
+        });
+        tp += '  ※ 这是皇帝亲口采纳的方略——叙事/朝局应体现相关衙署、人物据此着手推行；进言者（' + _adThis.map(function(a){ return a.advisor; }).join('、') + '）因见纳而振奋、更尽心任事；若与本回合诏令并行则相互呼应。\n';
+      }
+    }
+    // ⑨ 本回合受使决断——邦交演绎须据此推进（机制已调势力关系/皇威/国库岁币·此为叙事+势力行动层补充）
+    if (Array.isArray(GM._envoyAudiences)) {
+      var _evThis = GM._envoyAudiences.filter(function(e){ return e && e.turn === GM.turn && e.disposition && e.disposition !== 'received'; });
+      if (_evThis.length > 0) {
+        var _evDispLabel = { accept: '准其所请', reject: '驳回', temporize: '羁縻敷衍' };
+        tp += '\n【本回合受使决断——邦交演绎须据此推进】\n';
+        _evThis.forEach(function(e){
+          tp += '  · 对' + e.faction + '使节（' + (e.mission || '外交') + '）：' + (_evDispLabel[e.disposition] || e.disposition) + '\n';
+        });
+        tp += '  ※ 准其请和/结盟→两邦趋睦、战事或渐息；驳其索贡/和亲→对方失望愤懑、边衅风险升、可能遣兵示威或断贡市；羁縻敷衍→对方疑虑观望。叙事与该势力本回合行动当与此呼应。\n';
+      }
+    }
     var _heldMems = (GM.memorials||[]).filter(function(m) { return m.status === 'pending_review'; });
     _heldMems.forEach(function(hm) {
       var _heldTurns = GM.turn - (hm._arrivedTurn || hm.turn || GM.turn);
@@ -644,16 +687,6 @@
       }
     }
 
-    // NPC承诺追踪（问对中NPC做的承诺，应在推演中验证兑现或暴露失信）
-    if (GM._npcClaims && GM._npcClaims.length > 0) {
-      var _unverified = GM._npcClaims.filter(function(c) { return !c.verified && (GM.turn - c.turn) <= _turnsForMonthsLocal(5); });
-      if (_unverified.length > 0) {
-        tp += '\u3010NPC\u672A\u5151\u73B0\u7684\u627F\u8BFA\u2014\u2014\u63A8\u6F14\u4E2D\u5E94\u4F53\u73B0\u5151\u73B0\u6216\u5931\u4FE1\u3011\n';
-        _unverified.forEach(function(c) {
-          tp += '  T' + c.turn + ' ' + c.from + '\u627F\u8BFA\uFF1A' + (c.content || '').slice(0, 80) + '\n';
-        });
-      }
-    }
     // 本回合问对内容（让AI知道玩家在问对中获得的信息和NPC的承诺）
     if (GM.jishiRecords && GM.jishiRecords.length > 0) {
       var _thisWendui = GM.jishiRecords.filter(function(j) { return j.turn === GM.turn && j.char; });
@@ -673,13 +706,16 @@
     if (GM._wdRewardPunish && GM._wdRewardPunish.length > 0) {
       var _thisRp = GM._wdRewardPunish.filter(function(r) { return r.turn === GM.turn; });
       if (_thisRp.length > 0) {
-        tp += '【问对中的赏罚——AI必须在char_updates中反映对应影响】\n';
+        tp += '【问对中的赏罚——系统已确定性结算忠诚/压力（下狱者已实际入狱），你只需在叙事与人物反应中体现，勿在 char_updates 重复给 loyalty_delta/stress_delta】\n';
         _thisRp.forEach(function(r) {
           var _dtl = {gold:'赐金',robe:'赐衣',feast:'赐宴',promote:'许以加官',fine:'罚俸',demote:'降职',imprison:'下狱',cane:'杖责'};
           tp += '  ' + r.target + '：' + (r.type==='reward'?'赏赐':'处罚') + '——' + (_dtl[r.detail]||r.detail) + '\n';
         });
-        tp += '  赏赐影响：根据赏赐轻重+NPC性格判断loyalty_delta/stress_delta/ambition_delta。赐金小恩小惠(+2~5)，赐宴减压，赐衣荣耀感。贪婪者对赐金更敏感，清高者可能不以为然。\n';
-        tp += '  处罚影响：根据处罚轻重+NPC性格判断。罚俸轻(-2~5)，杖责重(-5~10+压力)，下狱极重(-10~20+压力+可能叛心)。刚直者被罚后可能更忠(以受罚为荣)，阴险者积怨报复。\n';
+        tp += '  ※ 基础忠诚/压力增减系统已结算·勿重复给。你只判定【次生反应】并经 npc_actions/叙事/关系体现：受赏者感恩图报或恃宠而骄、清高者未必领情；受罚者或刚直以受罚为荣、或阴险积怨报复甚至生叛心。\n';
+        // #1·帝王治术→朝堂集体反应（让赏罚风格有 court-level 后果·非只动受罚者本人）
+        var _wdHarsh = 0, _wdGrace = 0;
+        _thisRp.forEach(function(r){ if (r.type === 'reward') _wdGrace++; else { _wdHarsh += (r.detail === 'imprison' ? 3 : (r.detail === 'cane' || r.detail === 'demote') ? 2 : 1); } });
+        tp += '  ※【帝王治术·朝堂集体反应】本回合恩遇 ' + _wdGrace + ' 次·惩处权重 ' + _wdHarsh + '。请相称体现朝堂集体反应（不止受罚者本人）：' + (_wdHarsh >= 3 ? '滥刑则群臣震恐自危——明哲保身者缄口避祸、忠直者犯颜死谏、离心者私结党自固、言官或抗疏论救；皇帝渐染苛暴之名。' : (_wdGrace >= 2 && _wdHarsh === 0 ? '广施恩遇则朝堂感奋用命、争相效力，亦须防谄佞幸进。' : '赏罚尚平，朝堂如常。')) + '（注：此朝堂集体忠诚涟漪系统已对在京群臣确定性结算·你只作叙事/事件/关系体现·勿在 char_updates 重复给）\n';
       }
     }
 
@@ -3429,11 +3465,38 @@
       _segs.forEach(function(_s){ sysBlocks[_s.name] = (sysBlocks[_s.name] || '') + _s.text; });
       ctx.prompt.sysBlocks = sysBlocks;
       ctx.prompt._segs = _segs;
+      // [1B·sysBlocks·2026-06-03] 各 profile 字数诊断 log（支撑「据字数填 SYS_PROFILE_OF」那步）。
+      // 纯计算·不发 AI·不动状态；DebugLog('ai') 开时每回合打一行 FULL/各档字数+省比。
+      if (typeof DebugLog !== 'undefined') {
+        try {
+          var _full = sysP.length;
+          var _profMsg = '[sysBlocks] FULL=' + _full + '字';
+          var _profTbl = global.TM.Endturn.AI.prompt.SYS_PROFILES || {};
+          Object.keys(_profTbl).forEach(function(_pn){
+            var _keepP = _profTbl[_pn], _len = 0;
+            _segs.forEach(function(_s){ if (_keepP[_s.name]) _len += _s.text.length; });
+            _profMsg += ' | ' + _pn + '=' + _len + '字(省' + (_full ? Math.round((1 - _len / _full) * 100) : 0) + '%)';
+          });
+          DebugLog.log('ai', _profMsg);
+        } catch (_e) {}
+      }
     } else {
       ctx.prompt.sysBlocks = null;
       ctx.prompt._segs = null;
       if (typeof DebugLog !== 'undefined') DebugLog.log('ai', '[sysBlocks] 分块回退(截断/失配) recon=' + _recon.length + ' sysP=' + sysP.length);
     }
+    // [1B·sysBlocks·2026-06-02] sysPFor(scId)：按 profile 选段拼接(代码序)。FULL/缺省/无分块/未知 → 整条 sysP(安全)。
+    ctx.prompt.sysPFor = function(scId){
+      var _segsL = ctx.prompt._segs;
+      if (!_segsL) return ctx.prompt.sysP;
+      var _prof = (global.TM.Endturn.AI.prompt.SYS_PROFILE_OF || {})[scId] || 'FULL';
+      if (_prof === 'FULL') return ctx.prompt.sysP;
+      var _keep = (global.TM.Endturn.AI.prompt.SYS_PROFILES || {})[_prof];
+      if (!_keep) return ctx.prompt.sysP;
+      var _out = '';
+      for (var _si = 0; _si < _segsL.length; _si++) { if (_keep[_segsL[_si].name]) _out += _segsL[_si].text; }
+      return _out;
+    };
     ctx.prompt.sysP = sysP;
     // R209a·tp 是 §3 sub-call prompt 的 base (ai-infer L229 tp0·L848 tp1 等使用)·必 export
     // (per Codex P7-β addendum·避 ad hoc cross-module dep)

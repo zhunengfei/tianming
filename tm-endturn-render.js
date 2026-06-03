@@ -1305,8 +1305,14 @@ function _endTurn_render(shizhengji, zhengwen, playerStatus, playerInner, edicts
     if (GM._factionHistory.length > 10) GM._factionHistory.shift();
   }
 
-  // 12. 更新界面
-  renderGameState();renderBiannian();renderOfficeTree();renderShijiList();
+  // 性能·_turnReport 无界增长裁剪（渲染只读当回合/上回合·见 954/1572）·防越玩越卡时 deepClone/序列化/遍历越来越重
+  if (GM._turnReport && GM._turnReport.length > 600) GM._turnReport = GM._turnReport.slice(-600);
+  // 性能·jishiRecords（push 尾插·读取端只取近 50）无写入端 cap·尾部环形裁剪（qijuHistory 已在 npc-driver/news-bridge slice(0,200) 受控·不重复裁）
+  if (GM.jishiRecords && GM.jishiRecords.length > 400) GM.jishiRecords = GM.jishiRecords.slice(-400);
+  // 史料权威补全(纪事)·议政记录皆实录→信史·confidence 按 mode/泄密分级·供史册库权威钤印/置信
+  if (Array.isArray(GM.jishiRecords)) GM.jishiRecords.forEach(function(_r){ if (_r && !_r.authorityLevel){ _r.authorityLevel = 'official_record'; _r.confidence = (_r.leaked || _r.secret) ? 0.55 : (_r.mode === 'private' ? 0.68 : 0.78); } });
+  // 12. 更新界面·renderBiannian/renderOfficeTree/renderShijiList 已由 renderGameState 内部重渲·去冗余整树重建（性能）
+  renderGameState();
 
   // 13. 显示史记弹窗
   hideLoading();
