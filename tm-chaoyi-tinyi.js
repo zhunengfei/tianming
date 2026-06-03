@@ -805,7 +805,12 @@ async function _ty2_decide(mode) {
   }
 
   CY._ty2.decision = decision;
-  _cy_jishiAdd('tinyi', CY._ty2.topic, '皇帝', '裁决：' + actualDirection, { final: true, stances: counts });
+  var _tyOutcome = (mode === 'majority') ? ('廷议·从众议：' + actualDirection + '（支持 ' + (counts.support || 0) + ' · 反对 ' + (counts.oppose || 0) + '）')
+    : (mode === 'override') ? ('廷议·乾纲独断：' + actualDirection + '（逆众议）')
+    : (mode === 'mediation') ? ('廷议·采折中：' + String((CY._ty2._mediation && CY._ty2._mediation.content) || '').slice(0, 40))
+    : (mode === 'defer') ? '廷议·延议，留待再议'
+    : ('廷议：' + actualDirection);
+  _cy_jishiAdd('tinyi', CY._ty2.topic, '皇帝', '裁决：' + actualDirection, { final: true, stances: counts, outcome: _tyOutcome });
 
   // 经济改革廷议回调——若题目是经济改革（EconomyGapFill 提交的），根据皇帝裁决应用
   try {

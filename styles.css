@@ -4327,6 +4327,21 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:999;o
 .edit-grid-purple .scn-card-new:hover{border-color:#b08bc8;background:rgba(142,106,168,0.05) !important;}
 /* 剧本预览模态框 */
 .scn-preview-modal{max-width:650px;width:90%;max-height:85vh;overflow-y:auto;background:var(--color-elevated);border:1px solid var(--gold-500);border-radius:var(--radius-lg);padding:var(--space-6);position:relative;box-shadow:0 25px 50px rgba(0,0,0,0.5),0 0 80px rgba(184,154,83,0.08);animation:modal-in 0.3s var(--ease-out);background-image:repeating-linear-gradient(90deg,transparent,transparent 3em,rgba(107,93,79,0.015) 3em,rgba(107,93,79,0.015) calc(3em + 1px));}
+/* 移植 Phase 2·S2.2-bug：开局设置模态框（剧本预览/开卷立册）在矮视口（平板横屏 ~800h、小笔记本）
+   内容超 85vh 时，动作按钮行（.tm-setup-actions）会被挤进滚动区下方够不着。
+   仅 @media(max-height:860px) 下让按钮行 sticky 贴底常驻——正常桌面（>860px 高）零变化。
+   sticky 在不滚动时不偏移；bg+阴影遮住其后滚动内容。 */
+@media (max-height: 860px){
+  .scn-preview-modal .tm-setup-actions{
+    position:sticky;
+    bottom:0;
+    background:var(--color-elevated);
+    padding-top:var(--space-3);
+    margin-top:var(--space-2);
+    box-shadow:0 -12px 18px -8px var(--color-elevated);
+    z-index:3;
+  }
+}
 
 /* 模型选择 */
 .model-list{display:flex;flex-wrap:wrap;gap:0.3rem;margin-top:0.3rem;}

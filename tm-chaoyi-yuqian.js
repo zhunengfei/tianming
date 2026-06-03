@@ -377,7 +377,11 @@ function _yq2_decide(mode) {
 
   // 保密等级写入
   if (CY._yq2.record === 'keep') {
-    _cy_jishiAdd('yuqian', CY._yq2.topic, '皇帝', '决：' + line, { final: true, secret: false });
+    var _yqOutcome = (mode === 'approve') ? ('御前·准行：' + String(CY._yq2.topic || '').slice(0, 24))
+      : (mode === 'reject') ? '御前·驳否'
+      : (mode === 'defer') ? '御前·留待再议'
+      : ('御前·圣裁：' + String(customText || line).slice(0, 40));
+    _cy_jishiAdd('yuqian', CY._yq2.topic, '皇帝', '决：' + line, { final: true, secret: false, outcome: _yqOutcome });
   } else {
     // 不录：单独存 GM._secretMeetings
     if (!GM._secretMeetings) GM._secretMeetings = [];

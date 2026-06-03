@@ -3492,6 +3492,9 @@ async function finalizeAction(action, extra) {
   // ─── P0 GM 状态写入·v3 决议真持久化 ───
   _cc3_writeActionToGM(action, item, extra, label);
 
+  // ─── 史官实录·常朝议政进纪事(原本常朝不写 jishiRecords·此处补·带 outcome 决议) (2026-06-03) ───
+  try { _cc3_writeJishiRecord(action, item, extra, label, pTxt); } catch (jishiErr) { console.warn('[cc3] 纪事写入失败·跳过·', jishiErr && jishiErr.message); }
+
   // ─── Slice 9 层 6·把 emperor intent 传给下一议题·写在 GM 状态之后·state.currentIdx++ 之前
   try { _cc3_writeNextItemEmperorIntent(action, extra, item); }
   catch (intentErr) { console.warn('[cc3·tier2] emperor intent 写入失败·跳过·', intentErr && intentErr.message); }
@@ -3507,6 +3510,36 @@ async function finalizeAction(action, extra) {
   updateProgress();
   await delay(300);
   return runNextItem();
+}
+
+// ─── 史官实录·常朝决议写入纪事(带 outcome 决议结论·原本常朝缺纪事机制) ───
+function _cc3_writeJishiRecord(action, item, extra, label, pTxt) {
+  if (typeof GM === 'undefined') return;
+  if (!Array.isArray(GM.jishiRecords)) GM.jishiRecords = [];
+  item = item || {};
+  var topic = String(item.title || item.subject || '常朝议题').slice(0, 60);
+  var presenter = item.presenter || '某员';
+  var zou = String(item.detail || item.content || '').slice(0, 200);
+  var outcomeText = (action === 'approve') ? ('常朝·准奏：' + topic.slice(0, 24))
+    : (action === 'reject') ? '常朝·驳奏'
+    : (action === 'hold') ? '常朝·留中待议'
+    : (action === 'refer') ? ('常朝·发部议' + (extra ? '（' + extra + '）' : ''))
+    : (action === 'escalate') ? '常朝·下廷议'
+    : (action === 'modify') ? ('常朝·改批：' + String(extra || '').slice(0, 40))
+    : (action === 'decree') ? '常朝·当庭口述诏令'
+    : (action === 'praise') ? '常朝·嘉奖' : (action === 'admonish') ? '常朝·训诫'
+    : ('常朝·' + (label || action));
+  GM.jishiRecords.push({
+    turn: GM.turn || 1,
+    char: presenter,
+    topic: topic,
+    playerSaid: String(pTxt || ('（' + (label || '裁决') + '）')).slice(0, 200),
+    npcSaid: zou ? (presenter + '（' + (item.dept || '') + '）奏：' + zou) : '',
+    mode: 'changchao',
+    final: (action === 'approve' || action === 'reject' || action === 'decree' || action === 'escalate'),
+    outcome: outcomeText
+  });
+  if (GM.jishiRecords.length > 400) GM.jishiRecords = GM.jishiRecords.slice(-400);
 }
 
 // ─── P0·将朝议动作写入 GM 状态（C3-C8）───
@@ -4000,6 +4033,8 @@ function _cc3_persistCourtRecord() {
         date: date,
         content: content,
         category: d.item.type || 'routine',
+        authorityLevel: 'official_record',
+        confidence: 0.7,
         _source: 'chaoyi-v3',
         _resolved: false
       });
