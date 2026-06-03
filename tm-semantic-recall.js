@@ -27,7 +27,8 @@
     index: [],             // [{ id, source, turn, text, vec }]
     lastIndexedTurn: 0,    // 上次索引到的 turn
     modelName: 'Xenova/bge-small-zh-v1.5',
-    threshold: 0.55,
+    threshold: 0.45, // S1(2026-06-03): 0.55->0.45 放松(bge-small-zh 0.55 偏严·ST 建议 0.3-0.5)·call-site 可经 P.conf.semanticRecallThreshold 覆盖
+
     error: null,
     // P9.2 加载源/进度可见性
     loadSource: '',        // 'local-vendor' / 'hf-mirror' / 'hf-fallback'
@@ -337,6 +338,7 @@
       return {
         source: 'vector',
         sub: s.item.source,
+        id: s.item.id,                 // S6(2026-06-03): 保留 origin 稳定 id，供向量 hit 进 dedup/lineage 治理
         turn: s.item.turn,
         text: s.item.text,
         sim: Math.round(s.sim * 100) / 100

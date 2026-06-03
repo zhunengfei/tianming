@@ -8,6 +8,16 @@
 // 这是真正的存档管道核心·与 tm-storage.js (IndexedDB) + SaveManager (UI) 三层协作
 // ============================================================
 
+// 移植 S0.4 + S1.x 纠正：存档「走不走 window.tianming IPC 磁盘路」看 IPC 桥 caps.ipc（仅 electron）。
+//   存档原生分支内部直接 window.tianming.saveProject/…，capacitor 上为 null；故 capacitor 必须走 web 路。
+//   electron→ipc=true（≡ 旧 isDesktop·零回归）·web→false（≡ 旧）·capacitor→false（复用 web IndexedDB）。
+//   注：caps.fs（capacitor=true）代表「有原生 FS 插件」，留给 S1.2 把存档真路由进 TM.platform.saves→Filesystem 后才启用；
+//       在那之前 capacitor 复用 web/IndexedDB 存储路，故这里读 ipc 不读 fs。
+function _tmHasNativeFs(){
+  if (window.TM && window.TM.platform && window.TM.platform.caps) return !!window.TM.platform.caps.ipc;
+  return !!(window.tianming && window.tianming.isDesktop); // TM.platform 未就绪时兜底
+}
+
 
 // ============================================================
 //  存档读档优化 + 最终查漏
@@ -506,7 +516,7 @@ doSaveGame=async function(){
   if (typeof _awaitPostTurnJobsForSave === 'function') await _awaitPostTurnJobsForSave();
   _prepareGMForSave();
 
-  if(window.tianming&&window.tianming.isDesktop){
+  if(_tmHasNativeFs()){
     // 桌面端：面板UI
     var sc=findScenarioById(GM.sid);
     var defName=GM.saveName||("T"+GM.turn+"_"+(sc?sc.name:"save"));
@@ -1052,7 +1062,7 @@ function fullLoadGame(data){
 // 3. 文件读取（保留Electron桌面端支持）
 importSaveFile=function(){
   // Electron桌面端：使用原生文件对话框
-  if(window.tianming&&window.tianming.isDesktop&&window.tianming.dialogImport){
+  if(_tmHasNativeFs()&&window.tianming&&window.tianming.dialogImport){
     window.tianming.dialogImport().then(function(res){
       if(!res||res.canceled||!res.success)return;
       try{ fullLoadGame(res.data); }catch(err){ toast('\u5931\u8D25: '+err.message); }
@@ -1080,7 +1090,7 @@ importSaveFile=function(){
 };
 
 // 4. Electron读取（覆盖旧版）——统一使用卷宗UI
-if(window.tianming&&window.tianming.isDesktop){
+if(_tmHasNativeFs()){
   doLoadSave=function(){
     if(typeof openSaveManager==='function'){openSaveManager();return;}
     // 降级：旧版文件列表
@@ -1180,7 +1190,7 @@ function _autoSaveSnapshotGM(){
   var APPEND_ONLY = {
     qijuHistory:1, jishiRecords:1, shijiHistory:1, evtLog:1, biannianItems:1,
     officeChanges:1, eraStateHistory:1, conv:1, _chronicle:1, _chronicleTracks:1,
-    _turnReport:1, _foreshadows:1, allCharacters:1, summarizedTurns:1,
+    _turnReport:1, _foreshadows:1, allCharacters:1, summarizedTurns:1, _convArchive:1,
     recentChaoyi:1, _ccHeldItems:1, _aiDispatchStats:1, _subcallTimings:1,
     _pendingMartyrEvents:1, _pendingTinyiActions:1, _pendingTinyiTopics:1,
     triggeredHistoryEvents:1, triggeredOffendEvents:1, rigidTriggers:1,
@@ -1212,7 +1222,7 @@ function _autoSaveSnapshotGM(){
   return out;
 }
 if (typeof window !== 'undefined') window._autoSaveSnapshotGM = _autoSaveSnapshotGM;
-if(window.tianming&&window.tianming.isDesktop){
+if(_tmHasNativeFs()){
   // 每60秒自动存档（始终保存P，游戏运行时附带GM） (timer-leak-ok·文件顶层一次性·桌面端生命周期)
   setInterval(async function(){
     if(_autoSaveInFlight){
@@ -1305,14 +1315,14 @@ if(window.tianming&&window.tianming.isDesktop){
 }
 
 // 6b. 浏览器端定期保存P + 页面关闭时保存
-if(!window.tianming||!window.tianming.isDesktop){
+if(!_tmHasNativeFs()){
   // timer-leak-ok·文件顶层一次性·浏览器端生命周期
   setInterval(function(){ try{saveP();}catch(e){try{window.TM&&TM.errors&&TM.errors.captureSilent(e,'tm-audio-theme');}catch(_){}} },120000);
 }
 // 页面关闭/刷新时紧急保存P
 window.addEventListener('beforeunload',function(){
   try{
-    if(window.tianming&&window.tianming.isDesktop) localStorage.removeItem("tm_P");
+    if(_tmHasNativeFs()) localStorage.removeItem("tm_P");
     else{
       localStorage.removeItem("tm_P");
       if(!(typeof _tmIsIncompleteOfficialProject==="function"&&_tmIsIncompleteOfficialProject(P))){

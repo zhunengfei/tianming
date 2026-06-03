@@ -68,8 +68,10 @@ function _sjlRecordHtml(sj){
 function _sjlRecordHtmlByIdx(idx){
   return _sjlRecordHtml(GM.shijiHistory && GM.shijiHistory[idx]);
 }
-function renderShijiList(){
+function renderShijiList(force){
   var el=_$("shiji-list");if(!el)return;
+  // 性能·史记面板隐藏时跳过重渲（切到 gt-shiji 时由 switchGTab force 渲染）·shijiHistory 长局可达数百条·此处省掉每次 renderGameState 的全量 reverse+分组
+  if(!force && typeof _gtTabVisible==='function' && !_gtTabVisible('gt-shiji')) return;
   var all=(GM.shijiHistory||[]).slice().reverse();
   var kw=(_sjlKw||'').trim().toLowerCase();
   var yrFilter=_sjlYrFilter||'';

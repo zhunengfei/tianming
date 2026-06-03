@@ -161,9 +161,10 @@ function renderWenduiChars(){
     if (c.isPlayer) return false;
     if (c._mourning) return false;
     if (c._lastMetTurn === GM.turn) return false;
-    if ((c.loyalty || 50) > 90 && (c.stress || 0) > 30) return true;
-    if ((c.ambition || 50) > 80 && (c.loyalty || 50) > 60) return true;
-    if ((c.stress || 0) > 60) return true;
+    try {
+      var _sa = (typeof _wdDeriveAudienceAgenda === 'function') ? _wdDeriveAudienceAgenda(c) : null;
+      if (_sa && _sa.seek) return true;
+    } catch (_) {}
     if (GM.letters) {
       var _hasUn = GM.letters.some(function(l) { return l._npcInitiated && l.from === c.name && l._replyExpected && !l._playerReplied && l.status === 'returned'; });
       if (_hasUn) return true;
@@ -180,6 +181,7 @@ function renderWenduiChars(){
       else if ((ch.loyalty||50) > 90 && (ch.stress||0) > 30) reason = '\u795E\u8272\u51DD\u91CD\uFF0C\u6B32\u8FDB\u5FE0\u8A00';
       else if ((ch.ambition||50) > 80) reason = '\u7CBE\u795E\u6296\u64DE\uFF0C\u6B32\u5448\u7B56\u8BBA';
       else reason = '\u5019\u4E8E\u6BBF\u5916\uFF0C\u8BF7\u6C42\u9762\u5723';
+      try { var _ra = (typeof _wdDeriveAudienceAgenda === 'function') ? _wdDeriveAudienceAgenda(ch) : null; if (_ra && _ra.brief) reason = _ra.brief; } catch (_) {}
       if (GM.letters && GM.letters.some(function(l) { return l._npcInitiated && l.from === ch.name && l._replyExpected && !l._playerReplied && l.status === 'returned'; })) {
         reason = '\u524D\u65E5\u6765\u51FD\u672A\u83B7\u56DE\u590D\uFF0C\u4EB2\u81F3\u6C42\u89C1';
       }
@@ -402,10 +404,16 @@ function openWenduiModal(name, mode, prefillMsg) {
     // 顶栏
     + '<div class="wd-modal-header">'
     + '<div class="wd-modal-header-left">'
+    + '<button class="bt bsm" id="wd-screen-btn" onclick="_wdToggleScreen()" title="屏退左右·本次问对内容不外泄（然外廷仍知陛下有密谈）">屏退</button>'
+    + '<button class="bt bsm" onclick="_wdDirectOrder()" title="面谕当面差遣·确定性记入承诺追踪（不靠AI事后抽取）">差遣</button>'
     + '<button class="bt bsm" id="wd-edict-btn" onclick="_wdAddToEdict()" title="\u5148\u5212\u9009\u5927\u81E3\u53D1\u8A00\u4E2D\u7684\u6587\u5B57\uFF0C\u518D\u70B9\u6B64\u6309\u94AE\u6458\u5165\u5EFA\u8BAE\u5E93">\u6458\u5165\u5EFA\u8BAE\u5E93</button>'
     + '<button class="bt bsm" onclick="_wdSummonConfronter()" title="\u53EC\u5165\u7B2C\u4E8C\u4EBA\u5F53\u9762\u5BF9\u8D28">\u53EC\u4EBA\u5BF9\u8D28</button>'
     + '<button class="bt bsm" style="color:var(--celadon-400);" onclick="_wdReward()" title="\u5F53\u573A\u8D4F\u8D50">\u8D4F</button>'
     + '<button class="bt bsm" style="color:var(--vermillion-400);" onclick="_wdPunish()" title="\u5F53\u573A\u5904\u7F5A">\u7F5A</button>'
+    + ((ch && !ch._envoy && !ch.fromFaction) ? '<button class="bt bsm" style="color:var(--gold-400);" onclick="_wdAdoptCounsel()" title="\u5609\u7EB3\u5176\u8A00\u00B7\u660E\u541B\u7EB3\u8C0F\uFF08\u7687\u5A01+\u00B7\u8FDB\u8A00\u8005\u77E5\u9047\u00B7\u5165\u8D77\u5C45\u6CE8\u5F85\u529E\uFF09">\u7EB3\u8C0F</button>' : '')
+    + ((ch && (ch._envoy || ch.fromFaction)) ? ('<button class="bt bsm" style="color:var(--gold-400);" onclick="_wdEnvoyDecision(\'accept\')" title="\u51C6\u5176\u6240\u8BF7\u00B7\u6539\u5584\u90A6\u4EA4\uFF08\u6309\u4F7F\u547D\u5B9A\u6548\u679C\u00B7\u548C\u4EB2/\u8BF7\u548C/\u7ED3\u76DF/\u7EB3\u8D21\uFF09">\u51C6\u594F</button>'
+        + '<button class="bt bsm" style="color:var(--vermillion-400);" onclick="_wdEnvoyDecision(\'reject\')" title="\u9A73\u5176\u6240\u8BF7\u00B7\u90A6\u4EA4\u8F6C\u51B7\u6216\u751F\u8FB9\u8845\uFF08\u7D22\u8D21\u53EF\u65A5\u9000\u7ACB\u5A01\uFF09">\u9A73\u56DE</button>'
+        + '<button class="bt bsm" onclick="_wdEnvoyDecision(\'temporize\')" title="\u7F81\u7E3B\u6577\u884D\u00B7\u4E0D\u5373\u5B9A\u593A\u00B7\u5C0F\u635F\u90A6\u4EA4\u4EE5\u6362\u65F6\u95F4">\u7F81\u7E3B</button>') : '')
     + '</div>'
     + '<div class="wd-modal-header-center">'
     + '<div class="wd-modal-char-name">' + escHtml(name) + '</div>'
@@ -527,6 +535,139 @@ function _wdAddConfronter(nm) {
   toast('已召入' + nm + '对质（在场' + _wdConfronters.length + '人）');
   var inp = _$('wd-modal-input');
   if (inp) inp.placeholder = '现在' + (_wdConfronters.length + 1) + '人在场，请发问……';
+}
+// E2·屏退左右：本次问对内容不外泄（费精力·但密谈本身外廷可知）
+var _wdScreened = false;
+function _wdToggleScreen() {
+  _wdScreened = !_wdScreened;
+  var _scBtn = (typeof _$ === 'function') ? _$('wd-screen-btn') : null;
+  if (_scBtn) { _scBtn.textContent = _wdScreened ? '已屏退' : '屏退'; _scBtn.style.color = _wdScreened ? 'var(--gold-400)' : ''; }
+  var _scChat = (typeof _$ === 'function') ? _$('wd-modal-chat') : null;
+  if (_wdScreened) {
+    if (typeof _spendEnergy === 'function') _spendEnergy(3, '屏退左右');
+    if (_scChat) { var _scd = document.createElement('div'); _scd.style.cssText = 'text-align:center;font-size:0.7rem;color:var(--gold-400);padding:3px;'; _scd.textContent = '（屏退左右，殿中再无第三人。此后所言不外泄；然外廷已知陛下有密谈。）'; _scChat.appendChild(_scd); _scChat.scrollTop = _scChat.scrollHeight; }
+  } else if (_scChat) {
+    var _scd2 = document.createElement('div'); _scd2.style.cssText = 'text-align:center;font-size:0.7rem;color:var(--txt-d);padding:3px;'; _scd2.textContent = '（召左右复入。）'; _scChat.appendChild(_scd2); _scChat.scrollTop = _scChat.scrollHeight;
+  }
+}
+// #5·即时差遣：面谕当面下达·确定性成约束承诺（接 _npcCommitments·不靠 AI 事后抽取）
+function _wdDirectOrder() {
+  var name = GM.wenduiTarget; if (!name) return;
+  var bg = document.createElement('div');
+  bg.style.cssText = 'position:fixed;inset:0;z-index:1300;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;';
+  bg.innerHTML = '<div style="background:var(--color-surface);border:1px solid var(--gold-500);border-radius:var(--radius-lg);padding:1rem 1.5rem;max-width:340px;width:90%;">'
+    + '<div style="font-size:var(--text-sm);color:var(--gold-400);margin-bottom:var(--space-2);">面谕差遣 ' + escHtml(name) + '</div>'
+    + '<textarea id="wd-order-task" rows="2" placeholder="面谕其办何事（如：三月内查清盐政积弊、节制蓟镇兵马）" style="width:100%;box-sizing:border-box;background:var(--bg-3);color:var(--color-foreground);border:1px solid var(--bg-4);border-radius:4px;padding:6px;font-size:0.8rem;resize:vertical;"></textarea>'
+    + '<div style="display:flex;align-items:center;gap:6px;margin:6px 0;font-size:0.78rem;color:var(--txt-s);">期限 <select id="wd-order-deadline" style="background:var(--bg-3);color:var(--color-foreground);border:1px solid var(--bg-4);border-radius:4px;padding:3px;"><option value="1">1回合</option><option value="2">2回合</option><option value="3" selected>3回合</option><option value="5">5回合</option><option value="8">8回合</option></select></div>'
+    + '<div style="display:flex;gap:var(--space-1);justify-content:flex-end;">'
+    + '<button class="bt bp bsm" onclick="if(_wdDoDirectOrder())this.closest(\'div[style*=fixed]\').remove();">下达</button>'
+    + '<button class="bt" onclick="this.closest(\'div[style*=fixed]\').remove();">取消</button>'
+    + '</div></div>';
+  document.body.appendChild(bg);
+  var _ta = _$('wd-order-task'); if (_ta) _ta.focus();
+}
+function _wdDoDirectOrder() {
+  var name = GM.wenduiTarget; var ch = findCharByName(name); if (!ch) return false;
+  var _taEl = _$('wd-order-task'); var task = _taEl ? String(_taEl.value || '').trim() : '';
+  if (!task) { if (typeof toast === 'function') toast('请先写明所差何事'); return false; }
+  var _dlEl = _$('wd-order-deadline'); var deadline = _dlEl ? (parseInt(_dlEl.value, 10) || 3) : 3;
+  if (!GM._npcCommitments) GM._npcCommitments = {};
+  if (!GM._npcCommitments[name]) GM._npcCommitments[name] = [];
+  var loy = (typeof ch.loyalty === 'number') ? ch.loyalty : 50;
+  var rap = (typeof ch._rapport === 'number') ? ch._rapport : 50;
+  var willingness = Math.max(0.2, Math.min(0.95, (loy + rap) / 200));
+  GM._npcCommitments[name].push({
+    id: (typeof uid === 'function' ? uid() : 'ord_' + (GM.turn || 0) + '_' + name + '_' + GM._npcCommitments[name].length),
+    task: task.slice(0, 60), category: 'other', assignedTurn: GM.turn || 0, deadline: deadline,
+    willingness: willingness, npcPromise: '面谕当面领命', conditions: '', status: 'pending', progress: 0, attempts: 0, feedback: '', _source: 'direct-order'
+  });
+  if (typeof _spendEnergy === 'function') _spendEnergy(2, '面谕差遣');
+  if (typeof addEB === 'function') addEB('问对·差遣', name + '领命：' + task.slice(0, 40));
+  if (GM.qijuHistory) GM.qijuHistory.unshift({ turn: GM.turn, date: typeof getTSText === 'function' ? getTSText(GM.turn) : '', content: '【问对·面谕】命' + name + '：' + task + '（限' + deadline + '回合）', category: '问对' });
+  if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(name, '奉旨面谕：' + task.slice(0, 30), willingness > 0.6 ? '敬' : '忧', 6, '天子');
+  if (!GM.wenduiHistory[name]) GM.wenduiHistory[name] = [];
+  GM.wenduiHistory[name].push({ role: 'system', content: '【面谕】皇帝命' + name + '：' + task + '（限' + deadline + '回合）' });
+  var chatEl = _$('wd-modal-chat');
+  if (chatEl) { var d = document.createElement('div'); d.style.cssText = 'text-align:center;font-size:0.72rem;color:var(--gold-400);padding:4px;'; d.textContent = '（面谕差遣：' + task.slice(0, 30) + '·限' + deadline + ' 回合。已入承诺追踪。）'; chatEl.appendChild(d); chatEl.scrollTop = chatEl.scrollHeight; }
+  return true;
+}
+// ④ 纳谏:嘉纳其言→皇威(benevolence·明君纳言)+进言者知遇+采纳之谏入起居注(待办留档)
+function _wdAdoptCounsel() {
+  var name = GM.wenduiTarget; if (!name) return;
+  var ch = (typeof findCharByName === 'function') ? findCharByName(name) : null;
+  if (!ch) return;
+  if (ch._envoy || ch.fromFaction) { if (typeof toast === 'function') toast('外藩之议请用「准奏/驳回」'); return; }
+  // 取此人最近一句话作为所纳之谏(best-effort)
+  var _adv = '';
+  var _hist = (GM.wenduiHistory && GM.wenduiHistory[name]) || [];
+  for (var i = _hist.length - 1; i >= 0; i--) { if (_hist[i] && _hist[i].role !== 'player' && _hist[i].content) { _adv = String(_hist[i].content).slice(0, 60); break; } }
+  // 皇威:明君纳谏(走表内 benevolence 源·cap10·防 farm)
+  if (typeof AuthorityEngines !== 'undefined' && AuthorityEngines.adjustHuangwei) {
+    try { AuthorityEngines.adjustHuangwei('benevolence', 1, '嘉纳' + name + '之谏·明君纳言'); } catch (_) {}
+  }
+  // 进言者知遇之感
+  if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(ch, 2, '所谏蒙嘉纳·知遇之感', { source: 'wendui-counsel-adopted' });
+  ch._rapport = (ch._rapport || 0) + 3;
+  ch._counselAdoptedTurn = GM.turn;  // 防 close 的 ④纳谏 affirmation 重复加
+  if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(name, '所进之言蒙陛下当面嘉纳·君臣相得', '敬', 7, '天子');
+  // 待办留档:采纳之谏入起居注(供回顾/演绎后续推进)
+  if (!Array.isArray(GM._adoptedCounsel)) GM._adoptedCounsel = [];
+  GM._adoptedCounsel.push({ advisor: name, counsel: _adv, turn: GM.turn });
+  if (GM._adoptedCounsel.length > 40) GM._adoptedCounsel = GM._adoptedCounsel.slice(-40);
+  if (GM.qijuHistory) GM.qijuHistory.unshift({ turn: GM.turn, date: (typeof getTSText === 'function') ? getTSText(GM.turn) : '', content: '【问对·纳谏】陛下嘉纳' + name + '之言' + (_adv ? '：' + _adv : ''), category: '问对' });
+  if (typeof addEB === 'function') addEB('问对·纳谏', '嘉纳' + name + '之谏');
+  var chatEl = _$('wd-modal-chat');
+  if (chatEl) { var d = document.createElement('div'); d.style.cssText = 'text-align:center;font-size:0.72rem;color:var(--gold-400);padding:4px;'; d.textContent = '（嘉纳其言·' + name + '感君知遇）'; chatEl.appendChild(d); chatEl.scrollTop = chatEl.scrollHeight; }
+  if (typeof toast === 'function') toast('已嘉纳' + name + '之谏·皇威+');
+}
+// ⑨ 使节准奏/驳回/羁縻:确定性接外交子系统(setFactionRelation)+皇威(纳贡/屈辱)+留痕·完整条款细节仍由对话演绎
+// ⑨ 外交效果表：受使决断(kind × interactionType) → {rel:关系增量, hwSource/hwDelta:皇威源/量, tribute:我方纳岁币(扣国库), desc:文案}
+// 调参集中于此一处；新增使命类型加一行即可。缺省走 _default。
+var _WD_ENVOY_EFFECTS = {
+  accept: {
+    sue_for_peace:      { rel: 28, desc: '准其请和·罢兵息争' },
+    form_confederation: { rel: 30, desc: '准结盟约' },
+    royal_marriage:     { rel: 22, desc: '准和亲之议' },
+    pay_tribute:        { rel: 12, hwSource: 'tribute', hwDelta: 4, desc: '纳其朝贡·万国来朝' },
+    demand_tribute:     { rel: 15, hwSource: 'diplomaticHumiliation', hwDelta: -6, tribute: { money: 30000, cloth: 3000 }, desc: '许其岁币·屈己安边' },
+    _default:           { rel: 12, desc: '准其所请·邦交转睦' }
+  },
+  reject: {
+    sue_for_peace:  { rel: -10, desc: '拒其请和·战事未休' },
+    demand_tribute: { rel: -16, desc: '斥其索贡·寸土不让' },
+    royal_marriage: { rel: -10, desc: '却其和亲' },
+    _default:       { rel: -12, desc: '驳其所请·邦交转冷' }
+  },
+  temporize: { _default: { rel: -4, desc: '羁縻敷衍·未即定夺' } }
+};
+function _wdEnvoyDecision(kind) {
+  var name = GM.wenduiTarget; if (!name) return;
+  var ch = (typeof findCharByName === 'function') ? findCharByName(name) : null;
+  if (!ch || !(ch._envoy || ch.fromFaction)) { if (typeof toast === 'function') toast('此人非外藩使节'); return; }
+  var fac = ch.fromFaction || ch.faction || '';
+  var itype = ch.interactionType || '';
+  var playerFac = (typeof P !== 'undefined' && (P.playerFactionName || (P.playerInfo && P.playerInfo.factionName))) || GM.playerFactionName || GM.playerFaction || '本朝';
+  var L = ({ accept: '准奏', reject: '驳回', temporize: '羁縻' })[kind] || kind;
+  var _km = _WD_ENVOY_EFFECTS[kind] || _WD_ENVOY_EFFECTS.temporize;
+  var _eff = _km[itype] || _km._default;
+  var relDelta = _eff.rel || 0;
+  var desc = _eff.desc || '';
+  if (fac && playerFac && typeof setFactionRelation === 'function') {
+    try { setFactionRelation(playerFac, fac, { delta: relDelta, desc: '问对·' + L + '：' + desc }, { mirror: true }); } catch (_) {}
+  }
+  if (_eff.hwSource && _eff.hwDelta && typeof AuthorityEngines !== 'undefined' && AuthorityEngines.adjustHuangwei) {
+    try { AuthorityEngines.adjustHuangwei(_eff.hwSource, _eff.hwDelta, '受使·' + desc); } catch (_) {}
+  }
+  // ⑨ 若该决断含岁币(我方纳贡·见 _WD_ENVOY_EFFECTS)→确定性扣国库(走 FiscalEngine.spendFromGuoku·cascade-safe·不足记欠)
+  if (_eff.tribute && typeof FiscalEngine !== 'undefined' && FiscalEngine.spendFromGuoku) {
+    try { FiscalEngine.spendFromGuoku(_eff.tribute, '岁币·' + (fac || '外藩')); desc += '·岁币出帑'; } catch (_) {}
+  }
+  ch._pendingEnvoyDisposition = kind;  // 供 closeWenduiModal 留痕带上处置
+  if (typeof addEB === 'function') addEB('外交·' + L, fac + '使节之请——' + desc + '（邦交' + (relDelta >= 0 ? '+' : '') + relDelta + '）');
+  var chatEl = _$('wd-modal-chat');
+  if (chatEl) { var d = document.createElement('div'); d.style.cssText = 'text-align:center;font-size:0.72rem;color:var(--gold-400);padding:4px;'; d.textContent = '（' + L + '：' + desc + '·' + fac + '邦交' + (relDelta >= 0 ? '+' : '') + relDelta + '）'; chatEl.appendChild(d); chatEl.scrollTop = chatEl.scrollHeight; }
+  if (typeof toast === 'function') toast(L + '·' + fac + '邦交' + (relDelta >= 0 ? '+' : '') + relDelta);
+  if (typeof closeWenduiModal === 'function') setTimeout(closeWenduiModal, 600);
 }
 function _wdSummonConfronter() {
   // L4\u00B7f1\u00B7cedui mode \u5141\u53EC\u4EBA\u5BF9\u8D28\u00B7multi-advisor \u534F\u5546\u00B7confronter \u72EC\u7ACB archetype\u00B7\u5173\u540E\u8DD1 merge LLM
@@ -694,6 +835,60 @@ function _wdCommitAudienceOpening(name, ch, replyText) {
 }
 
 /** NPC主动开口（奏对模式）——AI生成NPC的开场陈述 */
+// C·派生主动求见的真实议程（从承诺/赏罚/忠诚野心等真实处境推导·UI reason 与开场 prompt 共用·让求见者带具体目的来）
+function _wdDeriveAudienceAgenda(ch) {
+  if (!ch) return null;
+  var nm = ch.name;
+  var loy = (typeof ch.loyalty === 'number') ? ch.loyalty : 50;
+  var amb = (typeof ch.ambition === 'number') ? ch.ambition : 50;
+  var str = ch.stress || 0;
+  var _t = (typeof GM !== 'undefined' && GM.turn) || 0;
+  // ① 未了承诺：为前命复命/请罪展限（接 _npcCommitments·闭环：受命→主动回报）
+  try {
+    if (typeof GM !== 'undefined' && GM._npcCommitments && Array.isArray(GM._npcCommitments[nm])) {
+      var _pend = GM._npcCommitments[nm].filter(function(c){ return c && (c.status === 'pending' || c.status === 'executing' || c.status === 'delayed'); });
+      if (_pend.length) {
+        var _c = _pend[_pend.length - 1];
+        var _od = (_t - (_c.assignedTurn || _t)) > (_c.deadline || 3);
+        var _tk = String(_c.task || '').slice(0, 16);
+        return { tag:'commitment', seek: _od, overdue: _od, brief: _od ? ('为「' + _tk + '」逾期请罪/请展限') : ('为「' + _tk + '」复命'),
+          hint: '你曾奉旨办「' + (_c.task || '') + '」' + (_od ? '，至今未竟，今来请罪或恳请宽限，并陈所遇难处' : '，今来当面复命、奏报进展或所遇阻力') + '。' };
+      }
+    }
+  } catch (_) {}
+  // ② 近受赏/罚：谢恩 或 谢罪/鸣屈
+  try {
+    if (typeof GM !== 'undefined' && Array.isArray(GM._wdRewardPunish)) {
+      var _rp = GM._wdRewardPunish.filter(function(r){ return r && r.target === nm && (_t - r.turn) <= 2; });
+      if (_rp.length) {
+        var _last = _rp[_rp.length - 1];
+        if (_last.type === 'reward') return { tag:'thank', seek:true, brief:'入谢天恩', hint:'你近日蒙陛下赏赐，今来叩谢天恩、表明忠悃。' };
+        return { tag:'grieve', seek:true, brief:'似为前罚而来', hint:'你近日受了责罚，今来或谢罪自省、或委婉鸣屈陈情——按你性情与忠诚拿捏。' };
+      }
+    }
+  } catch (_) {}
+  // ③ 低忠诚：怨望（未必直言）
+  if (loy < 35) return { tag:'grievance', seek: (loy < 30 || str > 60), brief:'神色怏怏，似怀怨望', hint:'你对朝廷或陛下心存不满（待遇不公、抱负不得伸、或党争失势），今来或试探、或诉苦、或暗藏机锋——按你忠诚之低与性情，未必直言。' };
+  // ④ 高忠诚高压：犯颜进谏
+  // ④ 真危兆探测——供犯颜进谏锚定真实国是(复用本文件 court-hot 同源字段)
+  var _crisis = [];
+  try {
+    if (GM.activeWars && GM.activeWars.length > 0) _crisis.push('边事未宁');
+    if ((GM.unrest || 0) > 50) _crisis.push('民变频仍');
+    if (GM.memorials && GM.memorials.filter(function(m){ return m && m.status === 'pending_review'; }).length > 8) _crisis.push('奏牍积压如山');
+    if ((GM._tyrantDecadence || 0) > 40) _crisis.push('朝议谤君荒怠');
+  } catch (_) {}
+  // 忠臣(放宽至>75)察觉真危兆→针对真问题进谏;无危兆但极忠高压→泛泛忠言
+  if (loy > 75 && _crisis.length > 0) return { tag:'warn', seek:true, brief:'神色凝重，似为' + _crisis[0] + '而来', hint:'你是忠耿之臣，深忧当下【' + _crisis.slice(0, 3).join('、') + '】之危，今来犯颜直谏——务必针对此实情条陈对策或密陈警示，要具体切中时弊，勿空言"臣有忧"。' };
+  if (loy > 90 && str > 30) return { tag:'warn', seek:true, brief:'神色凝重，欲进忠言', hint:'你是忠耿之臣，察觉某隐忧或危兆，今来犯颜直谏或密陈警示。' };
+  // ⑤ 高野心：游说进取
+  if (amb > 80 && loy > 60) return { tag:'ambition', seek:true, brief:'精神抖擞，欲呈策论', hint:'你抱负甚大，今来呈上精心准备的策论或方略，或为某职位/差遣自荐、游说，意在进取。' };
+  // ⑥ 高压：诉难求裁
+  if (str > 60) return { tag:'burden', seek:true, brief:'面带忧色，似有为难', hint:'你被某事所困（钱粮、人事、或地方棘手），今来向陛下倾诉为难、请求帮助或裁夺。' };
+  return { tag:'routine', seek:false, brief:'候于殿外，请求面圣', hint:'你为常事求见——或例行述职、或谢前恩、或闲话近况借机观望帝意、或试探某事风向，依礼从容陈奏即可，不必强作惊人之语。' };
+}
+if (typeof window !== 'undefined') window._wdDeriveAudienceAgenda = _wdDeriveAudienceAgenda;
+
 async function _wdNpcInitiateSpeak(name) {
   var ch = findCharByName(name);
   if (!ch) return;
@@ -738,9 +933,14 @@ async function _wdNpcInitiateSpeak(name) {
       sysP += '\n\n【特殊：NPC主动求见模式】';
       sysP += '\n你是主动请求面圣的——你有准备好的话要说。不要问"陛下找臣何事"。';
       sysP += '\n你应该直接开口陈述你的来意：';
-      if ((ch.stress||0) > 60) sysP += '\n  你心中有忧虑/困难/为难之事，想向皇帝倾诉或请求帮助。';
-      if ((ch.loyalty||50) > 90) sysP += '\n  你是忠臣，有重要的忠告或警示要进言。';
-      if ((ch.ambition||50) > 80) sysP += '\n  你有一个精心准备的计划/策论要呈上。';
+      var _wdAg = (typeof _wdDeriveAudienceAgenda === 'function') ? _wdDeriveAudienceAgenda(ch) : null;
+      if (_wdAg && _wdAg.hint) {
+        sysP += '\n  【你此来的来意（按此切入，具体陈事，勿泛泛客套）】' + _wdAg.hint;
+      } else {
+        if ((ch.stress||0) > 60) sysP += '\n  你心中有忧虑/困难/为难之事，想向皇帝倾诉或请求帮助。';
+        if ((ch.loyalty||50) > 90) sysP += '\n  你是忠臣，有重要的忠告或警示要进言。';
+        if ((ch.ambition||50) > 80) sysP += '\n  你有一个精心准备的计划/策论要呈上。';
+      }
       // 检查未回复来函
       var _unansLetter = (GM.letters||[]).find(function(l) { return l._npcInitiated && l.from === name && l._replyExpected && !l._playerReplied && l.status === 'returned'; });
       if (_unansLetter) sysP += '\n  你之前写了一封信给皇帝但未获回复，内容是：「' + (_unansLetter.content||'').slice(0,80) + '」——你这次亲自来是为了当面追问此事。';
@@ -844,10 +1044,31 @@ async function _wdNpcInitiateSpeak(name) {
 
 /** 拒绝NPC求见 */
 function _wdDenyAudience(name) {
-  if (typeof NpcMemorySystem !== 'undefined') {
-    NpcMemorySystem.remember(name, '求见皇帝被拒于殿外', '忧', 4, '天子');
+  var ch = (typeof findCharByName === 'function') ? findCharByName(name) : null;
+  // #7·拒见有后果：按求见诉求紧要程度，被拒者生怨（确定性·经 canonical adjustCharacterLoyalty）
+  var _urgent = false, _agTag = '';
+  if (ch && typeof _wdDeriveAudienceAgenda === 'function') {
+    try { var _ag = _wdDeriveAudienceAgenda(ch); _agTag = (_ag && _ag.tag) || ''; _urgent = (_agTag === 'commitment' || _agTag === 'grievance' || _agTag === 'warn'); } catch (_) {}
   }
-  toast(name + '的求见被拒——已记入其记忆');
+  // ④ 朝堂噤声:记下被拒的忠谏(warn)·供回合末聚合"屡拒忠谏→群臣噤声"
+  if (_agTag === 'warn') {
+    if (!Array.isArray(GM._wdRefusedCounsel)) GM._wdRefusedCounsel = [];
+    GM._wdRefusedCounsel.push({ name: name, turn: GM.turn });
+    if (GM._wdRefusedCounsel.length > 40) GM._wdRefusedCounsel = GM._wdRefusedCounsel.slice(-40);
+  }
+  if (ch) {
+    var _loyHit = _urgent ? -2 : -1;
+    if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(ch, _loyHit, '求见被拒于殿外', { source: 'wendui-audience-denied' });
+    else ch.loyalty = Math.max(0, Math.min(100, ((typeof ch.loyalty === 'number') ? ch.loyalty : 50) + _loyHit));
+    ch.stress = Math.max(0, Math.min(100, (ch.stress || 0) + (_urgent ? 8 : 4)));
+  }
+  if (typeof NpcMemorySystem !== 'undefined') {
+    NpcMemorySystem.remember(name, _urgent ? '有紧要事求见，竟被拒于殿外——心寒' : '求见皇帝被拒于殿外', _urgent ? '怨' : '忧', _urgent ? 6 : 4, '天子');
+  }
+  // 移出待见队列（已处置）
+  if (Array.isArray(GM._pendingAudiences)) GM._pendingAudiences = GM._pendingAudiences.filter(function(q){ return q && q.name !== name; });
+  if (typeof addEB === 'function') addEB('问对·拒见', name + '求见被拒' + (_urgent ? '（其事紧要·恐生怨怼）' : ''));
+  toast(name + '的求见被拒' + (_urgent ? '——其有紧要事，恐生怨怼' : '——已记入其记忆'));
   renderWenduiChars();
 }
 
@@ -976,6 +1197,8 @@ function _wdAcceptOvernight() {
   if (!ch) return;
   if (!GM._pendingOvernight) GM._pendingOvernight = [];
   GM._pendingOvernight.push({ name: name, turn: GM.turn, status: 'accepted' });
+  // ⑧ 闭合冷落计数:留宿即帝幸·重置 _lastEmperorVisitTurn(否则 _generateConsortAudiences 永远算"久未蒙幸"·后妃恒幽怨)
+  ch._lastEmperorVisitTurn = GM.turn;
   // 妃子关系加深（忠诚 + 压力 -）
   if (typeof ch.loyalty === 'number') {
     if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(ch, 3, '\u51C6\u7559\u5BBF\u00B7\u6069\u7737\u52A0\u6DF1', { source:'wendui-overnight-accepted' });
@@ -1053,7 +1276,7 @@ function _wdReward() {
   bg.innerHTML = '<div style="background:var(--color-surface);border:1px solid var(--gold-500);border-radius:var(--radius-lg);padding:1rem 1.5rem;max-width:300px;">'
     + '<div style="font-size:var(--text-sm);color:var(--gold-400);margin-bottom:var(--space-2);">\u8D4F\u8D50 ' + escHtml(name) + '</div>'
     + '<div style="display:flex;flex-direction:column;gap:var(--space-1);">'
-    + '<button class="bt bp bsm" onclick="_wdDoReward(\'gold\');this.closest(\'div[style*=fixed]\').remove();">\u8D50\u91D1\uFF08\u5FE0+5\uFF09</button>'
+    + '<button class="bt bp bsm" onclick="_wdDoReward(\'gold\');this.closest(\'div[style*=fixed]\').remove();">\u8D50\u91D1\uFF08忠+5·耗内帑）</button>'
     + '<button class="bt bs bsm" onclick="_wdDoReward(\'robe\');this.closest(\'div[style*=fixed]\').remove();">\u8D50\u8863\uFF08\u5FE0+3\uFF0C\u5A01\u671B+1\uFF09</button>'
     + '<button class="bt bs bsm" onclick="_wdDoReward(\'feast\');this.closest(\'div[style*=fixed]\').remove();">\u8D50\u5BB4\uFF08\u5FE0+4\uFF0C\u538B\u529B-10\uFF09</button>'
     + '<button class="bt bs bsm" onclick="_wdDoReward(\'promote\');this.closest(\'div[style*=fixed]\').remove();">\u52A0\u5B98\uFF08\u5199\u5165\u8BCF\u4EE4\u5EFA\u8BAE\u5E93\uFF09</button>'
@@ -1071,7 +1294,32 @@ function _wdDoReward(type) {
     GM._edictSuggestions.push({ source: '问对', from: '赏赐', content: '加官' + name, turn: GM.turn, used: false });
     msg = '（许以加官。已录入诏书建议库。）';
   }
-  // 不直接改数值——记录赏赐事件，由AI推演判断具体影响
+  // A·确定性落账：标多少落多少（dedup·prompt 已告知 AI 勿在 char_updates 重复给 loyalty/stress）
+  else if (type === 'gold') {
+    if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(ch, 5, '面圣获赐金', { source:'wendui-reward' });
+    else ch.loyalty = clamp((typeof ch.loyalty === 'number' ? ch.loyalty : 50) + 5, 0, 100);
+    // A·待办完成：赐金真耗内帑（皇帝私藏·neitang 为安全 top-level 字段·非 cascade·clamp 到余额）
+    var _gpay = 0;
+    if (GM.neitang) {
+      var _gbal = (typeof GM.neitang.balance === 'number') ? GM.neitang.balance : (typeof GM.neitang.money === 'number' ? GM.neitang.money : null);
+      if (_gbal !== null) {
+        _gpay = Math.min(5000, Math.max(0, _gbal));
+        if (typeof GM.neitang.balance === 'number') GM.neitang.balance = _gbal - _gpay;
+        if (typeof GM.neitang.money === 'number') GM.neitang.money = _gbal - _gpay;
+      }
+    }
+    msg = _gpay > 0 ? ('（赐金。忠+5·内帑-' + _gpay + '两。）') : '（赐金。忠+5·内帑空乏。）';
+  } else if (type === 'robe') {
+    if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(ch, 3, '面圣获赐衣', { source:'wendui-reward' });
+    else ch.loyalty = clamp((typeof ch.loyalty === 'number' ? ch.loyalty : 50) + 3, 0, 100);
+    if (typeof ch.fame === 'number') ch.fame = clamp(ch.fame + 1, 0, 100);
+    msg = '（赐衣。忠+3·威望+1。）';
+  } else if (type === 'feast') {
+    if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(ch, 4, '面圣赐宴', { source:'wendui-reward' });
+    else ch.loyalty = clamp((typeof ch.loyalty === 'number' ? ch.loyalty : 50) + 4, 0, 100);
+    ch.stress = clamp((ch.stress || 0) - 10, 0, 100);
+    msg = '（赐宴。忠+4·压力-10。）';
+  }
   if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(name, '面圣时获' + (_typeLabels[type]||'赏赐'), '喜', 5, '天子');
   if (!GM._wdRewardPunish) GM._wdRewardPunish = [];
   GM._wdRewardPunish.push({ target: name, type: 'reward', detail: type, turn: GM.turn });
@@ -1080,6 +1328,7 @@ function _wdDoReward(type) {
   GM.wenduiHistory[name].push({ role: 'system', content: '【赏赐】皇帝当场' + (_typeLabels[type]||'赏赐') + name + '。' });
   if (chatEl) { var d = document.createElement('div'); d.style.cssText = 'text-align:center;font-size:0.72rem;color:var(--celadon-400);padding:4px;'; d.textContent = msg; chatEl.appendChild(d); chatEl.scrollTop = chatEl.scrollHeight; }
   var state = GM._wdState && GM._wdState[name]; if (state) state.emotion = Math.max(1, state.emotion - 1);
+  if (typeof renderWenduiChars === 'function') renderWenduiChars();
   _wdUpdateEmotionBar(name);
 }
 
@@ -1111,7 +1360,26 @@ function _wdDoPunish(type) {
     GM._edictSuggestions.push({ source: '问对', from: '处罚', content: '降职' + name, turn: GM.turn, used: false });
     msg = '（令降职。已录入诏书建议库。）';
   }
-  // 不直接改数值——记录处罚事件，由AI推演判断具体影响
+  // A·确定性落账：标多少落多少（dedup·prompt 已告知 AI 勿重复给 loyalty/stress）
+  else if (type === 'fine') {
+    if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(ch, -3, '面圣罚俸', { source:'wendui-punish' });
+    else ch.loyalty = clamp((typeof ch.loyalty === 'number' ? ch.loyalty : 50) - 3, 0, 100);
+    msg = '（罚俸。忠-3。）';
+  } else if (type === 'cane') {
+    if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(ch, -8, '面圣杖责', { source:'wendui-punish' });
+    else ch.loyalty = clamp((typeof ch.loyalty === 'number' ? ch.loyalty : 50) - 8, 0, 100);
+    ch.stress = clamp((ch.stress || 0) + 15, 0, 100);
+    msg = '（杖责二十。忠-8·压力+15。）';
+  } else if (type === 'imprison') {
+    if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(ch, -15, '面圣下狱', { source:'wendui-punish' });
+    else ch.loyalty = clamp((typeof ch.loyalty === 'number' ? ch.loyalty : 50) - 15, 0, 100);
+    ch.stress = clamp((ch.stress || 0) + 30, 0, 100);
+    // A·真下狱：set _imprisoned 接 WenduiPrison 狱中子系统（canonical 三字段·同 tm-ai-change-applier:463）
+    ch._imprisoned = true;
+    ch._imprisonedTurn = GM.turn || 0;
+    ch._imprisonReason = ch._imprisonReason || '面圣忤旨·当场下诏狱';
+    msg = '（令拿下，下诏狱！忠-15·压力+30·已入狱。）';
+  }
   if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(name, '面圣时受' + (_typeLabels[type]||'处罚'), '怨', 8, '天子');
   if (!GM._wdRewardPunish) GM._wdRewardPunish = [];
   GM._wdRewardPunish.push({ target: name, type: 'punish', detail: type, turn: GM.turn });
@@ -1120,6 +1388,7 @@ function _wdDoPunish(type) {
   GM.wenduiHistory[name].push({ role: 'system', content: '【处罚】皇帝当场' + (_typeLabels[type]||'处罚') + name + '。' });
   if (chatEl) { var d = document.createElement('div'); d.style.cssText = 'text-align:center;font-size:0.72rem;color:var(--vermillion-400);padding:4px;'; d.textContent = msg; chatEl.appendChild(d); chatEl.scrollTop = chatEl.scrollHeight; }
   var state = GM._wdState && GM._wdState[name]; if (state) state.emotion = Math.min(5, state.emotion + 2);
+  if (typeof renderWenduiChars === 'function') renderWenduiChars();
   _wdUpdateEmotionBar(name);
 }
 
@@ -1152,6 +1421,7 @@ function closeWenduiModal() {
     });
   }
   _wdConfronters = []; // 清除对质者
+  _wdScreened = false; // E2·清除屏退态
   var m = _$('wendui-modal'); if (m) m.remove();
   GM.wenduiTarget = null;
   // L4·b2·若关 cedui mode·调 hook 应用政治后果
@@ -1173,8 +1443,33 @@ function closeWenduiModal() {
     var _ch = findCharByName(_targetName);
     if (_ch) {
       _ch._lastMetTurn = GM.turn;
+      // ⑧ 私下召见后妃即帝幸眷顾·重置冷落计数(与留宿同源·闭合 _generateConsortAudiences 的"久未蒙幸"循环)
+      if (_wenduiMode === 'private' && typeof _wdIsPlayerConsort === 'function' && _wdIsPlayerConsort(_ch)) {
+        _ch._lastEmperorVisitTurn = GM.turn;
+      }
+      // ⑨ 使节问对收尾:留痕(起居注+事件板·可见)+结构化记录(供外交层/endturn 演绎后续邦交反应·完整准/拒→关系/岁币/边境效果归外交子系统)
+      if (_ch._envoy) {
+        var _envFac = _ch.fromFaction || _ch.faction || '外藩';
+        var _envMission = String(_ch.envoyMission || _ch.interactionType || '外交使命').slice(0, 40);
+        if (!Array.isArray(GM._envoyAudiences)) GM._envoyAudiences = [];
+        var _envDisp = _ch._pendingEnvoyDisposition || 'received';
+        GM._envoyAudiences.push({ faction: _envFac, interactionType: _ch.interactionType || '', mission: _envMission, turn: GM.turn, received: true, disposition: _envDisp });
+        delete _ch._pendingEnvoyDisposition;
+        if (GM._envoyAudiences.length > 30) GM._envoyAudiences = GM._envoyAudiences.slice(-30);
+        if (GM.qijuHistory) GM.qijuHistory.unshift({ turn: GM.turn, date: (typeof getTSText === 'function') ? getTSText(GM.turn) : '', content: '【问对·受使】陛下接见' + _envFac + '使节' + _targetName + '·议「' + _envMission + '」', category: '外交' });
+        if (typeof addEB === 'function') addEB('外交·受使', _envFac + '使节面圣·议' + _envMission);
+      }
       // 接见后压降压力/野心（见完心里踏实）
       if ((_ch.stress||0) > 0) _ch.stress = Math.max(0, (_ch.stress||0) - 10);
+      // ④ 纳谏:忠臣犯颜进谏而获面陈(被听取)→忠诚得申·亲信微增(与拒忠言 #7 对称·_lastMetTurn 天然限一回合一次)
+      try {
+        var _clAg = (typeof _wdDeriveAudienceAgenda === 'function') ? _wdDeriveAudienceAgenda(_ch) : null;
+        if (_clAg && _clAg.tag === 'warn' && _ch._counselAdoptedTurn !== GM.turn) {
+          if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(_ch, 1, '犯颜进谏获君主当面听取', { source: 'wendui-warn-heard' });
+          _ch._rapport = (_ch._rapport || 0) + 2;
+          if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(_targetName, '犯颜进言·陛下肯当面听取——颇感欣慰', '敬', 5, '天子');
+        }
+      } catch (_) {}
     }
     // 来函未回标记 → 已回（视为面复）
     if (Array.isArray(GM.letters)) {
@@ -1202,8 +1497,8 @@ async function _wd_extractCommitments(targetName) {
   // 仅取本次问对的对话——按 mode 过滤，避免把朝议发言误作问对承诺
   var records = (GM.jishiRecords||[]).filter(function(r){
     if (r.char !== targetName || r.turn !== GM.turn) return false;
-    // 仅 formal/private（问对）；排除 changchao/tinyi/yuqian（朝议）
-    return !r.mode || r.mode === 'formal' || r.mode === 'private';
+    // D·仅 formal（朝堂正式·可成约束承诺）成约；私下叙谈(private)为体己之言·不转约束承诺；朝议(changchao/tinyi/yuqian)亦排除
+    return !r.mode || r.mode === 'formal';
   }).slice(-10);
   if (records.length < 2) return; // 对话太短无需提取
   var dialog = records.map(function(r){ return (r.playerSaid||'') + '\n' + (r.npcSaid||''); }).join('\n').slice(-3000);
@@ -1498,7 +1793,10 @@ async function sendWendui(){
         var parsed = (typeof extractJSON==='function') ? extractJSON(rawReply) : null;
         if (parsed && parsed.reply) {
           replyText = parsed.reply;
-          var _ldMax = (_wenduiMode === 'private') ? 3 : 2;
+          // #9·基础对话忠诚缩放：深谈（多轮）更有分量·仍封顶（formal≤4·private≤5）
+          var _ldBase = (_wenduiMode === 'private') ? 3 : 2;
+          var _ldTurns = (GM._wdState && GM._wdState[name] && GM._wdState[name].turns) || 0;
+          var _ldMax = Math.min((_wenduiMode === 'private') ? 5 : 4, _ldBase + (_ldTurns >= 9 ? 2 : (_ldTurns >= 5 ? 1 : 0)));
           loyaltyDelta = clamp(parseInt(parsed.loyaltyDelta) || 0, -_ldMax, _ldMax);
         } else {
           replyText = _wdSanitizeDialogueReplyText(name, ch, parsed, rawReply);
@@ -1519,22 +1817,35 @@ async function sendWendui(){
         }
         // 提取语气效果反馈
         var _toneEffect = (parsed && parsed.toneEffect) ? String(parsed.toneEffect).trim() : '';
+        // #2·说谎与识破：NPC 谎报时按语气+智力+信用/情报佐证判定玩家能否识破（不靠玄学·靠现成信号）
+        if (parsed && parsed.deception && parsed.deception.lying) {
+          var _dcInt = (typeof ch.intelligence === 'number') ? ch.intelligence : 50;
+          var _dcChance = (_tone === 'pressing' || _tone === 'silence') ? 0.65 : (_tone === 'probing') ? 0.5 : (_tone === 'flattering') ? 0.2 : 0.35;
+          _dcChance -= (_dcInt > 75 ? 0.2 : (_dcInt < 45 ? -0.1 : 0)); // 高智善掩饰·愚钝易露馅
+          var _dcCorrob = '';
+          if ((ch._promiseBroken || 0) >= 2) { _dcChance += 0.2; _dcCorrob += '（此人素来失信）'; }
+          var _dcIntel = Array.isArray(GM._interceptedIntel) ? GM._interceptedIntel.filter(function(it){ return it && it.to === name && (GM.turn - (it.turn || 0)) <= 3; }) : [];
+          if (_dcIntel.length) { _dcChance += 0.3; _dcCorrob += '（厂卫风闻与所言不符）'; }
+          var _dcCaught = Math.random() < Math.max(0.05, Math.min(0.95, _dcChance));
+          if (!GM._wdSuspicions) GM._wdSuspicions = [];
+          GM._wdSuspicions.push({ turn: GM.turn, who: name, hiding: String(parsed.deception.hiding || '').slice(0, 80), caught: _dcCaught });
+          if (GM._wdSuspicions.length > 40) GM._wdSuspicions.shift();
+          if (_dcCaught) {
+            var _dcChat = _$('wd-modal-chat');
+            if (_dcChat) {
+              var _dcD = document.createElement('div');
+              _dcD.style.cssText = 'text-align:center;font-size:0.68rem;color:var(--amber-400);font-style:italic;padding:2px;';
+              _dcD.textContent = '⚠ 似有隐情：' + String(parsed.deception.tell || '神色微动，言语闪烁').slice(0, 60) + _dcCorrob;
+              _dcChat.appendChild(_dcD); _dcChat.scrollTop = _dcChat.scrollHeight;
+            }
+          }
+        }
         // 情绪指示更新
         if (parsed && parsed.emotionState) {
           var _eMap = {'镇定':1,'从容':1,'平静':2,'恭敬':2,'紧张':3,'不安':3,'焦虑':4,'恐惧':4,'崩溃':5,'激动':4,'愤怒':4};
           var _eVal = _eMap[parsed.emotionState] || 3;
           var _st = GM._wdState && GM._wdState[name];
           if (_st) { _st.emotion = _eVal; _wdUpdateEmotionBar(name); }
-        }
-        // 承诺追踪——记录NPC在问对中做出的承诺供后续推演验证
-        if (replyText && replyText.length > 20) {
-          var _promisePatterns = ['\u81E3\u5F53', '\u81E3\u5FC5', '\u5B9A\u5F53', '\u5B9A\u4E0D\u8F9F\u8BA9', '\u4FDD\u8BC1', '\u627F\u8BFA', '\u4E09\u6708\u5185', '\u4E00\u4E2A\u6708', '\u5341\u65E5\u5185'];
-          var _hasPromise = _promisePatterns.some(function(pat) { return replyText.indexOf(pat) >= 0; });
-          if (_hasPromise) {
-            if (!GM._npcClaims) GM._npcClaims = [];
-            GM._npcClaims.push({ from: name, content: replyText, turn: GM.turn, verified: false });
-            if (GM._npcClaims.length > 30) GM._npcClaims.shift();
-          }
         }
         // 提取AI标记的施政建议——新 {topic,content} 与旧 string 兼容
         var _wdSuggestions = (parsed && parsed.suggestions && Array.isArray(parsed.suggestions)) ? parsed.suggestions.filter(function(s){ if (!s) return false; if (typeof s === 'string') return s.trim(); return s.content; }) : [];
@@ -1557,6 +1868,8 @@ async function sendWendui(){
           _wdEntry.ceduiParadigmDigest = window._kjpCurrentCeduiDigest;
         }
         GM.wenduiHistory[name].push(_wdEntry);
+        // #4·君臣私交长弧：每次问对累积亲信度（私下更快·负面交流不涨·封顶100）
+        if (ch) { var _rapGain = (loyaltyDelta < 0) ? 0 : ((_wenduiMode === 'private') ? 2 : 1); ch._rapport = Math.max(0, Math.min(100, ((typeof ch._rapport === 'number') ? ch._rapport : 50) + _rapGain)); }
         // NPC记忆——D3 优先使用 AI 返回的 memoryImpact，否则回退默认
         if (typeof NpcMemorySystem !== 'undefined') {
           var _playerName = (P.playerInfo && P.playerInfo.characterName) || '陛下';
@@ -1632,7 +1945,7 @@ async function sendWendui(){
 
         // ═══ 旁听泄露机制（动态联动版）═══
         // 正式问对→根据官制/党派/阴谋/NPC目标动态判定谁获知
-        if (_wenduiMode !== 'private' && typeof NpcMemorySystem !== 'undefined' && NpcMemorySystem.remember) {
+        if (_wenduiMode !== 'private' && !_wdScreened && typeof NpcMemorySystem !== 'undefined' && NpcMemorySystem.remember) {
           var _topicBrief = msg.slice(0, 40);
           var _leakedTo = [];
           var _targetParty = ch ? (ch.party || '') : '';
@@ -1691,12 +2004,49 @@ async function sendWendui(){
             }
           });
 
+          // #8·NPC↔NPC 消息传播：知情者向同党/近臣传二手风闻（一跳·低可信·全局封顶防爆炸）
+          if (_leakedTo.length) {
+            var _gossipBudget = 4;
+            var _known = {}; _leakedTo.forEach(function(n){ _known[n] = true; }); _known[name] = true;
+            for (var _gi = 0; _gi < _leakedTo.length && _gossipBudget > 0; _gi++) {
+              var _src = findCharByName(_leakedTo[_gi]);
+              if (!_src) continue;
+              var _srcParty = _src.party || _src.faction || '';
+              (GM.chars || []).forEach(function(c) {
+                if (_gossipBudget <= 0 || !c || c.isPlayer || c.alive === false || _known[c.name]) return;
+                if (typeof _wdIsAtCapital === 'function' && !_wdIsAtCapital(c)) return;
+                var _assoc = !!(_srcParty && (c.party === _srcParty || c.faction === _srcParty));
+                if (!_assoc && _src.relations && _src.relations[c.name] && (_src.relations[c.name].affinity || 0) >= 70) _assoc = true;
+                if (!_assoc) return;
+                if (Math.random() < 0.5) {
+                  NpcMemorySystem.remember(c.name, '风闻' + _leakedTo[_gi] + '言及：皇帝召' + name + '议“' + _topicBrief + '”', '平', 3);
+                  _known[c.name] = true; _gossipBudget--;
+                }
+              });
+            }
+          }
           // 记录泄露（供AI推演参考）
           if (!GM._eavesdroppedTopics) GM._eavesdroppedTopics = [];
           GM._eavesdroppedTopics.push({
             turn: GM.turn, target: name, topic: _topicBrief,
             leakedTo: _leakedTo, mode: 'formal'
           });
+          if (GM._eavesdroppedTopics.length > 20) GM._eavesdroppedTopics.shift();
+          // E1·泄露回显：让玩家感到正式问对的信息代价
+          if (_leakedTo.length) {
+            var _lkChat = (typeof _$ === 'function') ? _$('wd-modal-chat') : null;
+            if (_lkChat) {
+              var _lkNames = _leakedTo.slice(0, 4).join('、') + (_leakedTo.length > 4 ? ' 等' : '');
+              var _lkD = document.createElement('div');
+              _lkD.style.cssText = 'text-align:center;font-size:0.66rem;color:var(--amber-400);font-style:italic;padding:2px;';
+              _lkD.textContent = '〔此事恐已入 ' + _lkNames + ' 耳〕';
+              _lkChat.appendChild(_lkD); _lkChat.scrollTop = _lkChat.scrollHeight;
+            }
+          }
+        } else if (_wdScreened && _wenduiMode !== 'private') {
+          // E2·屏退密谈：内容不外泄，但"密谈"本身外廷可知（供 AI 推演生疑）
+          if (!GM._eavesdroppedTopics) GM._eavesdroppedTopics = [];
+          GM._eavesdroppedTopics.push({ turn: GM.turn, target: name, topic: '（屏退密谈·内容不详）', leakedTo: [], mode: 'screened' });
           if (GM._eavesdroppedTopics.length > 20) GM._eavesdroppedTopics.shift();
         }
       } else {
@@ -1720,80 +2070,74 @@ async function sendWendui(){
 /**
  * 构建问对AI提示词
  */
-function _wdBuildPrompt(ch, name) {
-  var _isPlayerConsort = _wdIsPlayerConsort(ch);
-  var traitDesc = '';
-  if (ch.traitIds && ch.traitIds.length > 0 && P.traitDefinitions) {
-    traitDesc = ch.traitIds.map(function(id) { var d = P.traitDefinitions.find(function(t) { return t.id === id; }); return d ? d.name : id; }).join('、');
-  } else if (ch.personality) { traitDesc = ch.personality; }
-  var opinionVal = (typeof OpinionSystem !== 'undefined') ? OpinionSystem.getTotal(ch, findCharByName((P.playerInfo && P.playerInfo.characterName) || '') || { name: '\u73A9\u5BB6' }) : (ch.loyalty || 50);
-  var sc = findScenarioById && findScenarioById(GM.sid);
-  var eraCtx = sc ? (sc.era || sc.dynasty || '') : '';
-  var ageInfo = ch.age ? '，年' + ch.age : '';
-  var stressInfo = (ch.stress && ch.stress > 30) ? '，当前压力' + ch.stress + '(' + ((ch.stress > 60) ? '濒临崩溃' : '焦虑不安') + ')' : '';
-  var arcInfo = '';
-  if (GM.characterArcs && GM.characterArcs[ch.name]) {
-    var _recentArcs = GM.characterArcs[ch.name].slice(-2);
-    if (_recentArcs.length) arcInfo = '\n【近事】' + _recentArcs.map(function(a) { return a.desc; }).join('；').slice(0, 60);
-  }
-  var affInfo = '';
-  if (typeof AffinityMap !== 'undefined') {
-    var _topRels = AffinityMap.getRelations(ch.name).slice(0, 3);
-    if (_topRels.length) affInfo = '\n【人际】' + _topRels.map(function(r) { return r.name + (r.value > 25 ? '(亲)' : r.value < -25 ? '(恶)' : ''); }).join('、');
-  }
-  var appearInfo = '';
-  if (ch.appearance) appearInfo += '\n【外貌】' + ch.appearance;
-  if (ch.charisma && ch.charisma > 70) appearInfo += (appearInfo ? '，' : '\n') + '魅力出众';
-  var familyInfo = '';
-  if (ch.family) {
-    familyInfo = '\n【家族】' + ch.family;
-    var _clanMem = (GM.chars || []).filter(function(c2) { return c2.alive !== false && c2.name !== ch.name && c2.family === ch.family; });
-    if (_clanMem.length > 0) familyInfo += '（同族：' + _clanMem.slice(0, 3).map(function(m) { return m.name; }).join('、') + '）';
-  }
-  // 文事作品——此人知道自己写过什么、受过谁题赠、与谁唱和
-  var worksInfo = '';
-  if (GM.culturalWorks && GM.culturalWorks.length > 0) {
-    var _myWorks = GM.culturalWorks.filter(function(w) { return w.author === ch.name; }).slice(-8);
-    var _dedToMe = GM.culturalWorks.filter(function(w) { return w.dedicatedTo && w.dedicatedTo.indexOf(ch.name) >= 0; }).slice(-3);
-    var _praiseMe = GM.culturalWorks.filter(function(w) { return w.praiseTarget === ch.name; }).slice(-2);
-    var _satireMe = GM.culturalWorks.filter(function(w) { return w.satireTarget === ch.name; }).slice(-2);
-    var _bits = [];
-    if (_myWorks.length) _bits.push('【自作】' + _myWorks.map(function(w) { return '《' + w.title + '》(' + (w.subtype||w.genre||'') + (w.mood?'·'+w.mood:'') + ')'; }).join('、'));
-    if (_dedToMe.length) _bits.push('【赠余】' + _dedToMe.map(function(w) { return w.author + '《' + w.title + '》'; }).join('、'));
-    if (_praiseMe.length) _bits.push('【颂余】' + _praiseMe.map(function(w) { return w.author + '《' + w.title + '》'; }).join('、'));
-    if (_satireMe.length) _bits.push('【讽余】' + _satireMe.map(function(w) { return w.author + '《' + w.title + '》（心有隙）'; }).join('、'));
-    if (_bits.length) worksInfo = '\n【文事】此人深记：' + _bits.join('；') + '——对话中可自然引用/回忆';
-  }
-
-  var memInfo = '';
-  if (typeof NpcMemorySystem !== 'undefined') {
-    var _mem = NpcMemorySystem.getMemoryContext(ch.name);
-    if (_mem) memInfo = '\n【记忆】此角色记得：' + _mem;
-    // 4.6: 注入对话记忆——从NPC记忆中提取type='dialogue'的条目
-    if (ch._memory && ch._memory.length > 0) {
-      var _dialogueMems = ch._memory.filter(function(m) { return m.type === 'dialogue'; });
-      if (_dialogueMems.length > 0) {
-        var _recentDialogues = _dialogueMems.slice(-3);
-        memInfo += '\n【往次问对记忆】';
-        _recentDialogues.forEach(function(dm) {
-          memInfo += '\nT' + dm.turn + '：上次你说过：' + dm.event.slice(0, 40);
-        });
-      }
+// —— NPC 现况 agenda-grounding 上下文（对应问对完善方向 ①复命/⑤游说/⑥诉难）——
+// 各 helper 读真实游戏态、返回注入 _wdBuildPrompt 的提示词片段；仅依赖 ch/name/GM，无副作用。
+// 从 _wdBuildPrompt 抽出，使巨函数瘦身、每条 grounding 规则可独立阅读/测试。
+function _wdCommitContext(ch, name) {
+  // ① 此人手头未了的奉旨差事——复命/请罪闭环：据实回奏，勿瞎编"已办妥"
+  var _commitCtx = '';
+  if (GM._npcCommitments && Array.isArray(GM._npcCommitments[name])) {
+    var _myCommits = GM._npcCommitments[name].filter(function(c){ return c && (c.status === 'pending' || c.status === 'executing' || c.status === 'delayed'); });
+    if (_myCommits.length > 0) {
+      var _ctNow = (GM.turn || 0);
+      var _cmtLines = _myCommits.slice(-4).map(function(c){
+        var _elapsed = _ctNow - (c.assignedTurn || _ctNow);
+        var _isOd = _elapsed > (c.deadline || 3);
+        var _stLabel = (c.status === 'delayed') ? '迟滞' : (c.status === 'executing' ? '督办中' : '待办');
+        return '《' + String(c.task || '').slice(0, 24) + '》(' + _stLabel + '·已历' + _elapsed + '回合/限' + (c.deadline || 3) + (_isOd ? '·已逾期' : '') + '·进度' + (c.progress || 0) + '%)';
+      });
+      _commitCtx = '\n【你奉旨在办的差事】' + _cmtLines.join('；')
+        + '\n  ※若君主问及、或你主动复命：须按上列真实状态据实回奏——已逾期/迟滞者当请罪、陈所遇阻力、或恳请宽限，切勿谎报"已办妥"（君主有厂卫可核查，谎报败露则失信更重）；进展顺者方可奏报实绩。\n';
     }
   }
-  var _isPrivateMode = (_wenduiMode === 'private');
-  var _tyrantCtx = '';
-  if (GM._tyrantDecadence && GM._tyrantDecadence > 15) {
-    var _isLoyal = opinionVal > 70, _isAmb = (ch.ambition || 50) > 70;
-    if (_isLoyal && !_isAmb) _tyrantCtx = '\n【帝王近况】君主荒淫度' + GM._tyrantDecadence + '。忠心之臣' + (GM._tyrantDecadence > 50 ? '极为痛心' : '颇为忧虑') + '。\n';
-    else if (_isAmb) _tyrantCtx = '\n【帝王近况】君主荒淫度' + GM._tyrantDecadence + '。野心之臣' + (opinionVal < 40 ? '暗中窃喜' : '逢迎暗算') + '。\n';
-    else if (opinionVal < 30) _tyrantCtx = '\n【帝王近况】君主荒淫度' + GM._tyrantDecadence + '。不满之臣' + (_isPrivateMode ? '可能出言不逊' : '阳奉阴违') + '。\n';
-    else _tyrantCtx = '\n【帝王近况】君主有放纵之迹(荒淫' + GM._tyrantDecadence + ')。\n';
+  return _commitCtx;
+}
+function _wdAmbitionContext(ch) {
+  // ⑤ 为高野心者注入真实"进取机会"·令自荐游说切中实事(非空言)
+  var _ambitionCtx = '';
+  if (!ch._envoy && (ch.ambition || 50) > 75 && (ch.loyalty || 50) > 50) {
+    var _opps = [];
+    try {
+      if (GM.activeWars && GM.activeWars.length > 0) _opps.push('边事方殷·正可自请督师/节制兵马以立军功');
+      var _openReforms = (GM._edictLifecycle || []).filter(function(e){ return e && !e.isCompleted; });
+      if (_openReforms.length > 0) _opps.push('新政推行正急·可自请督办某诏令以揽事权');
+    } catch (_) {}
+    if (_opps.length > 0) {
+      _ambitionCtx = '\n【进取机会(若你有意自荐/游说)】' + _opps.join('；')
+        + '\n  ※你抱负不小·今可借面圣为某具体职任/差遣自荐、或举荐党羽、或献策邀宠固位——务必点明所图何职何事，勿空泛游说。若所图之位现有他人居之，你的游说自带排挤锋芒（君主当能察觉其中党争之意）。\n';
+    }
   }
-  var _modeDesc = _isPrivateMode
-    ? '【场景：私下叙谈】君主屏退左右，与此人单独交谈。气氛轻松私密，可放下君臣身份。\n此人可以：表达真实情感、吐露心事、回忆往事、说笑打趣。忠诚度低者可能更露真面目。\n'
-    : '【场景：朝堂问对】正式君臣对话，谨守君臣之礼。汇报以政务、军务、国事为主。\n此人会注意措辞，不轻易流露私人情感。\n';
-  _modeDesc += _tyrantCtx;
+  return _ambitionCtx;
+}
+function _wdBurdenContext(ch) {
+  // ⑥ 为高压者注入其辖区真实困境(读 GM.provinceStats·governor 匹配)·令诉难有真账可凭
+  var _burdenCtx = '';
+  if (!ch._envoy && (ch.stress || 0) > 50) {
+    var _myRegions = [];
+    try {
+      if (GM.provinceStats && typeof GM.provinceStats === 'object') {
+        Object.keys(GM.provinceStats).forEach(function(rn) {
+          var ps = GM.provinceStats[rn];
+          if (!ps || ps.governor !== ch.name) return;
+          var _woes = [];
+          if ((ps.unrest || 0) > 40) _woes.push('民变思动(乱' + Math.round(ps.unrest) + ')');
+          if ((ps.stability || 60) < 40) _woes.push('人心不稳(稳' + Math.round(ps.stability) + ')');
+          if ((ps.corruption || 0) > 50) _woes.push('吏治浊(贪' + Math.round(ps.corruption) + ')');
+          if ((ps.taxRevenue || 0) <= 0) _woes.push('钱粮枯竭');
+          if (_woes.length) _myRegions.push((ps.name || rn) + '：' + _woes.join('、'));
+        });
+      }
+    } catch (_) {}
+    if (_myRegions.length > 0) {
+      _burdenCtx = '\n【你辖下之难(真实政情·可据此诉苦/请裁)】' + _myRegions.slice(0, 3).join('；')
+        + '\n  ※你正为这些实务所困·今面圣可据实陈难、恳请陛下拨钱粮/调人手/授事权，而非空叹辛苦。\n';
+    }
+  }
+  return _burdenCtx;
+}
+// —— _wdBuildPrompt 拆出的两大内聚子构建器（后妃人设 / 使节 prompt）·字节等价抽取 ——
+function _wdConsortContext(ch) {
+  var _isPlayerConsort = _wdIsPlayerConsort(ch);
   var _spouseCtx = '';
   if (_isPlayerConsort) {
     var _rkNames2 = { 'empress': '皇后/正妻', 'queen': '王后', 'consort': '妃', 'concubine': '嫔', 'attendant': '侍妾' };
@@ -1901,53 +2245,11 @@ function _wdBuildPrompt(ch, name) {
       _spouseCtx += '\n  ★ suggestions 可涉及：母族升赏、皇子教育、某宫嫔失仪、天象占吉（借他人口）、某大臣印象（借题起议）；不必写政务大策\n';
     }
   }
-  // 本回合朝议上下文（如果此人参与了朝议，问对时应保持一致或有意识地私下说不同的话）
-  var _courtCtx = '';
-  if (GM._courtRecords) {
-    var _thisCourtRecs = GM._courtRecords.filter(function(r) { return r.turn === GM.turn && r.stances[name]; });
-    if (_thisCourtRecs.length > 0) {
-      _courtCtx = '\n【本回合朝议立场】此人今天在朝议中就"' + _thisCourtRecs[0].topic + '"';
-      var _cStance = _thisCourtRecs[0].stances[name];
-      _courtCtx += '表态' + _cStance.stance + '（' + _cStance.brief + '）。';
-      if (_wenduiMode === 'private') {
-        _courtCtx += '\n私下问对时，此人可能：a)重申朝议立场 b)吐露朝议上不敢说的真话 c)解释自己为何那样表态——取决于信/坦诚/狡诈特质\n';
-      } else {
-        _courtCtx += '\n正式问对中，此人应与朝议立场保持基本一致（除非有新信息改变了判断）\n';
-      }
-    }
-  }
-  // 三元身份——势力+党派+阶层
-  var _triId2 = [];
-  if (ch.faction) _triId2.push('势力:' + ch.faction);
-  if (ch.party) _triId2.push('党派:' + ch.party);
-  if (ch.class) {
-    var _cObjW = _wdFactionValues(GM.classes).find(function(c){return c.name===ch.class;});
-    _triId2.push('阶层:' + ch.class + (_cObjW && _cObjW.demands ? '(诉求:'+_cObjW.demands.slice(0,20)+')' : ''));
-  }
-  var _triIdInfo = _triId2.length > 0 ? '\n【身份】' + _triId2.join(' · ') + '——言谈须体现此三重立场' : '';
-  // 此人与进行中诏令的关联（反对派/支持者——问对时可主动提及、抱怨、请愿）
-  var _edictCtx = '';
-  if (GM._edictLifecycle && GM._edictLifecycle.length > 0) {
-    var _myEdictLines = [];
-    GM._edictLifecycle.forEach(function(e) {
-      if (e.isCompleted) return;
-      var role = null;
-      if (e.oppositionLeaders && e.oppositionLeaders.indexOf(name) >= 0) role = '反对';
-      else if (e.supporters && e.supporters.indexOf(name) >= 0) role = '支持';
-      else if (e.stages && e.stages.length && e.stages[e.stages.length-1].executor === name) role = '督办';
-      if (!role) return;
-      var typeLabel = (typeof EDICT_TYPES !== 'undefined' && EDICT_TYPES[e.edictType]) ? EDICT_TYPES[e.edictType].label : (e.edictType || '');
-      var lastStage = e.stages && e.stages.length ? e.stages[e.stages.length-1] : null;
-      var stageLabel = lastStage && typeof EDICT_STAGES !== 'undefined' && EDICT_STAGES[lastStage.stage] ? EDICT_STAGES[lastStage.stage].label : '';
-      _myEdictLines.push('《' + typeLabel + '》(' + stageLabel + ')——' + role);
-    });
-    if (_myEdictLines.length > 0) {
-      _edictCtx = '\n【进行中诏令立场】' + _myEdictLines.join('；') + '\n  ※若君主问及或议题相关——反对者可直陈不可/抱怨阻力，支持者可进言推进/举荐干吏，督办者汇报进展\n';
-    }
-  }
+  return _spouseCtx;
+}
 
-  var p;
-  if (ch._envoy) {
+function _wdEnvoyPromptBody(ch, opinionVal) {
+  var p = '';
     // 使节专用 prompt（覆盖普通人设路径）
     var _typeLabels = {send_envoy:'遣使通好',demand_tribute:'索贡问罪',pay_tribute:'献贡朝见',sue_for_peace:'请和议款',form_confederation:'请结盟约',break_confederation:'宣告毁约',royal_marriage:'和亲之议',send_hostage:'送质为信',cultural_exchange:'文化互通',religious_mission:'宗教使节',gift_treasure:'奉献珍宝',pay_indemnity:'赔款赎罪',open_market:'请开互市',trade_embargo:'宣布禁运',recognize_independence:'请承独立'};
     var _typeLabel = _typeLabels[ch.interactionType] || '外交使命';
@@ -2011,12 +2313,143 @@ function _wdBuildPrompt(ch, name) {
     p += '【回应原则】皇帝应允则致谢并讨价还价细节；皇帝拒绝则据理力争或威胁（视使命与两国实力）；皇帝沉默则可追问。\n';
     p += '【语言色彩】你的言辞应带上本方势力的文化/信仰/地域特征' + (_facObj&&_facObj.culture?'（'+_facObj.culture+'）':'') + '——不要用纯汉儒辞令。\n';
     p += '【态度】对天朝好感:' + opinionVal + '（外交礼节尚可，但本国利益优先）\n';
+  return p;
+}
+
+function _wdBuildPrompt(ch, name) {
+  var _isPlayerConsort = _wdIsPlayerConsort(ch);
+  var traitDesc = '';
+  if (ch.traitIds && ch.traitIds.length > 0 && P.traitDefinitions) {
+    traitDesc = ch.traitIds.map(function(id) { var d = P.traitDefinitions.find(function(t) { return t.id === id; }); return d ? d.name : id; }).join('、');
+  } else if (ch.personality) { traitDesc = ch.personality; }
+  var opinionVal = (typeof OpinionSystem !== 'undefined') ? OpinionSystem.getTotal(ch, findCharByName((P.playerInfo && P.playerInfo.characterName) || '') || { name: '\u73A9\u5BB6' }) : (ch.loyalty || 50);
+  var sc = findScenarioById && findScenarioById(GM.sid);
+  var eraCtx = sc ? (sc.era || sc.dynasty || '') : '';
+  var ageInfo = ch.age ? '，年' + ch.age : '';
+  var stressInfo = (ch.stress && ch.stress > 30) ? '，当前压力' + ch.stress + '(' + ((ch.stress > 60) ? '濒临崩溃' : '焦虑不安') + ')' : '';
+  var arcInfo = '';
+  if (GM.characterArcs && GM.characterArcs[ch.name]) {
+    var _recentArcs = GM.characterArcs[ch.name].slice(-2);
+    if (_recentArcs.length) arcInfo = '\n【近事】' + _recentArcs.map(function(a) { return a.desc; }).join('；').slice(0, 60);
+  }
+  var affInfo = '';
+  if (typeof AffinityMap !== 'undefined') {
+    var _topRels = AffinityMap.getRelations(ch.name).slice(0, 3);
+    if (_topRels.length) affInfo = '\n【人际】' + _topRels.map(function(r) { return r.name + (r.value > 25 ? '(亲)' : r.value < -25 ? '(恶)' : ''); }).join('、');
+  }
+  var appearInfo = '';
+  if (ch.appearance) appearInfo += '\n【外貌】' + ch.appearance;
+  if (ch.charisma && ch.charisma > 70) appearInfo += (appearInfo ? '，' : '\n') + '魅力出众';
+  var familyInfo = '';
+  if (ch.family) {
+    familyInfo = '\n【家族】' + ch.family;
+    var _clanMem = (GM.chars || []).filter(function(c2) { return c2.alive !== false && c2.name !== ch.name && c2.family === ch.family; });
+    if (_clanMem.length > 0) familyInfo += '（同族：' + _clanMem.slice(0, 3).map(function(m) { return m.name; }).join('、') + '）';
+  }
+  // 文事作品——此人知道自己写过什么、受过谁题赠、与谁唱和
+  var worksInfo = '';
+  if (GM.culturalWorks && GM.culturalWorks.length > 0) {
+    var _myWorks = GM.culturalWorks.filter(function(w) { return w.author === ch.name; }).slice(-8);
+    var _dedToMe = GM.culturalWorks.filter(function(w) { return w.dedicatedTo && w.dedicatedTo.indexOf(ch.name) >= 0; }).slice(-3);
+    var _praiseMe = GM.culturalWorks.filter(function(w) { return w.praiseTarget === ch.name; }).slice(-2);
+    var _satireMe = GM.culturalWorks.filter(function(w) { return w.satireTarget === ch.name; }).slice(-2);
+    var _bits = [];
+    if (_myWorks.length) _bits.push('【自作】' + _myWorks.map(function(w) { return '《' + w.title + '》(' + (w.subtype||w.genre||'') + (w.mood?'·'+w.mood:'') + ')'; }).join('、'));
+    if (_dedToMe.length) _bits.push('【赠余】' + _dedToMe.map(function(w) { return w.author + '《' + w.title + '》'; }).join('、'));
+    if (_praiseMe.length) _bits.push('【颂余】' + _praiseMe.map(function(w) { return w.author + '《' + w.title + '》'; }).join('、'));
+    if (_satireMe.length) _bits.push('【讽余】' + _satireMe.map(function(w) { return w.author + '《' + w.title + '》（心有隙）'; }).join('、'));
+    if (_bits.length) worksInfo = '\n【文事】此人深记：' + _bits.join('；') + '——对话中可自然引用/回忆';
+  }
+
+  var memInfo = '';
+  if (typeof NpcMemorySystem !== 'undefined') {
+    var _mem = NpcMemorySystem.getMemoryContext(ch.name);
+    if (_mem) memInfo = '\n【记忆】此角色记得：' + _mem;
+    // 4.6: 注入对话记忆——从NPC记忆中提取type='dialogue'的条目
+    if (ch._memory && ch._memory.length > 0) {
+      var _dialogueMems = ch._memory.filter(function(m) { return m.type === 'dialogue'; });
+      if (_dialogueMems.length > 0) {
+        var _recentDialogues = _dialogueMems.slice(-3);
+        memInfo += '\n【往次问对记忆】';
+        _recentDialogues.forEach(function(dm) {
+          memInfo += '\nT' + dm.turn + '：上次你说过：' + dm.event.slice(0, 40);
+        });
+      }
+    }
+  }
+  var _isPrivateMode = (_wenduiMode === 'private');
+  var _tyrantCtx = '';
+  if (GM._tyrantDecadence && GM._tyrantDecadence > 15) {
+    var _isLoyal = opinionVal > 70, _isAmb = (ch.ambition || 50) > 70;
+    if (_isLoyal && !_isAmb) _tyrantCtx = '\n【帝王近况】君主荒淫度' + GM._tyrantDecadence + '。忠心之臣' + (GM._tyrantDecadence > 50 ? '极为痛心' : '颇为忧虑') + '。\n';
+    else if (_isAmb) _tyrantCtx = '\n【帝王近况】君主荒淫度' + GM._tyrantDecadence + '。野心之臣' + (opinionVal < 40 ? '暗中窃喜' : '逢迎暗算') + '。\n';
+    else if (opinionVal < 30) _tyrantCtx = '\n【帝王近况】君主荒淫度' + GM._tyrantDecadence + '。不满之臣' + (_isPrivateMode ? '可能出言不逊' : '阳奉阴违') + '。\n';
+    else _tyrantCtx = '\n【帝王近况】君主有放纵之迹(荒淫' + GM._tyrantDecadence + ')。\n';
+  }
+  var _modeDesc = _isPrivateMode
+    ? '【场景：私下叙谈】君主屏退左右，与此人单独交谈。气氛轻松私密，可放下君臣身份。\n此人可以：表达真实情感、吐露心事、回忆往事、说笑打趣。忠诚度低者可能更露真面目。\n'
+    : '【场景：朝堂问对】正式君臣对话，谨守君臣之礼。汇报以政务、军务、国事为主。\n此人会注意措辞，不轻易流露私人情感。\n';
+  _modeDesc += _tyrantCtx;
+  var _spouseCtx = _wdConsortContext(ch);
+  // 本回合朝议上下文（如果此人参与了朝议，问对时应保持一致或有意识地私下说不同的话）
+  var _courtCtx = '';
+  if (GM._courtRecords) {
+    var _thisCourtRecs = GM._courtRecords.filter(function(r) { return r.turn === GM.turn && r.stances[name]; });
+    if (_thisCourtRecs.length > 0) {
+      _courtCtx = '\n【本回合朝议立场】此人今天在朝议中就"' + _thisCourtRecs[0].topic + '"';
+      var _cStance = _thisCourtRecs[0].stances[name];
+      _courtCtx += '表态' + _cStance.stance + '（' + _cStance.brief + '）。';
+      if (_wenduiMode === 'private') {
+        _courtCtx += '\n私下问对时，此人可能：a)重申朝议立场 b)吐露朝议上不敢说的真话 c)解释自己为何那样表态——取决于信/坦诚/狡诈特质\n';
+      } else {
+        _courtCtx += '\n正式问对中，此人应与朝议立场保持基本一致（除非有新信息改变了判断）\n';
+      }
+    }
+  }
+  // 三元身份——势力+党派+阶层
+  var _triId2 = [];
+  if (ch.faction) _triId2.push('势力:' + ch.faction);
+  if (ch.party) _triId2.push('党派:' + ch.party);
+  if (ch.class) {
+    var _cObjW = _wdFactionValues(GM.classes).find(function(c){return c.name===ch.class;});
+    _triId2.push('阶层:' + ch.class + (_cObjW && _cObjW.demands ? '(诉求:'+_cObjW.demands.slice(0,20)+')' : ''));
+  }
+  var _triIdInfo = _triId2.length > 0 ? '\n【身份】' + _triId2.join(' · ') + '——言谈须体现此三重立场' : '';
+  // 此人与进行中诏令的关联（反对派/支持者——问对时可主动提及、抱怨、请愿）
+  var _edictCtx = '';
+  if (GM._edictLifecycle && GM._edictLifecycle.length > 0) {
+    var _myEdictLines = [];
+    GM._edictLifecycle.forEach(function(e) {
+      if (e.isCompleted) return;
+      var role = null;
+      if (e.oppositionLeaders && e.oppositionLeaders.indexOf(name) >= 0) role = '反对';
+      else if (e.supporters && e.supporters.indexOf(name) >= 0) role = '支持';
+      else if (e.stages && e.stages.length && e.stages[e.stages.length-1].executor === name) role = '督办';
+      if (!role) return;
+      var typeLabel = (typeof EDICT_TYPES !== 'undefined' && EDICT_TYPES[e.edictType]) ? EDICT_TYPES[e.edictType].label : (e.edictType || '');
+      var lastStage = e.stages && e.stages.length ? e.stages[e.stages.length-1] : null;
+      var stageLabel = lastStage && typeof EDICT_STAGES !== 'undefined' && EDICT_STAGES[lastStage.stage] ? EDICT_STAGES[lastStage.stage].label : '';
+      _myEdictLines.push('《' + typeLabel + '》(' + stageLabel + ')——' + role);
+    });
+    if (_myEdictLines.length > 0) {
+      _edictCtx = '\n【进行中诏令立场】' + _myEdictLines.join('；') + '\n  ※若君主问及或议题相关——反对者可直陈不可/抱怨阻力，支持者可进言推进/举荐干吏，督办者汇报进展\n';
+    }
+  }
+
+  // ①⑤⑥ NPC 现况 agenda-grounding 上下文（抽为具名 helper·见上方定义）
+  var _commitCtx = _wdCommitContext(ch, name);
+  var _ambitionCtx = _wdAmbitionContext(ch);
+  var _burdenCtx = _wdBurdenContext(ch);
+
+  var p;
+  if (ch._envoy) {
+    p = _wdEnvoyPromptBody(ch, opinionVal);
   } else {
     p = '\u4F60\u626E\u6F14' + eraCtx + '\u65F6\u671F\u7684' + ch.name + '(' + (ch.title || '') + ')' + ageInfo + '\u3002\n'
     + '【人设】特质:' + traitDesc + '，立场:' + (ch.stance || '中立')
     + (ch.personalGoal ? '，心中所求:' + ch.personalGoal.slice(0, 40) : '') + stressInfo + '\n'
     + (_isPlayerConsort ? '【夫妻关系】好感:' + opinionVal + '\n' : '【态度】对君主好感:' + opinionVal + '\n')
-    + arcInfo + affInfo + appearInfo + familyInfo + worksInfo + memInfo + _courtCtx + _edictCtx + _triIdInfo + '\n' + _modeDesc + _spouseCtx;
+    + arcInfo + affInfo + appearInfo + familyInfo + worksInfo + memInfo + _courtCtx + _edictCtx + _commitCtx + _ambitionCtx + _burdenCtx + _triIdInfo + '\n' + _modeDesc + _spouseCtx;
   }
     // 仪制差异（按身份）
     var _rank = ch.officialPosition || ch.officialTitle || ch.title || '';
@@ -2075,6 +2508,7 @@ function _wdBuildPrompt(ch, name) {
     if ((ch.ambition || 50) > 70) p += '\u2022 \u91CE\u5FC3' + (ch.ambition||50) + '\u2014\u2014\u5584\u4E8E\u5BDF\u8A00\u89C2\u8272\uFF0C\u89C2\u70B9\u4E2D\u6697\u542B\u81EA\u5229\n';
     if ((ch.stress || 0) > 50) p += '\u2022 \u538B\u529B' + (ch.stress||0) + '\u2014\u2014\u53EF\u80FD\u5931\u6001\u6025\u8E81\u6D88\u6C89\n';
     p += '请返回JSON：{"reply":"回复内容","loyaltyDelta":0,"suggestions":[{"topic":"针对什么问题/情境(10-25字)","content":"详尽可执行方案(80-200字，含执行者/手段/范围/时机，不要空话)"}],"toneEffect":"语气效果(直问时留空)","memoryImpact":{"event":"本次对话在我心中留下的最深印象(20-40字，第三人称纪要)","emotion":"敬/喜/忧/怒/恨/惧/平 之一","importance":1-10}}\n';
+    p += '【deception·若有隐瞒】此人若因低忠诚/利益冲突/暗藏阴谋/有不可告人之事而隐瞒或谎报，JSON 顶层加 deception:{"lying":true,"hiding":"所隐之实或真动机","tell":"破绽(神色闪烁/答非所问/逻辑漏洞/前后矛盾·撒谎则必给一处可被明察者识破之处)"}；若坦诚相告则 lying:false 或省略此字段。高智者谎言圆融、破绽隐微；心虚或愚钝者破绽显露；皇帝逼问或沉默逼视会增其慌乱露馅。\n';
     p += '【memoryImpact·必填】此对话对我(NPC)的内心影响——event 用第三人称"我"视角纪要本次对话的核心感受，emotion 选一个最贴合的主情绪，importance 1-3=琐碎即忘 4-6=日常印象 7-8=深刻在意 9-10=终身难忘。\n';
     p += 'loyaltyDelta 范围' + (_isPrivateMode ? '-3 到 +3' : '-2 到 +2') + '。\n';
     p += '【suggestions 规则——只在你主动提出具体方案时才填】\n';
@@ -2138,6 +2572,26 @@ function _wdBuildPrompt(ch, name) {
     p += '\n  胆大者→主动开口汇报或试探皇帝意图';
     p += '\n  忠厚者→恭敬等待，偶尔抬头观察';
     p += '\n  toneEffect应描述此人面对沉默的具体反应。';
+  }
+  // #3·会话内能动性：NPC 带着此行目的、跨轮相机推进（非被动应答）
+  if (typeof _wdDeriveAudienceAgenda === 'function') {
+    try {
+      var _wdAgenda = _wdDeriveAudienceAgenda(ch);
+      if (_wdAgenda && _wdAgenda.tag && _wdAgenda.tag !== 'routine' && _wdAgenda.hint) {
+        p += '\n【你此次的心事/目的】' + _wdAgenda.hint + '\n  你是有备而来、心里装着事的真人——对答中相机推进：择机切入、试探圣意；皇帝态度和缓则进一步陈情/请求/规谏，不悦则收敛转圜、改日再图；切忌只被动答话、有问才答。\n';
+      }
+    } catch (_wdAgErr) {}
+  }
+  // #4·君臣私交长弧：注入亲信度·影响 NPC 说话方式（心腹敢言真话/预警/冒险·生疏者拘谨自保）
+  var _rap = (typeof ch._rapport === 'number') ? ch._rapport : 50;
+  var _rapTier = _rap >= 80 ? '心腹股肱·君臣相得、无话不谈' : _rap >= 60 ? '亲信·渐得信重、敢进直言' : _rap >= 40 ? '寻常君臣·公事公办、略存分寸' : '生疏见外·拘谨自保、不敢交底';
+  p += '\n【君臣私交】此人与陛下私交：' + _rapTier + '（亲信度 ' + Math.round(_rap) + '/100）。' + (_rap >= 70 ? '可对陛下吐露真心、预警危局、不避嫌揭他人之短、甚至为陛下冒险任谤。' : (_rap < 40 ? '言语拘谨、报喜不报忧、不轻易交底、明哲保身。' : '')) + '\n';
+  // #6·问对随难度缩放：官员坦诚/敷衍/泄露/可买性随难度滑动（复合 #2 说谎、#4 亲信）
+  var _wdDiff = (typeof window !== 'undefined' && window._pendingDifficulty) || (typeof _selectedDifficulty !== 'undefined' ? _selectedDifficulty : '') || 'standard';
+  if (_wdDiff === 'hardcore') {
+    p += '\n【难度·硬核】浊世人心叵测：官员更善推诿敷衍、报喜不报忧、阳奉阴违、言出常打折；忠诚低或有私心者更易谎报隐瞒（见 deception）；君恩难买真心、亲信难得。从严演绎，勿轻易让陛下如意。\n';
+  } else if (_wdDiff === 'narrative') {
+    p += '\n【难度·叙事】重故事流畅：官员相对坦诚体谅、君臣较易相得；谎报推诿从宽、亲信较易培养。偏宽松温情演绎。\n';
   }
   // 仪式上下文
   var _wdSt = GM._wdState && GM._wdState[name];
@@ -2266,8 +2720,10 @@ function _jishiCharTitle(name) {
   return (ch.officialTitle || ch.title || '').slice(0, 10);
 }
 
-function renderJishi(){
+function renderJishi(force){
   var el=_$("jishi-list");if(!el)return;
+  // 性能·纪事面板隐藏时跳过重渲（切到 gt-jishi 时由 switchGTab force 渲染）
+  if(!force && typeof _gtTabVisible==='function' && !_gtTabVisible('gt-jishi')) return;
   var all=(GM.jishiRecords||[]).slice().reverse();
   var kw=(_jishiKw||'').trim().toLowerCase();
   var charF=_jishiCharFilter||'all';
