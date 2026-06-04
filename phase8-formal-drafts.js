@@ -447,6 +447,79 @@
     }
   }
 
+  function recordDeskPlayerActionHistory(gm, text, options){
+    gm = gm || deskGM();
+    options = options || {};
+    var actionText = String(text || '').replace(/\r\n/g, '\n').trim();
+    if (!actionText) return null;
+    var turn = Number(gm.turn || 1);
+    var date = deskDateText(turn);
+    var tags = ['主角行止', '行止'].concat(options.tags || []);
+    var summary = compactText(actionText, 240);
+    var entry = {
+      turn: turn,
+      date: date,
+      content: '【主角行止】' + actionText,
+      text: '【主角行止】' + actionText,
+      fullText: '【主角行止】' + actionText,
+      rawText: actionText,
+      summary: '【主角行止】' + summary,
+      category: '行止',
+      tags: tags,
+      xinglu: actionText,
+      source: 'phase8-desk'
+    };
+    deskArray(gm, 'qijuHistory').unshift(entry);
+    if (gm.qijuHistory.length > 240) gm.qijuHistory.length = 240;
+    deskArray(gm, '_chronicle').push({
+      turn: turn,
+      date: date,
+      type: '行止',
+      title: '主角行止',
+      text: actionText,
+      content: actionText,
+      fullText: actionText,
+      summary: summary,
+      tags: tags,
+      xinglu: actionText,
+      source: 'phase8-desk'
+    });
+    if (window.EB && Array.isArray(EB.items)) {
+      EB.items.unshift({ turn: turn, date: date, type: '行止', title: '主角行止', text: summary, summary: summary, detail: actionText, content: actionText, fullText: actionText });
+      if (EB.items.length > 120) EB.items.length = 120;
+    } else {
+      try { if (typeof window.addEB === 'function') window.addEB('行止', summary); } catch(_) {}
+    }
+    return entry;
+  }
+
+  function deskPublishPlayerActionOnly(gm, actionText){
+    actionText = String(actionText || '').trim();
+    if (!actionText) return false;
+    recordDeskPlayerActionHistory(gm, actionText);
+    deskDecision('player_action', actionText, '已记入主角行止，过回合推演会读取其人物、皇威、民心影响');
+    recordDeskActionSignal('player-action-desk', {
+      id: 'xinglu-' + (gm.turn || 1),
+      topic: '主角行止',
+      target: '起居注',
+      targetId: 'xinglu-' + (gm.turn || 1),
+      kind: 'player_action'
+    }, actionText, {
+      kind: 'player_action',
+      topic: '主角行止',
+      target: '起居注',
+      targetId: 'xinglu-' + (gm.turn || 1),
+      intensity: 0.72,
+      policyTags: ['xinglu', 'player-action']
+    });
+    state.playerAction = '';
+    clearFormalDraftStore(['playerAction']);
+    deskRefreshLegacy();
+    toast('主角行止已记入起居注，过回合会读取其人物、皇威、民心影响');
+    openZhaoPreviewPanel();
+    return true;
+  }
+
   function deskEdictBodyValue(){
     var legacyCats = [
       { id:'edict-pol', key:'policy', label:'政令' },
@@ -505,8 +578,12 @@
   function deskPublishEdict(){
     var gm = deskGM();
     var body = deskEdictBodyValue();
-    if (!body) { toast('请先写下诏令正文'); return; }
     state.playerAction = deskValue('#xinglu-pub', deskValue('[data-desk-player-action]', state.playerAction || '')).trim();
+    if (!body) {
+      if (deskPublishPlayerActionOnly(gm, state.playerAction)) return;
+      toast('请先写下诏令正文');
+      return;
+    }
     var edictType = 'policy';
     try { if (typeof window.classifyEdict === 'function') edictType = window.classifyEdict(body) || edictType; } catch(_) {}
     var typeText = deskValue('[data-desk-edict-type]', '诏令') || '诏令';
@@ -531,6 +608,23 @@
     };
     deskArray(gm, '_edictTracker').push(entry);
     deskRecord('诏令', title, body, ['诏书', typeText, edictType]);
+    if (state.playerAction) {
+      recordDeskPlayerActionHistory(gm, state.playerAction);
+      recordDeskActionSignal('player-action-desk', {
+        id: 'xinglu-' + entry.id,
+        topic: '主角行止',
+        target: '起居注',
+        targetId: 'xinglu-' + entry.id,
+        kind: 'player_action'
+      }, state.playerAction, {
+        kind: 'player_action',
+        topic: '主角行止',
+        target: '起居注',
+        targetId: 'xinglu-' + entry.id,
+        intensity: 0.72,
+        policyTags: ['xinglu', 'player-action']
+      });
+    }
     deskDecision('edict', body, '已进入诏令追踪，后续过回合推演会读取执行与阻力');
     recordDeskActionSignal('publish-edict-desk', {
       id: entry.id,
@@ -1242,8 +1336,8 @@
       'body.tm-phase8-formal .tm-bridge-overlay.show .tm-action-panel{transform:translateX(0);}',
       'body.tm-phase8-formal .tm-action-panel.edict-shell{left:50%;top:54px;width:calc(100vw - 130px);height:calc(100vh - 104px);transform:translate(-50%,10px);}',
       'body.tm-phase8-formal .tm-bridge-overlay.show .tm-action-panel.edict-shell{transform:translate(-50%,0);}',
-      'body.tm-phase8-formal .tm-action-panel.memorial-shell{left:50%;top:54px;width:calc(100vw - 130px);height:calc(100vh - 104px);transform:translate(-50%,10px);}',
-      'body.tm-phase8-formal .tm-bridge-overlay.show .tm-action-panel.memorial-shell{transform:translate(-50%,0);}',
+      'body.tm-phase8-formal .tm-action-panel.memorial-shell{left:40px;right:40px;top:64px;width:auto;height:min(820px,calc(100vh - 94px));transform:none;}',
+      'body.tm-phase8-formal .tm-bridge-overlay.show .tm-action-panel.memorial-shell{transform:none;}',
       'body.tm-phase8-formal .tm-action-panel.letter-shell{left:50%;top:60px;width:min(1440px,calc(100vw - 64px));height:min(860px,calc(100vh - 90px));transform:translate(-50%,10px);}',
       'body.tm-phase8-formal .tm-bridge-overlay.show .tm-action-panel.letter-shell{transform:translate(-50%,0);}',
       'body.tm-phase8-formal .tm-action-panel.records-shell{left:40px;right:40px;top:64px;width:auto;height:min(830px,calc(100vh - 96px));transform:none;}',
@@ -1350,7 +1444,7 @@
       'body.tm-phase8-formal .hy-person-counts-v5{display:flex;flex-direction:column;gap:4px;align-items:flex-end;} body.tm-phase8-formal .hy-person-counts-v5 em{min-width:20px;height:18px;display:grid;place-items:center;border:1px solid rgba(126,184,167,.24);border-radius:999px;color:#d9eddf;background:rgba(0,0,0,.18);font-size:10px;font-style:normal;} body.tm-phase8-formal .hy-person-counts-v5 em.hot{border-color:rgba(213,92,64,.38);color:#f0a082;background:rgba(126,31,24,.18);} body.tm-phase8-formal .hy-person-counts-v5 em.on{border-color:rgba(239,201,116,.42);color:#f5db96;}',
       'body.tm-phase8-formal .hy-letter-desk-v5{min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr);gap:12px;overflow:hidden;}',
       'body.tm-phase8-formal .hy-compose-card-v5{padding:13px 14px;} body.tm-phase8-formal .hy-compose-card-v5>header{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:11px;align-items:center;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid rgba(126,184,167,.16);} body.tm-phase8-formal .hy-compose-card-v5>header img{width:60px;height:66px;object-fit:cover;border:1px solid rgba(126,184,167,.34);background:rgba(0,0,0,.25);} body.tm-phase8-formal .hy-compose-card-v5>header b{display:block;color:#f0d892;font-size:18px;} body.tm-phase8-formal .hy-compose-card-v5>header em{display:block;margin-top:4px;color:rgba(232,220,187,.60);font-size:11px;font-style:normal;}',
-      'body.tm-phase8-formal .hy-route-v5{margin-bottom:10px;padding:7px 9px;border:1px solid rgba(198,139,69,.24);color:#eadbb4;background:linear-gradient(90deg,rgba(95,44,27,.34),rgba(0,0,0,.10));font-size:11.5px;line-height:1.45;}',
+      'body.tm-phase8-formal .hy-route-v5{margin-bottom:10px;padding:7px 9px;border:1px solid rgba(198,139,69,.24);color:#eadbb4;background:linear-gradient(90deg,rgba(95,44,27,.34),rgba(0,0,0,.10));font-size:11.5px;line-height:1.45;} body.tm-phase8-formal .hy-route-warning-v5 b{display:block;margin-bottom:5px;color:#f0d892;font-size:12px;} body.tm-phase8-formal .hy-route-full-v5{margin-top:4px;color:#f0d0a2;line-height:1.55;} body.tm-phase8-formal .hy-route-note-full-v5{color:inherit;}',
       'body.tm-phase8-formal .hy-compose-grid-v5{display:grid;grid-template-columns:1.1fr repeat(4,minmax(96px,.7fr));gap:8px;margin-bottom:8px;} body.tm-phase8-formal .hy-compose-grid-v5 label span{display:block;margin-bottom:4px;color:rgba(232,220,187,.80);font-size:12px;letter-spacing:.05em;} body.tm-phase8-formal .hy-compose-paper-v5{min-height:104px;max-height:180px;resize:vertical;} body.tm-phase8-formal .hy-compose-actions-v5{display:flex;flex-wrap:wrap;gap:7px;align-items:center;}',
       'body.tm-phase8-formal .hy-thread-card-v5{display:grid;grid-template-rows:auto minmax(0,1fr);overflow:hidden;} body.tm-phase8-formal .hy-thread-card-v5>header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid rgba(126,184,167,.16);background:rgba(0,0,0,.12);} body.tm-phase8-formal .hy-thread-card-v5>header b{display:block;color:#f0d892;font-size:16px;} body.tm-phase8-formal .hy-thread-card-v5>header em{display:block;margin-top:3px;color:rgba(232,220,187,.56);font-size:11px;font-style:normal;} body.tm-phase8-formal .hy-thread-scroll-v5{min-height:0;overflow:auto;padding:13px 14px 16px;scrollbar-color:rgba(126,184,167,.44) rgba(0,0,0,.22);}',
       'body.tm-phase8-formal .hy-filterbar-v5{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;} body.tm-phase8-formal .hy-filterbar-v5 button{min-height:26px;padding:3px 9px;border:1px solid rgba(126,184,167,.18);color:#d9eddf;background:rgba(255,245,210,.035);font-family:inherit;font-size:11px;cursor:pointer;} body.tm-phase8-formal .hy-filterbar-v5 button.active{border-color:rgba(126,184,167,.46);background:linear-gradient(180deg,rgba(58,104,86,.44),rgba(13,24,22,.66));}',
@@ -1440,8 +1534,8 @@
         source: x.source || '御案',
         from: x.from || x.proposer || '',
         topic: x.topic || x.title || '',
-        text: x.text || x.content || x.body || '',
-        content: x.content || x.text || x.body || '',
+        text: x.draftText || x.text || x.content || x.body || '',
+        content: x.draftText || x.content || x.text || x.body || '',
         portrait: x.portrait || x.avatar || x.image || x.img || x.photo || x.characterImage || '',
         tags: x.tags || [],
         turn: x.turn || 0,
@@ -1771,7 +1865,7 @@
       item.onclick = function(ev){
         ev.preventDefault();
         ev.stopPropagation();
-        var content = String(sg.content || sg.text || sg.body || '').trim();
+        var content = String(sg.draftText || sg.text || sg.content || sg.body || '').trim();
         var prefix = '';
         if (sg.topic || sg.title) prefix += '〔' + (sg.topic || sg.title) + '〕';
         if (sg.from) prefix += '（' + sg.from + '言）';
@@ -2645,7 +2739,7 @@
     var rows=letters.filter(function(l){ return String(l.from)===String(target.name)||String(l.to)===String(target.name); });
     var live=rows.filter(function(l){ return /traveling|replying|delivered|intercepted|intercepted_forging|blocked|recalled/.test(String(l.status||'')); })[0];
     function _days(urg){ try{ return (typeof calcLetterDays==='function')?calcLetterDays('京城', target.location||'', urg||'normal'):0; }catch(_){ return 0; } }
-    if(!live){ var cd=_days('normal'); return '<div class="route calm"><div class="route-top"><b>驿路</b><em>'+(cd?'京城 → '+esc(target.location||'')+' 约 '+cd+' 日':'京城 → '+esc(target.location||'')+' · 驿路通畅')+'</em></div><div class="route-note">驿路通畅，暂无在途信使。拟函遣使后，可在此追踪驿程。</div></div>'; }
+    if(!live){ var cd=_days('normal'); return '<div class="route calm"><div class="route-top"><b>驿路</b><em>'+(cd?'京城 → '+esc(target.location||'')+' 约 '+cd+' 日':'京城 → '+esc(target.location||'')+' · 驿路通畅')+'</em></div><div class="route-note">'+fullHongyanText('驿路通畅，暂无在途信使。拟函遣使后，可在此追踪驿程。','驿路通畅','hy-route-note-full-v5')+'</div></div>'; }
     var st=String(live.status||''); var danger=/intercepted|blocked/.test(st)&&st!=='intercepted_forging'; var lit=/returned/.test(st);
     var now=(window.GM&&GM.turn)||1;
     var sT=Number(live.sentTurn||(live.raw&&live.raw.sentTurn)||now);
@@ -2653,11 +2747,11 @@
     var prog=(dT>sT)?Math.max(6,Math.min(100,Math.round((now-sT)/(dT-sT)*100))):55;
     var D=_days(live.urgency)||Math.max(1,dT-sT); var el=Math.max(0,Math.round(D*prog/100));
     var note='', noteCls='';
-    if(/traveling/.test(st)) note='信使在途　已行 '+el+' 日 / 全程 '+D+' 日　距'+esc(target.location||'')+'尚余 '+Math.max(1,D-el)+' 日';
-    else if(/delivered/.test(st)) note='已抵'+esc(target.location||'')+'　'+esc(target.name||'')+'已览，候其回书';
-    else if(/replying|intercepted_forging/.test(st)) note='回函在途　自'+esc(target.location||'')+'返京　已行 '+el+' 日 / 全程 '+D+' 日';
+    if(/traveling/.test(st)) note='信使在途　已行 '+el+' 日 / 全程 '+D+' 日　距'+(target.location||'')+'尚余 '+Math.max(1,D-el)+' 日';
+    else if(/delivered/.test(st)) note='已抵'+(target.location||'')+'　'+(target.name||'')+'已览，候其回书';
+    else if(/replying|intercepted_forging/.test(st)) note='回函在途　自'+(target.location||'')+'返京　已行 '+el+' 日 / 全程 '+D+' 日';
     else if(/intercepted/.test(st)){ note='信使失踪于途中　杳无音讯，恐已落敌手'; noteCls='warn'; }
-    else if(/blocked/.test(st)){ note='为'+esc((live.raw&&live.raw.blockBy)||'中书')+'扣发，未能出京'; noteCls='warn'; }
+    else if(/blocked/.test(st)){ note='为'+((live.raw&&live.raw.blockBy)||'中书')+'扣发，未能出京'; noteCls='warn'; }
     else if(/recalled/.test(st)) note='信使已奉命折返　原信追回';
     var stTxt=(typeof letterStatusTextFormal==='function'?letterStatusTextFormal(live):st);
     var typeLabel=(typeof letterTypeLabelFormal==='function'?letterTypeLabelFormal(live.letterType):'');
@@ -2667,7 +2761,7 @@
     else if(/replying|intercepted_forging/.test(st)) courier='<span class="route-courier" style="left:'+(100-prog)+'%">🐎</span>';
     else if(/intercepted/.test(st)) brk='<span class="route-break" style="left:'+prog+'%">✕</span>';
     else if(/blocked/.test(st)) brk='<span class="route-break" style="left:14%">⊘</span>';
-    return '<div class="route'+(danger?' danger':'')+'"><div class="route-top"><b>驿路</b><em>'+esc(stTxt)+(typeLabel?' · '+esc(typeLabel):'')+'</em></div><div class="route-line"><div class="route-done" style="width:'+(lit?100:prog)+'%"></div><span class="route-node start">京</span><span class="route-node end'+(lit?' lit':'')+'">'+endGlyph+'</span>'+courier+brk+'</div><div class="route-labels"><b>京城</b><b>'+esc(target.location||'')+'</b></div><div class="route-note'+(noteCls?' '+noteCls:'')+'">'+esc(note)+'</div></div>';
+    return '<div class="route'+(danger?' danger':'')+'"><div class="route-top"><b>驿路</b><em>'+esc(stTxt)+(typeLabel?' · '+esc(typeLabel):'')+'</em></div><div class="route-line"><div class="route-done" style="width:'+(lit?100:prog)+'%"></div><span class="route-node start">京</span><span class="route-node end'+(lit?' lit':'')+'">'+endGlyph+'</span>'+courier+brk+'</div><div class="route-labels"><b>京城</b><b>'+esc(target.location||'')+'</b></div><div class="route-note'+(noteCls?' '+noteCls:'')+'">'+fullHongyanText(note,'驿路暂无说明','hy-route-note-full-v5')+'</div></div>';
   }
   function yanContactCard(p, target, multiOn, multiTargets, letters){
     var active=String(p.name)===String(target.name);
@@ -2711,6 +2805,15 @@
     var unreadInbox = inboxRows.filter(function(x){ return x.unread; }).length;
     var inbox = inboxRows.length ? inboxRows.slice(0, 20).map(renderFormalInboxItem).join('') : '<div class="inbox-empty"><b>暂无来信</b>主动来函与已返回的回书会集中显示于此。</div>';
     var roadAll = letters.filter(function(l){ return /traveling|replying|intercepted_forging/.test(String(l.status||'')); }).length;
+    var routeWarnings = [];
+    try {
+      routeWarnings = ((window.GM && GM._routeDisruptions) || []).filter(function(route){ return route && !route.resolved; });
+    } catch(_) {}
+    var routeWarningHtml = routeWarnings.length ? '<div class="hy-route-v5 hy-route-warning-v5"><b>驿路告警</b>' + routeWarnings.map(function(route){
+      var routeName = route.route || [route.from, route.to].filter(Boolean).join('-') || '未知驿路';
+      var routeText = routeName + '：' + (route.reason || '原因不明') + '；该方向信件截获率大幅提高。';
+      return fullHongyanText(routeText, '驿路告急', 'hy-route-full-v5');
+    }).join('') + '</div>' : '';
     function opt(v,cur,lbl){ return '<option value="'+v+'"'+(cur===v?' selected':'')+'>'+lbl+'</option>'; }
     return '<section class="yan-yuan">' +
       '<div class="yan-titlebar"><div class="yt-center"><div class="yt-main">鸿 雁 传 书</div><div class="yt-sub">驿传四方　密旨亲遣　御前通问</div></div>' +
@@ -2721,7 +2824,8 @@
           '<div class="multi-bar">' + actionBtn(multiOn ? ('群发中 · ' + multiTargets.length + ' 人') : '群发', 'letter-multi-toggle-desk', {}, 'multi-toggle' + (multiOn ? ' on' : '')) + '<span class="multi-hint">' + (multiOn ? '勾选收件人，写完正文按「遣使送出」一并发出' : '点名册可逐一选定收信人') + '</span></div></div>' +
           '<div class="roster-scroll">' + roster + '</div></aside>' +
         '<main class="deskmain">' +
-          '<section class="compose"><div class="cmp-head">' + yanFaceImg(target, 'cmp-face') + '<div class="cmp-who"><b>致 ' + esc(target.name) + '<small>' + esc(target.role||'') + '</small></b><div class="cmp-loc">' + esc(target.location||'') + (target.faction ? ' · ' + esc(target.faction) : '') + '</div></div><div class="cmp-stat">' + actionChip('往来 ' + c.total, 'green') + (c.unread ? actionChip('未阅 ' + c.unread, 'hot') : '') + (c.road ? actionChip('在途 ' + c.road, 'indigo') : '') + '</div></div>' +
+          '<section class="compose"><div class="cmp-head">' + yanFaceImg(target, 'cmp-face') + '<div class="cmp-who"><b>致 ' + esc(target.name) + '<small data-hy-contact-role="1">' + esc(target.role||'') + '</small></b><div class="cmp-loc" data-hy-contact-location="1">' + esc(target.location||'') + (target.faction ? ' · ' + esc(target.faction) : '') + '</div></div><div class="cmp-stat">' + actionChip('往来 ' + c.total, 'green') + (c.unread ? actionChip('未阅 ' + c.unread, 'hot') : '') + (c.road ? actionChip('在途 ' + c.road, 'indigo') : '') + '</div></div>' +
+            routeWarningHtml +
             yanRouteBlock(target, letters) +
             (multiOn ? '<div class="multi-banner"><b>群发 ' + multiTargets.length + ' 人</b>' + (multiTargets.length ? '：' + esc(multiTargets.join('、')) : '（请在左侧名册勾选收件人）') + '<small>正文与类型 / 缓急 / 加密对所有人一致；遣使后逐一计驿程。</small></div>' : '') +
             '<div class="cmp-grid"><div class="cmp-field"><span>书信类型</span><select class="tm-select" data-desk-letter-type data-letter-draft-field="type">' + opt('secret_decree',type,'密旨')+opt('military_order',type,'征调令')+opt('formal_edict',type,'正式诏令')+opt('greeting',type,'问安函')+opt('personal',type,'私函')+opt('proclamation',type,'檄文') + '</select></div>' +

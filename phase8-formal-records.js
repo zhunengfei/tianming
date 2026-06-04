@@ -935,16 +935,16 @@
     var x = shiById(arc, state.recordId);
     if (!x) return '<div class="folio-empty"><span class="fe-seal">阅</span><b>择卷详阅</b><p>该卷已不在当前库中，<br>另择一卷查阅。</p></div>';
     var starBtn = '<button type="button" class="fo-star' + (x.starred?' on':'') + '" data-desk-action="record-star-desk" data-id="' + attr(x.id) + '">' + (x.starred?'★':'☆') + '</button>';
-    var head = '<div class="fo-head"><span class="fo-seal ' + x.authority + '">' + esc(shiAuthDef(x.authority).g) + '</span><div class="fo-htext"><div class="fo-title">' + esc(shiTitleOf(x)) + '</div><div class="fo-sub">';
+    var head = '<div class="fo-head"><span class="fo-seal ' + x.authority + '">' + esc(shiAuthDef(x.authority).g) + '</span><div class="fo-htext"><div class="fo-title">' + fullRecordText(shiTitleOf(x), '未题', 'records-detail-title-full-v5') + '</div><div class="fo-sub">';
     var html = '';
     if (x.cat === 'shiji') {
       head += '<span class="ftag" style="background:' + shiTypeColor(x.type) + '">' + esc(x.type) + '</span><span>史记·第 ' + esc(x.turn) + ' 回</span><span>·</span><span>' + esc(x.era) + (x.date?'·'+esc(x.date):'') + '</span></div></div>' + starBtn + '</div>';
       html = head;
-      if (x.shilu) html += '<div class="tiwen shilu"><div class="tiwen-lbl">实 录<small>正史体</small></div><div class="tiwen-body">' + esc(x.shilu) + '</div></div>';
-      if (x.shizhengji) html += '<div class="tiwen szj"><div class="tiwen-lbl">时政记<small>' + esc(x.szjTitle||'') + '</small></div><div class="tiwen-body">' + esc(x.shizhengji) + '</div></div>';
-      if (x.zhengwen) html += '<div class="tiwen zhengwen"><div class="tiwen-lbl">政 文<small>推演纪实</small></div><div class="tiwen-body">' + esc(x.zhengwen) + '</div></div>';
-      if (x.houren) html += '<div class="tiwen houren"><div class="tiwen-lbl">后人戏说<small>稗野·参考</small></div><div class="tiwen-body">' + esc(x.houren) + '</div></div>';
-      if (!x.shilu && !x.shizhengji && !x.zhengwen && !x.houren && x.text) html += '<div class="qjblock">' + esc(x.text) + '</div>';
+      if (x.shilu) html += '<div class="tiwen shilu"><div class="tiwen-lbl">实 录<small>正史体</small></div><div class="tiwen-body">' + fullRecordText(x.shilu, '', 'records-detail-body-full-v5') + '</div></div>';
+      if (x.shizhengji) html += '<div class="tiwen szj"><div class="tiwen-lbl">时政记<small>' + esc(x.szjTitle||'') + '</small></div><div class="tiwen-body">' + fullRecordText(x.shizhengji, '', 'records-detail-body-full-v5') + '</div></div>';
+      if (x.zhengwen) html += '<div class="tiwen zhengwen"><div class="tiwen-lbl">政 文<small>推演纪实</small></div><div class="tiwen-body">' + fullRecordText(x.zhengwen, '', 'records-detail-body-full-v5') + '</div></div>';
+      if (x.houren) html += '<div class="tiwen houren"><div class="tiwen-lbl">后人戏说<small>稗野·参考</small></div><div class="tiwen-body">' + fullRecordText(x.houren, '', 'records-detail-body-full-v5') + '</div></div>';
+      if (!x.shilu && !x.shizhengji && !x.zhengwen && !x.houren && x.text) html += '<div class="qjblock">' + fullRecordText(x.text, '', 'records-detail-body-full-v5') + '</div>';
       if (x.personnel && x.personnel.length) html += '<div class="fo-sect"><div class="fo-sect-t">人事变动</div><div class="personnel">' + x.personnel.map(function(p){ return '<div class="prow">' + shiFaceImg(p.name || '', 'pn-face') + '<span class="pn">' + esc(p.name||'') + '</span><span class="pc">' + esc(p.change||p.to||p.office||'') + '</span></div>'; }).join('') + '</div></div>';
       if (x.edicts && x.edicts.length) html += '<div class="fo-sect"><div class="fo-sect-t">本回诏令</div>' + x.edicts.map(function(e){ return '<div class="edict-line"><b>' + esc(e.k) + '</b>' + esc(e.t) + '</div>'; }).join('') + '</div>';
       if (x.delta && x.delta.length) html += '<div class="fo-sect"><div class="fo-sect-t">国势变化</div><div class="delta-grid">' + x.delta.map(function(d){ return '<span class="dbig ' + d.dir + '">' + esc(d.k) + ' ' + esc(d.v) + '</span>'; }).join('') + '</div></div>';
@@ -953,7 +953,7 @@
       var col = SHI_QJ_CAT[x.category] || '#a8833a';
       head += '<span class="ftag" style="background:' + col + '">' + esc(x.category) + '</span><span>起居注·' + esc(x.date) + '</span></div></div>' + starBtn + '</div>';
       html = head;
-      if (x.body) html += '<div class="qjblock">' + esc(x.body) + '</div>';
+      if (x.body) html += '<div class="qjblock">' + fullRecordText(x.body, '', 'records-detail-body-full-v5') + '</div>';
       if (x.edicts && x.edicts.length) html += '<div class="fo-sect"><div class="fo-sect-t">本回诏令</div>' + x.edicts.map(function(e){ return '<div class="edict-line"><b>' + esc(e.k) + '</b>' + esc(e.t) + '</div>'; }).join('') + '</div>';
       html += shiCommonTail(arc, x);
     } else if (x.cat === 'jishi') {
@@ -966,11 +966,11 @@
       html += '</div>' + shiCommonTail(arc, x);
     } else if (x.sub === 'annal') {
       head += '<span class="ftag" style="background:var(--gold-d)">年度正史</span><span>' + esc(x.year||x.era||'') + '</span></div></div>' + starBtn + '</div>';
-      html = head + '<div class="annal">' + esc(x.annal || x.body || '') + '</div>' + (x.afterword?'<div class="afterword"><p>' + esc(x.afterword) + '</p></div>':'') + shiCommonTail(arc, x);
+      html = head + '<div class="annal">' + fullRecordText(x.annal || x.body || '', '', 'records-detail-body-full-v5') + '</div>' + (x.afterword?'<div class="afterword"><p>' + fullRecordText(x.afterword, '', 'records-detail-body-full-v5') + '</p></div>':'') + shiCommonTail(arc, x);
     } else {
       // affair / chronicle
       head += '<span class="ftag" style="background:' + shiTypeColor(x.category) + '">' + esc(x.category||'编年') + '</span><span>编年·' + (x.sub==='affair'?'长期事势':'永久编年') + '</span></div></div>' + starBtn + '</div>';
-      html = head + '<div class="qjblock">' + esc(x.body || x.text || '') + '</div>';
+      html = head + '<div class="qjblock">' + fullRecordText(x.body || x.text || '', '', 'records-detail-body-full-v5') + '</div>';
       if (x.sub === 'affair') {
         var span = (x.endTurn - x.startTurn) || 1;
         var pct = Math.max(4, Math.min(100, x.progress || Math.round((x.nowTurn - x.startTurn)/span*100)));

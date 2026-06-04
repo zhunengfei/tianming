@@ -58,11 +58,21 @@
     if (rr.rightOpenGuokuLegacyAction) return rr.rightOpenGuokuLegacyAction(method);
   }
 
+  var RENWU_INITIAL_RENDER_LIMIT = 80;
+  var RENWU_RENDER_BATCH_SIZE = 60;
+  var _renwuRenderBatchToken = 0;
+  var _renwuFilterTimer = 0;
+
   // ── module body (P3 Wave 5 迁入·1241 行·body 0 改动) ─────────────
 
   function closeModule(){
     var old = document.getElementById('tmf-module-overlay');
     if (old) old.remove();
+    _renwuRenderBatchToken++;
+    if (_renwuFilterTimer) {
+      clearTimeout(_renwuFilterTimer);
+      _renwuFilterTimer = 0;
+    }
   }
 
   function moduleShell(kind, title, sub, left, main, right){
@@ -94,10 +104,7 @@
       handleModuleAction(btn.dataset.moduleAction, moduleActionData(btn));
     });
     ov.addEventListener('input', function(e){
-      if (e.target && e.target.matches && e.target.matches('[data-renwu-search]')) filterRenwuOverlay(ov);
-    });
-    ov.addEventListener('keyup', function(e){
-      if (e.target && e.target.matches && e.target.matches('[data-renwu-search]')) filterRenwuOverlay(ov);
+      if (e.target && e.target.matches && e.target.matches('[data-renwu-search]')) scheduleRenwuFilter(ov, 120);
     });
     ov.addEventListener('compositionend', function(e){
       if (e.target && e.target.matches && e.target.matches('[data-renwu-search]')) filterRenwuOverlay(ov);
@@ -106,8 +113,15 @@
       if (e.target && e.target.matches && e.target.matches('[data-renwu-filter]')) filterRenwuOverlay(ov);
     });
     document.body.appendChild(ov);
-    if (ov.querySelector('[data-renwu-card]')) filterRenwuOverlay(ov);
-    if (kind === 'renwu') restoreRenwuRosterScroll(ov);
+    if (kind === 'renwu') {
+      var people = getPeople();
+      var selected = findPerson(state.modulePerson) || people[0] || {};
+      appendRenwuCardsChunked(ov, people, personKey(selected));
+      filterRenwuOverlay(ov, { preserveScroll: true });
+      restoreRenwuRosterScroll(ov);
+    } else if (ov.querySelector('[data-renwu-card]')) {
+      filterRenwuOverlay(ov);
+    }
   }
 
   function rerenderModule(options){
@@ -126,7 +140,8 @@
     return data;
   }
 
-  function emitPlayerActionSignal(payload){
+  function emitPlayerActionSignal(payload, options){
+    options = options || {};
     var recorded = false;
     try {
       if (window.TM && TM.PlayerActionSignals && typeof TM.PlayerActionSignals.record === 'function') {
@@ -135,10 +150,24 @@
       }
     } catch (_) {}
     try {
-      if (window.TM && TM.PartyClassLlmCalibrator && typeof TM.PartyClassLlmCalibrator.notifyPlayerAction === 'function') {
+      if (options.calibrate !== false && window.TM && TM.PartyClassLlmCalibrator && typeof TM.PartyClassLlmCalibrator.notifyPlayerAction === 'function') {
         TM.PartyClassLlmCalibrator.notifyPlayerAction(Object.assign({}, payload, { skipSignalRecord: recorded }));
       }
     } catch (_) {}
+  }
+
+  function shouldCalibrateUiAction(action, data, extraText){
+    data = data || {};
+    if (window.P && P.conf) {
+      if (P.conf.partyClassLlmUiActionsEnabled === false || P.conf.partyClassLlmUiClicksEnabled === false) return false;
+      if (P.conf.partyClassLlmCalibrateAllUiClicks === true) return true;
+    }
+    action = String(action || '');
+    if (action === 'add-edict') return !!extraText;
+    if (action === 'issue-done') return true;
+    if (action === 'shizheng-choice') return true;
+    if (action === 'shizheng-convene' || action === 'shizheng-secret') return true;
+    return false;
   }
 
   function recordUiActionSignal(action, data, extraText){
@@ -169,7 +198,7 @@
         text: text,
         evidence: [data.buttonText, extraText].filter(Boolean)
       };
-      emitPlayerActionSignal(payload);
+      emitPlayerActionSignal(payload, { calibrate: shouldCalibrateUiAction(action, data, extraText) });
     } catch (_) {}
   }
 
@@ -266,7 +295,7 @@
     if (kind === 'memorial') return renderMemorialModule();
     if (kind === 'letter') return renderLetterModule();
     if (kind === 'records') return renderRecordsModule();
-    if (kind === 'renwu') return renderRenwuModule();
+    if (kind === 'renwu') return (window.renderRenwuModule || renderRenwuModule)();
     if (kind === 'shizheng') return renderShizhengModule();
     if (kind === 'wendui') return renderWenduiModule();
     if (kind === 'chaoyi') return renderChaoyiModule(options || {});
@@ -822,6 +851,55 @@
     '</button>';
   }
 
+  function renwuYield(fn){
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(fn, { timeout: 80 });
+      return;
+    }
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(fn);
+      return;
+    }
+    setTimeout(fn, 16);
+  }
+
+  function appendRenwuCardsChunked(root, people, selectedKey){
+    var list = renwuRosterList(root);
+    if (!list) return false;
+    people = Array.isArray(people) ? people : [];
+    var token = ++_renwuRenderBatchToken;
+    var idx = 0;
+    function build(limit){
+      var html = '';
+      var end = Math.min(people.length, idx + limit);
+      while (idx < end) {
+        html += tmfRenwuCard(people[idx], selectedKey);
+        idx++;
+      }
+      return html;
+    }
+    list.innerHTML = people.length ? build(RENWU_INITIAL_RENDER_LIMIT) : '<p class="renwu-prose">暂无人物数据。</p>';
+    function pump(){
+      if (token !== _renwuRenderBatchToken) return;
+      var html = build(RENWU_RENDER_BATCH_SIZE);
+      if (html) {
+        list.insertAdjacentHTML('beforeend', html);
+        filterRenwuOverlay(root, { preserveScroll: true });
+      }
+      if (idx < people.length) renwuYield(pump);
+    }
+    if (idx < people.length) renwuYield(pump);
+    return true;
+  }
+
+  function scheduleRenwuFilter(root, delay){
+    if (_renwuFilterTimer) clearTimeout(_renwuFilterTimer);
+    _renwuFilterTimer = setTimeout(function(){
+      _renwuFilterTimer = 0;
+      filterRenwuOverlay(root);
+    }, delay == null ? 120 : delay);
+  }
+
   function tmfRenwuIsPlayer(p){
     var key = personKey(p || {});
     var name = String((p && p.name) || '');
@@ -1149,8 +1227,9 @@
     return true;
   }
 
-  function filterRenwuOverlay(root){
+  function filterRenwuOverlay(root, options){
     root = root || document;
+    options = options || {};
     var filters = renwuFilterState();
     var oldQ = filters.q;
     var oldGroup = filters.group;
@@ -1185,7 +1264,7 @@
     });
     var count = root.querySelector('#renwu-visible-count');
     if (count) count.textContent = shown;
-    if (changed) {
+    if (changed && !options.preserveScroll) {
       var list = renwuRosterList(root);
       if (list) list.scrollTop = 0;
       state.renwuRosterScroll = 0;
@@ -1225,7 +1304,7 @@
             '</div>' +
             '<div class="renwu-legend"><span>当前显示 <b id="renwu-visible-count">' + people.length + '</b> 人</span><span>点击人物切换档案</span></div>' +
           '</div>' +
-          '<div class="renwu-roster-list">' + (people.length ? people.map(function(p){ return tmfRenwuCard(p, selectedKey); }).join('') : '<p class="renwu-prose">暂无人物数据。</p>') + '</div>' +
+          '<div class="renwu-roster-list" data-renwu-roster-chunked="1">' + (people.length ? '<p class="renwu-prose">人物索引载入中...</p>' : '<p class="renwu-prose">暂无人物数据。</p>') + '</div>' +
         '</aside>' +
         '<main class="renwu-main">' +
           tmfRenwuProfileHead(selected, selectedKey) +
@@ -1368,9 +1447,11 @@
   bridge.modules.openModule = openModule;
   bridge.modules.closeModule = closeModule;
   bridge.modules.rerenderModule = rerenderModule;
+  bridge.modules.renderRenwuModule = renderRenwuModule;
   bridge.modules.handleModuleAction = handleModuleAction;
   bridge.modules.moduleShell = moduleShell;
   bridge.modules.tmfRenwuPortrait = tmfRenwuPortrait;
+  window.renderRenwuModule = renderRenwuModule;
 
   // ── re-attach bridge exposes that previously came from bridge.js ──
   bridge.openModule = openModule;

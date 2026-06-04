@@ -40,8 +40,47 @@ function makeStubs() {
     key: (i) => [...storage.keys()][i] || null
   };
 
-  function makeNode(tag) {
+  function makeCanvasContext(canvas) {
+    const gradient = { addColorStop() {} };
     return {
+      canvas,
+      fillStyle: '#000000',
+      strokeStyle: '#000000',
+      lineWidth: 1,
+      font: '10px sans-serif',
+      textAlign: 'start',
+      textBaseline: 'alphabetic',
+      globalAlpha: 1,
+      save() {},
+      restore() {},
+      translate() {},
+      scale() {},
+      rotate() {},
+      beginPath() {},
+      closePath() {},
+      moveTo() {},
+      lineTo() {},
+      rect() {},
+      arc() {},
+      fill() {},
+      stroke() {},
+      fillRect() {},
+      strokeRect() {},
+      clearRect() {},
+      fillText() {},
+      strokeText() {},
+      drawImage() {},
+      setLineDash() {},
+      getLineDash() { return []; },
+      measureText(text) { return { width: String(text || '').length * 6 }; },
+      createPattern() { return {}; },
+      createLinearGradient() { return gradient; },
+      createRadialGradient() { return gradient; }
+    };
+  }
+
+  function makeNode(tag) {
+    const node = {
       tagName: (tag || '').toUpperCase(),
       nodeType: 1,
       children: [],
@@ -80,6 +119,17 @@ function makeStubs() {
       options: [],
       selectedIndex: -1
     };
+    if (String(tag || '').toLowerCase() === 'canvas') {
+      node.width = 300;
+      node.height = 150;
+      node.getContext = function(type) {
+        if (type && type !== '2d') return null;
+        if (!this._context2d) this._context2d = makeCanvasContext(this);
+        return this._context2d;
+      };
+      node.toDataURL = function() { return 'data:image/png;base64,'; };
+    }
+    return node;
   }
 
   const doc = makeNode('document');
@@ -96,9 +146,17 @@ function makeStubs() {
   // 调用 enableStrictDom() 可恢复 null 行为。
   const _sinkNode = makeNode('sink');
   _sinkNode.__sink = true;
+  const _idNodes = new Map();
   // 让 style/dataset/classList 等属性 chain 读都能返回东西
   doc._strictMode = false;
-  doc.getElementById = (id) => doc._strictMode ? null : _sinkNode;
+  doc.getElementById = (id) => {
+    if (doc._strictMode) return null;
+    if (/canvas/i.test(String(id || ''))) {
+      if (!_idNodes.has(id)) _idNodes.set(id, makeNode('canvas'));
+      return _idNodes.get(id);
+    }
+    return _sinkNode;
+  };
   doc.querySelector = () => doc._strictMode ? null : _sinkNode;
   doc.querySelectorAll = () => [];
   doc.getElementsByTagName = () => [];
@@ -214,13 +272,23 @@ function makeStubs() {
 function parseIndexHtmlScripts() {
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const scripts = [];
-  const re = /<script\s+src="([^"?]+)(?:\?[^"]*)?"(?:\s+defer)?\s*><\/script>/g;
+  const re = /<script\b([^>]*)>([\s\S]*?)<\/script>/g;
   let m;
   while ((m = re.exec(html))) {
-    const src = m[1];
-    // 跳过 CDN/http URL，headless 只跑本地脚本
-    if (/^https?:\/\//.test(src)) continue;
-    scripts.push(src);
+    const attrs = m[1] || '';
+    const body = m[2] || '';
+    const srcMatch = /\bsrc="([^"?]+)(?:\?[^"]*)?"/.exec(attrs);
+    if (srcMatch) {
+      const src = srcMatch[1];
+      if (!/^https?:\/\//.test(src)) scripts.push(src);
+      continue;
+    }
+    const dynamicSrcRe = /\bsrc\s*=\s*['"]([^'"]+\.js)(?:\?[^'"]*)?['"]/g;
+    let dm;
+    while ((dm = dynamicSrcRe.exec(body))) {
+      const src = dm[1];
+      if (!/^https?:\/\//.test(src)) scripts.push(src);
+    }
   }
   return scripts;
 }

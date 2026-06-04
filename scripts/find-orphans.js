@@ -6,17 +6,22 @@
 const fs = require('fs');
 const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
-const SKIP_DIRS = new Set(['.bak-r103', '.bak-r106', '.git', 'node_modules', 'scripts', 'docs', 'vendor', '_archive', 'backups', 'godot']);
+const SKIP_DIRS = new Set(['.bak-r103', '.bak-r106', '.git', 'node_modules', 'scripts', 'docs', 'vendor', '_archive', 'backups', 'godot', '.playwright-cli', '_screenshots', 'dev-tools']);
 const SKIP_PATTERNS = [/\.backup/, /\.bak(-r\d+)?/, /_rebuilt/];
-function shouldSkip(n) { return SKIP_PATTERNS.some(re => re.test(n)); }
+function shouldSkip(file, name) {
+  if (SKIP_PATTERNS.some(re => re.test(name))) return true;
+  const rel = path.relative(ROOT, file).replace(/\\/g, '/');
+  return /^preview\/_.*\.js$/i.test(rel);
+}
 
 function* walk(dir, ext) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     if (e.isDirectory()) {
       if (SKIP_DIRS.has(e.name)) continue;
       yield* walk(path.join(dir, e.name), ext);
-    } else if (e.isFile() && ext.test(e.name) && !shouldSkip(e.name)) {
-      yield path.join(dir, e.name);
+    } else if (e.isFile() && ext.test(e.name)) {
+      const file = path.join(dir, e.name);
+      if (!shouldSkip(file, e.name)) yield file;
     }
   }
 }
