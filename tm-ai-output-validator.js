@@ -62,6 +62,8 @@
     npc_letters: 'array', npc_correspondence: 'array', cultural_works: 'array',
     directive_compliance: 'array',
     fiscal_adjustments: 'array', region_updates: 'array', project_updates: 'array',
+    currency_adjustments: 'array', population_adjustments: 'array',
+    central_local_actions: 'array', environment_actions: 'array', institution_changes: 'array',
     edict_feedback: 'array', edict_lifecycle_update: 'array',
     route_disruptions: 'array', foreshadowing: 'array', map_changes: 'object',
     faction_interactions_advanced: 'array', npc_schemes: 'array',

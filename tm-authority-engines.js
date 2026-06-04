@@ -521,14 +521,16 @@
       return { ok: false, blocked: true, reason: 'missing-reason' };
     }
     // P-ZV7 ③按源封顶：按该源已累计 sources/drains 余量先削这笔 delta（削后 index 与账本同口径·同皇威/民心套路）。
-    if (amount > 0) {
-      var _hqCeil = (HUANGQUAN_SOURCE_CAP[source] !== undefined) ? HUANGQUAN_SOURCE_CAP[source] : HUANGQUAN_SOURCE_CAP._default;
-      amount = Math.max(0, Math.min(amount, _hqCeil - (Number(hq.sources[source]) || 0)));
-    } else {
-      var _hqFloor = (HUANGQUAN_DRAIN_CAP[source] !== undefined) ? HUANGQUAN_DRAIN_CAP[source] : HUANGQUAN_DRAIN_CAP._default;
-      amount = -Math.max(0, Math.min(-amount, _hqFloor - (Number(hq.drains[source]) || 0)));
+    if (!(opts && opts.skipSourceCap)) {
+      if (amount > 0) {
+        var _hqCeil = (HUANGQUAN_SOURCE_CAP[source] !== undefined) ? HUANGQUAN_SOURCE_CAP[source] : HUANGQUAN_SOURCE_CAP._default;
+        amount = Math.max(0, Math.min(amount, _hqCeil - (Number(hq.sources[source]) || 0)));
+      } else {
+        var _hqFloor = (HUANGQUAN_DRAIN_CAP[source] !== undefined) ? HUANGQUAN_DRAIN_CAP[source] : HUANGQUAN_DRAIN_CAP._default;
+        amount = -Math.max(0, Math.min(-amount, _hqFloor - (Number(hq.drains[source]) || 0)));
+      }
+      if (amount === 0) return { ok: false, reason: 'source-capped', source: source };
     }
-    if (amount === 0) return { ok: false, reason: 'source-capped', source: source };
     var oldValue = typeof hq.index === 'number' && isFinite(hq.index) ? hq.index : 55;
     hq.index = Math.max(0, Math.min(100, oldValue + amount));
     var applied = hq.index - oldValue;
@@ -551,7 +553,10 @@
     if (!isFinite(target)) return { ok: false, reason: 'invalid-value' };
     target = Math.max(0, Math.min(100, target));
     var oldValue = typeof hq.index === 'number' && isFinite(hq.index) ? hq.index : 55;
-    return adjustHuangquan((opts && opts.source) || 'set', target - oldValue, reason, opts);
+    var setOpts = {};
+    Object.keys(opts || {}).forEach(function(k){ setOpts[k] = opts[k]; });
+    setOpts.skipSourceCap = true;
+    return adjustHuangquan((opts && opts.source) || 'set', target - oldValue, reason, setOpts);
   }
 
   function _tickHuangquan(ctx, mr) {

@@ -144,7 +144,8 @@ function load(file) {
   assert(/function moduleActionData\(btn\)/.test(moduleSource), 'formal module handler should preserve clicked button context');
   assert(/function rightActionData\(btn\)/.test(rightSource), 'right rail handler should preserve clicked button context');
   assert(/data\.buttonText/.test(moduleSource) && /data\.buttonText/.test(rightSource), 'UI action signals should include visible button text');
-  const moduleEmit = moduleSource.indexOf('function emitPlayerActionSignal(payload)');
+  const moduleEmitMatch = /function emitPlayerActionSignal\(payload(?:,\s*options)?\)/.exec(moduleSource);
+  const moduleEmit = moduleEmitMatch ? moduleEmitMatch.index : -1;
   const moduleRecord = moduleSource.indexOf('TM.PlayerActionSignals.record(GM, payload)', moduleEmit);
   const moduleNotify = moduleSource.indexOf('skipSignalRecord: recorded', moduleEmit);
   assert(moduleEmit >= 0 && moduleRecord > moduleEmit && moduleNotify > moduleRecord, 'formal module should record structured evidence before scheduling LLM without duplication');

@@ -67,7 +67,11 @@ const context = {
   renderGuokuPanel() {},
   renderNeitangPanel() {},
   renderRenwu() {},
-  addEB() {}
+  addEB() {},
+  setTimeout,
+  clearTimeout,
+  requestIdleCallback(fn) { return setTimeout(fn, 0); },
+  cancelIdleCallback(id) { clearTimeout(id); }
 };
 context.window = context;
 vm.createContext(context);

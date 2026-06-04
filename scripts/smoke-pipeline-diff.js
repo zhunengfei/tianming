@@ -27,6 +27,7 @@ function fakeEl() {
     innerHTML: '', textContent: '', value: '',
     appendChild(c){ this.children.push(c); return c; },
     removeChild(c){ return c; },
+    insertAdjacentHTML(pos, html){ this.innerHTML += String(html || ''); },
     remove(){},
     setAttribute(){}, getAttribute(){ return null; }, removeAttribute(){},
     addEventListener(){}, removeEventListener(){},

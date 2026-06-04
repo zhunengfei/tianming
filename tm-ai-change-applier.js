@@ -598,6 +598,251 @@
     return { ok: true };
   }
 
+  function _aiPolicyText(v) {
+    return String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
+  }
+
+  function _aiPolicyAmount(v, fallback) {
+    var n = Number(v);
+    return Number.isFinite(n) ? Math.max(0, Math.round(n)) : (fallback || 0);
+  }
+
+  function _aiPolicyRegion(item) {
+    item = item || {};
+    return _aiPolicyText(item.regionName || item.region || item.target || item.regionId || item.province || '天下');
+  }
+
+  function _aiPolicyRatioLabel(value, fallback) {
+    var n = Number(value);
+    if (!Number.isFinite(n)) n = fallback;
+    if (!Number.isFinite(n)) n = 0.3;
+    if (n <= 1) n = n * 10;
+    n = Math.max(0, Math.min(10, Math.round(n)));
+    return ['零','一','二','三','四','五','六','七','八','九','十'][n] || String(n);
+  }
+
+  function _aiStructuredPolicyText(field, item) {
+    item = item || {};
+    var explicit = _aiPolicyText(item.text || item.edictText || item.draftText || item.content || item.body);
+    if (explicit) return explicit;
+    var action = _aiPolicyText(item.action || item.type || item.kind || item.policyId).toLowerCase();
+    var region = _aiPolicyRegion(item);
+    var amount = _aiPolicyAmount(item.amount || item.money || item.silver, 0);
+
+    if (field === 'currency_adjustments') {
+      if (/ban|private|mint|私铸|私钱|禁/.test(action)) return '诏令：严禁民间私铸，整饬钱法，搜检私钱作坊。';
+      if (/issue|paper|发行|发钞|发/.test(action)) return '诏令：发行' + (item.paperName || item.name || '纸币') + (amount || 1000000) + '贯，准备金' + _aiPolicyRatioLabel(item.reserveRatio, 0.3) + '成。';
+      if (/abolish|retire|废|罢|停/.test(action)) return '诏令：废止' + (item.paperName || item.name || '宝钞') + '，收回旧钞。';
+      if (/debase|贬|减铸|轻钱/.test(action)) return '诏令：减铸' + (item.coinName || item.coinType || '铜钱') + _aiPolicyRatioLabel(item.level, 0.1) + '成，以纾军用。';
+      return '';
+    }
+
+    if (field === 'population_adjustments') {
+      if (/hidden|purge|清查|隐户|漏籍/.test(action)) return '诏令：清查隐户，重编入黄籍。';
+      if (/resettle|refugee|fugitive|招抚|逃户|流民/.test(action)) return '诏令：招抚逃户流民，令复业入籍。';
+      if (/baojia|保甲|里甲/.test(action)) return '诏令：全国编设保甲，十户一牌。';
+      if (/recount|register|huangce|黄册|重造|编审/.test(action)) return '诏令：重造黄册，清厘天下户籍。';
+      return '';
+    }
+
+    if (field === 'central_local_actions') {
+      if (/transfer|grant|下拨|拨银|发帑|赈/.test(action)) return '诏令：下拨' + region + '银' + (amount || 50000) + '两赈济水灾。';
+      if (/force|levy|强征|追征|催征/.test(action)) return '诏令：强征' + region + '地方留存' + (amount || 30000) + '两，以充军饷。';
+      if (/censor|audit|监察|巡按|巡察/.test(action)) return '诏令：派监察御史巡按' + region + '，核其钱粮。';
+      if (/allocation|share|分成|起运|存留|留成/.test(action)) return '诏令：调整' + region + '分成，起运' + _aiPolicyRatioLabel(item.qiyunRatio != null ? item.qiyunRatio : item.centralShare, 0.7) + '成，存留' + _aiPolicyRatioLabel(item.cunliuRatio != null ? item.cunliuRatio : item.retainedShare, 0.3) + '成。';
+      return '';
+    }
+
+    if (field === 'environment_actions') {
+      if (/ban|logging|jin_hu|禁伐|禁樵/.test(action)) return '诏令：禁伐' + region + '山林，严禁樵采。';
+      if (/dredge|water|shui|疏浚|水利|治水/.test(action)) return '诏令：疏浚' + region + '河道，兴修水利。';
+      if (/reclaim|relief|tun|复耕|屯田|赈灾/.test(action)) return '诏令：赈灾复耕，屯田养地。';
+      if (/fallow|rest|休耕|限垦|养地/.test(action)) return '诏令：限垦休耕，以养地力。';
+      if (/open|waste|开荒|垦荒|垦殖/.test(action)) return '诏令：开荒' + region + '荒田，以增农亩。';
+      return '';
+    }
+
+    if (field === 'institution_changes') {
+      if (/abolish|remove|retire|废|罢|裁|撤|裁撤|废止/.test(action)) {
+        var oldName = _aiPolicyText(item.officeName || item.name || item.institutionName || item.id || '旧司');
+        return '诏令：裁撤' + oldName + '机构，归并职掌，罢其冗员。';
+      }
+      if (/create|add|register|office|设|立|置|创|新/.test(action)) {
+        var name = _aiPolicyText(item.officeName || item.name || item.institutionName || '新司');
+        return '诏令：设' + name + '，品级' + (item.rank || 5) + '，掌' + (item.duties || item.description || '专理新政') + '。';
+      }
+      return '';
+    }
+    return '';
+  }
+
+  function _aiStructuredPolicyParams(field, item) {
+    item = item || {};
+    var params = {};
+    if (item.regionId) params.regionId = item.regionId;
+    if (item.amount != null || item.money != null || item.silver != null) params.amount = _aiPolicyAmount(item.amount || item.money || item.silver, 0);
+    if (field === 'currency_adjustments') {
+      if (item.paperId) params.paperId = item.paperId;
+      if (item.paperName || item.name) params.paperName = item.paperName || item.name;
+      if (item.reserveRatio != null) params.reserveRatio = Number(item.reserveRatio);
+      if (item.coinType) params.coinType = item.coinType;
+      if (item.level != null) params.level = Number(item.level);
+    } else if (field === 'central_local_actions') {
+      if (item.qiyunRatio != null || item.centralShare != null) params.qiyunRatio = Number(item.qiyunRatio != null ? item.qiyunRatio : item.centralShare);
+      if (item.cunliuRatio != null || item.retainedShare != null) params.cunliuRatio = Number(item.cunliuRatio != null ? item.cunliuRatio : item.retainedShare);
+      if (item.purpose) params.purpose = item.purpose;
+      if (item.cost != null) params.cost = _aiPolicyAmount(item.cost, 0);
+    } else if (field === 'environment_actions') {
+      if (item.policyId) params.policyId = item.policyId;
+    } else if (field === 'institution_changes') {
+      params.officeName = item.officeName || item.name || item.institutionName || '新司';
+      params.rank = item.rank || 5;
+      params.duties = item.duties || item.description || '';
+      if (item.region) params.region = item.region;
+      if (item.staffSize != null) params.staffSize = _aiPolicyAmount(item.staffSize, 20);
+      if (item.annualBudget != null) params.annualBudget = _aiPolicyAmount(item.annualBudget, 50000);
+      if (item.fundingSource) params.fundingSource = item.fundingSource;
+    }
+    return params;
+  }
+
+  function _aiStructuredPolicyExpectedType(field) {
+    return {
+      currency_adjustments: 'currency_reform',
+      population_adjustments: 'huji_reform',
+      central_local_actions: 'central_local_finance',
+      environment_actions: 'environment_policy',
+      institution_changes: 'office_reform'
+    }[field] || '';
+  }
+
+  function _aiInstitutionLifecycleAction(item) {
+    var action = _aiPolicyText(item && (item.action || item.type || item.kind || '')).toLowerCase();
+    if (/abolish|remove|retire|废|罢|裁|撤|裁撤|废止/.test(action)) return 'abolish';
+    if (/create|add|register|office|设|立|置|创|新/.test(action)) return 'create';
+    return '';
+  }
+
+  function _findAIInstitutionLifecycleTarget(item) {
+    var G = global.GM || {};
+    var list = Array.isArray(G.dynamicInstitutions) ? G.dynamicInstitutions : [];
+    var id = _aiPolicyText(item && (item.id || item.instId || item.institutionId || item.officeId || ''));
+    var name = _aiPolicyText(item && (item.officeName || item.name || item.institutionName || ''));
+    if (id) {
+      var byId = list.find(function(x) { return x && String(x.id || '') === id; });
+      if (byId) return byId;
+    }
+    if (name) {
+      return list.find(function(x) {
+        return x && (String(x.name || '') === name || String(x.name || '').indexOf(name) >= 0 || name.indexOf(String(x.name || '')) >= 0);
+      }) || null;
+    }
+    return null;
+  }
+
+  function _applyAIInstitutionLifecycleChange(item, params) {
+    var G = global.GM;
+    var parser = global.EdictParser;
+    if (!G || !parser) return null;
+    var action = _aiInstitutionLifecycleAction(item);
+    if (!action) return null;
+    if (!G.dynamicInstitutions) G.dynamicInstitutions = [];
+    if (!Array.isArray(G.dynamicInstitutions)) {
+      return { ok: false, action: action, reason: 'dynamicInstitutions is not array' };
+    }
+    if (action === 'create') {
+      if (typeof parser.registerDynamicInstitution !== 'function') return null;
+      var spec = {
+        name: params.officeName || item.name || item.institutionName || '新司',
+        rank: params.rank || 5,
+        duties: params.duties || item.description || '',
+        region: params.region || item.region || 'central',
+        staffSize: params.staffSize || item.staffSize || 20,
+        annualBudget: params.annualBudget || item.annualBudget || 50000,
+        fundingSource: params.fundingSource || item.fundingSource || 'guoku.central',
+        headOfficial: item.headOfficial || item.head || null,
+        createdBy: 'ai-structured-policy'
+      };
+      var created = parser.registerDynamicInstitution(spec);
+      return created ? { ok: true, action: 'create', instId: created.id, name: created.name, result: created } : { ok: false, action: 'create', reason: 'registerDynamicInstitution failed' };
+    }
+    if (action === 'abolish') {
+      if (typeof parser.abolishInstitution !== 'function') return null;
+      var target = _findAIInstitutionLifecycleTarget(item);
+      if (!target) return { ok: false, action: 'abolish', reason: 'institution not found' };
+      var abolished = parser.abolishInstitution(target.id);
+      if (abolished && item.reason) abolished.abolishReason = item.reason;
+      return abolished ? { ok: true, action: 'abolish', instId: target.id, name: target.name, result: abolished } : { ok: false, action: 'abolish', instId: target.id, reason: 'abolishInstitution failed' };
+    }
+    return null;
+  }
+
+  function _applyAIStructuredPolicyActions(aiOutput, applied) {
+    var G = global.GM;
+    var parser = global.EdictParser;
+    if (!G || !parser || typeof parser.tryExecute !== 'function') return 0;
+    var fields = ['currency_adjustments', 'population_adjustments', 'central_local_actions', 'environment_actions', 'institution_changes'];
+    var count = 0;
+    if (!Array.isArray(G._aiStructuredPolicyActions)) G._aiStructuredPolicyActions = [];
+    fields.forEach(function(field) {
+      var list = Array.isArray(aiOutput[field]) ? aiOutput[field] : [];
+      list.forEach(function(item) {
+        if (!item) return;
+        var text = _aiStructuredPolicyText(field, item);
+        if (!text) {
+          applied.failed.push({ field: field, item: item, reason: 'no structured policy text' });
+          return;
+        }
+        var params = _aiStructuredPolicyParams(field, item);
+        var meta = {
+          source: 'ai-structured-policy',
+          field: field,
+          expectedType: _aiStructuredPolicyExpectedType(field),
+          raw: item
+        };
+        var lifecycle = null;
+        var lifecycleAttempted = false;
+        if (field === 'institution_changes') {
+          lifecycleAttempted = !!(parser && (typeof parser.registerDynamicInstitution === 'function' || typeof parser.abolishInstitution === 'function'));
+        }
+        var edictResult = null;
+        var result = null;
+        var ok = false;
+        var action = field === 'institution_changes' ? _aiInstitutionLifecycleAction(item) : '';
+        if (!(field === 'institution_changes' && action === 'abolish')) {
+          try {
+            edictResult = parser.tryExecute(text, params, meta);
+            ok = !!(edictResult && edictResult.ok !== false);
+          } catch (e) {
+            ok = false;
+            edictResult = { ok: false, reason: e && e.message || String(e) };
+          }
+        }
+        if (field === 'institution_changes') {
+          lifecycle = _applyAIInstitutionLifecycleChange(item, params);
+          if (lifecycleAttempted) ok = !!(lifecycle && lifecycle.ok);
+        }
+        result = { ok: ok, edict: edictResult, lifecycle: lifecycle };
+        G._aiStructuredPolicyActions.push({
+          turn: G.turn || 0,
+          field: field,
+          text: text,
+          ok: ok,
+          result: result,
+          lifecycle: lifecycle ? { action: lifecycle.action, instId: lifecycle.instId || '', name: lifecycle.name || '', ok: !!lifecycle.ok, reason: lifecycle.reason || '' } : null
+        });
+        if (ok) {
+          count++;
+          G._turnReport.push({ type: 'aiPolicyAction', field: field, text: text, turn: G.turn || 0 });
+        } else {
+          applied.failed.push({ field: field, text: text, reason: result && (result.reason || result.pathway) || 'execute failed' });
+        }
+      });
+    });
+    if (G._aiStructuredPolicyActions.length > 100) G._aiStructuredPolicyActions.splice(0, G._aiStructuredPolicyActions.length - 100);
+    return count;
+  }
+
   // ═══════════════════════════════════════════════════════════════════
   //  主应用函数：applyAITurnChanges
   // ═══════════════════════════════════════════════════════════════════
@@ -803,6 +1048,8 @@
     });
 
     if (!applied.semantic) applied.semantic = {};
+    var aiPolicyActionCount = _applyAIStructuredPolicyActions(aiOutput, applied);
+    if (aiPolicyActionCount > 0) applied.semantic.ai_policy_actions = aiPolicyActionCount;
 
     // 7.5. 军事变化：诏令/奏疏/问对/朝会 AI 常返回 military_changes 或 army_changes。
     // 旧逻辑只展示这些字段，不会在 GM.armies 缺项时创建新军，导致军队 UI 看不到新部队。

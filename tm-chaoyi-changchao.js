@@ -3542,6 +3542,64 @@ function _cc3_writeJishiRecord(action, item, extra, label, pTxt) {
   if (GM.jishiRecords.length > 400) GM.jishiRecords = GM.jishiRecords.slice(-400);
 }
 
+function _cc3_courtPolicyText(action, item, extra) {
+  item = item || {};
+  if (action === 'modify') return String(extra || '改批方案').trim();
+  if (action === 'decree') {
+    if (extra && typeof extra === 'object') return String(extra.text || '').trim();
+    return String(extra || '亲诏').trim();
+  }
+  return (String(item.title || '常朝裁决') + '：' + String(item.detail || item.content || '')).trim();
+}
+
+function _cc3_applyCourtPolicyBridge(tracker, action, item, extra, label) {
+  if (typeof GM === 'undefined' || !GM || !tracker) return null;
+  if (['approve', 'modify', 'decree'].indexOf(action) < 0) return null;
+  if (tracker._policyApplyAttempted) return tracker._policyExecution || null;
+  var text = _cc3_courtPolicyText(action, item, extra);
+  if (!text) return null;
+  tracker._policyApplyAttempted = true;
+  var parser = (typeof EdictParser !== 'undefined') ? EdictParser : null;
+  var result = null;
+  if (parser && typeof parser.tryExecute === 'function') {
+    try {
+      result = parser.tryExecute(text, {}, {
+        source: 'changchao',
+        channel: 'court',
+        action: action,
+        label: label || '',
+        trackerId: tracker.id || '',
+        topic: item && (item.title || item.subject) || '',
+        dept: item && item.dept || '',
+        presenter: item && item.presenter || '',
+        decreeMark: tracker.decreeMark || null
+      });
+    } catch(e) {
+      result = { ok: false, reason: e && e.message || 'changchao_policy_error' };
+    }
+  } else {
+    result = { ok: false, reason: 'edict_parser_unavailable' };
+  }
+  tracker._policyExecution = result;
+  tracker._policyApplied = !!(result && result.ok);
+  if (tracker._policyApplied) {
+    tracker.status = 'executed';
+    tracker.feedback = '常朝裁决已识别为政务并落账';
+    tracker.progressPercent = 100;
+  }
+  if (!GM._chaoyiPolicyActions) GM._chaoyiPolicyActions = [];
+  GM._chaoyiPolicyActions.push({
+    turn: GM.turn || 0,
+    trackerId: tracker.id || '',
+    action: action,
+    ok: tracker._policyApplied,
+    pathway: result && result.pathway || '',
+    typeKey: result && result.classification && result.classification.typeKey || ''
+  });
+  if (GM._chaoyiPolicyActions.length > 80) GM._chaoyiPolicyActions.splice(0, GM._chaoyiPolicyActions.length - 80);
+  return result;
+}
+
 // ─── P0·将朝议动作写入 GM 状态（C3-C8）───
 function _cc3_writeActionToGM(action, item, extra, label) {
   if (typeof GM === 'undefined') return;
@@ -3554,10 +3612,8 @@ function _cc3_writeActionToGM(action, item, extra, label) {
   // C5 准奏 → 进诏令追踪表
   if (action === 'approve' || action === 'modify' || action === 'decree') {
     if (!GM._edictTracker) GM._edictTracker = [];
-    const decreeText = (action === 'modify') ? (extra || '改批方案') :
-                       (action === 'decree') ? (extra && extra.text || '亲诏') :
-                       (item.title + '：' + (item.detail || item.content || '').slice(0, 50));
-    GM._edictTracker.push({
+    const decreeText = _cc3_courtPolicyText(action, item, extra);
+    const tracker = {
       id: 'cc3_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
       content: decreeText,
       category: item.dept || '常朝',
@@ -3565,7 +3621,9 @@ function _cc3_writeActionToGM(action, item, extra, label) {
       assignee: item.presenter || '', feedback: '', progressPercent: 0,
       source: action === 'decree' ? 'changchao_decree' : 'changchao',
       decreeMark: action === 'decree' ? (extra && extra.tier) || 'B' : null
-    });
+    };
+    GM._edictTracker.push(tracker);
+    _cc3_applyCourtPolicyBridge(tracker, action, item, extra, label);
     if (typeof addEB === 'function') addEB('常朝', label + '：' + (item.title || ''));
   }
 
