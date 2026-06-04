@@ -23,6 +23,80 @@
 //   §9 [L1600] 角色高亮工具 + 史官弹窗
 // ============================================================
 
+// 世界态变更摘要——把本回合 turnChanges（已满）+ 当下势力虚实压成一小段纯文本，
+// 存 GM._lastTurnDigest，供下回合 tm-endturn-prompt.js 层1 注入给 AI。
+// 朝代中立：只读 name/owner/strength/morale/soldiers 等通用运行时字段，不写死任何朝代专名。
+function buildWorldChangeDigest() {
+  if (typeof GM === 'undefined' || !GM) return '';
+  var tc = GM.turnChanges;
+  var CAP = 5;
+  var sections = [];
+
+  // 1. 疆土易主（map 桶：扁平 {regionName, field, oldValue, newValue, reason}）
+  if (tc && Array.isArray(tc.map) && tc.map.length) {
+    var terr = [];
+    tc.map.forEach(function(m) {
+      if (m && m.field === 'owner') {
+        terr.push('· ' + (m.regionName || m.regionId || '某地') + '：' + (m.oldValue || '无主') + '→' + (m.newValue || '无主') + (m.reason ? '（' + m.reason + '）' : ''));
+      }
+    });
+    if (terr.length) sections.push('疆土易主：\n' + terr.slice(0, CAP).join('\n'));
+  }
+
+  // 2. 兵势骤变（military 桶：{name, changes:[{field:'soldiers', oldValue, newValue}]}）
+  if (tc && Array.isArray(tc.military) && tc.military.length) {
+    var troops = [];
+    tc.military.forEach(function(mc) {
+      if (!mc || !Array.isArray(mc.changes)) return;
+      mc.changes.forEach(function(ch) {
+        if (ch && ch.field === 'soldiers') {
+          var d = (ch.newValue || 0) - (ch.oldValue || 0);
+          if (d !== 0) troops.push({ name: mc.name, d: d });
+        }
+      });
+    });
+    troops.sort(function(a, b) { return Math.abs(b.d) - Math.abs(a.d); });
+    if (troops.length) {
+      sections.push('兵势骤变：\n' + troops.slice(0, CAP).map(function(t) {
+        return '· ' + t.name + ' 兵力' + (t.d > 0 ? '+' : '') + t.d;
+      }).join('\n'));
+    }
+  }
+
+  // 3. 势力消长（factions 桶：{name, changes:[{field:'strength', oldValue, newValue}]}）
+  if (tc && Array.isArray(tc.factions) && tc.factions.length) {
+    var facd = [];
+    tc.factions.forEach(function(fc) {
+      if (!fc || !Array.isArray(fc.changes)) return;
+      fc.changes.forEach(function(ch) {
+        if (ch && ch.field === 'strength') {
+          var d = (ch.newValue || 0) - (ch.oldValue || 0);
+          if (d !== 0) facd.push({ name: fc.name, d: d });
+        }
+      });
+    });
+    facd.sort(function(a, b) { return Math.abs(b.d) - Math.abs(a.d); });
+    if (facd.length) {
+      sections.push('势力消长：\n' + facd.slice(0, CAP).map(function(f) {
+        return '· ' + f.name + ' 实力' + (f.d > 0 ? '+' : '') + f.d;
+      }).join('\n'));
+    }
+  }
+
+  // 4. 当下虚实（运行时 GM.facs：濒崩者点名——供 AI 识别可乘之机；字段对齐 prompt 运行时态块）
+  if (Array.isArray(GM.facs) && GM.facs.length) {
+    var weak = [];
+    GM.facs.forEach(function(f) {
+      if (!f || !f.name) return;
+      if (f._collapsing) weak.push('· ' + f.name + '【濒临崩溃】实力' + (f.strength || 0) + '·民心' + (f.morale || 0));
+    });
+    if (weak.length) sections.push('当下虚实：\n' + weak.slice(0, CAP).join('\n'));
+  }
+
+  if (!sections.length) return '';
+  return '【上一回合天下变动】（据此判断时局与战机）\n' + sections.join('\n');
+}
+
 function _endTurn_render(shizhengji, zhengwen, playerStatus, playerInner, edicts, xinglu, oldVars, changeReportHtml, queueResult, suggestions, tyrantResult, turnSummary, shiluText, szjTitle, szjSummary, personnelChanges, hourenXishuo, recordLineage) {
   // 本地获取结束回合按钮（旧代码曾引用闭包外 btn，导致 ReferenceError）
   var btn = (typeof _$ === 'function' ? (_$("btn-end") || _$("btn-end-turn")) : null);
@@ -373,6 +447,10 @@ function _endTurn_render(shizhengji, zhengwen, playerStatus, playerInner, edicts
     });
     systemChangeHtml += '</div></div>';
   }
+
+  // 世界态变更摘要：此刻 turnChanges 已满（reset→AI→apply 之后），压成纯文本存住，供下回合喂 AI
+  try { GM._lastTurnDigest = buildWorldChangeDigest(); }
+  catch (_wcdE) { GM._lastTurnDigest = ''; if (window.TM && TM.errors) TM.errors.capture(_wcdE, 'endturn.worldChangeDigest'); }
 
   // 综合局势速览——关键指标变化条
   // 4.1: 回合要点摘要

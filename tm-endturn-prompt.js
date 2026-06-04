@@ -293,6 +293,8 @@
 
     // —— 层1: 世界态势（让 AI 先理解当前局势）——
     tp += "\u7B2C"+GM.turn+"\u56DE\u5408\u3002"+getTSText(GM.turn)+"\n\n";
+    // 世界态变更摘要（上回合收尾时由 _endTurn_render 压好）——放层1最前，让 AI 先认出战机/危局
+    if (GM._lastTurnDigest) { tp += GM._lastTurnDigest + "\n\n"; }
     tp += buildAIContext(true); // deepMode=true: 天下大势 + 关键人物 + 核心资源 + 重要关系（完整不截断）
     if(GM.eraState && GM.eraState.contextDescription) {
       tp += "\u65F6\u4EE3:" + GM.eraState.dynastyPhase + " \u7EDF\u4E00:" + Math.round((GM.eraState.politicalUnity||0)*100) + "% \u96C6\u6743:" + Math.round((GM.eraState.centralControl||0)*100) + "% \u7A33\u5B9A:" + Math.round((GM.eraState.socialStability||0)*100) + "% \u7ECF\u6D4E:" + Math.round((GM.eraState.economicProsperity||0)*100) + "%\n";

@@ -92,6 +92,11 @@
               relations: Array.isArray(p1.relations) ? p1.relations : [],
               // 关键补传：AI 返回的财政/人事/势力/党派调整要透传给 applier
               fiscal_adjustments: Array.isArray(p1.fiscal_adjustments) ? p1.fiscal_adjustments : [],
+              currency_adjustments: Array.isArray(p1.currency_adjustments) ? p1.currency_adjustments : [],
+              population_adjustments: Array.isArray(p1.population_adjustments) ? p1.population_adjustments : [],
+              central_local_actions: Array.isArray(p1.central_local_actions) ? p1.central_local_actions : [],
+              environment_actions: Array.isArray(p1.environment_actions) ? p1.environment_actions : [],
+              institution_changes: Array.isArray(p1.institution_changes) ? p1.institution_changes : [],
               char_updates: Array.isArray(p1.char_updates) ? p1.char_updates : [],
               office_assignments: Array.isArray(p1.office_assignments) ? p1.office_assignments : [],
               faction_updates: Array.isArray(p1.faction_updates) ? p1.faction_updates : [],

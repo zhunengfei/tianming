@@ -48,6 +48,7 @@ async function _endTurn_updateSystems(timeRatio, zhengwen) {
     ? _getDaysPerTurn() / 30
     : ((typeof timeRatio === 'number' && isFinite(timeRatio) && timeRatio > 0) ? timeRatio * 12 : 1);
   var pipelineCtx = { timeRatio: timeRatio, turn: GM.turn, monthRatio: monthRatio, _monthRatio: monthRatio };
+  var _currencyFullTicked = false;
   SubTickRunner.run(pipelineCtx);
 
   // 3.5 NPC 行为推演（异步，不在 pipeline 中）
@@ -139,8 +140,10 @@ async function _endTurn_updateSystems(timeRatio, zhengwen) {
 
   // 6.055 货币系统（铸币/纸币生命周期/市场/海外银流/钱荒钱贱）
   try {
-    if (typeof CurrencyEngine !== 'undefined') {
+    if (typeof CurrencyEngine !== 'undefined' && typeof CurrencyEngine.tick === 'function') {
       CurrencyEngine.tick({ turn: GM.turn, monthRatio: monthRatio, _monthRatio: monthRatio });
+      _currencyFullTicked = true;
+      try { GM._lastCurrencyFullTickTurn = GM.turn; } catch(_) {}
     }
   } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] CurrencyEngine.tick 失败:') : console.error('[endTurn] CurrencyEngine.tick 失败:', e); }
 
@@ -251,9 +254,11 @@ async function _endTurn_updateSystems(timeRatio, zhengwen) {
   try { if (typeof PhaseG2 !== 'undefined') PhaseG2.tick({ turn: GM.turn, monthRatio: monthRatio, _monthRatio: monthRatio }); } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] PhaseG2.tick 失败:') : console.error('[endTurn] PhaseG2.tick 失败:', e); }
   try { if (typeof PhaseG3 !== 'undefined') PhaseG3.tick({ turn: GM.turn, monthRatio: monthRatio, _monthRatio: monthRatio }); } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] PhaseG3.tick 失败:') : console.error('[endTurn] PhaseG3.tick 失败:', e); }
   try { if (typeof PhaseG4 !== 'undefined') PhaseG4.tick({ turn: GM.turn, monthRatio: monthRatio, _monthRatio: monthRatio }); } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] PhaseG4.tick 失败:') : console.error('[endTurn] PhaseG4.tick 失败:', e); }
+  if (!_currencyFullTicked) {
   // 6.19 H 阶段·原 PhaseH.tick 拆为 7 项原生调用 (R10 collapse·delete tm-tax-atomic.js·redistribute → CurrencyEngine·FiscalEngine·FeudalCore·EdictComplete)
   try { if (typeof CurrencyEngine !== 'undefined' && typeof CurrencyEngine._updatePaperStateAtomic === 'function') CurrencyEngine._updatePaperStateAtomic(GM, monthRatio); } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] CurrencyEngine._updatePaperStateAtomic 失败:') : console.error('[endTurn] CurrencyEngine._updatePaperStateAtomic 失败:', e); }
   try { if (typeof CurrencyEngine !== 'undefined' && typeof CurrencyEngine._updateGrainPriceAtomic === 'function') CurrencyEngine._updateGrainPriceAtomic(GM, monthRatio); } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] CurrencyEngine._updateGrainPriceAtomic 失败:') : console.error('[endTurn] CurrencyEngine._updateGrainPriceAtomic 失败:', e); }
+  }
   try { if (typeof FiscalEngine !== 'undefined' && typeof FiscalEngine._tickTransferOrders === 'function') FiscalEngine._tickTransferOrders({ turn: GM.turn, monthRatio: monthRatio, _monthRatio: monthRatio }, monthRatio); } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] FiscalEngine._tickTransferOrders 失败:') : console.error('[endTurn] FiscalEngine._tickTransferOrders 失败:', e); }
   try { if (typeof FeudalCore !== 'undefined' && typeof FeudalCore._tickFeudalHoldings === 'function') FeudalCore._tickFeudalHoldings({ turn: GM.turn, monthRatio: monthRatio, _monthRatio: monthRatio }, monthRatio); } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] FeudalCore._tickFeudalHoldings 失败:') : console.error('[endTurn] FeudalCore._tickFeudalHoldings 失败:', e); }
   try { if (typeof EdictComplete !== 'undefined' && typeof EdictComplete._checkProjectCompletion === 'function') EdictComplete._checkProjectCompletion({ turn: GM.turn, monthRatio: monthRatio, _monthRatio: monthRatio }); } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] EdictComplete._checkProjectCompletion 失败:') : console.error('[endTurn] EdictComplete._checkProjectCompletion 失败:', e); }
