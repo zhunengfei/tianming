@@ -2972,14 +2972,11 @@ function openCharRenwuPage(charName) {
       h += '</div>';
     });
     if (_rwpOlderMem.length > 0) {
-      h += '<div class="rwp-mem" style="cursor:pointer;color:var(--gold-300);font-size:11px;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\';">展开全部旧记忆（'+_rwpOlderMem.length+' 条）▸</div>';
-      h += '<div style="display:none;">';
-      _rwpOlderMem.forEach(function(m) {
-        var mc = _rwpMoodCls(m.emotion);
-        h += '<div class="rwp-mem '+mc+'"><span class="rwp-mem-mood '+mc+'">〔'+m.emotion+'〕</span>'+escHtml(m.event);
-        if (m.who) h += '<span class="rwp-mem-who">('+escHtml(m.who)+')</span>';
-        h += '</div>';
-      });
+      var _rwpLazyMemId = 'rwp_mem_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
+      window._rwpLazyTabStore = window._rwpLazyTabStore || {};
+      window._rwpLazyTabStore[_rwpLazyMemId] = _rwpOlderMem;
+      h += '<div class="rwp-mem" style="cursor:pointer;color:var(--gold-300);font-size:11px;" onclick="_rwpLoadLazyTab(\''+_rwpLazyMemId+'\',this.nextElementSibling);this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\';">展开全部旧记忆（'+_rwpOlderMem.length+' 条）▸</div>';
+      h += '<div data-rwp-lazy-tab="memory" data-rwp-lazy-id="'+_rwpLazyMemId+'" style="display:none;">';
       h += '</div>';
     }
     h += '</div></div>';
@@ -3124,6 +3121,28 @@ function openCharRenwuPage(charName) {
 
   panel.innerHTML = h;
   ov.classList.add('open');
+}
+
+function _rwpLoadLazyTab(id, target) {
+  try {
+    var root = (typeof window !== 'undefined') ? window : {};
+    target = target || (document && document.querySelector ? document.querySelector('[data-rwp-lazy-id="'+id+'"]') : null);
+    if (!target || target.getAttribute('data-rwp-loaded') === '1') return;
+    var store = root._rwpLazyTabStore || {};
+    var list = store[id] || [];
+    var html = '';
+    list.forEach(function(m) {
+      var mc = _rwpMoodCls(m && m.emotion);
+      html += '<div class="rwp-mem '+mc+'"><span class="rwp-mem-mood '+mc+'">〔'+escHtml(m && m.emotion || '')+'〕</span>'+escHtml(m && m.event || '');
+      if (m && m.who) html += '<span class="rwp-mem-who">('+escHtml(m.who)+')</span>';
+      html += '</div>';
+    });
+    target.innerHTML = html || '<div class="rwp-mem">暂无旧记忆</div>';
+    target.setAttribute('data-rwp-loaded','1');
+    if (store[id]) delete store[id];
+  } catch (e) {
+    try { console.warn('[renwu-page] lazy tab render failed', e); } catch (_) {}
+  }
 }
 
 /** 切换 tab */

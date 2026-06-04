@@ -1176,6 +1176,68 @@ function _settleLettersAndTravel() {
   //  统一由 tm-endturn-core.js Phase 4.6 advanceCharTravelByDays 处理)
 }
 
+function _ltUpdateEdictTrackerForLetter(letter, status, result) {
+  if (typeof GM === 'undefined' || !GM || !letter || !Array.isArray(GM._edictTracker)) return;
+  var item = GM._edictTracker.find(function(e) { return e && e.letterId === letter.id; });
+  if (!item) return;
+  item.status = status || item.status;
+  item.deliveredTurn = GM.turn || item.deliveredTurn || 0;
+  if (result) {
+    item.policyResult = {
+      ok: !!result.ok,
+      pathway: result.pathway || '',
+      typeKey: result.classification && result.classification.typeKey || ''
+    };
+  }
+}
+
+function _ltApplyFormalPolicyOnDelivery(letter) {
+  if (typeof GM === 'undefined' || !GM || !letter) return null;
+  if (letter._npcInitiated || letter.letterType !== 'formal_edict') return null;
+  if (letter._policyApplyAttempted) return letter._policyExecution || null;
+  var text = String(letter.content || '').trim();
+  if (!text) return null;
+  letter._policyApplyAttempted = true;
+  var parser = (typeof EdictParser !== 'undefined') ? EdictParser : null;
+  if (!parser || typeof parser.tryExecute !== 'function') {
+    _ltUpdateEdictTrackerForLetter(letter, 'delivered', null);
+    return null;
+  }
+  var result = null;
+  try {
+    result = parser.tryExecute(text, {}, {
+      source: 'hongyan',
+      channel: 'letter',
+      letterId: letter.id,
+      target: letter.to,
+      targetLocation: letter.toLocation,
+      urgency: letter.urgency,
+      letterType: letter.letterType
+    });
+  } catch(e) {
+    result = { ok: false, reason: e && e.message || 'hongyan_policy_error' };
+  }
+  letter._policyExecution = result;
+  if (!GM._hongyanPolicyActions) GM._hongyanPolicyActions = [];
+  GM._hongyanPolicyActions.push({
+    turn: GM.turn || 0,
+    letterId: letter.id,
+    to: letter.to || '',
+    ok: !!(result && result.ok),
+    pathway: result && result.pathway || '',
+    typeKey: result && result.classification && result.classification.typeKey || ''
+  });
+  if (GM._hongyanPolicyActions.length > 60) GM._hongyanPolicyActions.splice(0, GM._hongyanPolicyActions.length - 60);
+  if (result && result.ok) {
+    letter._policyApplied = true;
+    _ltUpdateEdictTrackerForLetter(letter, 'executed', result);
+    if (typeof addEB === 'function') addEB('鸿雁政令', '致' + (letter.to || '远臣') + '的正式诏令已落账');
+  } else {
+    _ltUpdateEdictTrackerForLetter(letter, 'delivered', result);
+  }
+  return result;
+}
+
 /** AI生成回信 */
 /** 判定一封信是否走"安全路径"——双方均不在敌方实控区·驿路未阻·未围城
  *  在安全路径上·截获率应极低（≤5%）·只剩极小的"民间盗匪/沿途劫掠"概率
@@ -1377,6 +1439,7 @@ function _ltDoIntercept(l, hostileFacs) {
 }
 
 function _generateLetterReply(letter) {
+  try { _ltApplyFormalPolicyOnDelivery(letter); } catch(_policyE) {}
   letter.status = 'replying';
   var ch = findCharByName(letter.to);
   if (!ch) { letter.reply = '臣已拜读圣函。'; letter.status = 'returned'; return; }

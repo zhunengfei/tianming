@@ -73,7 +73,7 @@
     var orig = obj[methodName];
     obj[key] = orig;
     var tag = sampleName || methodName;
-    obj[methodName] = function() {
+    var wrapped = function() {
       if (!enabled) return orig.apply(this, arguments);
       var t0 = now();
       try {
@@ -95,7 +95,17 @@
         throw e;
       }
     };
+    try {
+      Object.keys(orig).forEach(function(prop){ wrapped[prop] = orig[prop]; });
+    } catch (_) {}
+    obj[methodName] = wrapped;
     return true;
+  }
+
+  function wrapGlobalFunction(methodName, sampleName) {
+    if (!methodName || typeof window[methodName] !== 'function') return false;
+    if (window['__perfOrig_' + methodName]) return false;
+    return wrap(window, methodName, sampleName || ('ui.' + methodName));
   }
 
   function _record(name, dt) {
@@ -402,6 +412,7 @@
     mark: mark,
     measure: measure,
     wrap: wrap,
+    wrapGlobalFunction: wrapGlobalFunction,
     record: record,
     report: report,
     reportByName: reportByName,
@@ -443,6 +454,9 @@
       if (typeof AuthorityEngines !== 'undefined' && AuthorityEngines.tick && !AuthorityEngines.__perfOrig_tick) {
         wrap(AuthorityEngines, 'tick', 'authority.tick');
       }
+      wrapGlobalFunction('renderGameState', 'ui.renderGameState');
+      wrapGlobalFunction('renderRenwu', 'ui.renderRenwu');
+      wrapGlobalFunction('renderRenwuModule', 'ui.renderRenwuModule');
       // 默认阈值（基于经验值，可通过 TM.perf.setThreshold 覆盖）
       setThreshold('corruption.tick', 500);   // 腐败 tick > 500ms 告警
       setThreshold('guoku.tick', 800);        // 国库 5 层叠加·宽松

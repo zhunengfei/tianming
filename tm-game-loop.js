@@ -1879,8 +1879,7 @@ function _wtConfirmPending() {
     GM._playerDirectives.push(dir);
     GM._wentianHistory.push({ role: 'system', content: sysMsg });
     toast(ok ? '\u6570\u503C\u5DF2\u76F4\u6539' : '\u76F4\u6539\u5931\u8D25');
-    // 刷新顶栏等
-    if (ok && typeof renderLeftPanel === 'function') { try { renderLeftPanel(); } catch(_){} }
+    // UI refresh is coalesced by _wtAfterHardChange.
   } else if (p.category === 'edictSubstitute' && p.edictText) {
     // 填入诏令输入框
     var ch = p.edictChannel || 'pol';
@@ -2122,17 +2121,99 @@ function _wtApplyScalarHardChange(oldVal, op, value) {
   return { ok: true, value: value };
 }
 
+var _wtHardChangeRefreshTimer = 0;
+var _wtHardChangeDirty = null;
+
+function _wtIsTypingNow() {
+  try {
+    var el = document && document.activeElement;
+    if (!el) return false;
+    var tag = String(el.tagName || '').toLowerCase();
+    return tag === 'textarea' || tag === 'input' || el.isContentEditable === true;
+  } catch (_) { return false; }
+}
+
+function _wtIsVisible(id) {
+  try {
+    var el = document.getElementById(id);
+    if (!el) return false;
+    var st = window.getComputedStyle ? window.getComputedStyle(el) : null;
+    return !st || (st.display !== 'none' && st.visibility !== 'hidden');
+  } catch (_) { return false; }
+}
+
+function _wtRunIdle(fn, delay) {
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(fn, { timeout: delay || 700 });
+  } else {
+    setTimeout(fn, delay || 120);
+  }
+}
+
+function _wtHardChangeImpact(path) {
+  var p = String(path || '').replace(/^(GM|gm|P|p)\./, '');
+  var d = { left: true, guoku: false, neitang: false, renwu: false, wendui: false, shizheng: false, full: false };
+  if (/^guoku\./.test(p)) d.guoku = true;
+  else if (/^neitang\./.test(p)) d.neitang = true;
+  else if (/^(chars|allCharacters)\./.test(p)) { d.renwu = true; d.wendui = true; }
+  else if (/^armies\./.test(p)) d.shizheng = true;
+  else if (/^(huangquan|huangwei|minxin|corruption)\./.test(p)) d.shizheng = true;
+  else d.full = true;
+  return d;
+}
+
+function _wtScheduleFullRefreshWhenIdle(retry) {
+  retry = retry || 0;
+  _wtRunIdle(function() {
+    if (_wtIsTypingNow() && retry < 6) {
+      setTimeout(function(){ _wtScheduleFullRefreshWhenIdle(retry + 1); }, 600);
+      return;
+    }
+    try { if (typeof renderGameState === 'function') renderGameState(); } catch(_){}
+  }, 500);
+}
+
+function _wtFlushHardChangeRefresh() {
+  var dirty = _wtHardChangeDirty;
+  _wtHardChangeDirty = null;
+  _wtHardChangeRefreshTimer = 0;
+  if (!dirty) return;
+  try { if (dirty.left && typeof renderLeftPanel === 'function') renderLeftPanel(); } catch(_){}
+  try { if (dirty.guoku && typeof renderGuokuPanel === 'function') renderGuokuPanel(); } catch(_){}
+  try { if (dirty.neitang && typeof renderNeitangPanel === 'function') renderNeitangPanel(); } catch(_){}
+  try { if (dirty.renwu && typeof renderRenwu === 'function') renderRenwu(); } catch(_){}
+  try {
+    if (dirty.wendui && _wtIsVisible('gt-wendui') && typeof renderWenduiPanel === 'function') renderWenduiPanel();
+  } catch(_){}
+  try {
+    if (dirty.shizheng && _wtIsVisible('gt-shizheng') && typeof renderShizhengPanel === 'function') renderShizhengPanel();
+  } catch(_){}
+  try {
+    if (typeof GM !== 'undefined' && GM._listeners && Array.isArray(GM._listeners.varChange)) {
+      (dirty.events || []).forEach(function(ev) {
+        GM._listeners.varChange.forEach(function(fn){ try { fn(ev.path, ev.oldVal, ev.newVal); } catch(_){} });
+      });
+    }
+  } catch(_){}
+  if (dirty.full) _wtScheduleFullRefreshWhenIdle(0);
+}
+
+function _wtScheduleHardChangeRefresh(normalizedPath, oldVal, newVal) {
+  var impact = _wtHardChangeImpact(normalizedPath);
+  if (!_wtHardChangeDirty) {
+    _wtHardChangeDirty = {
+      left: false, guoku: false, neitang: false, renwu: false, wendui: false, shizheng: false, full: false,
+      events: []
+    };
+  }
+  Object.keys(impact).forEach(function(k){ if (impact[k]) _wtHardChangeDirty[k] = true; });
+  _wtHardChangeDirty.events.push({ path: normalizedPath, oldVal: oldVal, newVal: newVal });
+  if (_wtHardChangeRefreshTimer) clearTimeout(_wtHardChangeRefreshTimer);
+  _wtHardChangeRefreshTimer = setTimeout(_wtFlushHardChangeRefresh, _wtIsTypingNow() ? 420 : 160);
+}
+
 function _wtAfterHardChange(normalizedPath, oldVal, newVal) {
-  try { if (typeof renderLeftPanel === 'function') renderLeftPanel(); } catch(_){}
-  try { if (typeof renderGameState === 'function') renderGameState(); } catch(_){}
-  try { if (typeof renderGuokuPanel === 'function') renderGuokuPanel(); } catch(_){}
-  try { if (typeof renderNeitangPanel === 'function') renderNeitangPanel(); } catch(_){}
-  try { if (typeof renderRenwu === 'function') renderRenwu(); } catch(_){}
-  try { if (typeof renderWenduiPanel === 'function') renderWenduiPanel(); } catch(_){}
-  try { if (typeof renderShizhengPanel === 'function') renderShizhengPanel(); } catch(_){}
-  try { if (typeof GM !== 'undefined' && GM._listeners && Array.isArray(GM._listeners.varChange)) {
-    GM._listeners.varChange.forEach(function(fn){ try { fn(normalizedPath, oldVal, newVal); } catch(_){} });
-  } } catch(_){}
+  _wtScheduleHardChangeRefresh(normalizedPath, oldVal, newVal);
   if (typeof addEB === 'function') addEB('\u95EE\u5929', '\u76F4\u6539 ' + normalizedPath + ' \u00B7 ' + oldVal + '\u2192' + newVal);
 }
 

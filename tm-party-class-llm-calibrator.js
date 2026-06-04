@@ -1353,6 +1353,7 @@
 
   function installPlayerActionObserver() {
     if (_observerInstalled) return false;
+    if (!(global.P && global.P.conf && global.P.conf.partyClassLlmObserveUiClicks === true)) return false;
     var doc = global.document;
     if (!doc || typeof doc.addEventListener !== 'function') return false;
     _observerInstalled = true;

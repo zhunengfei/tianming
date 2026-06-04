@@ -215,6 +215,17 @@
         .then(function (res) { return Object.assign({ success: false, packs: [] }, res || {}); });
     }
 
+    // S3 评论：读取 / 发表（发表需登录）。
+    function comments(packId, apiUrl) {
+      return request('GET', 'workshop/comments?packId=' + encodeURIComponent(String(packId || '')), { token: '', apiUrl: apiUrl })
+        .then(function (res) { return Object.assign({ success: false, comments: [], count: 0 }, res || {}); });
+    }
+    function postComment(packId, text, apiUrl) {
+      var session = readSession();
+      return request('POST', 'workshop/comment', { body: { packId: String(packId || ''), text: String(text || '') }, apiUrl: apiUrl || session.apiUrl, token: session.token })
+        .then(function (res) { return Object.assign({ success: false }, res || {}); });
+    }
+
     function login(info, apiUrl) {
       info = info || {};
       var payload = { username: String(info.username || '').trim(), password: String(info.password || '') };
@@ -301,6 +312,27 @@
         .then(function (res) { return Object.assign({ success: false }, res || {}); });
     }
 
+    // P1-S2b：通用资产包上传（立绘/音乐/地图/MOD）。contentBase64 已是 base64（客户端打包二进制 → base64）。
+    function uploadPack(meta, contentBase64, apiUrl) {
+      meta = meta || {};
+      var t = String(meta.type || 'scenario').trim();
+      var tags = Array.isArray(meta.tags) ? meta.tags : String(meta.tags || '').split(/[，,;；\s]+/).filter(Boolean);
+      var payload = {
+        title: String(meta.title || '').trim(),
+        id: String(meta.id || '').trim(),
+        version: String(meta.version || '1.0.0').trim(),
+        description: String(meta.description || '').trim(),
+        type: t,
+        tags: tags.slice(0, 20),
+        assets: Array.isArray(meta.assets) ? meta.assets.slice(0, 500) : [],
+        filename: String(meta.filename || (t === 'scenario' ? 'scenario.json' : 'pack.zip')),
+        contentBase64: String(contentBase64 || '')
+      };
+      var session = readSession();
+      return request('POST', 'workshop/upload', { body: payload, apiUrl: apiUrl || session.apiUrl, token: session.token })
+        .then(function (res) { return Object.assign({ success: false }, res || {}); });
+    }
+
     return {
       DEFAULT_API_URL: DEFAULT_API_URL,
       getApiUrl: getApiUrl,
@@ -322,9 +354,12 @@
       setEmail: setEmail,
       ratePack: ratePack,
       packMeta: packMeta,
+      comments: comments,
+      postComment: postComment,
       authorPacks: authorPacks,
       catalog: catalog,
-      uploadScenario: uploadScenario
+      uploadScenario: uploadScenario,
+      uploadPack: uploadPack
     };
   }
 
