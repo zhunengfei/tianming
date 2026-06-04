@@ -167,6 +167,32 @@ function walk(dir, out) {
 
 // 2026-05-23·主进程实现热更·把 APP_ROOT/main-impl.js 打到 zip 根·命名 _app_main.js
 // installer 里的 main.js shim 会优先 require hot dir 的 _app_main.js·让 main 实现也能 hot ship
+function collectIndexReferencedLocalFiles() {
+  const indexPath = path.join(WEB_ROOT, 'index.html');
+  if (!fs.existsSync(indexPath)) return new Set();
+  const html = fs.readFileSync(indexPath, 'utf-8');
+  const refs = new Set();
+  const scriptRe = /<script\b([^>]*)>([\s\S]*?)<\/script>/g;
+  let match;
+  while ((match = scriptRe.exec(html))) {
+    const attrs = match[1] || '';
+    const body = match[2] || '';
+    const srcMatch = /\bsrc="([^"?]+)(?:\?[^"]*)?"/.exec(attrs);
+    if (srcMatch && !/^https?:\/\//.test(srcMatch[1])) refs.add(srcMatch[1].replace(/\\/g, '/'));
+    const dynamicSrcRe = /\bsrc\s*=\s*['"]([^'"]+\.js)(?:\?[^'"]*)?['"]/g;
+    let dynamicMatch;
+    while ((dynamicMatch = dynamicSrcRe.exec(body))) {
+      if (!/^https?:\/\//.test(dynamicMatch[1])) refs.add(dynamicMatch[1].replace(/\\/g, '/'));
+    }
+  }
+  return refs;
+}
+
+function shouldKeepInDefaultHotPackage(file, indexRefs) {
+  if (!file.path.startsWith('preview/')) return true;
+  return indexRefs && indexRefs.has(file.path);
+}
+
 function walkAppMainImpl() {
   const APP_MAIN_IMPL = path.join(APP_ROOT, 'main-impl.js');
   if (!fs.existsSync(APP_MAIN_IMPL)) return [];
@@ -221,6 +247,7 @@ function main() {
   const packageUrl = arg('package-url', packageName);
   const includePreview = flag('include-preview');
   const explicitFiles = listArg('files');
+  const indexRefs = collectIndexReferencedLocalFiles();
 
   const manifestEntries = new Map();
   if (explicitFiles.length) {
@@ -243,7 +270,7 @@ function main() {
   }
   const filtered = includePreview || explicitFiles.length
     ? Array.from(manifestEntries.values())
-    : Array.from(manifestEntries.values()).filter(file => !file.path.startsWith('preview/'));
+    : Array.from(manifestEntries.values()).filter(file => shouldKeepInDefaultHotPackage(file, indexRefs));
   if (!explicitFiles.length && !filtered.some(file => file.path === 'index.html')) {
     console.error('index.html not found in hot-update file list');
     process.exit(1);
@@ -299,7 +326,7 @@ function main() {
   // mirror the archive's preview filter (line ~242) so the manifest never advertises preview/ files that
   // aren't shipped — otherwise applyHotUpdateBundle's per-file existence check throws '热更新文件不存在'.
   const finalManifestFiles = Array.from(manifestEntries.values())
-    .filter(entry => includePreview || explicitFiles.length || !entry.path.startsWith('preview/'))
+    .filter(entry => includePreview || explicitFiles.length || shouldKeepInDefaultHotPackage(entry, indexRefs))
     .map(entry => ({ path: entry.path, sha256: entry.sha256, size: entry.size, absPath: entry.absPath }))
     .sort((a, b) => a.path.localeCompare(b.path))
     .map(entry => ({ path: entry.path, sha256: entry.sha256, size: entry.size }));

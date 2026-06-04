@@ -22,6 +22,9 @@
 // ============================================================
 var _rwSearch='',_rwFaction='all',_rwRole='all',_rwSort='loyalty',_rwShowDead=false;
 var _rwNeedsRender=false,_rwRenderTimer=0;
+var _rwRenderBatchToken=0;
+var _rwRenderInitialLimit=80;
+var _rwRenderBatchSize=60;
 
 function _rwIsPanelVisible(){
   var panel=_$("gt-renwu");
@@ -52,6 +55,51 @@ function _rwMakeRenderContext(allChars){
     byName:byName,
     playerLoc:(typeof _getPlayerLocation==='function')?_getPlayerLocation():(GM._capital||'\u4EAC\u57CE')
   };
+}
+
+function _rwYield(fn){
+  if(typeof requestIdleCallback==='function'){
+    requestIdleCallback(fn,{timeout:120});
+  }else if(typeof requestAnimationFrame==='function'){
+    requestAnimationFrame(function(){setTimeout(fn,0);});
+  }else{
+    setTimeout(fn,0);
+  }
+}
+
+function _rwRenderEntry(entry,ctx){
+  if(!entry)return '';
+  if(entry.type==='header')return entry.html||'';
+  return _rwRenderCard(entry.char,ctx);
+}
+
+function _rwAppendCardsChunked(el,entries,ctx,token,emptyHtml){
+  if(!el)return;
+  if(!entries||!entries.length){
+    el.innerHTML=emptyHtml||'';
+    return;
+  }
+  var idx=0,first=[],cards=0;
+  while(idx<entries.length){
+    var entry=entries[idx++];
+    first.push(_rwRenderEntry(entry,ctx));
+    if(entry&&entry.type==='card')cards++;
+    if(cards>=_rwRenderInitialLimit)break;
+  }
+  el.innerHTML=first.join('')||emptyHtml||'';
+  function pump(){
+    if(token!==_rwRenderBatchToken)return;
+    var html='',batchCards=0;
+    while(idx<entries.length){
+      var entry=entries[idx++];
+      html+=_rwRenderEntry(entry,ctx);
+      if(entry&&entry.type==='card')batchCards++;
+      if(batchCards>=_rwRenderBatchSize)break;
+    }
+    if(html)el.insertAdjacentHTML('beforeend',html);
+    if(idx<entries.length)_rwYield(pump);
+  }
+  if(idx<entries.length)_rwYield(pump);
 }
 
 function _rwIsPlayerConsort(c) {
@@ -167,7 +215,7 @@ function renderRenwu(force){
   var _playerFac = (P.playerInfo && P.playerInfo.factionName) || '';
   _facKeys.sort(function(a,b) { if (a === _playerFac) return -1; if (b === _playerFac) return 1; return _facGroups[b].length - _facGroups[a].length; });
 
-  var html = '';
+  var _entries = [];
   var _useGroups = _facKeys.length > 1 && _rwFaction === 'all';
 
   var _rwCtx = _rwMakeRenderContext(_all);
@@ -175,14 +223,15 @@ function renderRenwu(force){
     _facKeys.forEach(function(fk) {
       var chars = _facGroups[fk];
       var _st = _rwFacChipStyle(fk);
-      html += '<div class="rw-fac-group-hdr" style="'+_st+';--fac-c:var(--chip-c,var(--gold-400));">'+escHtml(fk)+' <span class="cnt">'+chars.length+' \u4EBA</span></div>';
-      chars.forEach(function(c) { html += _rwRenderCard(c,_rwCtx); });
+      _entries.push({type:'header',html:'<div class="rw-fac-group-hdr" style="'+_st+';--fac-c:var(--chip-c,var(--gold-400));">'+escHtml(fk)+' <span class="cnt">'+chars.length+' \u4EBA</span></div>'});
+      chars.forEach(function(c) { _entries.push({type:'card',char:c}); });
     });
   } else {
-    filtered.forEach(function(c) { html += _rwRenderCard(c,_rwCtx); });
+    filtered.forEach(function(c) { _entries.push({type:'card',char:c}); });
   }
 
-  el.innerHTML = html || '<div class="rw-empty">\u671D \u91CE \u5BC2 \u5BC2\u3000\u65E0 \u5339 \u914D \u4E4B \u4EBA<br>\u8BD5\u8C03\u62AB\u89C8\u6216\u653E\u5BBD\u7B5B\u9009</div>';
+  _rwRenderBatchToken++;
+  _rwAppendCardsChunked(el,_entries,_rwCtx,_rwRenderBatchToken,'<div class="rw-empty">\u671D \u91CE \u5BC2 \u5BC2\u3000\u65E0 \u5339 \u914D \u4E4B \u4EBA<br>\u8BD5\u8C03\u62AB\u89C8\u6216\u653E\u5BBD\u7B5B\u9009</div>');
 }
 
 /** 派系→CSS 类 */

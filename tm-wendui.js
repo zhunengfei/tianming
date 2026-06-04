@@ -834,6 +834,70 @@ function _wdCommitAudienceOpening(name, ch, replyText) {
   return bubble;
 }
 
+function _wdCleanCounselText(text) {
+  text = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+  return text
+    .replace(/^臣(?:愚)?(?:请|以为|闻|奏|谨奏|谨按)[：:，,\s]*/g, '')
+    .replace(/^陛下[：:，,\s]*/g, '')
+    .trim();
+}
+
+function _wdBuildEdictDraftFromCounsel(name, suggestion) {
+  var topic = '';
+  var content = '';
+  if (suggestion && typeof suggestion === 'object') {
+    topic = String(suggestion.topic || suggestion.title || '').trim();
+    content = String(suggestion.content || suggestion.text || suggestion.body || '').trim();
+  } else {
+    content = String(suggestion == null ? '' : suggestion).trim();
+  }
+  content = _wdCleanCounselText(content);
+  if (!content) return '';
+  if (/^(诏令|诏曰|奉天承运|谕|敕)/.test(content)) return content;
+  var who = String(name || '').trim();
+  var prefix = '诏令：';
+  if (topic) prefix += '为' + topic + '，';
+  if (who) prefix += '据' + who + '问对所陈，';
+  return prefix + content;
+}
+
+function _wdStoreEdictSuggestion(name, suggestion, meta) {
+  if (typeof GM === 'undefined' || !GM) return null;
+  meta = meta || {};
+  var topic = '';
+  var content = '';
+  if (suggestion && typeof suggestion === 'object') {
+    topic = String(suggestion.topic || suggestion.title || '').trim();
+    content = String(suggestion.content || suggestion.text || suggestion.body || '').trim();
+  } else {
+    content = String(suggestion == null ? '' : suggestion).trim();
+  }
+  if (!content) return null;
+  var draftText = _wdBuildEdictDraftFromCounsel(name, { topic: topic, content: content });
+  if (!draftText) return null;
+  if (!GM._edictSuggestions) GM._edictSuggestions = [];
+  var row = {
+    id: 'wd_sug_' + (GM.turn || 0) + '_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+    source: '问对',
+    sourceChannel: 'wendui',
+    from: name || '',
+    topic: topic,
+    content: content,
+    draftText: draftText,
+    text: draftText,
+    turn: GM.turn || 0,
+    used: false,
+    draftOnly: true,
+    requiresPlayerApproval: true,
+    status: 'pending_player_edict',
+    mode: meta.mode || _wenduiMode || 'formal',
+    playerPrompt: meta.playerPrompt || '',
+    tags: ['问对', '草诏']
+  };
+  GM._edictSuggestions.push(row);
+  return row;
+}
+
 /** NPC主动开口（奏对模式）——AI生成NPC的开场陈述 */
 // C·派生主动求见的真实议程（从承诺/赏罚/忠诚野心等真实处境推导·UI reason 与开场 prompt 共用·让求见者带具体目的来）
 function _wdDeriveAudienceAgenda(ch) {
@@ -1002,12 +1066,8 @@ async function _wdNpcInitiateSpeak(name) {
     if (parsed && parsed.suggestions && Array.isArray(parsed.suggestions)) {
       parsed.suggestions.forEach(function(sg) {
         if (!sg) return;
-        if (!GM._edictSuggestions) GM._edictSuggestions = [];
-        if (typeof sg === 'object' && sg.content) {
-          GM._edictSuggestions.push({ source: '问对', from: name, topic: sg.topic||'', content: sg.content, turn: GM.turn, used: false });
-          _wdSugs.push(sg);
-        } else if (typeof sg === 'string' && sg.length > 2) {
-          GM._edictSuggestions.push({ source: '问对', from: name, content: sg, turn: GM.turn, used: false });
+        var stored = _wdStoreEdictSuggestion(name, sg, { mode: 'audience-opening' });
+        if (stored) {
           _wdSugs.push(sg);
         }
       });
@@ -1850,13 +1910,8 @@ async function sendWendui(){
         // 提取AI标记的施政建议——新 {topic,content} 与旧 string 兼容
         var _wdSuggestions = (parsed && parsed.suggestions && Array.isArray(parsed.suggestions)) ? parsed.suggestions.filter(function(s){ if (!s) return false; if (typeof s === 'string') return s.trim(); return s.content; }) : [];
         if (_wdSuggestions.length > 0) {
-          if (!GM._edictSuggestions) GM._edictSuggestions = [];
           _wdSuggestions.forEach(function(sg) {
-            if (typeof sg === 'object' && sg.content) {
-              GM._edictSuggestions.push({ source: '\u95EE\u5BF9', from: name, topic: sg.topic||'', content: sg.content, turn: GM.turn, used: false });
-            } else {
-              GM._edictSuggestions.push({ source: '\u95EE\u5BF9', from: name, content: sg, turn: GM.turn, used: false });
-            }
+            _wdStoreEdictSuggestion(name, sg, { mode: _wenduiMode || 'formal', playerPrompt: msg || '' });
           });
           if (typeof _renderEdictSuggestions === 'function') _renderEdictSuggestions();
         }
@@ -2648,10 +2703,9 @@ function _wdAddToEdict() {
   var text = sel ? sel.toString().trim() : '';
   if (!text) { toast('\u8BF7\u5148\u5728\u5927\u81E3\u7684\u53D1\u8A00\u4E2D\u5212\u9009\u6587\u5B57'); return; }
   var name = GM.wenduiTarget || '?';
-  // 只写入建议库，不直接写入诏令
-  if (!GM._edictSuggestions) GM._edictSuggestions = [];
-  GM._edictSuggestions.push({ source: '\u95EE\u5BF9', from: name, content: text, turn: GM.turn, used: false });
-  toast('\u5DF2\u6458\u5165\u8BF8\u4E66\u5EFA\u8BAE\u5E93');
+  var stored = _wdStoreEdictSuggestion(name, text, { mode: _wenduiMode || 'formal' });
+  if (stored && typeof _renderEdictSuggestions === 'function') _renderEdictSuggestions();
+  toast(stored ? '\u5DF2\u6458\u5165\u8BF8\u4E66\u5EFA\u8BAE\u5E93\uFF0C\u5F85\u4F5C\u8349\u8BCF' : '\u5EFA\u8BAE\u4E3A\u7A7A\uFF0C\u672A\u7EB3\u5165');
 }
 
 function setWenduiMode(mode) { _wenduiMode = mode; }
