@@ -29,6 +29,422 @@
       : ((typeof global._getDaysPerTurn === 'function') ? global._getDaysPerTurn() / 30 : 1);
   }
 
+  function _edictRatioFromText(text, fallback) {
+    text = String(text || '');
+    var numeric = text.match(/(\d+(?:\.\d+)?)\s*成/);
+    if (numeric) return Math.max(0, Math.min(1, parseFloat(numeric[1]) / 10));
+    var map = { '一':1, '二':2, '两':2, '三':3, '四':4, '五':5, '六':6, '七':7, '八':8, '九':9 };
+    var cn = text.match(/([一二两三四五六七八九])成/);
+    if (cn && map[cn[1]]) return map[cn[1]] / 10;
+    return fallback;
+  }
+
+  function _edictAmountFromText(text, fallback) {
+    text = String(text || '');
+    var m = text.match(/(\d+(?:\.\d+)?)\s*(亿|万|千|贯|两|文)?/);
+    if (!m) return fallback;
+    var n = parseFloat(m[1]);
+    var unit = m[2] || '';
+    if (unit === '亿') n *= 100000000;
+    else if (unit === '万') n *= 10000;
+    else if (unit === '千') n *= 1000;
+    return Math.max(0, Math.round(n));
+  }
+
+  function _currencyPaperNameFromText(text) {
+    text = String(text || '');
+    if (/交子/.test(text)) return '交子';
+    if (/会子/.test(text)) return '会子';
+    if (/官票/.test(text)) return '官票';
+    if (/宝钞/.test(text)) return '宝钞';
+    if (/钞/.test(text)) return '纸钞';
+    if (/纸币|纸钱/.test(text)) return '纸币';
+    return '纸币';
+  }
+
+  function _currencyCoinTypeFromText(text) {
+    text = String(text || '');
+    if (/银|白银/.test(text)) return 'silver';
+    if (/铁/.test(text)) return 'iron';
+    if (/金/.test(text)) return 'gold';
+    return 'copper';
+  }
+
+  function _findCurrencyPaperIdFromText(text) {
+    var G = global.GM || {};
+    var paper = G.currency && G.currency.paper;
+    var list = paper && Array.isArray(paper.issuances) ? paper.issuances : [];
+    var active = list.filter(function(p) { return p && p.state !== 'abolish'; });
+    for (var i = 0; i < active.length; i++) {
+      var p = active[i];
+      if (p.name && text.indexOf(p.name) >= 0) return p.id;
+    }
+    if (/宝钞/.test(text)) {
+      var baochao = active.find(function(p) { return /宝钞/.test(p.name || ''); });
+      if (baochao) return baochao.id;
+    }
+    if (/交子/.test(text)) {
+      var jiaozi = active.find(function(p) { return /交子/.test(p.name || ''); });
+      if (jiaozi) return jiaozi.id;
+    }
+    return active[0] && active[0].id;
+  }
+
+  function _recordEdictPolicyAction(kind, action, result, text) {
+    var G = global.GM;
+    if (!G) return;
+    if (!G._edictPolicyActions) G._edictPolicyActions = [];
+    G._edictPolicyActions.push({
+      turn: G.turn || 0,
+      kind: kind,
+      action: action,
+      ok: !(result && result.ok === false),
+      text: String(text || '').slice(0, 120)
+    });
+    if (G._edictPolicyActions.length > 80) G._edictPolicyActions.splice(0, G._edictPolicyActions.length - 80);
+  }
+
+  function _executeCurrencyTextPolicy(text, params) {
+    text = String(text || '');
+    var CE = global.CurrencyEngine;
+    if (!CE) return false;
+
+    if (/私铸|私钱|盗铸|伪钱/.test(text) && /禁|严禁|禁绝|搜检|整饬|查/.test(text)) {
+      var ban = (typeof CE.banPrivateMint === 'function') ? CE.banPrivateMint() : false;
+      _recordEdictPolicyAction('currency', 'ban_private_mint', ban, text);
+      return ban || true;
+    }
+
+    if (/废|罢|停用|禁用|废止|收回/.test(text) && /交子|会子|宝钞|官票|纸币|纸钞|钞/.test(text)) {
+      var paperId = params.paperId || _findCurrencyPaperIdFromText(text);
+      if (!paperId) return { ok: false, reason: '未找到可废止纸币' };
+      var abolished = (typeof CE.abolishPaper === 'function') ? CE.abolishPaper(paperId) : false;
+      _recordEdictPolicyAction('currency', 'abolish_paper', abolished, text);
+      return abolished || true;
+    }
+
+    if (/发|发行|颁行|开印|官办/.test(text) && /交子|会子|宝钞|官票|纸币|纸钞|钞/.test(text)) {
+      var spec = {
+        id: params.paperId || ('edict_paper_' + ((global.GM && global.GM.turn) || 0)),
+        name: params.paperName || _currencyPaperNameFromText(text),
+        originalAmount: params.amount || _edictAmountFromText(text, 1000000),
+        reserveRatio: params.reserveRatio != null ? params.reserveRatio : _edictRatioFromText(text, 0.3)
+      };
+      var issued = (typeof CE.issuePaper === 'function') ? CE.issuePaper(spec) : false;
+      _recordEdictPolicyAction('currency', 'issue_paper', issued, text);
+      return issued || true;
+    }
+
+    if (/减铸|轻钱|小钱|降成色|贬/.test(text) && /铜钱|铜|银|铁|金|钱/.test(text)) {
+      var coin = params.coinType || _currencyCoinTypeFromText(text);
+      var level = params.level != null ? params.level : _edictRatioFromText(text, 0.1);
+      var debased = (typeof CE.debaseCoin === 'function') ? CE.debaseCoin(coin, level) : false;
+      _recordEdictPolicyAction('currency', 'debase_coin', debased, text);
+      return debased || true;
+    }
+
+    return false;
+  }
+
+  function _isCurrencyTextPolicy(text) {
+    text = String(text || '');
+    if (/私铸|私钱|盗铸|伪钱/.test(text) && /禁|严禁|禁绝|搜检|整饬|查/.test(text)) return true;
+    if (/废|罢|停用|禁用|废止|收回/.test(text) && /交子|会子|宝钞|官票|纸币|纸钞|钞/.test(text)) return true;
+    if (/发|发行|颁行|开印|官办/.test(text) && /交子|会子|宝钞|官票|纸币|纸钞|钞/.test(text)) return true;
+    if (/减铸|轻钱|小钱|降成色|贬/.test(text) && /铜钱|铜|银|铁|金|钱/.test(text)) return true;
+    return false;
+  }
+
+  function _inferHujiTextPolicy(text) {
+    text = String(text || '');
+    if (/隐户|隐匿户|漏籍/.test(text) && /清查|搜检|搜括|括户|核查|编入|入籍/.test(text)) {
+      return { action: 'purge_hidden', target: 'hidden_households', scope: /全国|天下/.test(text) ? 'national' : 'general' };
+    }
+    if (/逃户|流民|流亡|逃亡/.test(text) && /招抚|抚辑|安插|复业|入籍|复籍/.test(text)) {
+      return { action: 'resettle_refugees', target: 'fugitives', scope: /全国|天下/.test(text) ? 'national' : 'general' };
+    }
+    if (/保甲|里甲/.test(text) && /编设|推行|立|置|行/.test(text)) {
+      return { action: 'baojia_setup', target: 'households', scope: /全国|天下/.test(text) ? 'national' : 'general' };
+    }
+    if (/黄册|户籍|户口|籍/.test(text) && /重造|大造|编审|清厘|清理|修造|造册/.test(text)) {
+      return { action: 'recount', target: 'registry', scope: /全国|天下/.test(text) ? 'national' : 'general' };
+    }
+    return {};
+  }
+
+  function _isHujiTextPolicy(text) {
+    return !!_inferHujiTextPolicy(text).action;
+  }
+
+  function _edictRatioAfterLabel(text, label, fallback) {
+    text = String(text || '');
+    var re = new RegExp(label + '\\s*(?:为|至|按|定为)?\\s*(\\d+(?:\\.\\d+)?|[一二两三四五六七八九十])\\s*成');
+    var m = text.match(re);
+    if (!m) return fallback;
+    var token = m[1];
+    if (/^\d/.test(token)) return Math.max(0, Math.min(1, parseFloat(token) / 10));
+    var map = { '一':1, '二':2, '两':2, '三':3, '四':4, '五':5, '六':6, '七':7, '八':8, '九':9, '十':10 };
+    return map[token] ? map[token] / 10 : fallback;
+  }
+
+  function _resolvePolicyRegionId(text, params) {
+    text = String(text || '');
+    params = params || {};
+    if (params.regionId) return params.regionId;
+    var G = global.GM || {};
+    var candidates = [];
+    if (G.fiscal && G.fiscal.regions) {
+      Object.keys(G.fiscal.regions).forEach(function(id) {
+        var rf = G.fiscal.regions[id] || {};
+        candidates.push({ id: id, name: rf.name || rf.regionName || id });
+      });
+    }
+    if (Array.isArray(G.regions)) {
+      G.regions.forEach(function(r) {
+        if (r && r.id) candidates.push({ id: r.id, name: r.name || r.title || r.id });
+      });
+    }
+    var aliases = {
+      '江南': 'jiangnan',
+      '山西': 'shanxi',
+      '陕西': 'shaanxi',
+      '陕': 'shaanxi',
+      '京畿': 'jingji',
+      '直隶': 'zhili',
+      '广东': 'guangdong',
+      '广西': 'guangxi',
+      '福建': 'fujian',
+      '浙江': 'zhejiang',
+      '湖广': 'huguang',
+      '四川': 'sichuan',
+      '山东': 'shandong',
+      '河南': 'henan'
+    };
+    var aliasKeys = Object.keys(aliases);
+    for (var a = 0; a < aliasKeys.length; a++) {
+      if (text.indexOf(aliasKeys[a]) >= 0) return aliases[aliasKeys[a]];
+    }
+    for (var i = 0; i < candidates.length; i++) {
+      var c = candidates[i];
+      if (c.id && text.indexOf(c.id) >= 0) return c.id;
+      if (c.name && text.indexOf(c.name) >= 0) return c.id;
+    }
+    return candidates.length === 1 ? candidates[0].id : null;
+  }
+
+  function _centralLocalPurposeFromText(text) {
+    text = String(text || '');
+    if (/赈|灾|荒|水灾|旱灾/.test(text)) return 'disaster_relief';
+    if (/军饷|军用|边饷|兵饷/.test(text)) return 'military_funding';
+    if (/水利|修河|治水|河工/.test(text)) return 'public_works_water';
+    if (/驿|道路|转运/.test(text)) return 'post_stations';
+    return 'regional_support';
+  }
+
+  function _centralLocalAllocationSpecFromText(text, params) {
+    params = params || {};
+    var qiyun = params.qiyunRatio != null ? params.qiyunRatio : _edictRatioAfterLabel(text, '起运', null);
+    var cunliu = params.cunliuRatio != null ? params.cunliuRatio : _edictRatioAfterLabel(text, '存留', null);
+    if (qiyun == null && cunliu == null) return null;
+    if (qiyun == null) qiyun = Math.max(0, Math.min(1, 1 - cunliu));
+    if (cunliu == null) cunliu = Math.max(0, Math.min(1, 1 - qiyun));
+    var perTax = {};
+    ['land_grain', 'head_tax', 'salt', 'commerce'].forEach(function(k) {
+      perTax[k] = { qiyun: qiyun, cunliu: cunliu };
+    });
+    return { mode: 'qiyun_cunliu', perTax: perTax };
+  }
+
+  function _inferCentralLocalTextPolicy(text, params) {
+    text = String(text || '');
+    params = params || {};
+    var regionId = _resolvePolicyRegionId(text, params);
+    var amount = params.amount || _edictAmountFromText(text, 0);
+    if (/监察|御史|巡按|巡察|查核|核查|稽核/.test(text)) {
+      return { action: 'dispatch_censor', regionId: regionId, cost: params.cost || 3000 };
+    }
+    if (/强征|追征|催征|催解|提解|起解/.test(text) && /地方留存|存留|地方银|留存银|地方库|地方财政/.test(text)) {
+      return { action: 'force_levy', regionId: regionId, amount: amount, reason: _centralLocalPurposeFromText(text) };
+    }
+    if (/下拨|拨银|拨款|拨给|发帑|发银|给银|赈济|赈灾/.test(text) && amount > 0) {
+      return { action: 'transfer_to_region', regionId: regionId, amount: amount, purpose: _centralLocalPurposeFromText(text) };
+    }
+    if (/分成|起运|存留|留成|分税/.test(text)) {
+      var allocSpec = _centralLocalAllocationSpecFromText(text, params);
+      if (allocSpec) return { action: 'set_region_allocation', regionId: regionId, allocSpec: allocSpec };
+    }
+    return {};
+  }
+
+  function _isCentralLocalTextPolicy(text) {
+    return !!_inferCentralLocalTextPolicy(text).action;
+  }
+
+  function _ensureCentralLocalPolicyState() {
+    var G = global.GM;
+    if (!G) return;
+    if (!G._centralLocalPolicyActions) G._centralLocalPolicyActions = [];
+  }
+
+  function _executeCentralLocalTextPolicy(text, params) {
+    var G = global.GM;
+    if (!G) return false;
+    params = Object.assign({}, _inferCentralLocalTextPolicy(text, params), params || {});
+    var action = params.action;
+    if (!action) return false;
+    _ensureCentralLocalPolicyState();
+    var result = null;
+
+    if (action === 'transfer_to_region') {
+      if (!params.regionId || !params.amount) return { ok: false, reason: '缺少下拨区域或金额' };
+      if (global.EconomyLinkage && typeof global.EconomyLinkage.createTransferOrder === 'function') {
+        result = global.EconomyLinkage.createTransferOrder({
+          fromAccount: params.fromAccount || 'guoku.money',
+          toRegion: params.regionId,
+          toAccount: params.toAccount || 'regional',
+          amount: params.amount,
+          purpose: params.purpose || 'regional_support',
+          durationMonths: params.durationMonths || 3
+        });
+      } else {
+        if (!G.transferOrders) G.transferOrders = [];
+        result = { ok: true, fallback: true, orderId: 'edict_transfer_' + (G.turn || 0) };
+        G.transferOrders.push({
+          id: result.orderId,
+          fromAccount: params.fromAccount || 'guoku.money',
+          toRegion: params.regionId,
+          amount: params.amount,
+          purpose: params.purpose || 'regional_support',
+          status: 'pending',
+          createTurn: G.turn || 0
+        });
+      }
+    } else if (action === 'force_levy') {
+      if (!params.regionId || !params.amount) return { ok: false, reason: '缺少强征区域或金额' };
+      if (global.EconomyGapFill && typeof global.EconomyGapFill.forceLevy === 'function') {
+        result = global.EconomyGapFill.forceLevy(params.regionId, params.amount, params.reason || 'edict');
+      } else if (G.fiscal && G.fiscal.regions && G.fiscal.regions[params.regionId]) {
+        var rf = G.fiscal.regions[params.regionId];
+        var actual = Math.min(params.amount, (rf.ledgers && rf.ledgers.money) || params.amount);
+        if (rf.ledgers) rf.ledgers.money = Math.max(0, (rf.ledgers.money || 0) - actual);
+        if (G.guoku) G.guoku.balance = (G.guoku.balance || 0) + actual;
+        rf.compliance = Math.max(0.05, (rf.compliance || 0.8) - 0.2);
+        result = { ok: true, actualAmount: actual, fallback: true };
+      }
+    } else if (action === 'dispatch_censor') {
+      if (!params.regionId) return { ok: false, reason: '缺少监察区域' };
+      if (global.CentralLocalEngine && typeof global.CentralLocalEngine.dispatchCensor === 'function') {
+        result = global.CentralLocalEngine.dispatchCensor({
+          targetRegion: params.regionId,
+          cost: params.cost || 3000,
+          inspector: params.inspector || '监察御史',
+          type: params.type || 'touring'
+        });
+      } else {
+        if (!G.fiscal) G.fiscal = {};
+        if (!G.fiscal.auditSystem) G.fiscal.auditSystem = { ongoingInspections: [] };
+        if (!G.fiscal.auditSystem.ongoingInspections) G.fiscal.auditSystem.ongoingInspections = [];
+        result = { ok: true, censorId: 'edict_censor_' + (G.turn || 0), fallback: true };
+        G.fiscal.auditSystem.ongoingInspections.push({ id: result.censorId, target: params.regionId, startTurn: G.turn || 0 });
+      }
+    } else if (action === 'set_region_allocation') {
+      if (!params.regionId || !params.allocSpec) return { ok: false, reason: '缺少分成区域或比例' };
+      if (global.CentralLocalEngine && typeof global.CentralLocalEngine.setRegionAllocation === 'function') {
+        result = global.CentralLocalEngine.setRegionAllocation(params.regionId, params.allocSpec);
+      } else if (G.fiscal && G.fiscal.regions && G.fiscal.regions[params.regionId]) {
+        G.fiscal.regions[params.regionId].allocation = Object.assign({}, G.fiscal.regions[params.regionId].allocation || {}, params.allocSpec);
+        result = true;
+      }
+    }
+
+    _recordEdictPolicyAction('central_local', action, result, text);
+    if (G._centralLocalPolicyActions) {
+      G._centralLocalPolicyActions.push({ turn: G.turn || 0, action: action, regionId: params.regionId, amount: params.amount || 0 });
+      if (G._centralLocalPolicyActions.length > 80) G._centralLocalPolicyActions.splice(0, G._centralLocalPolicyActions.length - 80);
+    }
+    return (result && (result.ok === false || result.success === false)) ? false : (result || true);
+  }
+
+  function _inferEnvironmentTextPolicy(text, params) {
+    text = String(text || '');
+    params = params || {};
+    var regionId = _resolvePolicyRegionId(text, params);
+    var policyId = params.policyId || null;
+    if (!policyId && /禁伐|禁樵|禁樵采|严禁樵采/.test(text)) policyId = 'jin_hu_kui';
+    if (!policyId && /封山|育木|育林|造林/.test(text)) policyId = 'feng_shan_mu';
+    if (!policyId && /疏浚|浚河|疏河|浚渠/.test(text)) policyId = 'yi_he_shui';
+    if (!policyId && /兴修水利|水利|修渠|治水/.test(text)) policyId = 'shui_li';
+    if (!policyId && /限垦|休耕|轮休|轮作|养地力/.test(text)) policyId = 'fan_gu';
+    if (!policyId && /复耕|屯田|养地|赈灾复耕/.test(text)) policyId = 'tun_tian';
+    if (!policyId && /开荒|垦荒|垦殖|荒田/.test(text)) policyId = 'ken_huang';
+    if (!policyId && /治盐|盐碱|压盐|治碱/.test(text)) policyId = 'ke_gao';
+    if (!policyId && /清污|净流|排污|清河|净渭/.test(text)) policyId = 'jing_wei';
+    if (!policyId && /禁猎|保畜|禁网/.test(text)) policyId = 'jin_dian_hun';
+    if (!policyId && /节用|节俭|省费/.test(text)) policyId = 'jie_yong';
+    return policyId ? { action: 'enact_env_policy', policyId: policyId, regionId: regionId } : {};
+  }
+
+  function _isEnvironmentTextPolicy(text) {
+    return !!_inferEnvironmentTextPolicy(text).policyId;
+  }
+
+  function _executeEnvironmentTextPolicy(text, params) {
+    var G = global.GM;
+    if (!G) return false;
+    params = Object.assign({}, _inferEnvironmentTextPolicy(text, params), params || {});
+    if (!params.policyId) return false;
+    var result = null;
+    if (global.EnvCapacityEngine && typeof global.EnvCapacityEngine.enactPolicy === 'function') {
+      result = global.EnvCapacityEngine.enactPolicy(params.policyId, params.regionId || undefined);
+    } else {
+      if (!G._envPolicyActions) G._envPolicyActions = [];
+      result = { ok: true, fallback: true, policyId: params.policyId, regionId: params.regionId || 'all' };
+      G._envPolicyActions.push({
+        turn: G.turn || 0,
+        policyId: params.policyId,
+        regionId: params.regionId || 'all',
+        source: 'edict'
+      });
+    }
+    _recordEdictPolicyAction('environment', params.policyId, result, text);
+    return (result && result.ok === false) ? false : (result || true);
+  }
+
+  function _edictOfficeRankFromText(text, fallback) {
+    text = String(text || '');
+    var cn = text.match(/([一二三四五六七八九])品/);
+    var map = { '一':1, '二':2, '三':3, '四':4, '五':5, '六':6, '七':7, '八':8, '九':9 };
+    if (cn && map[cn[1]]) return map[cn[1]];
+    var n = text.match(/(?:正|从)?\s*(\d+)\s*品/);
+    if (n) return Math.max(1, Math.min(9, parseInt(n[1], 10) || fallback || 5));
+    return fallback || 5;
+  }
+
+  function _inferOfficeReformFromText(text) {
+    text = String(text || '');
+    var name = '';
+    var m = text.match(/(?:设|立|置|创|新设|添设)\s*([^，。、；;\s]{1,16}?(?:司|部|院|监|处|局|署|府|所|馆))/);
+    if (m) name = m[1];
+    var duties = '';
+    var d = text.match(/(?:掌|管|司|辖)\s*([^。；;，,]{2,40})/);
+    if (d) duties = d[1].replace(/^(掌|管|司|辖)/, '').trim();
+    return {
+      officeName: name,
+      rank: _edictOfficeRankFromText(text, 5),
+      duties: duties
+    };
+  }
+
+  function _findDynamicInstitutionByName(name) {
+    var G = global.GM || {};
+    var list = Array.isArray(G.dynamicInstitutions) ? G.dynamicInstitutions : [];
+    name = String(name || '').trim();
+    if (!name) return null;
+    return list.find(function(inst) {
+      return inst && inst.stage !== 'abolished' && String(inst.name || '') === name;
+    }) || null;
+  }
+
   // ═══════════════════════════════════════════════════════════════════
   //  六大诏书类型参数 schema
   // ═══════════════════════════════════════════════════════════════════
@@ -41,10 +457,11 @@
       drafter: '户部尚书',
       aiEntry: function(params) {
         if (typeof global.CurrencyEngine === 'undefined') return false;
+        params = params || {};
         var preset = (global.CurrencyEngine.REFORM_PRESETS || []).find(function(r) {
           return params.presetId === r.id;
         });
-        var ok = preset ? global.CurrencyEngine.applyReform(preset.id, params) : false;
+        var ok = preset ? global.CurrencyEngine.applyReform(preset.id, params) : _executeCurrencyTextPolicy(params._edictText || '', params);
         // 皇威反馈：改革成功 → structuralReform；失败 → brokenPromise
         if (typeof global.AuthorityComplete !== 'undefined') {
           if (ok && ok.success) global.AuthorityComplete.triggerHuangweiEvent('structuralReform');
@@ -78,6 +495,26 @@
         return true;
       }
     },
+    central_local_finance: {
+      name: '央地财政',
+      requiredFields: ['action', 'target', 'amount'],
+      critical: ['action'],
+      drafter: '户部尚书',
+      aiEntry: function(params) {
+        params = params || {};
+        return _executeCentralLocalTextPolicy(params._edictText || '', params);
+      }
+    },
+    environment_policy: {
+      name: '环境承载',
+      requiredFields: ['policyId', 'target'],
+      critical: ['policyId'],
+      drafter: '工部尚书',
+      aiEntry: function(params) {
+        params = params || {};
+        return _executeEnvironmentTextPolicy(params._edictText || '', params);
+      }
+    },
     huji_reform: {
       name: '户籍制度',
       requiredFields: ['action', 'target', 'scope'],
@@ -85,6 +522,13 @@
       drafter: '户部尚书',
       aiEntry: function(params) {
         if (typeof global.HujiEngine === 'undefined') return false;
+        params = params || {};
+        if (!params.action) {
+          var inferredHuji = _inferHujiTextPolicy(params._edictText || '');
+          Object.keys(inferredHuji).forEach(function(k) {
+            if (params[k] === undefined) params[k] = inferredHuji[k];
+          });
+        }
         var P = global.GM.population;
         if (!P) return false;
         var action = params.action || '';
@@ -201,20 +645,38 @@
       drafter: '吏部尚书',
       aiEntry: function(params) {
         if (!global.GM.officeTree) return false;
+        params = Object.assign({}, _inferOfficeReformFromText(params && params._edictText || ''), params || {});
+        if (!params.officeName) return false;
         if (!global.GM.customOffices) global.GM.customOffices = [];
-        global.GM.customOffices.push({
-          name: params.officeName,
-          rank: params.rank || 5,
-          duties: params.duties || '',
-          createdTurn: global.GM.turn || 0
-        });
+        if (!global.GM.customOffices.some(function(o) { return o && o.name === params.officeName; })) {
+          global.GM.customOffices.push({
+            name: params.officeName,
+            rank: params.rank || 5,
+            duties: params.duties || '',
+            createdTurn: global.GM.turn || 0
+          });
+        }
+        var inst = _findDynamicInstitutionByName(params.officeName);
+        if (!inst && typeof registerDynamicInstitution === 'function') {
+          inst = registerDynamicInstitution({
+            name: params.officeName,
+            rank: params.rank || 5,
+            duties: params.duties || '',
+            region: params.region || 'central',
+            staffSize: params.staffSize || 20,
+            annualBudget: params.annualBudget || 50000,
+            fundingSource: params.fundingSource || 'guoku.central',
+            headOfficial: params.headOfficial || null,
+            createdBy: params.createdBy || 'edict'
+          });
+        }
         if (global.addEB) global.addEB('官制', '新设 ' + params.officeName + '（品级 ' + (params.rank||5) + '）');
         // 皇威：制度改革 + 皇权：结构改革
         if (typeof global.AuthorityComplete !== 'undefined') {
           global.AuthorityComplete.triggerHuangweiEvent('structuralReform');
           global.AuthorityComplete.triggerHuangquanEvent('structureReform');
         }
-        return true;
+        return inst || true;
       }
     }
   };
@@ -269,6 +731,10 @@
   function _assessCompleteness(text, typeKey) {
     var type = EDICT_TYPES[typeKey];
     if (!type || !type.requiredFields) return 0.5;
+    if (typeKey === 'currency_reform' && _isCurrencyTextPolicy(text)) return 0.75;
+    if (typeKey === 'huji_reform' && _isHujiTextPolicy(text)) return 0.75;
+    if (typeKey === 'central_local_finance' && _isCentralLocalTextPolicy(text)) return 0.75;
+    if (typeKey === 'environment_policy' && _isEnvironmentTextPolicy(text)) return 0.75;
     // 按关键字检测
     var keywordMap = {
       coinType: /铜钱|银|金|铁钱|纸|钞|通宝|重宝|元宝/,
@@ -278,6 +744,8 @@
       taxType: /商税|盐税|茶税|市舶|关税|算赋|田租/,
       base: /按人|按丁|按亩|按户|按产/,
       rate: /\d+\s*文|\d+%|百分之|什一|十分之/,
+      target: /江南|山西|陕西|京畿|直隶|广东|广西|福建|浙江|湖广|四川|山东|河南|某省|某路|某道/,
+      policyId: /禁伐|封山|疏浚|水利|治水|复耕|屯田|休耕|限垦|开荒|垦荒|治盐|清污|禁猎/,
       action: /清查|重造|改色|变籍|入编/,
       target: /逃户|隐户|僧道|军户|编户/,
       scope: /全国|天下|某省|某府|某县/,
@@ -325,9 +793,11 @@
   }
 
   function _detectType(text) {
-    if (/铜钱|银本|金本|铸.*通宝|发.*钞|币制|钱法|币改/.test(text)) return 'currency_reform';
+    if (/铜钱|银本|金本|铸.*通宝|发.*钞|交子|会子|宝钞|官票|纸币|纸钞|私铸|私钱|减铸|币制|钱法|币改/.test(text)) return 'currency_reform';
+    if (/禁伐|封山|育木|育林|疏浚|浚河|水利|治水|复耕|屯田|休耕|限垦|开荒|垦荒|垦殖|治盐|盐碱|清污|净流|禁猎|环境|承载/.test(text)) return 'environment_policy';
+    if (/央地|起运|存留|留成|分成|分税|下拨|拨银|拨款|发帑|强征|地方留存|监察御史|巡按|巡察|查核钱粮/.test(text)) return 'central_local_finance';
     if (/税|赋|榷|课|饷/.test(text)) return 'tax_reform';
-    if (/户籍|户等|黄册|白册|保甲|里甲|编户|色目/.test(text)) return 'huji_reform';
+    if (/户籍|户口|户等|黄册|白册|保甲|里甲|编户|色目|隐户|逃户|流民|黄籍|漏籍/.test(text)) return 'huji_reform';
     if (/徭役|役法|差役|均徭|一条鞭|摊丁|役银/.test(text)) return 'corvee_reform';
     if (/府兵|募兵|卫所|八旗|绿营|兵制|军制|常备/.test(text)) return 'military_reform';
     if (/设.*司|立.*部|置.*院|创.*监|官制|职官|机构/.test(text)) return 'office_reform';
@@ -382,7 +852,11 @@
     var type = EDICT_TYPES[cls.typeKey];
     if (!type || !type.aiEntry) return { ok: false, reason: '类型无执行入口' };
     var exec = false;
-    try { exec = type.aiEntry(params || {}); } catch(e) { console.error('[edict] exec', e); exec = false; }
+    try {
+      var execParams = Object.assign({ _edictText: text, _edictContext: ctx || {}, _classification: cls }, params || {});
+      exec = type.aiEntry(execParams);
+      if (exec && cls.typeKey === 'huji_reform') _recordEdictPolicyAction('huji', execParams.action || cls.typeKey, exec, text);
+    } catch(e) { console.error('[edict] exec', e); exec = false; }
     return { ok: exec, pathway: 'direct', classification: cls };
   }
 
@@ -480,6 +954,35 @@
   }
 
   /** 皇帝朱批（approve/reject/modify）*/
+  function _getMemorialPolicyText(memo, params) {
+    params = params || {};
+    return String(params._edictText || params.draftText || params.text ||
+      (memo && (memo.draftText || memo.originalEdictText || memo.text || memo.subject)) || '');
+  }
+
+  function _buildMemorialExecParams(memo, extra) {
+    var params = Object.assign({}, (memo && memo.draftParams) || {}, extra || {});
+    var text = _getMemorialPolicyText(memo, params);
+    if (text && params._edictText == null) params._edictText = text;
+    if (params.trialRegion && !params.regionId) params.regionId = params.trialRegion;
+    if (memo && memo.trialRegion && !params.regionId) params.regionId = memo.trialRegion;
+    if (!params._edictContext) {
+      params._edictContext = {
+        source: 'memorial',
+        memoId: memo && memo.id,
+        trialMode: !!(memo && memo.trialMode)
+      };
+    }
+    if (!params._classification && memo) {
+      params._classification = {
+        pathway: 'memorial',
+        typeKey: memo.typeKey,
+        typeName: memo.typeName
+      };
+    }
+    return params;
+  }
+
   function processImperialAssent(memoId, decision, modifications) {
     var G = global.GM;
     if (!G._pendingMemorials) return { ok: false };
@@ -506,8 +1009,8 @@
       // 执行
       var type = EDICT_TYPES[memo.typeKey];
       if (type && type.aiEntry) {
-        var params = Object.assign({}, memo.draftParams || {}, modifications || {});
-        type.aiEntry(params);
+        var params = _buildMemorialExecParams(memo, modifications);
+        memo.executionResult = type.aiEntry(params);
       }
       if (global.addEB) global.addEB('诏令', memo.typeName + ' 已施行');
     } else if (decision === 'reject') {
@@ -692,7 +1195,7 @@
       memo.status = 'approved';
       memo.trialMode = true;
       var type = EDICT_TYPES && EDICT_TYPES[memo.typeKey];
-      if (type && type.aiEntry) type.aiEntry(memo.draftParams);
+      if (type && type.aiEntry) memo.executionResult = type.aiEntry(_buildMemorialExecParams(memo, {}));
       if (global.addEB) global.addEB('朱批', memo.typeName + ' 试点于 ' + opts.regionId);
       return { ok: true, status: 'trial' };
     }

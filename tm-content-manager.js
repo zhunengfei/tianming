@@ -174,8 +174,9 @@
       '.tm-online-title{font-size:1.05rem;font-weight:800;color:var(--gold,#d8b56a);letter-spacing:0;}',
       '.tm-online-sub{margin-top:.25rem;font-size:.74rem;line-height:1.45;color:rgba(234,223,203,.68);}',
       '.tm-online-tabs{display:flex;gap:.35rem;align-items:flex-end;flex-wrap:wrap;padding:.75rem 1rem 0;background:rgba(0,0,0,.12);}',
-      '.tm-tab{min-height:40px;padding:.5rem .85rem;border:1px solid rgba(214,177,93,.28);background:rgba(0,0,0,.2);color:rgba(234,223,203,.74);cursor:pointer;transition:background .18s ease,border-color .18s ease,color .18s ease;}',
+      '.tm-tab{min-height:44px;padding:.5rem .85rem;border:1px solid rgba(214,177,93,.28);background:rgba(0,0,0,.2);color:rgba(234,223,203,.82);cursor:pointer;transition:background .18s ease,border-color .18s ease,color .18s ease;}',
       '.tm-tab:hover{background:rgba(214,177,93,.12);color:#f6e5b7;}',
+      '.tm-tab:focus-visible,.tm-action:focus-visible{outline:2px solid #f0d68a;outline-offset:2px;}',
       '.tm-tab.is-active{background:linear-gradient(180deg,rgba(142,38,28,.86),rgba(63,20,15,.92));border-color:rgba(214,177,93,.72);color:#ffe3a1;}',
       '.tm-online-shell>div:last-child{min-height:0;display:grid;grid-template-rows:auto 1fr;}',
       '.tm-online-body{min-height:0;padding:1rem;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:rgba(214,177,93,.4) transparent;}',
@@ -190,10 +191,11 @@
       '.tm-copy{font-size:.76rem;line-height:1.65;color:rgba(234,223,203,.72);}',
       '.tm-field{display:grid;gap:.28rem;margin-top:.65rem;}',
       '.tm-field label{font-size:.72rem;color:rgba(214,177,93,.92);}',
-      '.tm-input{min-height:42px;width:100%;box-sizing:border-box;border:1px solid rgba(214,177,93,.32);background:rgba(0,0,0,.28);color:#f4ead6;padding:.55rem .65rem;outline:none;}',
-      '.tm-input:focus{border-color:rgba(214,177,93,.82);box-shadow:0 0 0 2px rgba(214,177,93,.14);}',
-      '.tm-actions{display:flex;gap:.45rem;flex-wrap:wrap;margin-top:.75rem;}',
-      '.tm-action{min-height:42px;padding:.5rem .82rem;border:1px solid rgba(214,177,93,.34);background:rgba(0,0,0,.18);color:#eadfcb;cursor:pointer;transition:transform .15s ease,background .18s ease,border-color .18s ease;}',
+      '.tm-input{min-height:44px;width:100%;box-sizing:border-box;border:1px solid rgba(214,177,93,.32);background:rgba(0,0,0,.28);color:#f4ead6;padding:.55rem .65rem;outline:none;}',
+      '.tm-input:focus,.tm-input:focus-visible{border-color:rgba(214,177,93,.82);box-shadow:0 0 0 2px rgba(214,177,93,.22);}',
+      '.tm-input::placeholder{color:rgba(234,223,203,.5);}',
+      '.tm-actions{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem;}',
+      '.tm-action{min-height:44px;padding:.5rem .82rem;border:1px solid rgba(214,177,93,.34);background:rgba(0,0,0,.18);color:#eadfcb;cursor:pointer;transition:transform .15s ease,background .18s ease,border-color .18s ease;}',
       '.tm-action:hover{background:rgba(214,177,93,.12);border-color:rgba(214,177,93,.62);}',
       '.tm-action:active{transform:translateY(1px);}',
       '.tm-action.primary{background:linear-gradient(180deg,#b74635,#7f241d);border-color:#d9b96b;color:#fff1c2;}',
@@ -203,7 +205,7 @@
       '.tm-status.warn{border-left-color:#d66e4d;background:rgba(173,45,30,.16);color:#ffd6c7;}',
       '.tm-kv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.45rem;}',
       '.tm-kv div,.tm-card{border:1px solid rgba(214,177,93,.18);background:rgba(0,0,0,.18);padding:.58rem .65rem;min-width:0;}',
-      '.tm-kv small{display:block;color:rgba(234,223,203,.55);font-size:.68rem;margin-bottom:.18rem;}',
+      '.tm-kv small{display:block;color:rgba(234,223,203,.72);font-size:.68rem;margin-bottom:.18rem;}',
       '.tm-kv b{color:#f2d487;font-size:.8rem;font-weight:700;word-break:break-all;}',
       '.tm-pill{display:inline-flex;align-items:center;min-height:24px;padding:0 .55rem;border:1px solid rgba(214,177,93,.35);background:rgba(214,177,93,.1);color:#f0d58a;font-size:.68rem;}',
       '.tm-pill.good{border-color:rgba(99,186,132,.5);background:rgba(50,128,79,.16);color:#bfe7c8;}',
@@ -211,7 +213,7 @@
       '.tm-pack-list{display:grid;gap:.55rem;margin-top:.65rem;}',
       '.tm-pack{border:1px solid rgba(214,177,93,.22);background:linear-gradient(90deg,rgba(56,26,17,.7),rgba(11,8,6,.78));padding:.72rem;display:grid;grid-template-columns:1fr auto;gap:.65rem;align-items:start;}',
       '.tm-pack-title{font-weight:800;color:#f1d58a;}',
-      '.tm-pack-meta{font-size:.7rem;color:rgba(234,223,203,.58);margin-top:.16rem;}',
+      '.tm-pack-meta{font-size:.7rem;color:rgba(234,223,203,.74);margin-top:.16rem;}',
       '.tm-pack-desc{font-size:.76rem;line-height:1.55;color:rgba(234,223,203,.76);margin-top:.42rem;}',
       '.tm-empty{padding:1rem;border:1px dashed rgba(214,177,93,.25);color:rgba(234,223,203,.58);font-size:.78rem;text-align:center;}',
       '.tm-progress{height:7px;background:rgba(255,255,255,.08);border:1px solid rgba(214,177,93,.22);margin-top:.5rem;overflow:hidden;}',
@@ -230,8 +232,15 @@
       // 次要区（账号密码）
       '.tm-subform{margin-top:.7rem;border:1px dashed rgba(214,177,93,.28);background:rgba(0,0,0,.16);padding:.55rem .75rem .75rem;}',
       '.tm-subform.is-collapsed .tm-subform-body{display:none;}',
-      '.tm-subform-head{display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.76rem;color:rgba(234,223,203,.74);user-select:none;}',
+      '.tm-subform-head{display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.76rem;color:rgba(234,223,203,.82);user-select:none;min-height:36px;}',
+      '.tm-subform-head:focus-visible{outline:2px solid #f0d68a;outline-offset:2px;}',
       '.tm-subform-head .tm-caret{margin-left:auto;color:var(--gold,#d8b56a);transition:transform .18s ease;}',
+      // 密码显隐切换
+      '.tm-pw{position:relative;}',
+      '.tm-pw .tm-input{padding-right:3.6rem;}',
+      '.tm-pw-toggle{position:absolute;top:50%;right:.4rem;transform:translateY(-50%);min-height:32px;padding:0 .55rem;border:1px solid rgba(214,177,93,.32);background:rgba(0,0,0,.32);color:rgba(240,213,138,.92);font-size:.68rem;cursor:pointer;}',
+      '.tm-pw-toggle:hover{border-color:rgba(214,177,93,.62);}',
+      '.tm-pw-toggle:focus-visible{outline:2px solid #f0d68a;outline-offset:1px;}',
       '.tm-subform.is-collapsed .tm-subform-head .tm-caret{transform:rotate(-90deg);}',
       // 步骤徽标
       '.tm-step{flex:0 0 auto;width:18px;height:18px;border-radius:50%;display:inline-grid;place-items:center;border:1px solid rgba(214,177,93,.6);background:rgba(214,177,93,.12);color:#f0d58a;font-size:.66rem;font-weight:700;}',
@@ -263,8 +272,72 @@
       '.tm-update-progress i{display:block;height:100%;background:linear-gradient(90deg,#a83226,#d8b56a);transition:width .18s ease;}',
       '.tm-update-log{max-height:120px;overflow:auto;border:1px solid rgba(214,177,93,.18);background:rgba(0,0,0,.22);padding:.55rem .65rem;font-size:.72rem;line-height:1.55;color:rgba(234,223,203,.66);}',
       '.tm-update-foot{padding:.85rem 1rem;border-top:1px solid rgba(214,177,93,.25);display:flex;justify-content:space-between;gap:.7rem;flex-wrap:wrap;background:rgba(0,0,0,.18);}',
-      '@media (max-width:860px){.tm-online-shell{height:92vh}.tm-grid-2,.tm-grid-3{grid-template-columns:1fr}.tm-pack{grid-template-columns:1fr}.tm-online-head{grid-template-columns:1fr}.tm-kv{grid-template-columns:1fr}}',
-      '@media (prefers-reduced-motion:reduce){.tm-tab,.tm-action{transition:none!important}.tm-action:active{transform:none!important}}'
+      // 商城网格（S1 port）
+      '.tm-store-bar{display:flex;gap:.55rem;align-items:center;flex-wrap:wrap;margin-top:.4rem;}',
+      '.tm-store-search{flex:1;min-width:180px;}',
+      '.tm-store-search .tm-input{margin:0;}',
+      '.tm-cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:.7rem;margin-top:.7rem;}',
+      '.tm-cat-card{border:1px solid rgba(214,177,93,.22);background:linear-gradient(180deg,rgba(48,24,15,.6),rgba(10,7,5,.7));display:flex;flex-direction:column;min-width:0;transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease;}',
+      '.tm-cat-card:hover{transform:translateY(-3px);border-color:rgba(214,177,93,.5);box-shadow:0 10px 24px rgba(0,0,0,.45);}',
+      '.tm-cover{position:relative;width:100%;height:118px;overflow:hidden;display:grid;place-items:center;border-bottom:1px solid rgba(214,177,93,.22);font-family:"Noto Serif SC","Songti SC",serif;font-weight:700;color:#f4e2b6;text-shadow:0 1px 3px rgba(0,0,0,.6);box-shadow:inset 0 0 16px rgba(0,0,0,.5);}',
+      '.tm-cover .scene{position:absolute;inset:0;width:100%;height:100%;z-index:0;}',
+      '.tm-cover::before{content:"";position:absolute;inset:0;z-index:1;background:radial-gradient(closest-side at 50% 56%,rgba(0,0,0,.32),transparent 72%);}',
+      '.tm-cover-glyph{position:relative;z-index:2;font-size:2.6rem;line-height:1;}',
+      '.tm-official{position:absolute;top:6px;left:6px;z-index:3;font-size:.6rem;padding:.05rem .35rem;border:1px solid var(--gold,#d8b56a);background:rgba(0,0,0,.55);color:#f3da92;}',
+      '.tm-cover.zhu{background:radial-gradient(circle at 50% 34%,#b5402f,#8c2b20);}',
+      '.tm-cover.dai{background:radial-gradient(circle at 50% 34%,#2f5a58,#1f3a3a);}',
+      '.tm-cover.jin{background:radial-gradient(circle at 50% 34%,#9c7a1e,#6e5212);color:#ffeec0;}',
+      '.tm-cover.zhe{background:radial-gradient(circle at 50% 34%,#9a6326,#7a4a1e);}',
+      '.tm-cover.mo{background:radial-gradient(circle at 50% 34%,#3a2c22,#241c16);}',
+      '.tm-cover.jiang{background:radial-gradient(circle at 50% 34%,#84302a,#5e1f1a);}',
+      '.tm-cover.qing{background:radial-gradient(circle at 50% 34%,#324b5c,#23323f);}',
+      '.tm-cat-body{padding:.6rem .65rem .7rem;display:flex;flex-direction:column;min-width:0;}',
+      '.tm-cat-title{font-weight:800;color:#f4d89a;font-size:.86rem;line-height:1.3;font-family:"Noto Serif SC","Songti SC",serif;}',
+      '.tm-cat-au{font-size:.68rem;color:rgba(234,223,203,.6);margin-top:.22rem;}',
+      // P1-S1 类型筛选 + 角标
+      '.tm-typebar{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.6rem;}',
+      '.tm-typechip{display:inline-flex;align-items:center;min-height:30px;padding:0 .7rem;font-size:.74rem;cursor:pointer;border:1px solid rgba(214,177,93,.26);background:rgba(0,0,0,.25);color:rgba(234,223,203,.74);transition:background .18s ease,border-color .18s ease,color .18s ease;}',
+      '.tm-typechip:hover{border-color:rgba(214,177,93,.6);color:#f6e5b7;}',
+      '.tm-typechip.on{background:linear-gradient(180deg,rgba(150,42,30,.7),rgba(70,22,16,.6));border-color:rgba(214,177,93,.7);color:#ffe7ab;}',
+      '.tm-ptype{position:absolute;top:6px;right:6px;z-index:3;font-size:.6rem;padding:.05rem .35rem;border:1px solid rgba(214,177,93,.5);background:rgba(0,0,0,.55);color:#f0d58a;}',
+      // S2 详情浮层
+      '.tm-detail-layer{position:fixed;inset:0;z-index:2680;display:grid;place-items:center;background:rgba(4,2,1,.72);backdrop-filter:blur(3px);padding:2vh 2vw;}',
+      '.tm-detail-sheet{width:min(820px,94vw);max-height:90vh;display:grid;grid-template-rows:auto 1fr;border:1px solid rgba(214,177,93,.6);background:linear-gradient(180deg,rgba(40,24,16,.99),rgba(12,8,5,.99));box-shadow:0 30px 80px rgba(0,0,0,.7);}',
+      '.tm-detail-head{display:flex;align-items:center;padding:.8rem 1rem;border-bottom:1px solid rgba(214,177,93,.28);}',
+      '.tm-detail-head b{color:var(--gold,#d8b56a);font-size:.95rem;}',
+      '.tm-detail-head .tm-action{margin-left:auto;min-height:34px;}',
+      '.tm-detail-body{min-height:0;overflow-y:auto;padding:1rem 1.1rem 1.2rem;}',
+      '.tm-detail-hero{display:grid;grid-template-columns:150px 1fr;gap:1.1rem;align-items:start;}',
+      '.tm-cover-lg{height:auto;aspect-ratio:3/4;border:1px solid rgba(214,177,93,.4);border-bottom:1px solid rgba(214,177,93,.4);}',
+      '.tm-cover-lg .tm-cover-glyph{font-size:3.4rem;}',
+      '.tm-detail-kick{font-size:.7rem;letter-spacing:2px;color:var(--gold,#d8b56a);}',
+      '.tm-detail-title{font-family:"Noto Serif SC","Songti SC",serif;font-size:1.25rem;margin:.3rem 0 .5rem;color:#f6dca0;line-height:1.3;}',
+      '.tm-detail-meta{font-size:.76rem;color:rgba(234,223,203,.72);}',
+      '.tm-detail-rate{font-size:.74rem;color:rgba(234,223,203,.7);margin-left:.3rem;}',
+      '.tm-detail-h{margin:1rem 0 .5rem;color:var(--gold,#d8b56a);font-size:.86rem;font-weight:800;}',
+      '.tm-detail-author span{color:var(--gold,#d8b56a);cursor:pointer;text-decoration:underline;font-size:.82rem;}',
+      '.tm-comment-list{display:grid;gap:.5rem;margin-top:.6rem;}',
+      '.tm-comment{border:1px solid rgba(214,177,93,.18);background:rgba(0,0,0,.18);padding:.55rem .7rem;}',
+      '.tm-comment-h{display:flex;align-items:baseline;gap:.5rem;}',
+      '.tm-comment-h b{color:#f1d490;font-size:.78rem;font-family:"Noto Serif SC","Songti SC",serif;}',
+      '.tm-comment-h small{color:rgba(234,223,203,.5);font-size:.66rem;margin-left:auto;}',
+      '.tm-comment-t{font-size:.78rem;line-height:1.6;color:rgba(234,223,203,.78);margin-top:.3rem;}',
+      // P1-S2a 立绘画廊 / 音乐曲目
+      '.tm-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:.5rem;}',
+      '.tm-port{aspect-ratio:3/4;border:1px solid rgba(214,177,93,.25);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.3rem;background:radial-gradient(circle at 50% 32%,rgba(150,42,30,.5),rgba(8,6,4,.92));box-shadow:inset 0 0 12px rgba(0,0,0,.5);}',
+      '.tm-port-g{font-family:"Noto Serif SC","Songti SC",serif;font-size:1.7rem;color:#f4e2b6;text-shadow:0 1px 3px rgba(0,0,0,.6);}',
+      '.tm-port small{font-size:.62rem;color:rgba(234,223,203,.7);}',
+      '.tm-tracklist{border:1px solid rgba(214,177,93,.2);background:rgba(0,0,0,.18);}',
+      '.tm-track{display:grid;grid-template-columns:auto 1fr auto auto;gap:.7rem;align-items:center;padding:.5rem .7rem;border-bottom:1px solid rgba(214,177,93,.1);cursor:pointer;}',
+      '.tm-track:last-child{border-bottom:none;}',
+      '.tm-track:hover{background:rgba(214,177,93,.05);}',
+      '.tm-track.playing{background:linear-gradient(90deg,rgba(150,42,30,.28),transparent);box-shadow:inset 3px 0 0 var(--gold,#d8b56a);}',
+      '.tm-track-pl{width:26px;height:26px;display:grid;place-items:center;border:1px solid rgba(214,177,93,.5);border-radius:50%;color:#f3da92;font-size:.66rem;}',
+      '.tm-track b{font-family:"Noto Serif SC","Songti SC",serif;font-size:.8rem;color:#f1d490;}',
+      '.tm-track small{font-size:.66rem;color:rgba(234,223,203,.5);}',
+      '.tm-track em{font-size:.7rem;color:rgba(234,223,203,.7);font-style:normal;font-variant-numeric:tabular-nums;}',
+      '@media (max-width:860px){.tm-online-shell{height:92vh}.tm-grid-2,.tm-grid-3{grid-template-columns:1fr}.tm-pack{grid-template-columns:1fr}.tm-online-head{grid-template-columns:1fr}.tm-kv{grid-template-columns:1fr}.tm-cat-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}}',
+      '@media (prefers-reduced-motion:reduce){.tm-tab,.tm-action,.tm-caret,.tm-input{transition:none!important}.tm-action:active{transform:none!important}}'
     ].join('\n');
     document.head.appendChild(css);
   }
@@ -466,6 +539,15 @@
     return '<div><small>' + esc(label) + '</small><b>' + esc(value || '未读取') + '</b></div>';
   }
 
+  // 密码输入框（含显隐切换 + autocomplete），id 保持调用方约定不变。
+  function pwField(id, labelText, ac, placeholder) {
+    return '<div class="tm-field"><label for="' + id + '">' + esc(labelText) + '</label>' +
+      '<div class="tm-pw">' +
+        '<input class="tm-input" id="' + id + '" type="password" autocomplete="' + (ac || 'current-password') + '" placeholder="' + esc(placeholder || '至少 8 位') + '">' +
+        '<button type="button" class="tm-pw-toggle" aria-label="显示或隐藏密码" onclick="TMContentManager.togglePw(\'' + id + '\',this)">显示</button>' +
+      '</div></div>';
+  }
+
   function featureCard(title, enabled, desc) {
     return '<div class="tm-feat">' +
       '<div class="tm-feat-h">' +
@@ -493,7 +575,7 @@
           '<div class="tm-actions">' +
             action('检查在线服务', 'TMContentManager.checkOnlineService()', 'primary') +
           '</div>' +
-          '<div class="tm-status ' + (ok ? '' : 'warn') + '">' + esc(msg) + '</div>' +
+          '<div class="tm-status ' + (ok ? '' : 'warn') + '" role="status" aria-live="polite">' + esc(msg) + '</div>' +
           '<div class="tm-grid-3" style="margin-top:.8rem;">' +
             featureCard('前端热更新', !!features.hotUpdate, '用于无安装包更新 UI、脚本、剧本、地图、立绘和音乐等前端资源。') +
             featureCard('在线创意工坊', !!features.workshop, '用于从官方目录浏览并安装玩家内容包，同时保留本地导入能力。') +
@@ -684,7 +766,7 @@
     var stars = '';
     for (var i = 1; i <= 5; i++) stars += (i <= full ? '★' : '☆');
     return '<span style="color:#e8c46a;font-size:.82rem;letter-spacing:1px;">' + stars + '</span>' +
-      '<span style="color:rgba(234,223,203,.6);font-size:.72rem;margin-left:.35rem;">' + (cnt ? (avg.toFixed(1) + ' · ' + cnt + ' 评') : '暂无评分') + '</span>';
+      '<span style="color:rgba(234,223,203,.74);font-size:.72rem;margin-left:.35rem;">' + (cnt ? (avg.toFixed(1) + ' · ' + cnt + ' 评') : '暂无评分') + '</span>';
   }
 
   function rateControl(p) {
@@ -694,7 +776,7 @@
     for (var i = 1; i <= 5; i++) {
       btns += '<span onclick="TMContentManager.ratePack(' + jsArg(p.id || '') + ',' + i + ')" title="' + i + ' 星" style="cursor:pointer;color:#e8c46a;font-size:.95rem;padding:0 1px;">★</span>';
     }
-    return '<div style="margin-top:.35rem;font-size:.72rem;color:rgba(234,223,203,.6);">我来评：' + btns + '</div>';
+    return '<div style="margin-top:.35rem;font-size:.72rem;color:rgba(234,223,203,.74);">我来评：' + btns + '</div>';
   }
 
   function catalogPackRowV2(p) {
@@ -718,6 +800,191 @@
     '</div>';
   }
 
+  // 内容类型（catalog 的 pack.type）→ 中文标签。剧本是默认，不打角标。
+  var PACK_TYPES = [
+    { v: '', label: '全部' },
+    { v: 'scenario', label: '剧本' },
+    { v: 'portrait', label: '立绘' },
+    { v: 'music', label: '音乐' },
+    { v: 'map', label: '地图' },
+    { v: 'mod', label: 'MOD' }
+  ];
+  function packTypeLabel(t) {
+    t = String(t || 'scenario');
+    for (var i = 0; i < PACK_TYPES.length; i++) if (PACK_TYPES[i].v === t) return PACK_TYPES[i].label;
+    return t;
+  }
+
+  // 商城卡片（封面网格）：剪纸封面 + 标题/作者/评分/标签 + 安装；复用现成 install/rate/author 处理器。
+  function catalogCardV2(p) {
+    var disabled = !p.packageUrl;
+    var ch = String(p.title || p.id || '坊').trim().charAt(0) || '坊';
+    var ptype = String(p.type || 'scenario');
+    var typeAttr = (ptype && ptype !== 'scenario') ? ' data-type-label="' + esc(packTypeLabel(ptype)) + '"' : '';
+    var tags = Array.isArray(p.tags) ? p.tags.filter(Boolean).slice(0, 3) : [];
+    var official = (p.author === '天命官方') || tags.indexOf('官方') >= 0;
+    var tagHtml = tags.length ? '<div class="tm-tags">' + tags.map(function(t){ return '<span class="tm-tagchip">' + esc(t) + '</span>'; }).join('') + '</div>' : '';
+    var openDetail = 'onclick="TMContentManager.openPackDetail(' + jsArg(p.id || '') + ')"';
+    return '<div class="tm-cat-card">' +
+      '<div class="tm-cover" data-glyph="' + esc(ch) + '"' + (official ? ' data-official="1"' : '') + typeAttr + ' style="cursor:pointer;" ' + openDetail + '>' + esc(ch) + '</div>' +
+      '<div class="tm-cat-body">' +
+        '<div class="tm-cat-title" style="cursor:pointer;" ' + openDetail + '>' + esc(p.title || p.id) + '</div>' +
+        '<div class="tm-cat-au">' +
+          '<span onclick="TMContentManager.loadAuthorPacks(' + jsArg(p.authorId != null ? p.authorId : '') + ',' + jsArg(p.author || '') + ')" style="color:var(--gold,#d8b56a);cursor:pointer;">' + esc(p.author || '佚名') + '</span>' +
+          ' · v' + esc(p.version || '1.0.0') + (p.downloads ? ' · ↓' + p.downloads : '') +
+        '</div>' +
+        '<div style="margin-top:.28rem;">' + ratingStars(p) + '</div>' +
+        (p.description ? '<div class="tm-pack-desc" style="margin-top:.35rem;">' + esc(p.description) + '</div>' : '') +
+        tagHtml +
+        rateControl(p) +
+        '<div class="tm-actions" style="margin-top:.55rem;">' +
+          action('在线安装', 'TMContentManager.installCatalogPack(' + jsArg(p.packageUrl || '') + ',' + jsArg(p.sha256 || '') + ',' + jsArg(p.id || '') + ')', 'primary', disabled) +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  // S2：剧本详情浮层 —— 从目录数据开局，best-effort 用 packMeta 刷新。
+  function findCatalogPack(id) {
+    var packs = (state.catalog && state.catalog.packs) || [];
+    for (var i = 0; i < packs.length; i++) if (String(packs[i].id) === String(id)) return packs[i];
+    return state.detailPack && String(state.detailPack.id) === String(id) ? state.detailPack : null;
+  }
+  function openPackDetail(id) {
+    var p = findCatalogPack(id);
+    if (!p) return;
+    state.detailPack = p;
+    state.detailOpen = true;
+    state.detailComments = [];
+    state.detailCommentCount = 0;
+    state.detailCommentMsg = '';
+    state.detailPlaying = -1;
+    render();
+    loadPackComments(id);
+    try {
+      if (window.TM && TM.OnlineClient && TM.OnlineClient.packMeta) {
+        TM.OnlineClient.packMeta(id, state.onlineApiUrl || undefined).then(function(res){
+          if (res && res.success && res.pack && state.detailOpen && state.detailPack && String(state.detailPack.id) === String(id)) {
+            state.detailPack = Object.assign({}, state.detailPack, res.pack);
+            render();
+          }
+        }).catch(function(){});
+      }
+    } catch (e) {}
+  }
+  function closePackDetail() { state.detailOpen = false; state.detailPack = null; state.detailComments = []; state.detailCommentMsg = ''; render(); }
+
+  // S3 评论：加载 / 发表（走 TM.OnlineClient，桌面端 renderer 同样可用）。
+  function loadPackComments(id) {
+    try {
+      if (window.TM && TM.OnlineClient && TM.OnlineClient.comments) {
+        TM.OnlineClient.comments(id, state.onlineApiUrl || undefined).then(function(res){
+          if (res && res.success && state.detailOpen && state.detailPack && String(state.detailPack.id) === String(id)) {
+            state.detailComments = res.comments || [];
+            state.detailCommentCount = res.count != null ? res.count : (res.comments || []).length;
+            render();
+          }
+        }).catch(function(){});
+      }
+    } catch (e) {}
+  }
+  function postPackComment() {
+    var ta = document.getElementById('tm-detail-comment');
+    var text = ta ? ta.value.trim() : '';
+    var p = state.detailPack;
+    if (!p) return;
+    if (!(window.TM && TM.OnlineClient && TM.OnlineClient.isLoggedIn && TM.OnlineClient.isLoggedIn())) { state.detailCommentMsg = '请先登录再评论。'; render(); return; }
+    if (!text) { state.detailCommentMsg = '请输入评论内容。'; render(); return; }
+    state.detailCommentMsg = '正在发表…'; render();
+    TM.OnlineClient.postComment(p.id, text, state.onlineApiUrl || undefined).then(function(res){
+      if (res && res.success) { state.detailCommentMsg = '已发表。'; loadPackComments(p.id); }
+      else { state.detailCommentMsg = '发表失败：' + ((res && res.error) || '未知错误'); render(); }
+    }).catch(function(e){ state.detailCommentMsg = '发表失败：' + (e && e.message || '网络错误'); render(); });
+  }
+  function commentRow(c) {
+    return '<div class="tm-comment"><div class="tm-comment-h"><b>' + esc(c.nickname || '玩家') + '</b><small>' + esc(c.createdAt || '') + '</small></div>' +
+      '<div class="tm-comment-t">' + esc(c.text || '') + '</div></div>';
+  }
+
+  function packTypeNoun(t) { t = String(t || 'scenario'); return ({ scenario: '剧本', portrait: '立绘包', music: '音乐包', map: '地图包', mod: 'MOD' })[t] || t; }
+  function packInstallLabel(t) { t = String(t || 'scenario'); return ({ scenario: '在线安装', portrait: '安装立绘包', music: '安装音乐包', map: '安装地图包', mod: '安装 MOD' })[t] || '在线安装'; }
+
+  // P1-S2a：类型感知详情体（立绘画廊 / 音乐曲目 / 地图·MOD 资源清单）。assets 由服务器元数据提供（S2b）。
+  function renderDetailTypeBody(p) {
+    var t = String(p.type || 'scenario');
+    var assets = Array.isArray(p.assets) ? p.assets : [];
+    if (t === 'portrait') {
+      var tiles = assets.length ? assets.map(function(a){
+        var g = String(a.name || '图').trim().charAt(0) || '图';
+        return '<div class="tm-port"><span class="tm-port-g">' + esc(g) + '</span><small>' + esc(a.name || '') + '</small></div>';
+      }).join('') : '<div class="tm-empty" style="grid-column:1/-1;">立绘清单待服务器支持。</div>';
+      return '<h4 class="tm-detail-h">立绘预览' + (assets.length ? ' · ' + assets.length + ' 张' : '') + '</h4><div class="tm-gallery">' + tiles + '</div>';
+    }
+    if (t === 'music') {
+      var rows = assets.length ? assets.map(function(a, i){
+        var playing = state.detailPlaying === i;
+        return '<div class="tm-track' + (playing ? ' playing' : '') + '" onclick="TMContentManager.playTrack(' + i + ')"><span class="tm-track-pl">' + (playing ? '❚❚' : '▶') + '</span><b>' + esc(a.name || '') + '</b><small>' + esc(a.mood || '') + '</small><em>' + esc(a.duration || '') + '</em></div>';
+      }).join('') : '<div class="tm-empty">曲目清单待服务器支持。</div>';
+      return '<h4 class="tm-detail-h">曲目' + (assets.length ? ' · ' + assets.length + ' 首' : '') + '</h4><div class="tm-tracklist">' + rows + '</div>';
+    }
+    if ((t === 'map' || t === 'mod') && assets.length) {
+      return '<h4 class="tm-detail-h">资源清单 · ' + assets.length + '</h4><div class="tm-copy">' + assets.map(function(a){ return esc(a.name || ''); }).join(' · ') + '</div>';
+    }
+    return '';
+  }
+
+  function renderPackDetail() {
+    var p = state.detailPack;
+    if (!p) return '';
+    var ptype = String(p.type || 'scenario');
+    var ch = String(p.title || p.id || '坊').trim().charAt(0) || '坊';
+    var tags = Array.isArray(p.tags) ? p.tags.filter(Boolean) : [];
+    var official = (p.author === '天命官方') || tags.indexOf('官方') >= 0;
+    var loggedIn = !!(state.accountSession && state.accountSession.user) || (window.TM && TM.OnlineClient && TM.OnlineClient.isLoggedIn());
+    var disabled = !p.packageUrl;
+    var rateStars = '';
+    for (var i = 1; i <= 5; i++) rateStars += '<span onclick="TMContentManager.ratePack(' + jsArg(p.id || '') + ',' + i + ')" title="' + i + ' 星" style="cursor:pointer;color:#e8c46a;font-size:1.05rem;padding:0 1px;">★</span>';
+    var related = ((state.catalog && state.catalog.packs) || []).filter(function(x){
+      if (String(x.id) === String(p.id)) return false;
+      return x.author === p.author || (tags.length && Array.isArray(x.tags) && x.tags.some(function(t){ return tags.indexOf(t) >= 0; }));
+    }).slice(0, 4);
+    var relHtml = related.length ? related.map(catalogCardV2).join('') : '<div class="tm-empty" style="grid-column:1/-1;">暂无相关。</div>';
+    var msgWarn = state.catalogMessage && /失败|错误/.test(state.catalogMessage);
+    return '<div class="tm-detail-layer" role="dialog" aria-modal="true" aria-label="' + esc(packTypeNoun(ptype)) + '详情">' +
+      '<div class="tm-detail-sheet">' +
+        '<div class="tm-detail-head"><b>' + esc(packTypeNoun(ptype)) + '详情</b><button class="tm-action" onclick="TMContentManager.closePackDetail()" aria-label="关闭详情">关闭</button></div>' +
+        '<div class="tm-detail-body">' +
+          '<div class="tm-detail-hero">' +
+            '<div class="tm-cover tm-cover-lg" data-glyph="' + esc(ch) + '"' + (official ? ' data-official="1"' : '') + (ptype !== 'scenario' ? ' data-type-label="' + esc(packTypeLabel(ptype)) + '"' : '') + '>' + esc(ch) + '</div>' +
+            '<div>' +
+              '<div class="tm-detail-kick">' + (official ? '官方' : '玩家') + esc(packTypeNoun(ptype)) + (tags.length ? ' · ' + esc(tags[0]) : '') + '</div>' +
+              '<h3 class="tm-detail-title">' + esc(p.title || p.id) + '</h3>' +
+              '<div class="tm-detail-meta">' + ratingStars(p) + ' · ↓' + (p.downloads || 0) + ' · v' + esc(p.version || '1.0.0') + (p.size ? ' · ' + esc(formatBytes(p.size)) : '') + '</div>' +
+              (tags.length ? '<div class="tm-tags">' + tags.slice(0, 6).map(function(t){ return '<span class="tm-tagchip">' + esc(t) + '</span>'; }).join('') + '</div>' : '') +
+              '<div class="tm-actions" style="margin-top:.6rem;align-items:center;">' +
+                action(packInstallLabel(ptype), 'TMContentManager.installCatalogPack(' + jsArg(p.packageUrl || '') + ',' + jsArg(p.sha256 || '') + ',' + jsArg(p.id || '') + ')', 'primary', disabled) +
+                (loggedIn ? '<span class="tm-detail-rate">评分：' + rateStars + '</span>' : '') +
+              '</div>' +
+              '<div class="tm-status' + (msgWarn ? ' warn' : '') + '" role="status" aria-live="polite">' + esc(state.catalogMessage || '') + '</div>' +
+            '</div>' +
+          '</div>' +
+          (p.description ? '<h4 class="tm-detail-h">' + (ptype === 'scenario' ? '剧本提要' : '简介') + '</h4><div class="tm-copy">' + esc(p.description) + '</div>' : '') +
+          renderDetailTypeBody(p) +
+          '<h4 class="tm-detail-h">作者</h4>' +
+          '<div class="tm-detail-author"><span onclick="TMContentManager.loadAuthorPacks(' + jsArg(p.authorId != null ? p.authorId : '') + ',' + jsArg(p.author || '') + ')">' + esc(p.author || '佚名') + '</span>' + (official ? ' <span class="tm-pill good">官方认证</span>' : '') + '</div>' +
+          '<h4 class="tm-detail-h">玩家评论' + (state.detailCommentCount ? ' · ' + state.detailCommentCount : '') + '</h4>' +
+          (loggedIn
+            ? '<div class="tm-field" style="margin-top:0;"><textarea class="tm-input" id="tm-detail-comment" rows="2" placeholder="说说你的开局体验、攻略或建议…"></textarea></div>' +
+              '<div class="tm-actions"><button class="tm-action primary" onclick="TMContentManager.postPackComment()">发表评论</button></div>'
+            : '<div class="tm-copy">登录后可发表评论。</div>') +
+          (state.detailCommentMsg ? '<div class="tm-status' + (/失败|错误|请/.test(state.detailCommentMsg) ? ' warn' : '') + '" role="status" aria-live="polite">' + esc(state.detailCommentMsg) + '</div>' : '') +
+          '<div class="tm-comment-list">' + ((state.detailComments && state.detailComments.length) ? state.detailComments.map(commentRow).join('') : '<div class="tm-empty">还没有评论，来做第一个。</div>') + '</div>' +
+          '<h4 class="tm-detail-h">同作者 / 同标签</h4><div class="tm-cat-grid">' + relHtml + '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
   function webInstalledRow(rec) {
     var upd = (state.workshopUpdates || {})[rec.packId];
     var badge = upd ? '<span style="border:1px solid #7ec98b;color:#7ec98b;font-size:.66rem;padding:.05rem .3rem;margin-left:.4rem;">有新版 ' + esc(upd.to) + '</span>' : '';
@@ -736,7 +1003,7 @@
   function renderLocalWorkshopSection() {
     if (desktop()) {
       var localRows = state.packs.length ? state.packs.map(packRowV2).join('') : '<div class="tm-empty">尚未安装创意工坊内容包。</div>';
-      return '<section class="tm-panel">' +
+      return '<section class="tm-panel" style="margin-top:.8rem;">' +
         '<h4>本地工坊</h4>' +
         '<div class="tm-copy">本地工坊承接玩家手动导入的 .tm-pack、zip 或单个剧本 JSON。启用的剧本包会在开局前并入剧本列表，停用后不再参与。</div>' +
         '<div class="tm-actions">' +
@@ -750,7 +1017,7 @@
     }
     var recs = state.webInstalled || [];
     var rows = recs.length ? recs.map(webInstalledRow).join('') : '<div class="tm-empty">尚未安装工坊剧本。从右侧在线目录安装。</div>';
-    return '<section class="tm-panel">' +
+    return '<section class="tm-panel" style="margin-top:.8rem;">' +
       '<h4>已装工坊剧本</h4>' +
       '<div class="tm-copy">从在线工坊安装的剧本（存于浏览器，开局前并入剧本列表）。点「检查更新」可在作者发布新版后更新到最新。</div>' +
       '<div class="tm-actions">' +
@@ -764,35 +1031,41 @@
     var c = state.catalog || {};
     var user = state.accountSession && state.accountSession.user;
     var authorBack = state.catalogAuthorView ? '<div style="margin:.2rem 0 .5rem;"><span onclick="TMContentManager.loadWorkshopCatalog()" style="color:var(--gold,#d8b56a);cursor:pointer;text-decoration:underline;font-size:.78rem;">← 返回全部目录</span></div>' : '';
-    var onlineRows = c.packs && c.packs.length ? c.packs.map(catalogPackRowV2).join('') : '<div class="tm-empty">尚未载入在线目录。检查服务后，可从官方目录安装工坊包。</div>';
+    var allPacks = c.packs || [];
+    var ctype = state.catalogType || '';
+    var shown = ctype ? allPacks.filter(function(pp){ return String(pp.type || 'scenario') === ctype; }) : allPacks;
+    var cards = shown.length ? shown.map(catalogCardV2).join('')
+      : (allPacks.length ? '<div class="tm-empty" style="grid-column:1/-1;">此类型下暂无内容。</div>'
+        : '<div class="tm-empty" style="grid-column:1/-1;">尚未载入在线目录。点「刷新 / 搜索」从官方目录浏览并安装。</div>');
+    var typeChips = PACK_TYPES.map(function(t){
+      var n = t.v ? allPacks.filter(function(pp){ return String(pp.type || 'scenario') === t.v; }).length : allPacks.length;
+      return '<span class="tm-typechip' + (ctype === t.v ? ' on' : '') + '" onclick="TMContentManager.switchCatalogType(' + jsArg(t.v) + ')">' + esc(t.label) + (allPacks.length ? ' ' + n : '') + '</span>';
+    }).join('');
+    var sortSel = '<select class="tm-input" id="tm-workshop-sort" style="width:auto;min-width:118px;" onchange="TMContentManager.loadWorkshopCatalog()">' +
+      '<option value="new"' + (state.catalogSort === 'new' || !state.catalogSort ? ' selected' : '') + '>最新</option>' +
+      '<option value="hot"' + (state.catalogSort === 'hot' ? ' selected' : '') + '>最热（下载）</option>' +
+      '<option value="rating"' + (state.catalogSort === 'rating' ? ' selected' : '') + '>评分最高</option>' +
+    '</select>';
     return '' +
-      '<div class="tm-grid-2">' +
-        renderLocalWorkshopSection() +
-        '<section class="tm-panel">' +
-          '<h4>在线工坊目录</h4>' +
-          '<div class="tm-copy">在线目录由服务器发布 catalog.json。玩家可在游戏内刷新、查看并安装，不需要跳出到网页下载。</div>' +
-          '<div class="tm-field"><label for="tm-workshop-catalog">工坊目录地址</label><input class="tm-input" id="tm-workshop-catalog" value="' + esc(state.catalogUrl || state.defaultCatalogUrl || '') + '" placeholder="https://example.com/tianming/workshop/catalog.json"></div>' +
-          '<div class="tm-grid-2" style="gap:.5rem;">' +
-            '<div class="tm-field"><label for="tm-workshop-q">搜索</label><input class="tm-input" id="tm-workshop-q" value="' + esc(state.catalogQuery || '') + '" placeholder="标题 / 作者 / 标签关键词" onkeydown="if(event.key===\'Enter\')TMContentManager.loadWorkshopCatalog()"></div>' +
-            '<div class="tm-field"><label for="tm-workshop-sort">排序</label><select class="tm-input" id="tm-workshop-sort" onchange="TMContentManager.loadWorkshopCatalog()">' +
-              '<option value="new"' + (state.catalogSort === 'new' || !state.catalogSort ? ' selected' : '') + '>最新</option>' +
-              '<option value="hot"' + (state.catalogSort === 'hot' ? ' selected' : '') + '>最热（下载）</option>' +
-              '<option value="rating"' + (state.catalogSort === 'rating' ? ' selected' : '') + '>评分最高</option>' +
-            '</select></div>' +
-          '</div>' +
-          '<div class="tm-actions">' +
-            action('刷新 / 搜索', 'TMContentManager.loadWorkshopCatalog()', 'primary') +
-          '</div>' +
-          '<div class="tm-status">' + esc(state.catalogMessage || (c.title ? (c.title + (c.updatedAt ? ' / ' + c.updatedAt : '')) : '尚未载入在线工坊目录。')) + '</div>' +
-          authorBack +
-          '<div class="tm-pack-list">' + onlineRows + '</div>' +
-        '</section>' +
-      '</div>' +
+      '<section class="tm-panel">' +
+        '<h4>创意工坊 · 在线目录</h4>' +
+        '<div class="tm-store-bar">' +
+          '<div class="tm-store-search"><input class="tm-input" id="tm-workshop-q" value="' + esc(state.catalogQuery || '') + '" placeholder="搜剧本 / 作者 / 标签…" onkeydown="if(event.key===\'Enter\')TMContentManager.loadWorkshopCatalog()"></div>' +
+          sortSel +
+          action('刷新 / 搜索', 'TMContentManager.loadWorkshopCatalog()', 'primary') +
+        '</div>' +
+        '<details class="tm-copy" style="margin-top:.5rem;"><summary style="cursor:pointer;color:var(--gold);font-size:.72rem;">目录地址（高级）</summary><div class="tm-field" style="margin-top:.4rem;"><input class="tm-input" id="tm-workshop-catalog" value="' + esc(state.catalogUrl || state.defaultCatalogUrl || '') + '" placeholder="https://example.com/tianming/workshop/catalog.json"></div></details>' +
+        '<div class="tm-status" role="status" aria-live="polite">' + esc(state.catalogMessage || (c.title ? (c.title + (c.updatedAt ? ' / ' + c.updatedAt : '')) : '尚未载入在线工坊目录。')) + '</div>' +
+        '<div class="tm-typebar">' + typeChips + '</div>' +
+        authorBack +
+        '<div class="tm-cat-grid">' + cards + '</div>' +
+      '</section>' +
+      renderLocalWorkshopSection() +
       (desktop() ? renderUrlPublishSection(user) : renderWebPublishSection(user));
   }
 
   function publishStatusHtml(user) {
-    return '<div class="tm-status ' + (state.publishMessage && /失败|错误|请先/.test(state.publishMessage) ? 'warn' : '') + '">' + esc(state.publishMessage || (user ? '当前作者：' + (user.nickname || user.username) : '请先登录账号。')) + '</div>';
+    return '<div class="tm-status ' + (state.publishMessage && /失败|错误|请先/.test(state.publishMessage) ? 'warn' : '') + '" role="status" aria-live="polite">' + esc(state.publishMessage || (user ? '当前作者：' + (user.nickname || user.username) : '请先登录账号。')) + '</div>';
   }
 
   // 桌面端：登记一个已自托管的 .tm-pack URL（服务器只存元数据 + 地址）。
@@ -823,27 +1096,40 @@
 
   // 网页：从玩家自己的剧本库选一个纯文本剧本，上传到工坊（服务器自持 -> 待审）。
   function renderWebPublishSection(user) {
+    var pt = state.pubType || 'scenario';
     var scns = (window.P && Array.isArray(P.scenarios)) ? P.scenarios : [];
     var opts = scns.map(function(s){
       return '<option value="' + esc(s.id) + '">' + esc((s.name || s.id) + (s.era ? '（' + s.era + '）' : '')) + '</option>';
     }).join('') || '<option value="">（剧本库为空）</option>';
+    var typeSel = '<div class="tm-field"><label for="tm-pub-type">内容类型</label><select class="tm-input" id="tm-pub-type" onchange="TMContentManager.switchPubType(this.value)">' +
+      PACK_TYPES.filter(function(t){ return t.v; }).map(function(t){ return '<option value="' + t.v + '"' + (pt === t.v ? ' selected' : '') + '>' + esc(t.label) + '</option>'; }).join('') +
+    '</select></div>';
+    var isScn = pt === 'scenario';
+    var copy = isScn
+      ? '从你的剧本库选择一个剧本上传（纯文本 JSON）。审核通过后，其他玩家即可浏览安装。'
+      : '选择多个' + (pt === 'portrait' ? '立绘图片（PNG）' : (pt === 'music' ? '音频文件（OGG/MP3）' : '资源文件')) + '，浏览器内打包成 zip 上传，审核通过后上架。含真人 / 版权素材将被驳回。';
+    var leftBody = isScn
+      ? '<div class="tm-field"><label for="tm-webpub-scn">选择剧本</label><select class="tm-input" id="tm-webpub-scn">' + opts + '</select></div>'
+      : '<div class="tm-field"><label for="tm-asset-files">资源文件（可多选）</label><input class="tm-input" type="file" id="tm-asset-files" multiple accept="' + (pt === 'portrait' ? 'image/*' : (pt === 'music' ? 'audio/*' : '*/*')) + '" onchange="TMContentManager.onAssetFiles(this)"><div class="tm-pack-meta" id="tm-asset-count">未选择文件</div></div>';
+    var submitCall = isScn ? 'TMContentManager.webPublishScenario()' : 'TMContentManager.webPublishAssetPack()';
     return '' +
       '<section class="tm-panel" style="margin-top:.8rem;">' +
         '<h4>发布到在线工坊</h4>' +
-        '<div class="tm-copy">从你的剧本库选择一个剧本，上传到在线工坊（纯文本剧本）。提交后经审核通过，其他玩家即可在工坊浏览并安装。带立绘 / 音频等资源的大包请用桌面版发布。</div>' +
+        '<div class="tm-copy">' + copy + '</div>' +
         '<div class="tm-grid-2" style="margin-top:.7rem;">' +
           '<div>' +
-            '<div class="tm-field"><label for="tm-webpub-scn">选择剧本</label><select class="tm-input" id="tm-webpub-scn">' + opts + '</select></div>' +
-            '<div class="tm-field"><label for="tm-webpub-title">标题</label><input class="tm-input" id="tm-webpub-title" placeholder="留空则用剧本名"></div>' +
-            '<div class="tm-field"><label for="tm-webpub-version">版本</label><input class="tm-input" id="tm-webpub-version" value="1.0.0"></div>' +
+            typeSel +
+            leftBody +
+            '<div class="tm-field"><label for="tm-webpub-title">标题</label><input class="tm-input" id="tm-webpub-title" placeholder="' + (isScn ? '留空则用剧本名' : '例如：盛唐人物·立绘包') + '"></div>' +
           '</div>' +
           '<div>' +
-            '<div class="tm-field"><label for="tm-webpub-tags">标签</label><input class="tm-input" id="tm-webpub-tags" placeholder="剧本 明末"></div>' +
+            '<div class="tm-field"><label for="tm-webpub-version">版本</label><input class="tm-input" id="tm-webpub-version" value="1.0.0"></div>' +
+            '<div class="tm-field"><label for="tm-webpub-tags">标签</label><input class="tm-input" id="tm-webpub-tags" placeholder="' + (isScn ? '剧本 明末' : '立绘 唐 通用') + '"></div>' +
             '<div class="tm-field"><label for="tm-webpub-desc">简介</label><input class="tm-input" id="tm-webpub-desc" placeholder="给玩家看的简短说明"></div>' +
           '</div>' +
         '</div>' +
         '<div class="tm-actions">' +
-          action(user ? '提交发布（待审核）' : '登录后发布', 'TMContentManager.webPublishScenario()', 'primary', !user) +
+          action(user ? '提交发布（待审核）' : '登录后发布', submitCall, 'primary', !user) +
           action('刷新在线目录', 'TMContentManager.loadWorkshopCatalog()') +
         '</div>' +
         publishStatusHtml(user) +
@@ -857,16 +1143,16 @@
         '<h4>找回密码</h4>' +
         '<div class="tm-copy">输入注册时填写的邮箱，收到验证码后重置密码。' + (recoveryOn ? '' : '（服务器尚未配置邮件服务，找回暂不可用。）') + '</div>' +
         '<div class="tm-grid-2" style="margin-top:.6rem;">' +
-          '<div class="tm-field"><label for="tm-reset-email">邮箱</label><input class="tm-input" id="tm-reset-email" placeholder="注册时填写的邮箱"></div>' +
-          '<div class="tm-field"><label for="tm-reset-code">验证码</label><input class="tm-input" id="tm-reset-code" placeholder="邮件里的 6 位验证码"></div>' +
+          '<div class="tm-field"><label for="tm-reset-email">邮箱</label><input class="tm-input" id="tm-reset-email" type="email" autocomplete="email" placeholder="注册时填写的邮箱"></div>' +
+          '<div class="tm-field"><label for="tm-reset-code">验证码</label><input class="tm-input" id="tm-reset-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="邮件里的 6 位验证码"></div>' +
         '</div>' +
-        '<div class="tm-field"><label for="tm-reset-pass">新密码</label><input class="tm-input" id="tm-reset-pass" type="password" placeholder="至少 8 位"></div>' +
+        pwField('tm-reset-pass', '新密码', 'new-password', '至少 8 位') +
         '<div class="tm-actions">' +
           action('发送验证码', 'TMContentManager.accountRequestReset()', 'primary') +
           action('重置密码', 'TMContentManager.accountReset()') +
           action('收起', 'TMContentManager.toggleReset()') +
         '</div>' +
-        '<div class="tm-status ' + (state.accountResetMessage && /失败|错误|无效|至少|缺少|不正确/.test(state.accountResetMessage) ? 'warn' : '') + '">' + esc(state.accountResetMessage || '') + '</div>' +
+        '<div class="tm-status ' + (state.accountResetMessage && /失败|错误|无效|至少|缺少|不正确/.test(state.accountResetMessage) ? 'warn' : '') + '" role="status" aria-live="polite">' + esc(state.accountResetMessage || '') + '</div>' +
       '</section>';
   }
 
@@ -906,14 +1192,14 @@
             ? '<div class="tm-loginbox" style="border-left-color:#d6a14a;margin-top:.7rem;">' +
               '<div class="tm-loginbox-h">补设找回邮箱</div>' +
               '<div class="tm-copy" style="margin:.3rem 0 .1rem;">尚未设置邮箱，忘记密码时将无法找回，建议现在补设。</div>' +
-              '<div class="tm-field"><label for="tm-setemail">邮箱</label><input class="tm-input" id="tm-setemail" placeholder="your@example.com"></div>' +
+              '<div class="tm-field"><label for="tm-setemail">邮箱</label><input class="tm-input" id="tm-setemail" type="email" autocomplete="email" placeholder="your@example.com"></div>' +
               '<div class="tm-actions">' + action('保存邮箱', 'TMContentManager.accountSetEmail()', 'primary') + '</div></div>'
             : '') +
           '<div class="tm-actions">' +
             action('刷新身份', 'TMContentManager.accountRefresh()', 'primary') +
             action('退出登录', 'TMContentManager.accountLogout()', 'danger') +
           '</div>' +
-          '<div class="tm-status ' + (warn ? 'warn' : '') + '">' + esc(state.accountMessage || '账号已连接，可在创意工坊以作者身份发布、评分。') + '</div>' +
+          '<div class="tm-status ' + (warn ? 'warn' : '') + '" role="status" aria-live="polite">' + esc(state.accountMessage || '账号已连接，可在创意工坊以作者身份发布、评分。') + '</div>' +
         '</section>' +
         renderAccountAside(user) +
       '</div>' +
@@ -930,22 +1216,22 @@
           '<div class="tm-copy">账号用于工坊作者身份、评分、订阅与跨设备同步。' + (accountsOn ? '' : '（账号服务连接中……）') + '离线开局、读档与本地工坊始终不受影响。</div>' +
           '<div class="tm-loginbox">' +
             '<div class="tm-loginbox-h"><span class="tm-dot on"></span>邮箱验证码登录<span class="tm-tagchip">推荐 · 免密</span></div>' +
-            '<div class="tm-field"><label for="tm-elogin-email"><span class="tm-step">1</span> 邮箱（新邮箱自动注册）</label><input class="tm-input" id="tm-elogin-email" value="' + esc(state.emailLoginAddr || '') + '" placeholder="输入邮箱，点发送验证码"></div>' +
-            '<div class="tm-field"><label for="tm-elogin-code"><span class="tm-step">2</span> 验证码</label><input class="tm-input" id="tm-elogin-code" placeholder="邮件里的 6 位验证码"></div>' +
+            '<div class="tm-field"><label for="tm-elogin-email"><span class="tm-step">1</span> 邮箱（新邮箱自动注册）</label><input class="tm-input" id="tm-elogin-email" type="email" autocomplete="email" value="' + esc(state.emailLoginAddr || '') + '" placeholder="输入邮箱，点发送验证码"></div>' +
+            '<div class="tm-field"><label for="tm-elogin-code"><span class="tm-step">2</span> 验证码</label><input class="tm-input" id="tm-elogin-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="邮件里的 6 位验证码"></div>' +
             '<div class="tm-actions">' +
               action('发送验证码', 'TMContentManager.accountEmailCodeRequest()', 'primary') +
               action('登录', 'TMContentManager.accountEmailLogin()') +
             '</div>' +
           '</div>' +
           '<div class="tm-subform ' + (pwOpen ? '' : 'is-collapsed') + '">' +
-            '<div class="tm-subform-head" onclick="TMContentManager.accountTogglePw()">' +
+            '<div class="tm-subform-head" role="button" tabindex="0" aria-expanded="' + (pwOpen ? 'true' : 'false') + '" onclick="TMContentManager.accountTogglePw()" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();TMContentManager.accountTogglePw();}">' +
               '<span>或：账号密码登录 / 注册</span><span class="tm-caret">▾</span>' +
             '</div>' +
             '<div class="tm-subform-body">' +
-              '<div class="tm-field"><label for="tm-account-name">账号</label><input class="tm-input" id="tm-account-name" placeholder="3-24 位中文/英文/数字/下划线"></div>' +
-              '<div class="tm-field"><label for="tm-account-pass">密码</label><input class="tm-input" id="tm-account-pass" type="password" placeholder="至少 8 位"></div>' +
-              '<div class="tm-field"><label for="tm-account-nickname">昵称（注册时可填）</label><input class="tm-input" id="tm-account-nickname" placeholder="显示在工坊作者栏"></div>' +
-              '<div class="tm-field"><label for="tm-account-email">邮箱（注册时填，用于找回密码）</label><input class="tm-input" id="tm-account-email" placeholder="建议填写，否则无法找回密码"></div>' +
+              '<div class="tm-field"><label for="tm-account-name">账号</label><input class="tm-input" id="tm-account-name" autocomplete="username" placeholder="3-24 位中文/英文/数字/下划线"></div>' +
+              pwField('tm-account-pass', '密码', 'current-password', '至少 8 位') +
+              '<div class="tm-field"><label for="tm-account-nickname">昵称（注册时可填）</label><input class="tm-input" id="tm-account-nickname" autocomplete="nickname" placeholder="显示在工坊作者栏"></div>' +
+              '<div class="tm-field"><label for="tm-account-email">邮箱（注册时填，用于找回密码）</label><input class="tm-input" id="tm-account-email" type="email" autocomplete="email" placeholder="建议填写，否则无法找回密码"></div>' +
               '<div class="tm-actions">' +
                 action('登录', 'TMContentManager.accountLogin()', 'primary') +
                 action('注册并登录', 'TMContentManager.accountRegister()') +
@@ -953,7 +1239,7 @@
               '<div style="margin-top:.45rem;"><span onclick="TMContentManager.toggleReset()" style="color:var(--gold,#d8b56a);font-size:.76rem;cursor:pointer;text-decoration:underline;">忘记密码？</span></div>' +
             '</div>' +
           '</div>' +
-          '<div class="tm-status ' + (warn ? 'warn' : '') + '">' + esc(state.accountMessage || '尚未登录。') + '</div>' +
+          '<div class="tm-status ' + (warn ? 'warn' : '') + '" role="status" aria-live="polite">' + esc(state.accountMessage || '尚未登录。') + '</div>' +
         '</section>' +
         renderAccountAside(null) +
       '</div>' +
@@ -1177,8 +1463,9 @@
         '</div>' +
         '<div class="tm-online-body">' + body + '</div>' +
       '</div>' +
-    '</div>';
+    '</div>' + (state.detailOpen ? renderPackDetail() : '');
     bg.style.display = 'flex';
+    try { if (window.TMWorkshopCovers) window.TMWorkshopCovers.enhance(bg); } catch (e) {}
   }
 
   async function refreshPacks() {
@@ -1965,6 +2252,59 @@
     render();
   }
 
+  // P1-S2c：选中资源文件数提示。
+  function onAssetFiles(input) {
+    var el = document.getElementById('tm-asset-count');
+    var n = (input && input.files) ? input.files.length : 0;
+    if (el) el.textContent = n ? (n + ' 个文件待打包') : '未选择文件';
+  }
+
+  // P1-S2c：网页发布资产包（立绘/音乐/地图/MOD）—— 浏览器内打 store-zip + assets 清单 → uploadPack。
+  async function webPublishAssetPack() {
+    if (!(window.TM && TM.OnlineClient && TM.OnlineClient.isLoggedIn())) { state.publishMessage = '请先登录账号再发布。'; render(); return; }
+    if (!window.TMZipStore) { state.publishMessage = '打包模块未就绪。'; render(); return; }
+    var pt = state.pubType || 'portrait';
+    var titleEl = document.getElementById('tm-webpub-title');
+    var verEl = document.getElementById('tm-webpub-version');
+    var tagsEl = document.getElementById('tm-webpub-tags');
+    var descEl = document.getElementById('tm-webpub-desc');
+    var filesEl = document.getElementById('tm-asset-files');
+    var title = titleEl ? titleEl.value.trim() : '';
+    var files = filesEl ? Array.prototype.slice.call(filesEl.files || []) : [];
+    if (!title) { state.publishMessage = '请填写标题。'; render(); return; }
+    if (!files.length) { state.publishMessage = '请选择资源文件。'; render(); return; }
+    state.publishMessage = '正在打包 ' + files.length + ' 个文件...';
+    render();
+    try {
+      var entries = [];
+      for (var i = 0; i < files.length; i++) {
+        var buf = await files[i].arrayBuffer();
+        entries.push({ name: files[i].name, data: new Uint8Array(buf) });
+      }
+      var assets = files.map(function(f){ return { name: String(f.name).replace(/\.[^.]+$/, '') }; });
+      var zip = TMZipStore.buildZip(entries);
+      var b64 = TMZipStore.bytesToBase64(zip);
+      var meta = {
+        title: title, id: '',
+        version: (verEl && verEl.value.trim()) || '1.0.0',
+        description: (descEl && descEl.value.trim()) || '',
+        type: pt,
+        tags: tagsEl ? tagsEl.value : '',
+        assets: assets,
+        filename: 'pack.zip'
+      };
+      var res = await TM.OnlineClient.uploadPack(meta, b64, state.onlineApiUrl || undefined);
+      if (res && res.success) {
+        state.publishMessage = '已提交「' + title + '」（待审核，含 ' + files.length + ' 个资源，共 ' + formatBytes(zip.length) + '）。';
+      } else {
+        state.publishMessage = '发布失败：' + ((res && res.error) || '未知错误');
+      }
+    } catch (e) {
+      state.publishMessage = '发布失败：' + (e && e.message || '打包错误');
+    }
+    render();
+  }
+
   function scenarioIdExists(id) {
     return (window.P && Array.isArray(P.scenarios)) && P.scenarios.some(function(s){ return s && s.id === id; });
   }
@@ -2130,8 +2470,16 @@
     uninstallWebPack: uninstallWebPack,
     loadAuthorPacks: loadAuthorPacks,
     installCatalogPack: installCatalogPack,
+    openPackDetail: openPackDetail,
+    closePackDetail: closePackDetail,
+    postPackComment: postPackComment,
+    switchCatalogType: function(t){ state.catalogType = t || ''; render(); },
+    playTrack: function(i){ state.detailPlaying = (state.detailPlaying === i ? -1 : i); render(); },
     publishWorkshopPack: publishWorkshopPack,
     webPublishScenario: webPublishScenario,
+    webPublishAssetPack: webPublishAssetPack,
+    onAssetFiles: onAssetFiles,
+    switchPubType: function(t){ state.pubType = t || 'scenario'; state.publishMessage = ''; render(); },
     accountLogin: accountLogin,
     accountEmailCodeRequest: accountEmailCodeRequest,
     accountEmailLogin: accountEmailLogin,
@@ -2139,6 +2487,7 @@
     accountRefresh: accountRefresh,
     accountLogout: accountLogout,
     accountTogglePw: function(){ state.accountPwOpen = !state.accountPwOpen; render(); },
+    togglePw: function(id, btn){ var el = document.getElementById(id); if (!el) return; var show = el.type === 'password'; el.type = show ? 'text' : 'password'; if (btn) btn.textContent = show ? '隐藏' : '显示'; },
     toggleReset: toggleReset,
     accountRequestReset: accountRequestReset,
     accountReset: accountReset,

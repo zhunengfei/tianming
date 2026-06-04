@@ -147,6 +147,11 @@
       copy('variable_changes', ['variableChanges','七变','变量变化','七变变化']);
       copy('changes', ['delta','变化','本回合变化','变更']);
       copy('fiscal_adjustments', ['fiscalAdjustments','财政调整','财政变化']);
+      copy('currency_adjustments', ['currencyAdjustments','currency_actions','currencyActions','货币调整','货币政策','币制动作']);
+      copy('population_adjustments', ['populationAdjustments','huji_actions','hujiActions','户口调整','户籍调整','户口政策']);
+      copy('central_local_actions', ['centralLocalActions','central_local_adjustments','centralLocalAdjustments','央地财政动作','央地财政调整','央地动作']);
+      copy('environment_actions', ['environmentActions','environment_adjustments','environmentAdjustments','环境动作','环境政策','环境承载调整']);
+      copy('institution_changes', ['institutionChanges','institution_actions','institutionActions','制度变化','制度动作','官制动作']);
       copy('table_updates', ['tableUpdates','表格更新','表更新']);
       copy('suggestions', ['advice','tips','建议','谋议']);
       // 人物/任免
@@ -562,7 +567,7 @@
         // tier 1·必含·任何 model cap 都包含·核心账本与叙事 (10 字段)
         core: ['turn_summary', 'shizhengji_basis', 'shilu_text', 'szj_title', 'shizhengji', 'szj_summary', 'player_status', 'events', 'char_updates', 'edict_feedback'],
         // tier 2·高频·standard+·常用业务字段 (10 字段)
-        common: ['fiscal_adjustments', 'personnel_changes', 'office_changes', 'faction_relation_changes', 'faction_relation_shift', 'army_changes', 'province_changes', 'character_deaths', 'npc_actions', 'edict_lifecycle_update', 'character_memory_updates'],
+        common: ['fiscal_adjustments', 'currency_adjustments', 'population_adjustments', 'central_local_actions', 'environment_actions', 'institution_changes', 'personnel_changes', 'office_changes', 'faction_relation_changes', 'faction_relation_shift', 'army_changes', 'province_changes', 'character_deaths', 'npc_actions', 'edict_lifecycle_update', 'character_memory_updates'],
         // tier 3·可选·full·高级业务 (5 字段)
         extended: ['party_changes', 'class_changes', 'class_alert_responses', 'economic_advice', 'table_updates']
       };
@@ -614,6 +619,11 @@
               edict_feedback: { type: 'array', items: { type: 'object', additionalProperties: true } },
               dialogue_commitment_feedback: { type: 'array', items: { type: 'object', additionalProperties: true } },
               fiscal_adjustments: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              currency_adjustments: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              population_adjustments: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              central_local_actions: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              environment_actions: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              institution_changes: { type: 'array', items: { type: 'object', additionalProperties: true } },
               personnel_changes: { type: 'array', items: { type: 'object', additionalProperties: true } },
               office_changes: { type: 'array', items: { type: 'object', additionalProperties: true } },
               faction_relation_changes: { type: 'array', items: { type: 'object', additionalProperties: true } },
@@ -923,7 +933,7 @@
         var _why = reason && (reason.message || String(reason)) || 'SC1 returned no usable structured JSON';
         var _brief = (_dateText ? (_dateText + '，') : '') + '本回合主推演结构化返回暂缺，系统以保守账本推进：未凭空增减资源、人物、势力或军政结果，玩家已提交事务保留至后续推演继续处理。';
         var _p = { shizhengji:_brief, zhengwen:_brief, shilu_text:_brief, szj_title:'时移事去', szj_summary:'主推演结构化结果暂缺，系统采用保守降级账本。', turn_summary:'SC1 emergency fallback: no synthetic gameplay deltas applied.', player_status:'朝局暂按既有状态延续。', player_inner:'', events:[{ type:'AI降级', title:'主推演结构化结果暂缺', text:_brief, turn:_turn }], _g2Fallback:true, _emergencyFallback:true, _fallbackReason:String(_why).slice(0, 200) };
-        ['changes','resource_changes','variable_changes','char_updates','character_deaths','npc_actions','npc_interactions','npc_letters','npc_correspondence','cultural_works','faction_changes','faction_events','faction_relation_changes','faction_interactions','fiscal_adjustments','office_assignments','office_dismissals','personnel_changes','army_changes','province_changes','table_updates','suggestions'].forEach(function(k){ _p[k] = []; });
+        ['changes','resource_changes','variable_changes','char_updates','character_deaths','npc_actions','npc_interactions','npc_letters','npc_correspondence','cultural_works','faction_changes','faction_events','faction_relation_changes','faction_interactions','fiscal_adjustments','currency_adjustments','population_adjustments','central_local_actions','environment_actions','institution_changes','office_assignments','office_dismissals','personnel_changes','army_changes','province_changes','table_updates','suggestions'].forEach(function(k){ _p[k] = []; });
         try {
           if (!GM._turnAiResults) GM._turnAiResults = {};
           if (!Array.isArray(GM._turnAiResults._fallbacks)) GM._turnAiResults._fallbacks = [];
@@ -2358,6 +2368,12 @@
         "\"office_assignments\":[{\"name\":\"角色名\",\"post\":\"职位\",\"dept\":\"部门\",\"action\":\"appoint/dismiss/transfer\",\"concurrent\":false,\"fromLocation\":\"原地(可选)\",\"toLocation\":\"任职地(不同于原地则走位)\",\"estimatedDays\":30,\"reason\":\"原因；若为兼职/兼任/加兼须写明并置 concurrent:true\"}],"+
         // 岁入岁出动态增删（派人经商、大工程、新税目等）
         "\"fiscal_adjustments\":[{\"action\":\"add/update/stop/remove\",\"target\":\"guoku/neitang/province:某省\",\"kind\":\"income/expense\",\"resource\":\"money/grain/cloth\",\"category\":\"商贸/工程/赈济/军饷/杂税\",\"name\":\"项目名(如:派郑和下西洋商队)\",\"amount\":50000,\"reason\":\"依据/推演得出\",\"recurring\":true,\"stopAfterTurn\":null}],"+
+        // 专题政策动作：只记录 AI 明确推出的硬政策，applier 会经 EdictParser 复用诏令政务桥落账
+        "\"currency_adjustments\":[{\"action\":\"ban_private_mint/issue_paper/abolish_paper/debase_coin\",\"paperName\":\"会子/宝钞(可选)\",\"coinType\":\"copper/silver/iron/gold(可选)\",\"amount\":1000000,\"reserveRatio\":0.3,\"reason\":\"依据\"}],"+
+        "\"population_adjustments\":[{\"action\":\"purge_hidden/resettle_refugees/baojia_setup/recount\",\"region\":\"地区(可选)\",\"amount\":0,\"reason\":\"依据\"}],"+
+        "\"central_local_actions\":[{\"action\":\"transfer_to_region/force_levy/dispatch_censor/set_region_allocation\",\"region\":\"地区\",\"amount\":50000,\"qiyunRatio\":0.7,\"cunliuRatio\":0.3,\"purpose\":\"disaster_relief/military_funding/regional_support\",\"reason\":\"依据\"}],"+
+        "\"environment_actions\":[{\"action\":\"ban_logging/dredge/reclaim/fallow/open_waste\",\"region\":\"地区\",\"policyId\":\"可选\",\"reason\":\"依据\"}],"+
+        "\"institution_changes\":[{\"action\":\"create/abolish\",\"name\":\"制度或官司名\",\"rank\":5,\"duties\":\"职责\",\"reason\":\"依据\"}],"+
         // 问天 directive 合规回报（若有 directive 则必填，逐条回报）
         "\"directive_compliance\":[{\"id\":\"dir_xxx\",\"status\":\"followed|partial|ignored\",\"reason\":\"若非 followed 说明原因\",\"evidence\":\"引用 zhengwen/events/npc_actions 中体现遵守的具体片段 30-80 字\"}],"+
         // 势力/党派/阶层/区划任意字段修改（补充既有 xxx_changes 的不足）
@@ -3649,6 +3665,7 @@
             player_status: (typeof xinglu === 'string' ? xinglu : ''),
             edict_feedback: Array.isArray(edicts && edicts.list) ? edicts.list.map(function(e){ return { content:(e && e.content) || '', status:'pending', feedback:'SC1 失败·兜底叙述' }; }).slice(0, 12) : [],
             events: [], resource_changes: {}, fiscal_adjustments: [],
+            currency_adjustments: [], population_adjustments: [], central_local_actions: [], environment_actions: [], institution_changes: [],
             char_updates: [], personnel_changes: [], office_changes: [],
             office_assignments: [], faction_events: [], faction_changes: [],
             army_changes: [], province_changes: [],
@@ -3670,6 +3687,11 @@
           events: Array.isArray(p1.events) ? p1.events.slice(0, 16) : [],
           resource_changes: p1.resource_changes || {},
           fiscal_adjustments: Array.isArray(p1.fiscal_adjustments) ? p1.fiscal_adjustments.slice(0, 16) : [],
+          currency_adjustments: Array.isArray(p1.currency_adjustments) ? p1.currency_adjustments.slice(0, 16) : [],
+          population_adjustments: Array.isArray(p1.population_adjustments) ? p1.population_adjustments.slice(0, 16) : [],
+          central_local_actions: Array.isArray(p1.central_local_actions) ? p1.central_local_actions.slice(0, 16) : [],
+          environment_actions: Array.isArray(p1.environment_actions) ? p1.environment_actions.slice(0, 16) : [],
+          institution_changes: Array.isArray(p1.institution_changes) ? p1.institution_changes.slice(0, 16) : [],
           char_updates: Array.isArray(p1.char_updates) ? p1.char_updates.slice(0, 16) : [],
           personnel_changes: Array.isArray(p1.personnel_changes) ? p1.personnel_changes.slice(0, 12) : [],
           office_changes: Array.isArray(p1.office_changes) ? p1.office_changes.slice(0, 12) : [],
