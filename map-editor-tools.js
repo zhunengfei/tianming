@@ -14,12 +14,21 @@
 
   // ─── helpers ───────────────────────────────────────────────
 
+  // 缩放抵消因子：移动端 fit 把整个编辑器 body 做了 CSS transform 缩放（御案 contain 范式），
+  // 此时 getBoundingClientRect() 返回的是缩放后可视尺寸，而 screenToWorld 期望画布 CSS 坐标（style.width 那套）。
+  // offsetWidth=布局宽(不受 transform 影响)，rect.width=可视宽(=布局宽×scale) → 因子 offsetWidth/rect.width=1/scale，
+  // 把可视偏移换回画布 CSS 坐标。桌面无缩放时 offsetWidth==rect.width → 因子 1 → 零回归。
+  function _csf(c, rect){
+    var ow = c.offsetWidth, oh = c.offsetHeight;
+    return { fx: (ow && rect.width) ? ow / rect.width : 1, fy: (oh && rect.height) ? oh / rect.height : 1 };
+  }
   function getMousePos(e){
     var c = EDITOR.canvas;
     var rect = c.getBoundingClientRect();
     var dpr = window.devicePixelRatio || 1;
-    var sx = (e.clientX - rect.left);
-    var sy = (e.clientY - rect.top);
+    var sf = _csf(c, rect);
+    var sx = (e.clientX - rect.left) * sf.fx;
+    var sy = (e.clientY - rect.top) * sf.fy;
     var w = ME.screenToWorld(sx, sy);
     EDITOR.mouse.x = sx;
     EDITOR.mouse.y = sy;
@@ -1142,7 +1151,8 @@
           if (!_2fMoved && Math.abs(d - _pinch.dist) <= PINCH_DEADZONE){ e.preventDefault(); return; }  // 死区·疑 tap·不缩放
           _2fMoved = true;
           var rect = c.getBoundingClientRect();
-          var mx = (a.x + b.x) / 2 - rect.left, my = (a.y + b.y) / 2 - rect.top;
+          var sf = _csf(c, rect);  // 抵消 fit 缩放·中点换回画布 CSS 坐标（缩放比 d/dist 是比值·不受影响）
+          var mx = ((a.x + b.x) / 2 - rect.left) * sf.fx, my = ((a.y + b.y) / 2 - rect.top) * sf.fy;
           ME.setZoom(_pinch.zoom * (d / _pinch.dist), { x: mx, y: my });
           e.preventDefault();
           return;

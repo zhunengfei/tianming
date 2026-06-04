@@ -300,8 +300,10 @@
     return btn;
   }
 
-  function markPinnedCards(){
-    document.querySelectorAll('.rw-card,.rw-card-v2,.renwu-card,.tm-person-row,.cz-person-card,.cd,[data-renwu-id],[data-person-id],.tm-desk-item[onclick*="openRenwuTuzhi"]').forEach(function(card){
+  function markPinnedCards(root){
+    root = root || document;
+    if (!root || !root.querySelectorAll) return;
+    root.querySelectorAll('.rw-card,.rw-card-v2,.renwu-card,.tm-person-row,.cz-person-card,.cd,[data-renwu-id],[data-person-id],.tm-desk-item[onclick*="openRenwuTuzhi"]').forEach(function(card){
       var id = extractPersonId(card);
       if (!id) return;
       var pinned = isPinned(id);
@@ -2609,6 +2611,49 @@
     return true;
   }
 
+  function formalRuntimeRefreshSignature(){
+    var gm = window.GM || {};
+    var eb = window.EB || {};
+    function listSig(arr){
+      if (!Array.isArray(arr)) return '0';
+      var last = arr[arr.length - 1] || {};
+      var text = last.title || last.name || last.topic || last.text || last.desc || last.type || last.kind || '';
+      return arr.length + ':' + (last.turn || last.t || last.raisedTurn || '') + ':' + compactText(text, 48);
+    }
+    return [
+      formalRuntimeChromeSignature(),
+      Number(gm.turn || 0),
+      gm.running ? 1 : 0,
+      state.eventLookback || 3,
+      state.activeSlot || '',
+      state.legacyView ? 1 : 0,
+      listSig(gm.evtLog),
+      listSig(gm.eventLog),
+      listSig(gm.events),
+      listSig(gm.recentEvents),
+      listSig(gm.currentIssues),
+      listSig(gm._turnReport),
+      listSig(eb.items)
+    ].join('|');
+  }
+
+  function scheduleFormalRuntimeRefresh(reason, options){
+    options = options || {};
+    if (state.runtimeRefreshTimer) clearTimeout(state.runtimeRefreshTimer);
+    state.runtimeRefreshTimer = setTimeout(function(){
+      state.runtimeRefreshTimer = 0;
+      if (!ensureFormalRuntimeChrome(!!options.forceChrome)) return;
+      var sig = formalRuntimeRefreshSignature();
+      if (!options.force && state.runtimeRefreshSig === sig) return;
+      state.runtimeRefreshSig = sig;
+      try { renderEventFeed(); } catch(e){ console.warn('[renderEventFeed-err]', e && e.message); }
+      try {
+        if (!state.legacyView) showHome();
+        else renderFormalMapSoon();
+      } catch(e){ console.warn('[showHome-or-mapRender-err]', e && e.message); }
+    }, options.delay == null ? 80 : options.delay);
+  }
+
   function installWenduiFormalReturnHook(){
     if (!window.closeWenduiModal || window.closeWenduiModal.__phase8FormalReturn) return;
     var original = window.closeWenduiModal;
@@ -2653,7 +2698,9 @@
       var oldRenwu = window.renderRenwu;
       window.renderRenwu = function(){
         var ret = oldRenwu.apply(this, arguments);
-        setTimeout(markPinnedCards, 0);
+        setTimeout(function(){
+          markPinnedCards(document.getElementById('renwu-wrap') || document.getElementById('renwu') || document);
+        }, 0);
         return ret;
       };
       window.renderRenwu.__phase8PinnedWrapped = true;
@@ -2662,15 +2709,7 @@
       var oldRender = window.renderGameState;
       window.renderGameState = function(){
         var ret = oldRender.apply(this, arguments);
-        setTimeout(function(){
-          if (!ensureFormalRuntimeChrome(true)) return;
-          // 2026-05-27 hotfix·try/catch 隔离·防 renderEventFeed 失败 → showHome/map render 永不触发
-          try { renderEventFeed(); } catch(e){ console.warn('[renderEventFeed-err]', e && e.message); }
-          try {
-            if (!state.legacyView) showHome();
-            else renderFormalMapSoon();
-          } catch(e){ console.warn('[showHome-or-mapRender-err]', e && e.message); }
-        }, 0);
+        scheduleFormalRuntimeRefresh('renderGameState', { forceChrome: true });
         return ret;
       };
       window.renderGameState.__phase8FormalWrapped = true;
@@ -2679,7 +2718,7 @@
       var oldAddEB = window.addEB;
       window.addEB = function(){
         var ret = oldAddEB.apply(this, arguments);
-        setTimeout(renderEventFeed, 0);
+        scheduleFormalRuntimeRefresh('addEB');
         return ret;
       };
       window.addEB.__phase8FormalWrapped = true;

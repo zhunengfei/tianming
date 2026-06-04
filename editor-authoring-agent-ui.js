@@ -189,6 +189,14 @@
     if (ui._entNavBound) return;
     ui._entNavBound = true;
     document.addEventListener('click', function(ev) {
+      var jmp = ev.target && ev.target.closest ? ev.target.closest('.tm-aa-diff-jump[data-reveal-field]') : null;
+      if (jmp) {
+        ev.preventDefault();
+        var jf = jmp.getAttribute('data-reveal-field');
+        var app0 = global.TM_SCENARIO_EDITOR_RESET_APP;
+        if (app0 && typeof app0.revealField === 'function') { app0.revealField(jf); setStatus('已在折子定位「' + jf + '」'); }
+        return;
+      }
       var a = ev.target && ev.target.closest ? ev.target.closest('.je-entity-ref') : null;
       if (!a) return;
       ev.preventDefault();
@@ -250,9 +258,43 @@
     return api;
   }
   // 上下文感知：编辑器当前焦点（模块/集合/选中实体），喂给 agent 解析"他/这个/当前"等指代
-  function _editorContext() {
+  function _liveEditorContext() {
     try { return (ui.adapter && typeof ui.adapter.getContext === 'function') ? (ui.adapter.getContext() || '') : ''; }
     catch (e) { return ''; }
+  }
+  // N1 · 焦点上下文：默认跟随编辑器选中；固定后冻结为固定值（喂 agent 也用固定值）。
+  function _editorContext() {
+    if (ui._ctx && ui._ctx.pinned) return ui._ctx.value || '';
+    return _liveEditorContext();
+  }
+  function _refreshCtxChip() {
+    if (!ui.els || !ui.els.ctx) return;
+    if (!ui._ctx) ui._ctx = { pinned: false, value: '', _sig: null };
+    var pinned = !!ui._ctx.pinned;
+    var shown = pinned ? (ui._ctx.value || '') : _liveEditorContext();
+    var sig = (pinned ? 'P:' : 'L:') + shown;
+    if (ui._ctx._sig === sig) return;
+    ui._ctx._sig = sig;
+    var el = ui.els.ctx;
+    if (!shown) { el.hidden = true; el.innerHTML = ''; return; }
+    el.hidden = false;
+    el.innerHTML = '<span class="tm-aa-ctx-ico">\uD83D\uDCCD</span><span class="tm-aa-ctx-txt">' + esc(shown) + '</span>' +
+      '<button type="button" class="tm-aa-ctx-pin' + (pinned ? ' on' : '') + '" title="' + (pinned ? '\u53d6\u6d88\u56fa\u5b9a\uff08\u8ddf\u968f\u7f16\u8f91\u5668\u9009\u4e2d\uff09' : '\u56fa\u5b9a\u5f53\u524d\u4e0a\u4e0b\u6587') + '">' + (pinned ? '\uD83D\uDCCC' : '\uD83D\uDCCD') + '</button>';
+  }
+  function _ensureCtxChip() {
+    if (ui._ctxWired) return; ui._ctxWired = true;
+    if (!ui._ctx) ui._ctx = { pinned: false, value: '', _sig: null };
+    if (ui.els && ui.els.ctx) ui.els.ctx.addEventListener('click', function (ev) {
+      var b = ev.target && ev.target.closest ? ev.target.closest('.tm-aa-ctx-pin') : null;
+      if (!b) return;
+      ui._ctx.pinned = !ui._ctx.pinned;
+      if (ui._ctx.pinned) ui._ctx.value = _liveEditorContext();
+      ui._ctx._sig = null; _refreshCtxChip();
+    });
+    setInterval(function () {
+      try { if (ui.els && ui.els.panel && ui.els.panel.classList.contains('open')) _refreshCtxChip(); } catch (e) {}
+    }, 700);
+    _refreshCtxChip();
   }
 
   function injectStyles() {
@@ -277,8 +319,8 @@
       '#tm-aa-hd b{font-size:13px}',
       '#tm-aa-hd .sub{font-size:11px;color:#8b90a8;margin-left:6px}',
       '#tm-aa-x{background:none;border:none;color:#8b90a8;font-size:18px;cursor:pointer;line-height:1}',
-      '#tm-aa-body{padding:10px 12px;overflow:auto;display:flex;flex-direction:column;gap:8px;position:relative}',
-      '#tm-aa-composer{display:flex;flex-direction:column;gap:8px;position:relative}',
+      '#tm-aa-body{padding:10px 12px;overflow:auto;display:flex;flex-direction:column;gap:8px;position:relative;flex:1 1 auto;min-height:0}',
+      '#tm-aa-composer{display:flex;flex-direction:column;gap:8px;order:80;margin-top:auto;position:sticky;bottom:0;z-index:7;background:#1d2030;margin-left:-12px;margin-right:-12px;padding:8px 12px 2px;border-top:1px solid #2c3145}',
       '#tm-aa-req{width:100%;box-sizing:border-box;background:#13151f;color:#e8e8f0;border:1px solid #3a3f55;',
       'border-radius:8px;padding:8px 8px 8px 8px;font-family:inherit;font-size:13px;resize:none;min-height:54px;max-height:180px;overflow:auto;display:block}',
       '.tm-aa-charcount{position:absolute;right:18px;font-size:10px;color:#6b7088;pointer-events:none;background:rgba(19,21,31,.82);padding:0 4px;border-radius:4px;z-index:1}',
@@ -287,11 +329,21 @@
       '#tm-aa-go:disabled{opacity:.5;cursor:default}',
       '#tm-aa-go.stopbtn{background:#c0413b}#tm-aa-go.stopbtn:hover{background:#d2554f}',
       '#tm-aa-status{font-size:12px;color:#9aa0bd;min-height:16px}',
+      '#tm-aa-ctx{display:flex;align-items:center;gap:6px;font-size:11px;color:#b9bed6;background:rgba(122,92,255,.10);border:1px solid rgba(122,92,255,.32);border-radius:6px;padding:3px 8px;margin-bottom:2px}',
+      '#tm-aa-ctx[hidden]{display:none}',
+      '.tm-aa-ctx-txt{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.tm-aa-ctx-ico{flex:0 0 auto;opacity:.85}',
+      '.tm-aa-ctx-pin{flex:0 0 auto;background:none;border:none;cursor:pointer;font-size:12px;opacity:.6;padding:0 2px;line-height:1}',
+      '.tm-aa-ctx-pin:hover,.tm-aa-ctx-pin.on{opacity:1}',
+      '.tm-aa-diff-jump{cursor:pointer;border-bottom:1px dashed rgba(126,184,167,.5)}',
+      '.tm-aa-diff-jump:hover{color:#a7e0cf}',
       '#tm-aa-meter{font-size:11px;color:#bfa9ff;font-variant-numeric:tabular-nums;padding:2px 0}',
-      '.tm-aa-empty{background:#191c2b;border:1px dashed #3a3f55;border-radius:8px;padding:10px 11px}',
-      '.tm-aa-empty .emp-title{color:#b7bcd6;font-size:11px;margin-bottom:8px;line-height:1.5}',
-      '.tm-aa-empty .emp-chips{display:flex;flex-wrap:wrap;gap:6px}',
-      '.tm-aa-empty .emp-chip{background:#262a3d;color:#dfe3f5;border:1px solid #3a3f55;border-radius:13px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:inherit}.tm-aa-empty .emp-chip:hover{background:#323750;border-color:#5a6080}',
+      '.tm-aa-empty{order:4;margin:auto 0;background:none;border:none;padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center}',
+      '.tm-aa-empty .emp-hi{font-size:30px;line-height:1.1}',
+      '.tm-aa-empty .emp-title{color:#cfd3ee;font-size:16px;font-weight:bold;line-height:1.2}',
+      '.tm-aa-empty .emp-sub{color:#8b90a8;font-size:11px;margin-bottom:9px;line-height:1.5}',
+      '.tm-aa-empty .emp-chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:300px}',
+      '.tm-aa-empty .emp-chip{background:#262a3d;color:#dfe3f5;border:1px solid #3a3f55;border-radius:13px;padding:4px 11px;font-size:11px;cursor:pointer;font-family:inherit}.tm-aa-empty .emp-chip:hover{background:#323750;border-color:#5a6080}',
       '.tm-aa-logwrap{position:relative}',
       '.tm-aa-log{background:#13151f;border:1px solid #2c3145;border-radius:8px;padding:6px 8px;max-height:150px;overflow:auto;font-size:11px;line-height:1.5}',
       '.tm-aa-tobottom{position:absolute;right:9px;bottom:7px;background:#2c3145;color:#dfe3f5;border:1px solid #4a4f68;border-radius:11px;padding:2px 9px;font-size:10px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4);z-index:2}.tm-aa-tobottom:hover{background:#3a4060}',
@@ -396,6 +448,7 @@
       '<div id="tm-aa-body">',
       '<div class="tm-aa-search" id="tm-aa-search" hidden><input type="text" id="tm-aa-search-in" placeholder="在结果里查找…"><span class="tm-aa-search-n" id="tm-aa-search-n">0/0</span><button type="button" id="tm-aa-search-prev" title="上一个">↑</button><button type="button" id="tm-aa-search-next" title="下一个">↓</button><button type="button" id="tm-aa-search-x" title="关闭 (Esc)">×</button></div>',
       '<div id="tm-aa-composer">',   // UI iteration2 · 输入区聚成一块（docked 下 sticky 钉底）
+      '<div id="tm-aa-ctx" hidden></div>',
       '<div id="tm-aa-status"></div>',
       '<textarea id="tm-aa-req" placeholder="描述你想要的修改，例如：把主角势力改名为「西凉军」并补两个文官"></textarea>',
       '<span class="tm-aa-charcount" id="tm-aa-charcount" hidden></span>',
@@ -421,6 +474,7 @@
       charCount: panel.querySelector('#tm-aa-charcount'),
       go: panel.querySelector('#tm-aa-go'),
       status: panel.querySelector('#tm-aa-status'),
+      ctx: panel.querySelector('#tm-aa-ctx'),
       meter: panel.querySelector('#tm-aa-meter'),
       empty: panel.querySelector('#tm-aa-empty'),
       logSec: panel.querySelector('[data-sec="log"]'),
@@ -446,6 +500,7 @@
     if (ui.els.fs) ui.els.fs.addEventListener('click', _toggleFullscreen);   // UI·AI · 全屏切换
     _ensurePanelResize();   // UI·AI · 左缘拖拽调宽 + 载入持久宽度
     _ensureSearch();   // UI·AJ · 过程区内搜索（⌘F）
+    _ensureCtxChip();   // N1 焦点上下文 chip
     ui.els.go.addEventListener('click', onGoClick);   // UI·Q · 运行中此键=停止
     ui.els.apply.addEventListener('click', onApply);
     ui.els.discard.addEventListener('click', onDiscard);
@@ -797,7 +852,7 @@
     if (!ui.els || !ui.els.empty || ui._emptyBuilt) return;
     ui._emptyBuilt = true;
     var chips = _EMPTY_CHIPS.map(function(c, i) { return '<button type="button" class="emp-chip" data-i="' + i + '">' + esc(c.label) + '</button>'; }).join('');
-    ui.els.empty.innerHTML = '<div class="emp-title">👋 国师在此 · 描述你想改什么，或试试：</div><div class="emp-chips">' + chips + '</div>';
+    ui.els.empty.innerHTML = '<div class="emp-hi">👋</div><div class="emp-title">国师在此</div><div class="emp-sub">描述你想改什么，或试试：</div><div class="emp-chips">' + chips + '</div>';
     ui.els.empty.addEventListener('click', function(ev) {
       var btn = ev.target && ev.target.closest ? ev.target.closest('.emp-chip') : null;
       if (!btn) return;
@@ -1015,7 +1070,7 @@
       var gUnc = es.filter(function(d) { return _uncReasonFor(d.path, unc); }).length;
       var idxs = es.slice(0, 40).map(function(d) { return d.__idx; });
       var allRej = idxs.every(function(i) { return ui._diffRejected.has(i); });
-      return '<div class="tm-aa-diff-group" data-group="' + esc(field) + '"><div class="tm-aa-diff-head"><b>' + esc(_COLL_CN[field] || field) + '</b> <span style="color:#8b90a8">(' + es.length + ' 处' + (gUnc ? ' · ⚠' + gUnc : '') + ')</span><button type="button" class="grp-tog" data-group-idxs="' + idxs.join(',') + '">' + (allRej ? '全收' : '全拒') + '</button></div>' + inner + '</div>';
+      return '<div class="tm-aa-diff-group" data-group="' + esc(field) + '"><div class="tm-aa-diff-head"><b class="tm-aa-diff-jump" data-reveal-field="' + esc(field) + '" title="在折子里定位此字段">' + esc(_COLL_CN[field] || field) + ' \u2197</b> <span style="color:#8b90a8">(' + es.length + ' 处' + (gUnc ? ' · ⚠' + gUnc : '') + ')</span><button type="button" class="grp-tog" data-group-idxs="' + idxs.join(',') + '">' + (allRej ? '全收' : '全拒') + '</button></div>' + inner + '</div>';
     }).join('');
   }
   function _toggleHunk(idx) {
