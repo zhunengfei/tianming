@@ -332,6 +332,366 @@
   //  P0-3 · 暴君综合症深化
   // ═══════════════════════════════════════════════════════════════════
 
+  function _ensureCrisisPlayerLedger() {
+    var G = global.GM;
+    if (!G) return null;
+    if (!Array.isArray(G._crisisPlayerActions)) G._crisisPlayerActions = [];
+    return G._crisisPlayerActions;
+  }
+
+  function _recordCrisisPlayerAction(type, action, ok, detail) {
+    var G = global.GM;
+    var ledger = _ensureCrisisPlayerLedger();
+    if (!G || !ledger) return;
+    var item = Object.assign({
+      turn: G.turn || 0,
+      type: type || '',
+      action: action || '',
+      ok: !!ok
+    }, detail || {});
+    ledger.push(item);
+    if (ledger.length > 120) ledger.splice(0, ledger.length - 120);
+    if (Array.isArray(G._turnReport)) G._turnReport.push(Object.assign({ type: 'crisis_player_action' }, item));
+  }
+
+  function _authorityClamp(v) {
+    v = Number(v);
+    if (!isFinite(v)) return 0;
+    return Math.max(0, Math.min(100, v));
+  }
+
+  function _authorityPhaseFromIndex(idx) {
+    if (idx >= 90) return 'tyrant';
+    if (idx >= 70) return 'majesty';
+    if (idx >= 50) return 'normal';
+    if (idx >= 30) return 'decline';
+    return 'lost';
+  }
+
+  function _handleInterceptedEdict(action, req) {
+    var G = global.GM;
+    var list = (G && G._pendingMemorials) || [];
+    var memo = list.find(function(m) { return m && (m.id === req.memoId || m.id === req.id); });
+    if (!memo) return { ok: false, reason: 'missing intercepted memorial' };
+    if (action === 'reissue' || action === 'counter_reissue') {
+      memo.intercepted = false;
+      memo.reissuedTurn = G.turn || 0;
+      memo._reissueMode = req.mode || 'secretariat';
+      memo.status = memo.status || 'drafted';
+      if (!Array.isArray(G._reissuedEdicts)) G._reissuedEdicts = [];
+      G._reissuedEdicts.push({ turn: G.turn || 0, memoId: memo.id, mode: memo._reissueMode, interceptedBy: memo.interceptedBy || '' });
+      return { ok: true, memoId: memo.id, mode: memo._reissueMode };
+    }
+    return { ok: false, reason: 'unsupported edict interception action' };
+  }
+
+  function _handlePowerMinisterAction(action, req) {
+    var G = global.GM;
+    var hq = G && G.huangquan;
+    var pm = hq && hq.powerMinister;
+    var targetName = req.targetName || req.name || (pm && pm.name);
+    if (!targetName) return { ok: false, reason: 'missing power minister target' };
+    if (action === 'purge' || action === 'execute' || action === 'exile') {
+      var ch = (G.chars || []).find(function(c) { return c && c.name === targetName; });
+      if (ch) {
+        ch.alive = false;
+        ch.purgedTurn = G.turn || 0;
+        ch.purgeReason = req.reason || 'power-minister-crisis';
+      }
+      if (global.AuthorityEngines && typeof global.AuthorityEngines.executePurge === 'function') {
+        try { global.AuthorityEngines.executePurge(targetName); } catch(_e) {}
+      }
+      if (hq) {
+        hq.powerMinister = null;
+        hq.index = _authorityClamp((hq.index || 0) + 8);
+      }
+      return { ok: true, targetName: targetName };
+    }
+    return { ok: false, reason: 'unsupported power minister action' };
+  }
+
+  function _handleTyrantSyndromeAction(action, req) {
+    var G = global.GM;
+    var hw = G && G.huangwei;
+    if (!hw || !hw.tyrantSyndrome) return { ok: false, reason: 'missing tyrant syndrome state' };
+    var ts = hw.tyrantSyndrome;
+    if (action === 'self_blame_reform' || action === 'restrain_overexecution') {
+      var old = hw.index || 0;
+      hw.index = _authorityClamp(old - (req.coolingDelta || 12));
+      hw.phase = _authorityPhaseFromIndex(hw.index);
+      ts.flatteryMemorialRatio = Math.max(0, (ts.flatteryMemorialRatio || 0) - 0.35);
+      ts.overExecutionLog = [];
+      ts.hiddenDamage = {};
+      if (hw.index < 90) {
+        ts.active = false;
+        if (hw.history && Array.isArray(hw.history.tyrantPeriods)) hw.history.tyrantPeriods.push({ start: ts.activatedTurn || 0, end: G.turn || 0, resolvedBy: action });
+      }
+      if (G.minxin && typeof G.minxin.trueIndex === 'number') G.minxin.trueIndex = _authorityClamp(G.minxin.trueIndex + (req.minxinRecovery || 5));
+      if (!Array.isArray(G._tyrantMitigations)) G._tyrantMitigations = [];
+      G._tyrantMitigations.push({ turn: G.turn || 0, action: action, oldIndex: old, newIndex: hw.index, text: req.text || '' });
+      return { ok: true, oldIndex: old, newIndex: hw.index };
+    }
+    return { ok: false, reason: 'unsupported tyrant syndrome action' };
+  }
+
+  function _handleLostAuthorityAction(action, req) {
+    var G = global.GM;
+    var hw = G && G.huangwei;
+    if (!hw || !hw.lostAuthorityCrisis) return { ok: false, reason: 'missing lost authority state' };
+    var lc = hw.lostAuthorityCrisis;
+    if (action === 'grand_audience_restore' || action === 'public_court_restore') {
+      var old = hw.index || 0;
+      hw.index = _authorityClamp(old + (req.recoveryDelta || 16));
+      hw.phase = _authorityPhaseFromIndex(hw.index);
+      lc.objectionFrequency = Math.max(1, (lc.objectionFrequency || 1) - 2);
+      lc.foreignEmboldened = Math.max(0, (lc.foreignEmboldened || 0) - 0.35);
+      lc.provincialWatching = false;
+      if (hw.index > 35) {
+        lc.active = false;
+        if (hw.history && Array.isArray(hw.history.crisisPeriods)) hw.history.crisisPeriods.push({ start: lc.activatedTurn || 0, end: G.turn || 0, resolvedBy: action });
+      }
+      if (G.fiscal && G.fiscal.regions) {
+        Object.keys(G.fiscal.regions).forEach(function(rid) {
+          var rf = G.fiscal.regions[rid];
+          rf.compliance = Math.min(1, (rf.compliance || 0.5) + 0.08);
+        });
+      }
+      return { ok: true, oldIndex: old, newIndex: hw.index };
+    }
+    return { ok: false, reason: 'unsupported lost authority action' };
+  }
+
+  function _handleRevoltAction(action, req) {
+    if (action === 'suppress' || action === 'dispatch_troops') {
+      var revoltId = req.revoltId || req.id;
+      var troops = req.troops || req.strength || 0;
+      var ordered = suppressRevolt(revoltId, troops);
+      var mx = global.GM && global.GM.minxin;
+      var r = mx && Array.isArray(mx.revolts) ? mx.revolts.find(function(x) { return x && x.id === revoltId; }) : null;
+      if (ordered && ordered.ok && r && troops > (r.scale || 0) * 2) {
+        r.status = 'suppressed';
+        r._suppressed = true;
+        r.suppressedTurn = global.GM.turn || 0;
+        r._suppressionOrder = { strength: troops, turn: global.GM.turn || 0, immediate: true };
+      }
+      return ordered;
+    }
+    return { ok: false, reason: 'unsupported revolt action' };
+  }
+
+  function _handleCorruptionCaseAction(action, req) {
+    if (action === 'handle_case' || action === 'resolve') {
+      if (!global.CorruptionEngine || typeof global.CorruptionEngine.applyCaseHandling !== 'function') return { ok: false, reason: 'missing corruption case handler' };
+      var res = global.CorruptionEngine.applyCaseHandling(req.caseId || req.id, req.optionId || req.option || 'strict');
+      return { ok: !!(res && res.success), result: res };
+    }
+    return { ok: false, reason: 'unsupported corruption case action' };
+  }
+
+  function _crisisSurfaceText(payload) {
+    payload = payload || {};
+    return [
+      payload.text,
+      payload.reply,
+      payload.content,
+      payload.body,
+      payload.topic,
+      payload.title,
+      payload.decision,
+      payload.target,
+      payload.targetName,
+      payload.to,
+      payload.from
+    ].filter(Boolean).join(' ');
+  }
+
+  function _crisisHasAny(text, terms) {
+    text = String(text || '').toLowerCase();
+    return terms.some(function(term) {
+      return term && text.indexOf(String(term).toLowerCase()) >= 0;
+    });
+  }
+
+  function _firstInterceptedMemoId() {
+    var G = global.GM || {};
+    var memo = ((G && G._pendingMemorials) || []).find(function(m) {
+      return m && (m.intercepted || m.status === 'intercepted');
+    });
+    return memo && memo.id;
+  }
+
+  function _firstOngoingRevolt() {
+    var mx = global.GM && global.GM.minxin;
+    return mx && Array.isArray(mx.revolts) ? mx.revolts.find(function(r) { return r && r.status === 'ongoing'; }) : null;
+  }
+
+  function _firstActiveCorruptionCaseId() {
+    var c = global.GM && global.GM.corruption;
+    var row = c && Array.isArray(c.activeCases) ? c.activeCases[0] : null;
+    return row && row.id;
+  }
+
+  function inferCrisisActionFromSurface(payload) {
+    payload = payload || {};
+    var explicit = payload.crisisAction || payload.authorityCrisisAction || payload.crisis;
+    if (typeof explicit === 'string') {
+      return {
+        type: explicit,
+        action: payload.action || payload.crisisMode || payload.mode || '',
+        memoId: payload.memoId || payload.id,
+        targetName: payload.targetName || payload.target,
+        revoltId: payload.revoltId || payload.id,
+        caseId: payload.caseId || payload.id,
+        optionId: payload.optionId || payload.option,
+        troops: payload.troops || payload.strength,
+        text: _crisisSurfaceText(payload)
+      };
+    }
+    if (explicit && typeof explicit === 'object') {
+      return Object.assign({
+        text: _crisisSurfaceText(payload),
+        memoId: payload.memoId || payload.id,
+        targetName: payload.targetName || payload.target,
+        revoltId: payload.revoltId || payload.id,
+        caseId: payload.caseId || payload.id,
+        optionId: payload.optionId || payload.option,
+        troops: payload.troops || payload.strength
+      }, explicit);
+    }
+
+    var text = _crisisSurfaceText(payload);
+    var G = global.GM || {};
+    if (!text && !payload.memoId && !payload.revoltId && !payload.caseId && !payload.targetName) return null;
+
+    if ((payload.memoId || _crisisHasAny(text, ['\u622a\u8bcf', '\u62e6\u622a', '\u91cd\u53d1', '\u518d\u9881', '\u5bc6\u53d1', '\u7ed5\u8fc7', 'intercept', 'reissue', 'bypass'])) &&
+        _crisisHasAny(text, ['\u91cd\u53d1', '\u518d\u9881', '\u5bc6\u53d1', '\u7ed5\u8fc7', '\u7ed5\u5c01\u9501', 'reissue', 'bypass'])) {
+      return {
+        type: 'edict_interception',
+        action: 'reissue',
+        memoId: payload.memoId || payload.id || _firstInterceptedMemoId(),
+        mode: payload.reissueMode || payload.mode || 'secretariat',
+        text: text
+      };
+    }
+
+    if (_crisisHasAny(text, ['\u6743\u81e3', '\u9996\u8f85', '\u9601\u81e3', '\u62ff\u95ee', '\u524a\u6743', '\u7f62\u9edc', '\u8bdb', '\u6e05\u515a', 'power minister', 'purge'])) {
+      return {
+        type: 'power_minister',
+        action: 'purge',
+        targetName: payload.targetName || payload.target || (G.huangquan && G.huangquan.powerMinister && G.huangquan.powerMinister.name) || payload.name,
+        text: text
+      };
+    }
+
+    if (_crisisHasAny(text, ['\u7f6a\u5df1', '\u7981\u5949\u627f', '\u7981\u8fc7\u5ea6\u5949\u627f', '\u505c\u6ee5\u5211', '\u505c\u8fc7\u5ea6\u7528\u5211', '\u5bbd\u5ba5', 'self blame', 'overexecution'])) {
+      return {
+        type: 'tyrant_syndrome',
+        action: 'self_blame_reform',
+        text: text
+      };
+    }
+
+    if (_crisisHasAny(text, ['\u5fa1\u95e8\u542c\u653f', '\u5927\u671d\u4f1a', '\u6062\u590d\u5a01\u4fe1', '\u590d\u671d\u5a01', '\u9762\u8bae', 'grand audience', 'restore authority'])) {
+      return {
+        type: 'lost_authority',
+        action: 'grand_audience_restore',
+        text: text
+      };
+    }
+
+    if (_crisisHasAny(text, ['\u6c11\u53d8', '\u5e73\u4e71', '\u53d1\u5175', '\u9547\u538b', '\u8ba8\u8d3c', '\u8fdb\u527f', 'revolt', 'suppress', 'dispatch troops'])) {
+      var revolt = _firstOngoingRevolt();
+      return {
+        type: 'revolt',
+        action: 'suppress',
+        revoltId: payload.revoltId || payload.id || (revolt && revolt.id),
+        troops: payload.troops || payload.strength || (revolt ? (revolt.scale || 10000) * 3 : 0),
+        text: text
+      };
+    }
+
+    if (_crisisHasAny(text, ['\u8150\u8d25', '\u8d2a\u58a8', '\u8d2a\u6c61', '\u8ffd\u8d43', '\u4e25\u529e', '\u67e5\u529e', 'corruption'])) {
+      return {
+        type: 'corruption_case',
+        action: 'handle_case',
+        caseId: payload.caseId || payload.id || _firstActiveCorruptionCaseId(),
+        optionId: payload.optionId || payload.option || 'strict',
+        text: text
+      };
+    }
+
+    return null;
+  }
+
+  function handleCrisisAction(req, meta) {
+    req = req || {};
+    if (typeof req === 'string') req = { type: req };
+    meta = meta || {};
+    var type = req.type || req.crisisType || '';
+    var action = req.action || req.mode || '';
+    var result = { ok: false, reason: 'unsupported crisis action' };
+    if (type === 'edict_interception') result = _handleInterceptedEdict(action, req);
+    else if (type === 'power_minister') result = _handlePowerMinisterAction(action, req);
+    else if (type === 'tyrant_syndrome') result = _handleTyrantSyndromeAction(action, req);
+    else if (type === 'lost_authority') result = _handleLostAuthorityAction(action, req);
+    else if (type === 'revolt') result = _handleRevoltAction(action, req);
+    else if (type === 'corruption_case') result = _handleCorruptionCaseAction(action, req);
+    _recordCrisisPlayerAction(type, action, !!(result && result.ok), {
+      target: req.targetName || req.memoId || req.revoltId || req.caseId || '',
+      source: meta.source || req.source || 'player',
+      result: result
+    });
+    return result;
+  }
+
+  function _ensureCrisisSurfaceLedger() {
+    var G = global.GM;
+    if (!G) return null;
+    if (!Array.isArray(G._crisisSurfaceResponses)) G._crisisSurfaceResponses = [];
+    return G._crisisSurfaceResponses;
+  }
+
+  function handleCrisisSurfaceResponse(channelOrPayload, payload, meta) {
+    var data = {};
+    if (typeof channelOrPayload === 'string') {
+      data = Object.assign({ channel: channelOrPayload }, payload || {});
+    } else {
+      data = channelOrPayload || {};
+      meta = payload || meta || {};
+    }
+    meta = meta || {};
+    var req = inferCrisisActionFromSurface(data);
+    if (!req || !req.type) return { ok: false, skipped: true, reason: 'no crisis action inferred' };
+    if (!req.action) {
+      if (req.type === 'edict_interception') req.action = 'reissue';
+      else if (req.type === 'power_minister') req.action = 'purge';
+      else if (req.type === 'tyrant_syndrome') req.action = 'self_blame_reform';
+      else if (req.type === 'lost_authority') req.action = 'grand_audience_restore';
+      else if (req.type === 'revolt') req.action = 'suppress';
+      else if (req.type === 'corruption_case') req.action = 'handle_case';
+    }
+    var channel = data.channel || meta.channel || 'player';
+    var result = handleCrisisAction(req, Object.assign({}, meta, {
+      source: meta.source || ('surface-' + channel),
+      channel: channel
+    }));
+    var ledger = _ensureCrisisSurfaceLedger();
+    if (ledger) {
+      ledger.push({
+        turn: (global.GM && global.GM.turn) || 0,
+        channel: channel,
+        type: req.type || '',
+        action: req.action || '',
+        ok: !!(result && result.ok),
+        target: req.targetName || req.memoId || req.revoltId || req.caseId || '',
+        text: _crisisSurfaceText(data).slice(0, 240),
+        source: meta.source || ''
+      });
+      if (ledger.length > 120) ledger.splice(0, ledger.length - 120);
+    }
+    return Object.assign({ channel: channel, request: req }, result || {});
+  }
+
   function _tickTyrantSyndrome(ctx, mr) {
     var G = global.GM;
     var hw = G.huangwei;
@@ -534,6 +894,29 @@
       if (hw._memorialObjectionAbductionKey !== objectionKey) {
         hw._memorialObjectionAbductionKey = objectionKey;
         triggerHuangweiEvent('memorialObjection', { reason: '\u8fd1\u671f\u6297\u758f\u9891\u53d1' });
+      }
+    }
+    // 开疆拓土（territoryExpansion）·确定性反馈：本回合玩家势力净得省份 → 给皇威
+    //   读 turnChanges.map 的 owner 易主记录（newValue=新归属·oldValue=旧归属）·只认"非玩家→玩家"的净得。
+    //   朝代中立：只比对玩家势力的 id/name/key·不写死任何朝代专名。数值小额·上层 ±5 净封顶兜住与 AI 叠加。
+    if (G.turnChanges && Array.isArray(G.turnChanges.map) && G.turnChanges.map.length && hw._territoryGainTurn !== G.turn) {
+      var _pFacTx = (Array.isArray(G.facs) && G.facs.find(function(f){ return f && f.isPlayer; })) || null;
+      var _pKeysTx = [];
+      if (_pFacTx) { if (_pFacTx.id) _pKeysTx.push(String(_pFacTx.id)); if (_pFacTx.name) _pKeysTx.push(String(_pFacTx.name)); if (_pFacTx.ownerKey) _pKeysTx.push(String(_pFacTx.ownerKey)); }
+      var _pfnTx = (global.P && global.P.playerInfo && global.P.playerInfo.factionName) || G.playerFaction || '';
+      if (_pfnTx && _pKeysTx.indexOf(String(_pfnTx)) < 0) _pKeysTx.push(String(_pfnTx));
+      if (_pKeysTx.length) {
+        var _isPlayerOwnerTx = function(v) { return v != null && _pKeysTx.indexOf(String(v)) >= 0; };
+        var _gainedTx = 0;
+        G.turnChanges.map.forEach(function(m) {
+          if (m && m.field === 'owner' && _isPlayerOwnerTx(m.newValue) && !_isPlayerOwnerTx(m.oldValue)) _gainedTx++;
+        });
+        if (_gainedTx > 0) {
+          hw._territoryGainTurn = G.turn;
+          if (typeof global.AuthorityEngines !== 'undefined' && global.AuthorityEngines && typeof global.AuthorityEngines.adjustHuangwei === 'function') {
+            global.AuthorityEngines.adjustHuangwei('territoryExpansion', Math.min(12, 3 * _gainedTx), '开疆拓土·本回合得 ' + _gainedTx + ' 地');
+          }
+        }
       }
     }
     // ── 已删除 ──
@@ -1028,6 +1411,9 @@
     tick: tick,
     triggerHuangweiEvent: triggerHuangweiEvent,
     triggerHuangquanEvent: triggerHuangquanEvent,
+    handleCrisisAction: handleCrisisAction,
+    handleCrisisSurfaceResponse: handleCrisisSurfaceResponse,
+    inferCrisisActionFromSurface: inferCrisisActionFromSurface,
     suppressRevolt: suppressRevolt,
     getAuthorityQuadrant: getAuthorityQuadrant,
     computeEdictExecutionRate: computeEdictExecutionRate,

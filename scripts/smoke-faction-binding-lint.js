@@ -71,6 +71,9 @@ const ALLOW_LINES = [
   { file: 'tm-region-enrich.js',     match: /army\.faction\s*=\s*factionName/ },
   // tm-map-system.js: region.factionId mirrors map-region owner, not character/army/province membership.
   { file: 'tm-map-system.js', match: /region\.factionId\s*=\s*region\.owner/ },
+  // map-editor-to-game.js: division.factionId is scenario map ownership metadata inherited from autonomyHierarchy,
+  // not character/army/province membership mutation.
+  { file: 'map-editor-to-game.js', match: /nd\.factionId\s*=\s*facId/ },
 ];
 
 function scanFile(filePath, source, results) {

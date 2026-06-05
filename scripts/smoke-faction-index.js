@@ -214,26 +214,25 @@ function testHookPresence() {
 }
 
 function testUIPanelInlining() {
-  // Layer 1·势力面板必须 inline 人物 / 军队 / 党派 三段
+  // Active faction panel must inline people / armies from GM._facIndex.
   const ui = fs.readFileSync(path.join(ROOT, 'tm-three-systems-ui.js'), 'utf8');
-  // Layer 1 标记
-  assert(/Layer 1·人物 inline/.test(ui), 'UI missing 人物 inline section marker');
-  assert(/Layer 1·军队 inline/.test(ui), 'UI missing 军队 inline section marker');
-  assert(/Layer 1·党派 inline/.test(ui), 'UI missing 党派 inline section marker');
-  // 必须读 _facIndex (而不是直接遍历 GM.chars 重算)
-  assert(/GM\._facIndex\s*&&\s*GM\._facIndex\[f\.name\]/.test(ui), 'UI panel must read GM._facIndex');
-  // 防御性 rebuild call
+  assert(/function\s+_detailPanel\s*\(\s*fac\s*,\s*playerFac\s*\)/.test(ui), 'UI missing active faction detail panel');
+  assert(/var\s+chars\s*=\s*\(entry\s*&&\s*entry\.chars\)\s*\|\|\s*\[\]/.test(ui), 'UI detail panel must read indexed chars');
+  assert(/var\s+armies\s*=\s*\(entry\s*&&\s*entry\.armies\)\s*\|\|\s*\[\]/.test(ui), 'UI detail panel must read indexed armies');
+  assert(ui.includes('\u4eba\u7269\u9aa8\u67b6') && ui.includes('\u5c06\u9886'), 'UI missing people/general inline sections');
+  assert(ui.includes('frp-chipline') && ui.includes('frp-army-list'), 'UI missing active inline list containers');
+  // Must read _facIndex instead of recomputing from GM.chars.
+  assert(/GM\._facIndex\s*&&\s*GM\._facIndex\[(?:f|fac)\.name\]/.test(ui), 'UI panel must read GM._facIndex');
+  // Defensive rebuild call.
   assert(/TM\.FactionIndex\.rebuild/.test(ui), 'UI panel must call TM.FactionIndex.rebuild defensively');
-  // 关键 metric 字段必须 surface
+  // Key metric fields must surface.
   ['m\\.charCount', 'm\\.armyCount', 'm\\.totalSoldiers', 'm\\.arrearsArmies', 'm\\.privatizedRatio', 'm\\.partyDominantName', 'm\\.partyImbalance'].forEach(function(rex){
     assert(new RegExp(rex).test(ui), 'UI must surface ' + rex.replace('\\.', '.'));
   });
-  // 私兵化 ⚠ 标记
-  assert(/⚠/.test(ui), 'UI missing private-army warning glyph');
-  // Layer 3 派生健康度 surface
-  assert(/Layer 3·派生健康度/.test(ui), 'UI missing Layer 3 derivedHealth section marker');
-  ['朝堂凝聚', '军权集中', '人事健康', '兵权稳健'].forEach(function(zh){
-    assert(ui.indexOf(zh) >= 0, 'UI must surface 派生指标: ' + zh);
+  assert(ui.includes('\u79c1\u5175\u5316') && /privatizedRatio\s*>=\s*0\.4\s*\?\s*'warn'/.test(ui), 'UI missing private-army risk surface');
+  // Derived health/economy/cohesion/strength surfaces.
+  ['derivedHealth', 'derivedEconomy', 'derivedCohesion', 'derivedStrength', 'militaryStability'].forEach(function(key){
+    assert(ui.indexOf(key) >= 0, 'UI must surface derived metric: ' + key);
   });
   assert(/TM\.FactionDerived\.compute/.test(ui), 'UI must call TM.FactionDerived.compute defensively');
 }

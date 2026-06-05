@@ -3303,6 +3303,18 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:999;o
 .tr-cg-char{--cg-c:var(--gold-400);}
 .tr-cg-disaster{--cg-c:var(--vermillion-400);}
 .tr-cg-items{display:flex;flex-direction:column;gap:4px;}
+.tr-cg-group-tools{display:flex;justify-content:flex-end;gap:6px;margin:-2px 0 8px;}
+.tr-cg-group-btn{font-family:var(--font-serif);font-size:13.5px;line-height:1;padding:4px 9px;color:var(--color-foreground-muted);background:rgba(184,154,83,0.04);border:1px solid var(--color-border-subtle);border-radius:2px;cursor:pointer;letter-spacing:0.06em;}
+.tr-cg-group-btn:hover{color:var(--gold-400);border-color:var(--gold-400);background:rgba(184,154,83,0.09);}
+.tr-cg-fold-items{gap:7px;}
+.tr-cg-fold-group{border:1px solid var(--color-border-subtle);border-left:2px solid var(--cg-c,var(--gold-d));background:rgba(184,154,83,0.022);border-radius:2px;overflow:hidden;}
+.tr-cg-fold-summary{display:flex;align-items:center;gap:8px;min-height:32px;padding:7px 10px;cursor:pointer;font-family:var(--font-serif);color:var(--color-foreground);list-style-position:inside;}
+.tr-cg-fold-summary:hover{background:rgba(184,154,83,0.045);}
+.tr-cg-fold-name{font-size:13.5px;letter-spacing:0.12em;color:var(--color-foreground);white-space:nowrap;}
+.tr-cg-fold-count{font-size:13px;color:var(--cg-c,var(--gold-400));border:1px solid rgba(184,154,83,0.22);background:rgba(184,154,83,0.045);padding:1px 6px;border-radius:2px;white-space:nowrap;}
+.tr-cg-fold-reason{font-size:13.5px;color:var(--color-foreground-muted);font-style:italic;letter-spacing:0.03em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tr-cg-fold-body{display:flex;flex-direction:column;gap:4px;padding:0 8px 8px 12px;}
+.tr-cg-fold-body .tr-cg-item{background:rgba(184,154,83,0.018);}
 .tr-cg-item{display:grid;grid-template-columns:170px auto 1fr;gap:14px;align-items:flex-start;padding:7px 10px 7px 12px;background:rgba(184,154,83,0.025);border:1px solid transparent;border-left:2px solid var(--it-c,var(--color-border-subtle));border-radius:2px;transition:all 0.15s;}
 .tr-cg-item:hover{background:rgba(184,154,83,0.05);border-color:var(--color-border-subtle);}
 .tr-cg-item.warn{--it-c:var(--amber-400,#c9a045);background:rgba(201,160,69,0.04);}

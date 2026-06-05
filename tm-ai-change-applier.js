@@ -409,6 +409,22 @@
       }
     }
     if (global.addEB) global.addEB('任免', '擢 ' + charName + ' 为 ' + (position||'某职') + (treeUpdated?'':' \u00B7 \u5B98\u5236\u672A\u540C\u6B65') + (evicted?' \u00B7 \u989D\u6EE1\u7F62 '+evicted:''));
+    var _newLv = null;
+    try { if (global.TMPromotion && typeof global.TMPromotion.resolveRankLevel === 'function') { _newLv = global.TMPromotion.resolveRankLevel(ch, G); if (_newLv != null && _newLv >= 1 && _newLv <= 18) ch.rankLevel = _newLv; } } catch (_rlE) {}
+    // 功名门槛(软):擢人到功名不配位的高品=骤擢幸进·按缺口档招言官清议+皇威损(玩家可越级强擢但有代价)·大员(政治区)更重。
+    try {
+      var _TPp = global.TMPromotion;
+      if (_TPp && _newLv != null && !isConcurrent) {
+        var _pen = _TPp.penaltyForGap(_TPp.meritFloor(_newLv) - ((ch.resources && ch.resources.virtueMerit) || 0));
+        if (_pen.severity >= 2) {
+          var _hwDelta = (_pen.severity === 3 ? -8 : -4) - (_TPp.isPoliticalZone(_newLv) ? 3 : 0);
+          if (global.AuthorityEngines && typeof global.AuthorityEngines.adjustHuangwei === 'function') global.AuthorityEngines.adjustHuangwei('promotion_unqualified', _hwDelta, charName + ' 功名浅而骤擢·' + _pen.label);
+          if (global.addEB) global.addEB('清议', '言官论 ' + charName + ' ' + _pen.label + '·功名未孚而骤膺重任·物议沸然');
+        }
+      }
+    } catch (_penE) {}
+    // 身份转换：入仕/受封升阶（捐纳/科举→官身·世袭→勋贵）
+    try { if (global.CharEconEngine && typeof global.CharEconEngine.reconcileSocialClassOnAppointment === 'function') global.CharEconEngine.reconcileSocialClassOnAppointment(ch); } catch (_scE) {}
     return { ok: true, treeUpdated: treeUpdated, evicted: evicted };
   }
 
@@ -430,6 +446,16 @@
         });
         entity.publicTreasury.previousHead = charName;
         entity.publicTreasury.currentHead = null;
+        // 去职追亏：非善意去职(获罪/罢黜)且机构有亏空 → 向本人私产追偿（"追亏"传统）
+        var _benign = /致仕|乞骸|归田|退休|乞归|休致|致政|退隐|retire|召回|起复|复职|平反|释放|开释|赦免|大赦|无罪|昭雪/.test(String(reason || ''));
+        if (!_benign && global.CharEconEngine && typeof global.CharEconEngine.pursueTreasuryDeficit === 'function') {
+          try {
+            var _pr = global.CharEconEngine.pursueTreasuryDeficit(ch, entity);
+            if (_pr && _pr.pursued > 0) {
+              entity.publicTreasury.handoverLog.push({ turn: G.turn || 0, fromChar: charName, note: '追亏', pursued: _pr.pursued, deficitRemaining: _pr.deficitRemaining });
+            }
+          } catch (e) {}
+        }
       }
     }
     if (ch.resources && ch.resources.publicTreasury) ch.resources.publicTreasury.binding = null;
@@ -630,6 +656,9 @@
     var amount = _aiPolicyAmount(item.amount || item.money || item.silver, 0);
 
     if (field === 'currency_adjustments') {
+      if (/full_currency_reform|currency_reform|silver_standard|coinage_reform/.test(action)) return '\u8bcf\u4ee4\uff1a\u63a8\u884c\u5b8c\u6574\u5e01\u5236\u6539\u9769\uff0c\u6821\u6b63\u94f6\u94b1\u6bd4\u4ef7\uff0c\u8d4b\u5f79\u6298\u94f6\uff0c\u4ee5\u5929\u4e0b\u4e00\u94b1\u6cd5\u3002';
+      if (/regional_acceptance|paper_acceptance|acceptance/.test(action)) return '\u8bcf\u4ee4\uff1a\u4ee4' + region + '\u5148\u884c\u627f\u7528' + (item.paperName || item.name || '\u5b9d\u949e') + '\uff0c\u8bbe\u5151\u6362\u5b98\u5c40\uff0c\u7a33\u5176\u6c11\u95f4\u63a5\u53d7\u3002';
+      if (/overseas_silver_flow|maritime_silver|silver_flow|overseas/.test(action)) return '\u8bcf\u4ee4\uff1a\u5f00\u6d77\u901a\u5546\uff0c\u5f15\u6d77\u5916\u94f6\u6d41\u5165' + region + '\uff0c\u5e76\u8bbe\u94f6\u4f30\u4ee5\u5e73\u5e02\u4ef7\u3002';
       if (/ban|private|mint|私铸|私钱|禁/.test(action)) return '诏令：严禁民间私铸，整饬钱法，搜检私钱作坊。';
       if (/issue|paper|发行|发钞|发/.test(action)) return '诏令：发行' + (item.paperName || item.name || '纸币') + (amount || 1000000) + '贯，准备金' + _aiPolicyRatioLabel(item.reserveRatio, 0.3) + '成。';
       if (/abolish|retire|废|罢|停/.test(action)) return '诏令：废止' + (item.paperName || item.name || '宝钞') + '，收回旧钞。';
@@ -638,6 +667,9 @@
     }
 
     if (field === 'population_adjustments') {
+      if (/start_large_corvee|large_corvee|corvee|yaoyi/.test(action)) return '\u8bcf\u4ee4\uff1a\u5f81\u53d1\u5927\u5fad\u5f79' + (amount || 30000) + '\u4eba\uff0c\u6309\u6237\u7c4d\u6d3e\u5dee\uff0c\u4ee5\u4fee\u6cb3\u6e20\u57ce\u9632\u3002';
+      if (/conscription|recruit|levy_soldier|zhaomu/.test(action)) return '\u8bcf\u4ee4\uff1a\u4e8e' + region + '\u5f81\u5175' + (amount || 10000) + '\u540d\uff0c\u6309' + (item.system || item.enable || '\u52df\u5175') + '\u5236\u8865\u5165\u519b\u7c4d\u3002';
+      if (/migration_settlement|migrate|migration|settlement|relocate/.test(action)) return '\u8bcf\u4ee4\uff1a\u8fc1\u5f99\u5b89\u7f6e\u6d41\u6c11' + (amount || 5000) + '\u6237\uff0c\u62e8\u7530\u7ed9\u7cae\uff0c\u4ee4\u5165\u7c4d\u5b89\u4e1a\u3002';
       if (/hidden|purge|清查|隐户|漏籍/.test(action)) return '诏令：清查隐户，重编入黄籍。';
       if (/resettle|refugee|fugitive|招抚|逃户|流民/.test(action)) return '诏令：招抚逃户流民，令复业入籍。';
       if (/baojia|保甲|里甲/.test(action)) return '诏令：全国编设保甲，十户一牌。';
@@ -646,6 +678,8 @@
     }
 
     if (field === 'central_local_actions') {
+      if (/fiscal_bargain|bargain|local_fiscal/.test(action)) return '\u8bcf\u4ee4\uff1a\u4e0e' + region + '\u8bae\u5730\u65b9\u8d22\u653f\u535a\u5f08\uff0c\u660e\u8d77\u8fd0\u5b58\u7559\u4e4b\u5206\uff0c\u4ee5\u6355\u6350\u9977\u800c\u5b89\u5730\u65b9\u3002';
+      if (/long_term_tracking|tracking|follow_up|monitor/.test(action)) return '\u8bcf\u4ee4\uff1a\u5efa\u7acb' + region + '\u957f\u671f\u8d22\u653f\u8ffd\u8e2a\uff0c\u9010\u6708\u6838\u5bf9\u8d77\u8fd0\u3001\u5b58\u7559\u3001\u6c11\u529b\u4e0e\u5b98\u8017\u3002';
       if (/transfer|grant|下拨|拨银|发帑|赈/.test(action)) return '诏令：下拨' + region + '银' + (amount || 50000) + '两赈济水灾。';
       if (/force|levy|强征|追征|催征/.test(action)) return '诏令：强征' + region + '地方留存' + (amount || 30000) + '两，以充军饷。';
       if (/censor|audit|监察|巡按|巡察/.test(action)) return '诏令：派监察御史巡按' + region + '，核其钱粮。';
@@ -654,6 +688,9 @@
     }
 
     if (field === 'environment_actions') {
+      if (/migration_relief|migration|relocate|carry_capacity/.test(action)) return '\u8bcf\u4ee4\uff1a\u4ee4' + region + '\u8fc1\u6c11\u51fa\u5c71\uff0c\u9000\u8015\u8fd8\u6797\uff0c\u51cf\u8f7b\u5c71\u5730\u627f\u8f7d\u3002';
+      if (/tech_investment|technology|water_tech|investment/.test(action)) return '\u8bcf\u4ee4\uff1a\u4e8e' + region + '\u6295\u5165\u6c34\u5229\u6280\u672f\u4e0e\u7701\u6c34\u519c\u5177\uff0c\u8bd5\u884c\u65b0\u6cd5\u4ee5\u590d\u7530\u529b\u3002';
+      if (/disaster_recovery|recovery|restore|post_disaster/.test(action)) return '\u8bcf\u4ee4\uff1a\u884c' + region + '\u707e\u540e\u6062\u590d\u94fe\uff0c\u4fee\u5824\u3001\u6e05\u6de4\u3001\u590d\u8015\uff0c\u4e09\u5e74\u8003\u5176\u6210\u3002';
       if (/ban|logging|jin_hu|禁伐|禁樵/.test(action)) return '诏令：禁伐' + region + '山林，严禁樵采。';
       if (/dredge|water|shui|疏浚|水利|治水/.test(action)) return '诏令：疏浚' + region + '河道，兴修水利。';
       if (/reclaim|relief|tun|复耕|屯田|赈灾/.test(action)) return '诏令：赈灾复耕，屯田养地。';
@@ -679,7 +716,15 @@
   function _aiStructuredPolicyParams(field, item) {
     item = item || {};
     var params = {};
+    var action = _aiPolicyText(item.action || item.type || item.kind || item.policyId);
+    if (action) params.action = action;
     if (item.regionId) params.regionId = item.regionId;
+    if (item.region) params.region = item.region;
+    if (item.sourceRegionId) params.sourceRegionId = item.sourceRegionId;
+    if (item.targetRegionId) params.targetRegionId = item.targetRegionId;
+    if (item.presetId || item.preset) params.presetId = item.presetId || item.preset;
+    if (item.system || item.enable) params.system = item.system || item.enable;
+    if (item.horizonTurns != null) params.horizonTurns = Number(item.horizonTurns);
     if (item.amount != null || item.money != null || item.silver != null) params.amount = _aiPolicyAmount(item.amount || item.money || item.silver, 0);
     if (field === 'currency_adjustments') {
       if (item.paperId) params.paperId = item.paperId;
@@ -687,9 +732,11 @@
       if (item.reserveRatio != null) params.reserveRatio = Number(item.reserveRatio);
       if (item.coinType) params.coinType = item.coinType;
       if (item.level != null) params.level = Number(item.level);
+      if (item.acceptanceDelta != null) params.acceptanceDelta = Number(item.acceptanceDelta);
     } else if (field === 'central_local_actions') {
       if (item.qiyunRatio != null || item.centralShare != null) params.qiyunRatio = Number(item.qiyunRatio != null ? item.qiyunRatio : item.centralShare);
       if (item.cunliuRatio != null || item.retainedShare != null) params.cunliuRatio = Number(item.cunliuRatio != null ? item.cunliuRatio : item.retainedShare);
+      if (item.retainedShare != null) params.retainedShare = Number(item.retainedShare);
       if (item.purpose) params.purpose = item.purpose;
       if (item.cost != null) params.cost = _aiPolicyAmount(item.cost, 0);
     } else if (field === 'environment_actions') {
@@ -1022,7 +1069,14 @@
             supernatural_disaster_relief: +1, illicit: -8
           }[la.type] || 0;
           if (_fameDelta) global.CharEconEngine.adjustFame(_govCh, _fameDelta, _laTypeLbl);
-          if (_virDelta) global.CharEconEngine.adjustVirtueMerit(_govCh, _virDelta, _laTypeLbl);
+          // 功名:正政绩按能臣度概率化(成功×SCALE·量随能力·庸才低概率甚至办砸→失败扣分)·illicit 贪腐不扣功名(#3 功名与廉洁解耦·只贪腐案发才扣)
+          if (_virDelta > 0 && global.TMPromotion) {
+            var _gcap = global.TMPromotion.capability(_govCh, (typeof getEffectiveAttr === 'function' ? getEffectiveAttr : null));
+            if (Math.random() < Math.min(0.95, 0.3 + _gcap / 100 * 0.6)) global.CharEconEngine.adjustVirtueMerit(_govCh, Math.round(_virDelta * global.TMPromotion.SCALE * (0.6 + _gcap / 100 * 0.6)), _laTypeLbl);
+            else global.CharEconEngine.adjustVirtueMerit(_govCh, global.TMPromotion.failureDelta('task_botched'), _laTypeLbl + ' 办砸');
+          } else if (_virDelta > 0) {
+            global.CharEconEngine.adjustVirtueMerit(_govCh, _virDelta, _laTypeLbl);
+          }
         }
       } catch(_lafve){ if(window.TM&&TM.errors) TM.errors.capture(_lafve,'applier.localActions.fame'); }
     });
@@ -3600,6 +3654,7 @@
       changes: byType.change || [],
       appointments: byType.appointment || [],
       institutions: byType.institution || [],
+      institutionLifecycle: byType.institution_lifecycle || [],
       regions: byType.region || [],
       events: byType.event || [],
       npcActions: byType.npc_action || [],
@@ -3637,6 +3692,13 @@
       html += '<div style="font-size:0.78rem;color:var(--gold);margin:6px 0 3px;">【新制·裁撤】</div>';
       rep.institutions.forEach(function(i) {
         html += '<div style="font-size:0.72rem;padding:1px 4px;">· ' + (i.action==='create'?'设':'废') + ' <b>' + _esc(i.name) + '</b></div>';
+      });
+    }
+    if (rep.institutionLifecycle.length > 0) {
+      html += '<div style="font-size:0.78rem;color:var(--gold);margin:6px 0 3px;">【制度运行】</div>';
+      rep.institutionLifecycle.forEach(function(i) {
+        var label = ({ created:'新设', underfunded:'欠费', corruption_high:'腐化', abolished:'裁撤' }[i.action] || i.action || '状态');
+        html += '<div style="font-size:0.72rem;padding:1px 4px;">· ' + _esc(label) + ' <b>' + _esc(i.name) + '</b>' + (i.text ? '：' + _esc(i.text) : '') + '</div>';
       });
     }
     if (rep.regions.length > 0) {
@@ -3821,6 +3883,7 @@
       npcs: _getImportantNpcs(G),
       factions: G.facs || [],
       recentEvents: _getRecentEvents(G),
+      recentInstitutionLifecycle: _getRecentInstitutionLifecycle(G),
       pendingMemorials: (G._pendingMemorials||[]).length,
       activeRevolts: G.minxin && G.minxin.revolts ? G.minxin.revolts.filter(function(r){return r.status==='ongoing';}).length : 0,
       // 本回合待反应事件（NPC 按自身人格自主决定行为，非硬查表）
@@ -3841,6 +3904,57 @@
       tyrantSyndrome: v.tyrantSyndrome && v.tyrantSyndrome.active,
       lostCrisis: v.lostAuthorityCrisis && v.lostAuthorityCrisis.active,
       powerMinister: v.powerMinister
+    };
+  }
+
+  function _num(v) {
+    var n = Number(v || 0);
+    return isFinite(n) ? n : 0;
+  }
+
+  function _getCharEconomySnapshot(c) {
+    if (c && global.CharEconEngine && typeof global.CharEconEngine.buildEconomySnapshot === 'function') {
+      try { return global.CharEconEngine.buildEconomySnapshot(c); } catch (_snapErr) { if(window.TM&&TM.errors) TM.errors.capture(_snapErr,'applier.charEconomySnapshot'); }
+    }
+    if (!c || !c.resources) return null;
+    var r = c.resources || {};
+    var privateWealth = r.privateWealth || r.private || {};
+    var money = _num(privateWealth.money);
+    return {
+      privateWealth: {
+        money: money,
+        grain: _num(privateWealth.grain),
+        cloth: _num(privateWealth.cloth),
+        land: _num(privateWealth.land != null ? privateWealth.land : privateWealth.landAcres),
+        treasure: _num(privateWealth.treasure),
+        commerce: _num(privateWealth.commerce),
+        debt: money < 0 ? Math.abs(money) : _num(privateWealth.debt)
+      },
+      hiddenWealth: _num(r.hiddenWealth),
+      fame: _num(r.fame),
+      virtueMerit: _num(r.virtueMerit),
+      virtueStage: _num(r.virtueStage),
+      health: _num(r.health),
+      stress: _num(r.stress),
+      publicPurse: r.publicPurse ? {
+        money: _num(r.publicPurse.money),
+        grain: _num(r.publicPurse.grain),
+        cloth: _num(r.publicPurse.cloth)
+      } : null,
+      publicTreasury: r.publicTreasury ? {
+        linkedPost: r.publicTreasury.linkedPost || r.publicTreasury.post || null,
+        linkedRegion: r.publicTreasury.linkedRegion || r.publicTreasury.region || null,
+        balance: _num(r.publicTreasury.balance != null ? r.publicTreasury.balance : r.publicTreasury.money),
+        grain: _num(r.publicTreasury.grain),
+        cloth: _num(r.publicTreasury.cloth),
+        deficit: _num(r.publicTreasury.deficit != null ? r.publicTreasury.deficit : r.publicTreasury.lastHandoverDeficit),
+        isReadOnly: r.publicTreasury.isReadOnly !== false
+      } : null,
+      lastTick: {
+        income: c._lastTickIncome || null,
+        expense: c._lastTickExpense || null,
+        net: _num(c._lastTickNet)
+      }
     };
   }
 
@@ -3873,6 +3987,7 @@
           }
         } catch (_e) { if(window.TM&&TM.errors) TM.errors.capture(_e,'applier.pubTreasury'); }
       }
+      var economy = _getCharEconomySnapshot(c);
       return {
         name: c.name, title: c.officialTitle, rank: c.rank, faction: c.faction,
         loyalty: c.loyalty, ambition: c.ambition, integrity: c.integrity,
@@ -3887,10 +4002,10 @@
         } : null,
         publicTreasury: pubTreasury,
         // 私产：便于 AI 判断动机
-        privateWealth: c.resources && c.resources.private ? {
-          money: c.resources.private.money,
-          land: c.resources.private.landAcres
-        } : null
+        privateWealth: economy ? economy.privateWealth : null,
+        familyEconomy: economy ? economy.familyEconomy : null,
+        socialTier: economy ? economy.socialTier : null,
+        economy: economy
       };
     });
   }
@@ -3898,6 +4013,31 @@
   function _getRecentEvents(G) {
     if (!G._eventBus) return [];
     return (G._eventBus.items || []).slice(-20);
+  }
+
+  function _getRecentInstitutionLifecycle(G) {
+    var turn = G.turn || 0;
+    var windowTurns = 12;
+    var source = [];
+    if (Array.isArray(G._institutionLifecycleEvents)) {
+      source = G._institutionLifecycleEvents;
+    } else if (Array.isArray(G._turnReport)) {
+      source = G._turnReport.filter(function(r) { return r && r.type === 'institution_lifecycle'; });
+    }
+    return source.filter(function(e) {
+      if (!e) return false;
+      var t = typeof e.turn === 'number' ? e.turn : turn;
+      return turn - t <= windowTurns;
+    }).slice(-8).map(function(e) {
+      return {
+        turn: e.turn || 0,
+        id: e.id || '',
+        name: e.name || '',
+        action: e.action || '',
+        stage: e.stage || '',
+        text: e.text || ''
+      };
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════════
