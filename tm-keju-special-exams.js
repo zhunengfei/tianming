@@ -53,6 +53,7 @@
 
   /** init namespace·从 preset copy 基础·留 spawned[] / cooldown[] 状态 */
   function _kjInitSpecialExamCalendar() {
+    if (!_isD2Enabled()) return;
     if (typeof GM === 'undefined' || !GM) return;
     if (GM._specialExamCalendar) return; // 幂等
     var preset = _getPresetCal() || {};

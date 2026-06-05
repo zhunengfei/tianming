@@ -50,6 +50,11 @@
     }
   }
 
+  function _kjpAliveNpcName(n) {
+    var ch = (typeof findCharByName === 'function') ? findCharByName(n) : null;
+    return ch && !ch._retired && ch.alive !== false;
+  }
+
   // 朝代承袭顺序·han < tang < song < yuan < ming < qing
   var ERA_ORDER = ['han', 'tang', 'song', 'yuan', 'ming', 'qing'];
   var INHERITANCE_LS_KEY = 'tm_keju_inheritance_archive';
@@ -168,12 +173,8 @@
     var paradigm = GM._kejuParadigm || {};
     var diffSnippet = histEntry.magnitudeDescriptor || '改革';
     // L9·C4·filter _retired / dead NPC·避免 L8 prompt 含已退人物
-    function aliveFilter(n) {
-      var ch = (typeof findCharByName === 'function') ? findCharByName(n) : null;
-      return ch && !ch._retired && ch.alive !== false;
-    }
-    var sup = (histEntry.supportNpcs || []).filter(aliveFilter).slice(0, 3);
-    var opp = (histEntry.opposeNpcs || []).filter(aliveFilter).slice(0, 3);
+    var sup = (histEntry.supportNpcs || []).filter(_kjpAliveNpcName).slice(0, 3);
+    var opp = (histEntry.opposeNpcs || []).filter(_kjpAliveNpcName).slice(0, 3);
     var allNpcsForReact = sup.concat(opp);
     var elapsedYears = year - (histEntry.year || year);
     var stage = (paradigm._reformInProgress && paradigm._reformInProgress.stage) || 'unknown';
@@ -788,12 +789,8 @@
     if (!_hasAI()) return fallback;
 
     var paradigm = GM._kejuParadigm || {};
-    function aliveFilter(n) {
-      var ch = (typeof findCharByName === 'function') ? findCharByName(n) : null;
-      return ch && !ch._retired && ch.alive !== false;
-    }
-    var sup = (entry.supportNpcs || []).filter(aliveFilter).slice(0, 3);
-    var opp = (entry.opposeNpcs || []).filter(aliveFilter).slice(0, 3);
+    var sup = (entry.supportNpcs || []).filter(_kjpAliveNpcName).slice(0, 3);
+    var opp = (entry.opposeNpcs || []).filter(_kjpAliveNpcName).slice(0, 3);
     var pool = sup.concat(opp);
     var elapsed = year - (entry.year || year);
     var stage = (paradigm._reformInProgress && paradigm._reformInProgress.stage) || 'unknown';

@@ -576,6 +576,11 @@
         type: t,
         tags: tags.slice(0, 20),
         assets: Array.isArray(meta.assets) ? meta.assets.slice(0, 500) : [],
+        parentId: String(meta.parentId || ''),
+        packageKind: String(meta.packageKind || ''),
+        releaseNotes: String(meta.releaseNotes || ''),
+        coverImage: meta.coverImage || null,
+        galleryImages: Array.isArray(meta.galleryImages) ? meta.galleryImages.slice(0, 8) : [],
         filename: String(meta.filename || (t === 'scenario' ? 'scenario.json' : 'pack.zip')),
         contentBase64: String(contentBase64 || '')
       };

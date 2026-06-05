@@ -2990,7 +2990,7 @@ function _ty3_openPreAudit(seedTopic) {
   var topicText = '';
   var topicMeta = null;
   if (topicSeed) {
-    topicText = (typeof topicSeed === 'string') ? topicSeed : (topicSeed.topic || '');
+    topicText = _ty3_topicDisplayText(topicSeed);
     if (typeof topicSeed === 'object') topicMeta = topicSeed;
   }
 
@@ -3005,9 +3005,9 @@ function _ty3_openPreAudit(seedTopic) {
     html += '<select id="ty3-pa-pick" onchange="_ty3_paPickPending(this)">';
     html += '<option value="">— 从待议册选 —</option>';
     pending.forEach(function(p, i) {
-      var t = (typeof p === 'string') ? p : (p.topic || '');
-      var prop = (typeof p === 'object' && p.proposer) ? ' - ' + p.proposer : '';
-      html += '<option value="' + i + '">' + escHtml(t.slice(0, 50) + prop) + '</option>';
+      var t = _ty3_topicDisplayText(p, 50);
+      var prop = (typeof p === 'object' && p.proposer) ? ' · 主奏 ' + p.proposer : '';
+      html += '<option value="' + i + '">' + escHtml(t + prop) + '</option>';
     });
     html += '</select>';
   }
@@ -3129,7 +3129,7 @@ function _ty3_paPickPending(sel) {
   var pending = GM._pendingTinyiTopics || [];
   if (isNaN(i) || !pending[i]) return;
   var item = pending[i];
-  var t = (typeof item === 'string') ? item : (item.topic || '');
+  var t = _ty3_topicDisplayText(item);
   var inp = document.getElementById('ty3-pa-topic');
   if (inp) inp.value = t;
   CY._ty3_paMeta = (typeof item === 'object') ? item : null;
@@ -3240,10 +3240,10 @@ function _ty3_reissueLimit() {
 
 function _ty3_heldTopicText(item) {
   if (!item) return '';
-  if (typeof item === 'string') return item;
-  if (typeof item.topic === 'string') return item.topic;
-  if (item.topic && typeof item.topic === 'object') return item.topic.topic || item.topic.title || '';
-  return item.title || '';
+  if (typeof item === 'string') return _ty3_localizeCourtTopicText(item);
+  if (typeof item.topic === 'string') return _ty3_topicDisplayText(item);
+  if (item.topic && typeof item.topic === 'object') return _ty3_topicDisplayText(item.topic);
+  return _ty3_localizeCourtTopicText(item.title || '');
 }
 
 function _ty3_findHeldItemIndex(topicOrIndex) {
@@ -6312,7 +6312,82 @@ function _ty3_alreadyHasTopic(keyword) {
   var list = [];
   if (Array.isArray(GM._pendingTinyiTopics)) list = list.concat(GM._pendingTinyiTopics);
   if (Array.isArray(GM._ccHeldItems)) list = list.concat(GM._ccHeldItems);
-  return list.some(function(t) { return t && String(t.topic || '').indexOf(keyword) >= 0; });
+  return list.some(function(t) {
+    if (!t) return false;
+    var raw = String(t.topic || '');
+    var display = String(t.topicDisplay || t.displayTopic || '');
+    return raw.indexOf(keyword) >= 0 || display.indexOf(keyword) >= 0;
+  });
+}
+
+function _ty3_localizeCourtTopicText(value) {
+  var text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  [
+    [/pay\s+arrears\s+and\s+stabilize\s+garrisons/ig, '清偿欠饷并安定驻军'],
+    [/pay\s+military\s+wage\s+arrears/ig, '清偿军饷拖欠'],
+    [/military\s+wage\s+arrears/ig, '军饷拖欠'],
+    [/pay\s+border\s+wage\s+arrears/ig, '清偿边军欠饷'],
+    [/pay\s+wage\s+arrears/ig, '清偿欠饷'],
+    [/wage\s+arrears/ig, '欠饷'],
+    [/press\s+for\s+wage\s+arrears\s+settlement/ig, '催办欠饷清偿'],
+    [/keep\s+military\s+pay\s+current/ig, '确保军饷按期发放'],
+    [/defend\s+wage\s+settlement/ig, '维护军饷清偿'],
+    [/relieve\s+tax\s+and\s+arrear\s+pressure/ig, '缓解税负与积欠'],
+    [/defend\s+turn-result\s+tax\s+relief/ig, '维护减税纾困'],
+    [/respond\s+to\s+turn-result\s+tax\s+pressure/ig, '应对税负压力'],
+    [/defend\s+arrear\s+collection/ig, '维护追征积欠'],
+    [/defend\s+levy\s+collection\s+and\s+arrears/ig, '维护征派与追欠'],
+    [/defend\s+emergency\s+levy/ig, '维护紧急征派'],
+    [/defend\s+emergency\s+grain\s+levy/ig, '维护紧急征粮'],
+    [/curb\s+donation-for-office\s+appointments/ig, '遏制捐纳授官'],
+    [/defend\s+office\s+appointment\s+interests/ig, '维护任官利益'],
+    [/survive\s+purge\s+and\s+protect\s+office\s+network/ig, '避祸清党并保全官场网络'],
+    [/consolidate\s+appointment\s+network/ig, '巩固任官网络'],
+    [/defend\s+accused\s+officials/ig, '维护被劾官员'],
+    [/claim\s+credit\s+for\s+exam\s+access/ig, '争取科举入场之功'],
+    [/push\s+exam\s+admission\s+review/ig, '推动科举录取复核'],
+    [/press\s+unresolved\s+demand/ig, '推动未决诉求'],
+    [/force\s+concession/ig, '迫使让步'],
+    [/survive\s+local\s+extraction/ig, '求免地方盘剥'],
+    [/block\s+rival\s+agenda/ig, '阻挠敌党议程'],
+    [/maintain\s+social\s+base/ig, '维持社会根基'],
+    [/combine\s+votes/ig, '联合票势'],
+    [/survive\s+internal\s+fracture/ig, '避免内部分裂'],
+    [/rival\s+agenda/ig, '敌党议程'],
+    [/tax\s+pressure/ig, '税负压力'],
+    [/military\s+arrears/ig, '军饷拖欠'],
+    [/turn-result/ig, '回合推演'],
+    [/court\s+issue\s+outcome/ig, '廷议结果']
+  ].forEach(function(pair) {
+    text = text.replace(pair[0], pair[1]);
+  });
+  text = text
+    .replace(/\s*-\s*/g, ' · ')
+    .replace(/\s*;\s*/g, '；')
+    .replace(/\s*,\s*/g, '，')
+    .replace(/\s*:\s*/g, '：')
+    .replace(/([·：；，。、！？])\s+/g, '$1')
+    .replace(/\s+([·：；，。、！？])/g, '$1')
+    .replace(/([一-龥])\s+([一-龥])/g, '$1$2')
+    .replace(/\bpay\b/ig, '给付')
+    .replace(/\barrears\b/ig, '积欠')
+    .replace(/\blevy\b/ig, '征派')
+    .replace(/\bdefend\b/ig, '维护')
+    .replace(/\bpress\b/ig, '催办')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text;
+}
+
+function _ty3_topicDisplayText(raw, maxLen) {
+  var value = raw;
+  if (raw && typeof raw === 'object') {
+    value = raw.topicDisplay || raw.displayTopic || raw.displayTitle || raw.topic || raw.title || raw.name || raw.text || raw.content || raw.summary || raw.desc || raw.agenda || raw.goal || raw.objective || raw.demand || '';
+  }
+  var text = _ty3_localizeCourtTopicText(value);
+  if (maxLen && text.length > maxLen) return text.slice(0, maxLen);
+  return text;
 }
 
 function _ty3_topicText(raw, maxLen) {
@@ -6600,8 +6675,11 @@ function _ty3_recordPartyGoalOutcome(meta, status, ctx, seal) {
 function _ty3_pushPendingTinyiTopic(topicObj, keyword, spawned) {
   if (!topicObj || !topicObj.topic) return false;
   if (_ty3_alreadyHasTopic(keyword || topicObj.topic)) return false;
+  topicObj.topicDisplay = _ty3_topicDisplayText(topicObj);
+  if (topicObj.goalText && !topicObj.goalTextDisplay) topicObj.goalTextDisplay = _ty3_localizeCourtTopicText(topicObj.goalText);
+  if (topicObj.demandText && !topicObj.demandTextDisplay) topicObj.demandTextDisplay = _ty3_localizeCourtTopicText(topicObj.demandText);
   GM._pendingTinyiTopics.push(topicObj);
-  if (Array.isArray(spawned)) spawned.push(topicObj.topic);
+  if (Array.isArray(spawned)) spawned.push(topicObj.topicDisplay || topicObj.topic);
   return true;
 }
 

@@ -111,6 +111,24 @@ function _cleanupOverlays(){
   document.querySelectorAll('.notify-urgent').forEach(function(el){el.remove();});
   document.querySelectorAll('.char-popup').forEach(function(el){el.remove();});
 }
+function resetLaunchRuntimeShell(){
+  ['loading','pause-bg','settings-bg','turn-modal'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el)el.classList.remove('show');
+  });
+  document.querySelectorAll('.modal-bg.show,.tm-desk-overlay,.tmf-topbar-pop').forEach(function(el){el.remove();});
+  var pop=document.getElementById('ppop');
+  if(pop)pop.classList.remove('show','region-panel','faction-panel');
+  if(document.body){
+    document.body.classList.remove('tm-phase8-game-active','tm-phase8-home','tm-phase8-legacy','province-panel-open');
+    document.body.classList.add('tm-phase8-outgame');
+  }
+  var formal=window.TMPhase8FormalBridge;
+  if(formal&&typeof formal.leaveRuntime==='function')formal.leaveRuntime();
+  else if(formal&&typeof formal.backToLaunch==='function')formal.backToLaunch();
+  else if(formal&&typeof formal.resetOutgame==='function')formal.resetOutgame();
+  if(window.TM&&TM.pauseFab&&typeof TM.pauseFab.refresh==='function')TM.pauseFab.refresh();
+}
 function doNewGame(){_dbg('[doNewGame] 执行开始');_cleanupOverlays();_$("launch").style.display="none";showScnSelect();}
 function doLoadSave(){_dbg('[doLoadSave] 执行开始');_cleanupOverlays();if(typeof openSaveManager==='function'){openSaveManager();}else{importSaveFile();}}
 function doEditor(){_dbg('[doEditor] 执行开始');_cleanupOverlays();_$("launch").style.display="none";showScnManage();}
@@ -481,7 +499,7 @@ function showScnManage(){
     "</div>";
 }
 
-function backToLaunch(){_cleanupOverlays();_$("scn-page").classList.remove("show");_$("scn-page").innerHTML="";_$("bar").style.display="none";_$("E").style.display="none";_$("G").style.display="none";_$("launch").style.display="flex";var sf=_$("shiji-btn");if(sf)sf.classList.remove("show");var sb=_$("save-btn");if(sb)sb.classList.remove("show");saveP();GameHooks.run('backToLaunch:after');}
+function backToLaunch(){_cleanupOverlays();resetLaunchRuntimeShell();_$("scn-page").classList.remove("show");_$("scn-page").innerHTML="";_$("bar").style.display="none";_$("E").style.display="none";_$("G").style.display="none";_$("launch").style.display="flex";var sf=_$("shiji-btn");if(sf)sf.classList.remove("show");var sb=_$("save-btn");if(sb)sb.classList.remove("show");if(window.TM&&TM.pauseFab&&typeof TM.pauseFab.refresh==='function')TM.pauseFab.refresh();saveP();GameHooks.run('backToLaunch:after');}
 
 function createNewScn(){
   var modal=document.createElement("div");modal.className="modal-bg show";modal.id="new-scn-modal";

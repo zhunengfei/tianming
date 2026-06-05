@@ -82,6 +82,15 @@ function _tmAddCharAlias(out, value) {
   });
 }
 
+function _tmWalkOfficeChildren(nodes, visitor) {
+  for (var i = 0; i < (nodes || []).length; i++) {
+    var node = nodes[i];
+    if (!node) continue;
+    if (visitor(node) === false) return;
+    if (node.children) _tmWalkOfficeChildren(node.children, visitor);
+  }
+}
+
 function _tmFindPlayerCharRaw() {
   var G = (typeof GM !== 'undefined' && GM) ? GM : null;
   if (!G || !Array.isArray(G.chars)) return null;
@@ -982,25 +991,19 @@ var WorldHelper = {
     if (!GM.officeTree || !officeName) return null;
 
     var result = null;
-    function search(nodes) {
-      for (var i = 0; i < nodes.length; i++) {
-        var node = nodes[i];
-        if (node.positions) {
-          for (var j = 0; j < node.positions.length; j++) {
-            if (node.positions[j].name === officeName) {
-              result = node.positions[j];
-              result.deptId = node.id;
-              result.deptName = node.name;
-              return;
-            }
+    _tmWalkOfficeChildren(GM.officeTree, function(node) {
+      if (node.positions) {
+        for (var j = 0; j < node.positions.length; j++) {
+          if (node.positions[j].name === officeName) {
+            result = node.positions[j];
+            result.deptId = node.id;
+            result.deptName = node.name;
+            return false;
           }
         }
-        if (node.children) {
-          search(node.children);
-        }
       }
-    }
-    search(GM.officeTree);
+      return true;
+    });
     return result;
   },
 
@@ -1009,18 +1012,13 @@ var WorldHelper = {
     if (!GM.officeTree || !deptId) return null;
 
     var result = null;
-    function search(nodes) {
-      for (var i = 0; i < nodes.length; i++) {
-        if (nodes[i].id === deptId) {
-          result = nodes[i];
-          return;
-        }
-        if (nodes[i].children) {
-          search(nodes[i].children);
-        }
+    _tmWalkOfficeChildren(GM.officeTree, function(node) {
+      if (node.id === deptId) {
+        result = node;
+        return false;
       }
-    }
-    search(GM.officeTree);
+      return true;
+    });
     return result;
   },
 

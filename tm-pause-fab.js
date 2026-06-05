@@ -98,7 +98,17 @@
     ensureAppended();
     var run = (typeof window.GM !== 'undefined' && window.GM && window.GM.running);
     var inYuan = !!document.getElementById(TIME_ID);
-    btn.classList.toggle('on', !!(run && inYuan));
+    var inGame = isGameSurfaceVisible();
+    btn.classList.toggle('on', !!(run && inYuan && inGame));
+  }
+
+  function isGameSurfaceVisible() {
+    var game = document.getElementById('G');
+    if (!game) return false;
+    if (typeof window.getComputedStyle === 'function') {
+      return window.getComputedStyle(game).display !== 'none';
+    }
+    return game.style.display !== 'none';
   }
 
   // 锚位：拖过则按记忆分数·否则默认御案时间「右下方」
@@ -219,6 +229,7 @@
   window.TM = window.TM || {};
   window.TM.pauseFab = {
     init: init, place: place,
+    refresh: function () { updateVis(); place(); },
     resetPos: function () { userPositioned = false; try { localStorage.removeItem(POS_KEY); } catch (e) {} place(); }
   };
 })();

@@ -88,12 +88,9 @@ function _offMigratePosition(pos) {
 /** 迁移整棵官制树 */
 function _offMigrateTree(tree) {
   if (!tree) return;
-  (function _walk(nodes) {
-    nodes.forEach(function(n) {
-      (n.positions||[]).forEach(function(p) { _offMigratePosition(p); });
-      if (n.subs) _walk(n.subs);
-    });
-  })(tree);
+  _offWalkOfficeTree(tree, function(n) {
+    (n.positions||[]).forEach(function(p) { _offMigratePosition(p); });
+  });
 }
 
 /** 获取职位的具象人数——优先新模型 actualHolders，降级老模型 */
@@ -113,6 +110,17 @@ function _offAllHolders(pos) {
   if (pos.holder) arr.push(pos.holder);
   if (pos.additionalHolders) arr = arr.concat(pos.additionalHolders);
   return arr;
+}
+
+function _offWalkOfficeTree(nodes, visitor, chain) {
+  for (var i = 0; i < (nodes || []).length; i++) {
+    var n = nodes[i];
+    if (!n) continue;
+    var curChain = chain ? (chain + '·' + (n.name || '')) : (n.name || '');
+    if (visitor(n, curChain) === false) return false;
+    if (n.subs && _offWalkOfficeTree(n.subs, visitor, curChain) === false) return false;
+  }
+  return true;
 }
 
 function _offNormalizeTitleName(title) {
@@ -220,23 +228,22 @@ function _offFindPositionByName(positionName, deptHint, tree) {
     if (strict) return false;
     return target.indexOf(posName) >= 0 || posName.indexOf(target) >= 0;
   }
-  function _walk(nodes, chain, strict, requireDept) {
-    (nodes || []).forEach(function(n) {
-      if (found || !n) return;
-      var curChain = chain ? (chain + '·' + (n.name || '')) : (n.name || '');
+  function _search(strict, requireDept) {
+    _offWalkOfficeTree(tree, function(n, curChain) {
+      if (found || !n) return false;
       if (!requireDept || _matchDept(curChain, n.name)) {
         (n.positions || []).forEach(function(p) {
           if (found || !p) return;
           if (_matchPos(p.name || '', strict)) found = { pos: p, node: n, dept: n.name || '', deptPath: curChain };
         });
       }
-      if (!found && n.subs) _walk(n.subs, curChain, strict, requireDept);
+      return found ? false : true;
     });
   }
-  _walk(tree, '', true, !!hint);
-  if (!found && hint) _walk(tree, '', true, false);
-  if (!found) _walk(tree, '', false, !!hint);
-  if (!found && hint) _walk(tree, '', false, false);
+  _search(true, !!hint);
+  if (!found && hint) _search(true, false);
+  if (!found) _search(false, !!hint);
+  if (!found && hint) _search(false, false);
   return found;
 }
 
@@ -330,42 +337,37 @@ function _offVacateByCharName(charName, reason, tree) {
   if (!charName) return { vacated: [] };
   tree = tree || (typeof GM !== 'undefined' && GM.officeTree) || [];
   var vacated = [];
-  (function _walk(nodes, deptChain) {
-    (nodes || []).forEach(function(n) {
-      if (!n) return;
-      var curChain = deptChain ? (deptChain + '·' + n.name) : n.name;
-      (n.positions || []).forEach(function(p) {
-        if (!p) return;
-        // 新模型 actualHolders
-        if (Array.isArray(p.actualHolders)) {
-          var hitNew = p.actualHolders.some(function(h){ return h && h.name === charName && h.generated !== false; });
-          if (hitNew) {
-            _offDismissPerson(p, charName);
-            vacated.push({ dept: n.name, pos: p.name, rank: p.rank || '', chain: curChain, reason: reason || '' });
-          }
-        }
-        // 老模型 holder 直接匹配（即使已做 dismiss 也做兜底）
-        if (p.holder === charName) {
-          if (!Array.isArray(p.holderHistory)) p.holderHistory = [];
-          p.holderHistory.push({ name: charName, until: (typeof GM !== 'undefined' && GM.turn) || 0, reason: reason || '身故级联' });
-          p.holder = '';
-          p.holderSinceTurn = 0;
-          // 公库头衔同步
-          if (p.publicTreasury && p.publicTreasury.currentHead === charName) {
-            p.publicTreasury.previousHead = charName;
-            p.publicTreasury.currentHead = null;
-          }
+  _offWalkOfficeTree(tree, function(n, curChain) {
+    (n.positions || []).forEach(function(p) {
+      if (!p) return;
+      // 新模型 actualHolders
+      if (Array.isArray(p.actualHolders)) {
+        var hitNew = p.actualHolders.some(function(h){ return h && h.name === charName && h.generated !== false; });
+        if (hitNew) {
+          _offDismissPerson(p, charName);
           vacated.push({ dept: n.name, pos: p.name, rank: p.rank || '', chain: curChain, reason: reason || '' });
         }
-        // additionalHolders 兼容
-        if (Array.isArray(p.additionalHolders)) {
-          var ai = p.additionalHolders.indexOf(charName);
-          if (ai >= 0) p.additionalHolders.splice(ai, 1);
+      }
+      // 老模型 holder 直接匹配（即使已做 dismiss 也做兜底）
+      if (p.holder === charName) {
+        if (!Array.isArray(p.holderHistory)) p.holderHistory = [];
+        p.holderHistory.push({ name: charName, until: (typeof GM !== 'undefined' && GM.turn) || 0, reason: reason || '身故级联' });
+        p.holder = '';
+        p.holderSinceTurn = 0;
+        // 公库头衔同步
+        if (p.publicTreasury && p.publicTreasury.currentHead === charName) {
+          p.publicTreasury.previousHead = charName;
+          p.publicTreasury.currentHead = null;
         }
-      });
-      if (n.subs) _walk(n.subs, curChain);
+        vacated.push({ dept: n.name, pos: p.name, rank: p.rank || '', chain: curChain, reason: reason || '' });
+      }
+      // additionalHolders 兼容
+      if (Array.isArray(p.additionalHolders)) {
+        var ai = p.additionalHolders.indexOf(charName);
+        if (ai >= 0) p.additionalHolders.splice(ai, 1);
+      }
     });
-  })(tree, '');
+  });
   return { vacated: vacated };
 }
 
@@ -378,48 +380,41 @@ function _offSweepGhostHolders() {
   var _findCh = (typeof findCharByName === 'function') ? findCharByName : function(n){
     return (GM.chars||[]).find(function(c){ return c && c.name === n; });
   };
-  (function _walk(nodes) {
-    (nodes || []).forEach(function(n) {
-      if (!n) return;
-      (n.positions || []).forEach(function(p) {
-        if (!p) return;
-        var names = [];
-        if (p.holder) names.push(p.holder);
-        if (Array.isArray(p.actualHolders)) {
-          p.actualHolders.forEach(function(h){ if (h && h.name && h.generated !== false) names.push(h.name); });
+  _offWalkOfficeTree(GM.officeTree, function(n) {
+    (n.positions || []).forEach(function(p) {
+      if (!p) return;
+      var names = [];
+      if (p.holder) names.push(p.holder);
+      if (Array.isArray(p.actualHolders)) {
+        p.actualHolders.forEach(function(h){ if (h && h.name && h.generated !== false) names.push(h.name); });
+      }
+      var seen = {};
+      names.forEach(function(nm){
+        if (seen[nm]) return; seen[nm] = 1;
+        var ch = _findCh(nm);
+        if (!ch || ch.alive === false || ch.dead) {
+          _offVacateByCharName(nm, 'ghost-sweep');
+          swept.push({ name: nm, dept: n.name, pos: p.name });
         }
-        var seen = {};
-        names.forEach(function(nm){
-          if (seen[nm]) return; seen[nm] = 1;
-          var ch = _findCh(nm);
-          if (!ch || ch.alive === false || ch.dead) {
-            _offVacateByCharName(nm, 'ghost-sweep');
-            swept.push({ name: nm, dept: n.name, pos: p.name });
-          }
-        });
       });
-      if (n.subs) _walk(n.subs);
     });
-  })(GM.officeTree);
+  });
   return { swept: swept };
 }
 
 /** 获取部门的聚合统计 */
 function _offDeptStats(dept) {
   var stats = { headCount: 0, actualCount: 0, materialized: 0, vacant: 0, unmaterialized: 0, holders: [] };
-  (function _walk(nodes) {
-    nodes.forEach(function(n) {
-      (n.positions||[]).forEach(function(p) {
-        _offMigratePosition(p);
-        stats.headCount += (p.headCount||1);
-        stats.actualCount += (p.actualCount||0);
-        var m = _offMaterializedCount(p);
-        stats.materialized += m;
-        _offAllHolders(p).forEach(function(h) { stats.holders.push(h); });
-      });
-      if (n.subs) _walk(n.subs);
+  _offWalkOfficeTree([dept], function(n) {
+    (n.positions||[]).forEach(function(p) {
+      _offMigratePosition(p);
+      stats.headCount += (p.headCount||1);
+      stats.actualCount += (p.actualCount||0);
+      var m = _offMaterializedCount(p);
+      stats.materialized += m;
+      _offAllHolders(p).forEach(function(h) { stats.holders.push(h); });
     });
-  })([dept]);
+  });
   stats.vacant = stats.headCount - stats.actualCount;
   stats.unmaterialized = stats.actualCount - stats.materialized;
   return stats;
@@ -428,18 +423,15 @@ function _offDeptStats(dept) {
 /** 获取整棵树的聚合统计 */
 function _offTreeStats(tree) {
   var stats = { headCount: 0, actualCount: 0, materialized: 0, depts: 0 };
-  (function _walk(nodes) {
-    nodes.forEach(function(n) {
-      stats.depts++;
-      (n.positions||[]).forEach(function(p) {
-        _offMigratePosition(p);
-        stats.headCount += (p.headCount||1);
-        stats.actualCount += (p.actualCount||0);
-        stats.materialized += _offMaterializedCount(p);
-      });
-      if (n.subs) _walk(n.subs);
+  _offWalkOfficeTree(tree||[], function(n) {
+    stats.depts++;
+    (n.positions||[]).forEach(function(p) {
+      _offMigratePosition(p);
+      stats.headCount += (p.headCount||1);
+      stats.actualCount += (p.actualCount||0);
+      stats.materialized += _offMaterializedCount(p);
     });
-  })(tree||[]);
+  });
   return stats;
 }
 
@@ -813,20 +805,15 @@ function _initCharacterPrivateWealth(chars) {
 function _findPositionByCharName(charName) {
   if (!charName || !GM.officeTree) return null;
   var found = null;
-  function _walk(nodes) {
-    if (!Array.isArray(nodes) || found) return;
-    nodes.forEach(function(n) {
-      if (!n || found) return;
-      (n.positions || []).forEach(function(p) {
-        if (found) return;
-        if (p && p.holder === charName) {
-          found = { pos: p, dept: n.name };
-        }
-      });
-      if (!found && n.subs) _walk(n.subs);
+  _offWalkOfficeTree(GM.officeTree, function(n) {
+    (n.positions || []).forEach(function(p) {
+      if (found) return;
+      if (p && p.holder === charName) {
+        found = { pos: p, dept: n.name };
+      }
     });
-  }
-  _walk(GM.officeTree);
+    return found ? false : true;
+  });
   return found;
 }
 

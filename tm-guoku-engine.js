@@ -27,6 +27,42 @@
     return 1;
   }
 
+  var BANKRUPTCY_STAGES = [
+    { stage:1, id:'cash_warning',       name:'帑廪告急',     event:'第一阶段：帑廪告急，支出逼近库底。' },
+    { stage:2, id:'salary_arrears',     name:'欠俸积压',     event:'第二阶段：百官欠俸，廉耻渐薄。' },
+    { stage:3, id:'emergency_borrowing',name:'举债续命',     event:'第三阶段：向商贾豪强举债，财政信用受损。' },
+    { stage:4, id:'tax_credit_break',   name:'加派失信',     event:'第四阶段：加派与拖欠并行，民间不信朝廷财计。' },
+    { stage:5, id:'army_pay_break',     name:'军饷断裂',     event:'第五阶段：军饷断绝，营伍骚动。' },
+    { stage:6, id:'relief_failure',     name:'赈济断裂',     event:'第六阶段：赈济不继，灾荒转为民变。' },
+    { stage:7, id:'fiscal_collapse',    name:'财政崩溃',     event:'第七阶段：财政崩溃，皇权与皇威皆被动摇。' }
+  ];
+
+  function _bankruptcyStageDef(stage) {
+    return BANKRUPTCY_STAGES[Math.max(1, Math.min(7, stage)) - 1] || BANKRUPTCY_STAGES[0];
+  }
+
+  function _ensureBankruptcyState(g) {
+    if (!g.bankruptcy) g.bankruptcy = {};
+    var b = g.bankruptcy;
+    if (typeof b.active !== 'boolean') b.active = false;
+    if (typeof b.consecutiveMonths !== 'number') b.consecutiveMonths = 0;
+    if (typeof b.severity !== 'number') b.severity = 0;
+    if (typeof b.stage !== 'number') b.stage = b.active ? Math.max(1, Math.round((b.severity || 0) * 4)) : 0;
+    if (!Array.isArray(b.history)) b.history = [];
+    if (!b.effects) b.effects = {};
+    if (!Array.isArray(b.effects.appliedStageIds)) b.effects.appliedStageIds = [];
+    b.stateMachine = true;
+    if (b.stage > 0) {
+      var def = _bankruptcyStageDef(b.stage);
+      b.stageId = def.id;
+      b.stageName = def.name;
+    } else {
+      b.stageId = 'stable';
+      b.stageName = '财政平稳';
+    }
+    return b;
+  }
+
   // ═════════════════════════════════════════════════════════════
   // 数据模型保障
   // ═════════════════════════════════════════════════════════════
@@ -62,6 +98,7 @@
     if (!g.sourcesDetail) g.sourcesDetail = {};   // ★ 大类下挂的子项·按 division 公式拆分
     if (!g.expensesDetail) g.expensesDetail = {}; // ★ 同上
     if (!g.bankruptcy) g.bankruptcy = { active:false, consecutiveMonths:0, severity:0 };
+    _ensureBankruptcyState(g);
     if (!g.emergency) g.emergency = { extraTax:{active:false,rate:0},
                                        loan:{active:false,amount:0,monthsLeft:0} };
     if (!g.history) g.history = { monthly:[], yearly:[], events:[] };
@@ -782,36 +819,169 @@
   // 破产检查
   // ═════════════════════════════════════════════════════════════
 
+  function _bankruptcyTargetStage(g, b) {
+    var annual = Math.max(1, safe(g.annualIncome, safe(g.monthlyIncome, 80000) * 12));
+    var deficitRatio = Math.max(0, -(g.balance || 0) / annual);
+    var delta = safe(g.lastDelta, safe(g.monthlyIncome, 0) - safe(g.monthlyExpense, 0));
+    var expensePressure = Math.max(0, (safe(g.monthlyExpense, 0) - safe(g.monthlyIncome, 0)) / Math.max(1, safe(g.monthlyIncome, annual / 12)));
+    var byRatio = deficitRatio >= 1.05 ? 6 :
+      deficitRatio >= 0.75 ? 5 :
+      deficitRatio >= 0.50 ? 4 :
+      deficitRatio >= 0.25 ? 3 :
+      deficitRatio >= 0.10 ? 2 :
+      (g.balance < 0 || delta < -annual * 0.02 || expensePressure > 0.35) ? 1 : 0;
+    var byMonths = b.consecutiveMonths >= 8 ? 7 :
+      b.consecutiveMonths >= 6 ? 6 :
+      b.consecutiveMonths >= 5 ? 5 :
+      b.consecutiveMonths >= 4 ? 4 :
+      b.consecutiveMonths >= 3 ? 3 :
+      b.consecutiveMonths >= 2 ? 2 :
+      b.consecutiveMonths >= 1 ? 1 : 0;
+    if (deficitRatio >= 1.0 && b.consecutiveMonths >= 6) byRatio = Math.max(byRatio, 7);
+    if (deficitRatio >= 1.5 && b.consecutiveMonths >= 4) byRatio = Math.max(byRatio, 7);
+    return Math.max(byRatio, byMonths);
+  }
+
+  function _pushBankruptcyHistory(b, def, direction) {
+    b.history.push({
+      turn: GM.turn || 0,
+      stage: def ? def.stage : 0,
+      stageId: def ? def.id : 'stable',
+      stageName: def ? def.name : '财政平稳',
+      direction: direction || 'advance',
+      balance: GM.guoku && GM.guoku.balance || 0,
+      severity: b.severity || 0,
+      consecutiveMonths: b.consecutiveMonths || 0
+    });
+    if (b.history.length > 80) b.history.splice(0, b.history.length - 80);
+  }
+
+  function _adjustAuthorityIndex(key, delta) {
+    if (!delta || !GM[key]) return;
+    if (typeof GM[key] === 'number') GM[key] = clamp(GM[key] + delta, 0, 100);
+    else if (typeof GM[key].index === 'number') GM[key].index = clamp(GM[key].index + delta, 0, 100);
+    else if (key === 'minxin' && typeof GM[key].trueIndex === 'number') GM[key].trueIndex = clamp(GM[key].trueIndex + delta, 0, 100);
+  }
+
+  function _applyBankruptcyStageEffects(def) {
+    if (!def || !GM.guoku) return;
+    var b = _ensureBankruptcyState(GM.guoku);
+    if (b.effects.appliedStageIds.indexOf(def.id) >= 0) return;
+    b.effects.appliedStageIds.push(def.id);
+    if (!Array.isArray(b.effects.ledger)) b.effects.ledger = [];
+    var row = { turn: GM.turn || 0, stage: def.stage, stageId: def.id, deltas: {} };
+
+    if (def.stage === 1) {
+      row.deltas.credit = -3;
+      GM.guoku.fiscalCredit = clamp(safe(GM.guoku.fiscalCredit, 70) - 3, 0, 100);
+    } else if (def.stage === 2) {
+      if (GM.corruption && GM.corruption.sources) GM.corruption.sources.lowSalary = safe(GM.corruption.sources.lowSalary, 0) + 6;
+      (GM.chars || []).forEach(function(ch) {
+        if (ch && ch.alive !== false && typeof ch.loyalty === 'number' && ch.officialTitle) ch.loyalty = clamp(ch.loyalty - 1, 0, 100);
+      });
+      row.deltas.lowSalaryCorruption = 6;
+    } else if (def.stage === 3) {
+      GM.guoku.debtPressure = safe(GM.guoku.debtPressure, 0) + 0.12;
+      _adjustAuthorityIndex('huangwei', -2);
+      row.deltas.debtPressure = 0.12;
+      row.deltas.huangwei = -2;
+    } else if (def.stage === 4) {
+      _adjustAuthorityIndex('minxin', -4);
+      _adjustAuthorityIndex('huangwei', -3);
+      if (!GM.guoku.extraTaxPressure) GM.guoku.extraTaxPressure = 0;
+      GM.guoku.extraTaxPressure += 0.08;
+      row.deltas.minxin = -4;
+      row.deltas.huangwei = -3;
+    } else if (def.stage === 5) {
+      if (GM.military && typeof GM.military.morale === 'number') GM.military.morale = clamp(GM.military.morale - 8, 0, 100);
+      (GM.armies || []).forEach(function(army) {
+        if (!army) return;
+        if (typeof army.morale === 'number') army.morale = clamp(army.morale - 6, 0, 100);
+        if (typeof army.supply === 'number') army.supply = clamp(army.supply - 4, 0, 100);
+      });
+      _adjustAuthorityIndex('minxin', -3);
+      row.deltas.armyMorale = -6;
+      row.deltas.minxin = -3;
+    } else if (def.stage === 6) {
+      (GM.regions || []).forEach(function(r) {
+        if (r && typeof r.unrest === 'number') r.unrest = clamp(r.unrest + 5, 0, 100);
+      });
+      _adjustAuthorityIndex('minxin', -6);
+      row.deltas.regionalUnrest = 5;
+      row.deltas.minxin = -6;
+    } else if (def.stage === 7) {
+      _adjustAuthorityIndex('huangquan', -8);
+      _adjustAuthorityIndex('huangwei', -10);
+      _adjustAuthorityIndex('minxin', -8);
+      if (GM.huangwei && GM.huangwei.subDims && GM.huangwei.subDims.foreign) {
+        GM.huangwei.subDims.foreign.value = clamp(GM.huangwei.subDims.foreign.value - 10, 0, 100);
+      }
+      (GM.regions || []).forEach(function(r) {
+        if (r && typeof r.unrest === 'number') r.unrest = clamp(r.unrest + 8, 0, 100);
+      });
+      row.deltas.huangquan = -8;
+      row.deltas.huangwei = -10;
+      row.deltas.minxin = -8;
+    }
+
+    b.effects.ledger.push(row);
+    if (b.effects.ledger.length > 80) b.effects.ledger.splice(0, b.effects.ledger.length - 80);
+  }
+
+  function _setBankruptcyStage(g, nextStage) {
+    var b = _ensureBankruptcyState(g);
+    nextStage = Math.max(0, Math.min(7, Math.round(nextStage || 0)));
+    var oldStage = Math.max(0, Math.min(7, b.stage || 0));
+    if (nextStage > oldStage) {
+      for (var s = oldStage + 1; s <= nextStage; s++) {
+        var def = _bankruptcyStageDef(s);
+        b.stage = s;
+        b.stageId = def.id;
+        b.stageName = def.name;
+        b.active = true;
+        _pushBankruptcyHistory(b, def, 'advance');
+        _applyBankruptcyStageEffects(def);
+        if (typeof addEB === 'function') addEB('朝代', def.event, { credibility: 'high' });
+      }
+    } else if (nextStage < oldStage) {
+      var def2 = nextStage > 0 ? _bankruptcyStageDef(nextStage) : null;
+      b.stage = nextStage;
+      b.stageId = def2 ? def2.id : 'stable';
+      b.stageName = def2 ? def2.name : '财政平稳';
+      b.active = nextStage > 0;
+      _pushBankruptcyHistory(b, def2, 'recover');
+      if (!b.active && typeof addEB === 'function') addEB('朝代', '帑廪渐充，财政危机解除', { credibility: 'high' });
+    }
+    return b;
+  }
+
   function checkBankruptcy(mr) {
     var g = GM.guoku;
-    var half = g.annualIncome * 0.5;
+    if (!g) return;
+    mr = (typeof mr === 'number' && isFinite(mr) && mr > 0) ? mr : 1;
+    var b = _ensureBankruptcyState(g);
+    var annual = Math.max(1, safe(g.annualIncome, safe(g.monthlyIncome, 80000) * 12));
+    var inCrisis = (g.balance || 0) < 0 || (g.ledgers && g.ledgers.money && g.ledgers.money.deficit > 0);
 
-    if (g.balance < -half) {
-      g.bankruptcy.consecutiveMonths = (g.bankruptcy.consecutiveMonths || 0) + mr;
-      if (!g.bankruptcy.active) {
-        g.bankruptcy.active = true;
-        g.bankruptcy.severity = Math.abs(g.balance) / g.annualIncome;
-        triggerBankruptcyEvent();
-      }
-      // 持续破产加剧
-      if (g.bankruptcy.consecutiveMonths > 6) {
-        g.bankruptcy.severity += 0.1 * mr;
-        if (Math.random() < 0.05 * mr) {
-          triggerMutinyOrFamine();
-        }
-      }
+    if (inCrisis) {
+      b.recoveryMonths = 0;
+      b.consecutiveMonths = (b.consecutiveMonths || 0) + mr;
+      b.severity = Math.max(b.severity || 0, Math.abs(Math.min(0, g.balance || 0)) / annual);
+      var nextStage = _bankruptcyTargetStage(g, b);
+      _setBankruptcyStage(g, nextStage);
+      if (b.consecutiveMonths > 6 && Math.random() < 0.05 * mr) triggerMutinyOrFamine();
     } else {
-      if (g.bankruptcy.active) {
-        g.bankruptcy.consecutiveMonths = Math.max(0, g.bankruptcy.consecutiveMonths - mr);
-        if (g.bankruptcy.consecutiveMonths < 1) {
-          g.bankruptcy.active = false;
-          if (typeof addEB === 'function') addEB('朝代', '帑廪渐充，财政危机解除', { credibility: 'high' });
-        }
-      }
+      b.recoveryMonths = (b.recoveryMonths || 0) + mr;
+      b.consecutiveMonths = Math.max(0, (b.consecutiveMonths || 0) - mr * 1.5);
+      b.severity = Math.max(0, (b.severity || 0) - 0.12 * mr);
+      if ((b.stage || 0) > 0) _setBankruptcyStage(g, Math.max(0, (b.stage || 0) - Math.max(1, Math.floor(b.recoveryMonths || 1))));
+      if ((b.stage || 0) <= 0) b.active = false;
     }
+    return b;
   }
 
   function triggerBankruptcyEvent() {
+    _setBankruptcyStage(GM.guoku, Math.max(1, (GM.guoku.bankruptcy && GM.guoku.bankruptcy.stage) || 1));
     if (typeof addEB === 'function') {
       addEB('朝代', '帑廪亏空，岁入不敷所出，财政危机!', { credibility: 'high' });
     }
@@ -1883,6 +2053,7 @@
     monthlySettle: monthlySettle,
     yearlySettle: yearlySettle,
     checkBankruptcy: checkBankruptcy,
+    BANKRUPTCY_STAGES: BANKRUPTCY_STAGES,
     initFromDynasty: initFromDynasty,
     DYNASTY_PRESETS: DYNASTY_PRESETS,
     // ── p2 inline (R9a 2026-05-04) ──

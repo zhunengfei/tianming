@@ -54,6 +54,12 @@ function _barToFiniteNumber(v) {
   return (typeof n === 'number' && isFinite(n)) ? n : null;
 }
 
+function _topbarEscHtml(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch) {
+    return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch] || ch;
+  });
+}
+
 function _barAccountScalar(account, resource) {
   if (!account) return null;
   if (resource === 'money') {
@@ -1074,28 +1080,23 @@ function _renderLizhiFullPanel() {
 function _renderMinxinLedgerCauses(m) {
   var api = (typeof window !== 'undefined' && window.TM && window.TM.MinxinLedger) || (typeof TM !== 'undefined' && TM.MinxinLedger) || null;
   if (!api || typeof api.snapshot !== 'function') return '';
-  function esc(v) {
-    return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){
-      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch] || ch;
-    });
-  }
   var snap;
   try { snap = api.snapshot(GM, { limit: 5 }); } catch (_) { snap = null; }
   if (!snap) return '';
   var h = '';
   h += '<div style="font-size:0.82rem;color:var(--gold-400);margin:0.6rem 0 0.3rem;">Minxin Ledger</div>';
-  h += '<div style="font-size:0.76rem;">true ' + esc(Math.round(snap.trueIndex || 0)) + ' / court ' + esc(Math.round(snap.perceivedIndex || snap.trueIndex || 0)) + ' / ' + esc(snap.visibilityTier || 'moderate') + '</div>';
+  h += '<div style="font-size:0.76rem;">true ' + _topbarEscHtml(Math.round(snap.trueIndex || 0)) + ' / court ' + _topbarEscHtml(Math.round(snap.perceivedIndex || snap.trueIndex || 0)) + ' / ' + _topbarEscHtml(snap.visibilityTier || 'moderate') + '</div>';
   var recent = Array.isArray(snap.recent) ? snap.recent : [];
   recent.slice(0, 4).forEach(function(row){
     h += '<div style="font-size:0.74rem;color:var(--text-secondary);margin-top:2px;">';
-    h += 'T' + esc(row.turn || '') + ' ' + esc(row.kind || row.sourceSystem || 'signal') + ': ' + esc(row.reason || '');
-    if (row.deltaTrue != null) h += ' (' + esc(row.deltaTrue) + ')';
+    h += 'T' + _topbarEscHtml(row.turn || '') + ' ' + _topbarEscHtml(row.kind || row.sourceSystem || 'signal') + ': ' + _topbarEscHtml(row.reason || '');
+    if (row.deltaTrue != null) h += ' (' + _topbarEscHtml(row.deltaTrue) + ')';
     h += '</div>';
   });
   var chain = Array.isArray(snap.uprisingChain) ? snap.uprisingChain : [];
   chain.slice(0, 3).forEach(function(c){
     h += '<div style="font-size:0.74rem;color:var(--vermillion-400);margin-top:2px;">';
-    h += 'L' + esc(c.level || '') + ' ' + esc(c.region || c.regionName || '') + ' ' + esc(c.className || c.classKey || '') + ' ' + esc(c.cause || '');
+    h += 'L' + _topbarEscHtml(c.level || '') + ' ' + _topbarEscHtml(c.region || c.regionName || '') + ' ' + _topbarEscHtml(c.className || c.classKey || '') + ' ' + _topbarEscHtml(c.cause || '');
     h += '</div>';
   });
   var pa = (typeof window !== 'undefined' && window.TM && window.TM.MinxinPressureActions) || (typeof TM !== 'undefined' && TM.MinxinPressureActions) || null;
@@ -1106,7 +1107,7 @@ function _renderMinxinLedgerCauses(m) {
       h += '<div style="font-size:0.8rem;color:var(--gold-400);margin:0.5rem 0 0.2rem;">Minxin Pressure Actions</div>';
       ps.active.slice(0, 3).forEach(function(item){
         h += '<div style="font-size:0.74rem;color:var(--text-secondary);margin-top:2px;">';
-        h += esc(item.regionName || '') + ' / ' + esc(item.className || '') + ' true ' + esc(Math.round(item.true || 0)) + ' / ' + esc(item.severity || '');
+        h += _topbarEscHtml(item.regionName || '') + ' / ' + _topbarEscHtml(item.className || '') + ' true ' + _topbarEscHtml(Math.round(item.true || 0)) + ' / ' + _topbarEscHtml(item.severity || '');
         h += '</div>';
       });
     }
@@ -1117,18 +1118,13 @@ function _renderMinxinLedgerCauses(m) {
 function _renderMinxinCommitments() {
   var api = (typeof window !== 'undefined' && window.TM && window.TM.MinxinCommitmentTracker) || (typeof TM !== 'undefined' && TM.MinxinCommitmentTracker) || null;
   if (!api || typeof api.snapshot !== 'function') return '';
-  function esc(v) {
-    return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){
-      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch] || ch;
-    });
-  }
   var snap;
   try { snap = api.snapshot(GM, { limit: 4 }); } catch (_) { snap = null; }
   if (!snap || !Array.isArray(snap.active) || !snap.active.length) return '';
   var h = '<div style="font-size:0.8rem;color:var(--gold-400);margin:0.5rem 0 0.2rem;">Minxin Commitments</div>';
   snap.active.slice(0, 3).forEach(function(item){
     h += '<div style="font-size:0.74rem;color:var(--text-secondary);margin-top:2px;">';
-    h += esc(item.regionName || '') + ' / ' + esc(item.className || '') + ' ' + esc(item.status || '') + ' ' + esc(Math.round(item.progress || 0)) + '%';
+    h += _topbarEscHtml(item.regionName || '') + ' / ' + _topbarEscHtml(item.className || '') + ' ' + _topbarEscHtml(item.status || '') + ' ' + _topbarEscHtml(Math.round(item.progress || 0)) + '%';
     h += '</div>';
   });
   return h;
@@ -1137,23 +1133,18 @@ function _renderMinxinCommitments() {
 function _renderMinxinResponsibility() {
   var api = (typeof window !== 'undefined' && window.TM && window.TM.MinxinResponsibilityChain) || (typeof TM !== 'undefined' && TM.MinxinResponsibilityChain) || null;
   if (!api || typeof api.snapshot !== 'function') return '';
-  function esc(v) {
-    return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){
-      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch] || ch;
-    });
-  }
   var snap;
   try { snap = api.snapshot(GM, { limit: 4 }); } catch (_) { snap = null; }
   if (!snap || (!snap.officialReports || !snap.officialReports.length) && (!snap.rumors || !snap.rumors.length)) return '';
   var h = '<div style="font-size:0.8rem;color:var(--gold-400);margin:0.5rem 0 0.2rem;">Minxin Responsibility</div>';
   (snap.officialReports || []).slice(0, 2).forEach(function(r){
     h += '<div style="font-size:0.74rem;color:var(--text-secondary);margin-top:2px;">';
-    h += esc(r.executorName || r.agency || '') + ' ' + esc(r.regionName || '') + ' report ' + esc(Math.round(r.reportedProgress || 0)) + '% / true ' + esc(Math.round(r.actualProgress || 0)) + '%';
+    h += _topbarEscHtml(r.executorName || r.agency || '') + ' ' + _topbarEscHtml(r.regionName || '') + ' report ' + _topbarEscHtml(Math.round(r.reportedProgress || 0)) + '% / true ' + _topbarEscHtml(Math.round(r.actualProgress || 0)) + '%';
     h += '</div>';
   });
   (snap.rumors || []).slice(0, 2).forEach(function(r){
     h += '<div style="font-size:0.74rem;color:var(--vermillion-400);margin-top:2px;">';
-    h += esc(r.severity || '') + ' ' + esc(r.regionName || '') + ' rumor risk ' + esc(r.falseReportRisk || 0);
+    h += _topbarEscHtml(r.severity || '') + ' ' + _topbarEscHtml(r.regionName || '') + ' rumor risk ' + _topbarEscHtml(r.falseReportRisk || 0);
     h += '</div>';
   });
   return h;
@@ -1162,11 +1153,6 @@ function _renderMinxinResponsibility() {
 function _renderMinxinHardLinks() {
   var api = (typeof window !== 'undefined' && window.TM && window.TM.MinxinHardLinks) || (typeof TM !== 'undefined' && TM.MinxinHardLinks) || null;
   if (!api || typeof api.snapshot !== 'function') return '';
-  function esc(v) {
-    return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){
-      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch] || ch;
-    });
-  }
   var snap;
   try { snap = api.snapshot(GM, { limit: 4 }); } catch (_) { snap = null; }
   if (!snap || !snap.summary) return '';
@@ -1179,14 +1165,14 @@ function _renderMinxinHardLinks() {
   if (!hasData && (!snap.regionImpacts || !snap.regionImpacts.length)) return '';
   var h = '<div style="font-size:0.8rem;color:var(--gold-400);margin:0.5rem 0 0.2rem;">Minxin Hard Links</div>';
   h += '<div style="font-size:0.74rem;color:var(--text-secondary);margin-top:2px;">';
-  h += 'fiscal ' + esc(fiscal.actualRevenue || 0) + '/' + esc(fiscal.claimedRevenue || 0);
-  h += ' · recruits ' + esc(military.availableRecruits || 0);
-  h += ' · hidden ' + esc(hukou.hiddenHouseholds || 0);
-  h += ' · exec ' + esc(local.avgExecutionRate || 0);
+  h += 'fiscal ' + _topbarEscHtml(fiscal.actualRevenue || 0) + '/' + _topbarEscHtml(fiscal.claimedRevenue || 0);
+  h += ' · recruits ' + _topbarEscHtml(military.availableRecruits || 0);
+  h += ' · hidden ' + _topbarEscHtml(hukou.hiddenHouseholds || 0);
+  h += ' · exec ' + _topbarEscHtml(local.avgExecutionRate || 0);
   h += '</div>';
   (snap.regionImpacts || []).slice(0, 2).forEach(function(row){
     h += '<div style="font-size:0.74rem;color:var(--text-secondary);margin-top:2px;">';
-    h += esc(row.regionName || '') + ' minxin ' + esc(row.trueMinxin || 0) + ' collection ' + esc(row.collectionMultiplier || 0) + ' draft ' + esc(row.conscription && row.conscription.recruitmentEfficiency || 0);
+    h += _topbarEscHtml(row.regionName || '') + ' minxin ' + _topbarEscHtml(row.trueMinxin || 0) + ' collection ' + _topbarEscHtml(row.collectionMultiplier || 0) + ' draft ' + _topbarEscHtml(row.conscription && row.conscription.recruitmentEfficiency || 0);
     h += '</div>';
   });
   return h;
@@ -1195,11 +1181,6 @@ function _renderMinxinHardLinks() {
 function _renderMinxinHardLinkConsumers() {
   var api = (typeof window !== 'undefined' && window.TM && window.TM.MinxinHardLinkConsumers) || (typeof TM !== 'undefined' && TM.MinxinHardLinkConsumers) || null;
   if (!api || typeof api.snapshot !== 'function') return '';
-  function esc(v) {
-    return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){
-      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch] || ch;
-    });
-  }
   var snap;
   try { snap = api.snapshot(GM, { limit: 4 }); } catch (_) { snap = null; }
   if (!snap || !snap.summary) return '';
@@ -1212,10 +1193,10 @@ function _renderMinxinHardLinkConsumers() {
   if (!hasData) return '';
   var h = '<div style="font-size:0.8rem;color:var(--gold-400);margin:0.5rem 0 0.2rem;">Minxin Hard Link Consumers</div>';
   h += '<div style="font-size:0.74rem;color:var(--text-secondary);margin-top:2px;">';
-  h += 'income ' + esc(fiscal.actualIncome || 0) + '/' + esc(fiscal.plannedIncome || 0);
-  h += ' · recruits ' + esc(military.approvedRecruits || 0) + '/' + esc(military.requestedRecruits || 0);
-  h += ' · taxbase ' + esc(hukou.effectiveTaxHouseholds || 0);
-  h += ' · exec ' + esc(execution.effectiveExecutionRate || 0);
+  h += 'income ' + _topbarEscHtml(fiscal.actualIncome || 0) + '/' + _topbarEscHtml(fiscal.plannedIncome || 0);
+  h += ' · recruits ' + _topbarEscHtml(military.approvedRecruits || 0) + '/' + _topbarEscHtml(military.requestedRecruits || 0);
+  h += ' · taxbase ' + _topbarEscHtml(hukou.effectiveTaxHouseholds || 0);
+  h += ' · exec ' + _topbarEscHtml(execution.effectiveExecutionRate || 0);
   h += '</div>';
   return h;
 }
@@ -1223,11 +1204,6 @@ function _renderMinxinHardLinkConsumers() {
 function _renderHujiRuntimeBridge() {
   var api = (typeof window !== 'undefined' && window.TM && window.TM.HujiRuntimeBridge) || (typeof TM !== 'undefined' && TM.HujiRuntimeBridge) || null;
   if (!api || typeof api.snapshot !== 'function') return '';
-  function esc(v) {
-    return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){
-      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch] || ch;
-    });
-  }
   var snap;
   try { snap = api.snapshot(GM, { limit: 3 }); } catch (_) { snap = null; }
   if (!snap || !snap.hukou) return '';
@@ -1240,26 +1216,26 @@ function _renderHujiRuntimeBridge() {
   var hardMilitary = hujiHardEffects.military || {};
   var hardCorvee = hujiHardEffects.corvee || {};
   h += '<div style="font-size:0.74rem;color:var(--text-secondary);margin-top:2px;">';
-  h += 'hukou ' + esc(hukou.registeredHouseholds || 0) + '/' + esc(hukou.registeredMouths || 0);
-  h += ' 路 hidden ' + esc(hukou.hiddenCount || 0);
-  h += ' 路 taxbase ' + esc(hukou.effectiveTaxHouseholds || 0);
+  h += 'hukou ' + _topbarEscHtml(hukou.registeredHouseholds || 0) + '/' + _topbarEscHtml(hukou.registeredMouths || 0);
+  h += ' 路 hidden ' + _topbarEscHtml(hukou.hiddenCount || 0);
+  h += ' 路 taxbase ' + _topbarEscHtml(hukou.effectiveTaxHouseholds || 0);
   h += '</div>';
   h += '<div style="font-size:0.74rem;color:var(--text-secondary);margin-top:2px;">';
-  h += 'corvee demand ' + esc(corvee.totalDemandDays || 0) + ' gap ' + esc(corvee.gapDays || 0);
-  h += ' 路 service pool ' + esc(military.availableRecruits || 0) + '/' + esc(military.requestedRecruits || 0);
+  h += 'corvee demand ' + _topbarEscHtml(corvee.totalDemandDays || 0) + ' gap ' + _topbarEscHtml(corvee.gapDays || 0);
+  h += ' 路 service pool ' + _topbarEscHtml(military.availableRecruits || 0) + '/' + _topbarEscHtml(military.requestedRecruits || 0);
   h += '</div>';
   if (hujiHardEffects && (hujiHardEffects.fiscal || hujiHardEffects.military || hujiHardEffects.corvee)) {
     h += '<div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">';
-    h += 'hujiHardEffects x' + esc(hardFiscal.collectionMultiplier || 0);
-    h += ' 路 loss ' + esc(hardFiscal.revenueLoss || 0);
-    h += ' 路 shortfall ' + esc(hardMilitary.shortfall || 0);
-    h += ' 路 minxin ' + esc(hardCorvee.minxinDelta || 0);
-    if (hujiHardEffects.ledger && hujiHardEffects.ledger.length) h += ' 路 ledger ' + esc(hujiHardEffects.ledger.length);
+    h += 'hujiHardEffects x' + _topbarEscHtml(hardFiscal.collectionMultiplier || 0);
+    h += ' 路 loss ' + _topbarEscHtml(hardFiscal.revenueLoss || 0);
+    h += ' 路 shortfall ' + _topbarEscHtml(hardMilitary.shortfall || 0);
+    h += ' 路 minxin ' + _topbarEscHtml(hardCorvee.minxinDelta || 0);
+    if (hujiHardEffects.ledger && hujiHardEffects.ledger.length) h += ' 路 ledger ' + _topbarEscHtml(hujiHardEffects.ledger.length);
     h += '</div>';
   }
   (snap.operations || []).slice(-2).forEach(function(op){
     h += '<div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">';
-    h += 'T' + esc(op.turn || '') + ' ' + esc((op.tags || []).join('/')) + ' · ' + esc((op.text || '').slice(0, 42));
+    h += 'T' + _topbarEscHtml(op.turn || '') + ' ' + _topbarEscHtml((op.tags || []).join('/')) + ' · ' + _topbarEscHtml((op.text || '').slice(0, 42));
     h += '</div>';
   });
   return h;
@@ -1268,28 +1244,23 @@ function _renderHujiRuntimeBridge() {
 function _renderHujiGovernanceLoop() {
   var api = (typeof window !== 'undefined' && window.TM && window.TM.HujiGovernanceLoop) || (typeof TM !== 'undefined' && TM.HujiGovernanceLoop) || null;
   if (!api || typeof api.snapshot !== 'function') return '';
-  function esc(v) {
-    return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){
-      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch] || ch;
-    });
-  }
   var snap;
   try { snap = api.snapshot(GM, { limit: 4 }); } catch (_) { snap = null; }
   if (!snap || (!snap.count && !(snap.commitments && snap.commitments.length))) return '';
   var h = '<div style="font-size:0.8rem;color:var(--gold-400);margin:0.5rem 0 0.2rem;">Huji Governance Loop</div>';
   h += '<div style="font-size:0.74rem;color:var(--text-secondary);margin-top:2px;">';
-  h += 'active ' + esc(snap.active || 0) + ' completed ' + esc(snap.completed || 0) + ' total ' + esc(snap.count || 0);
-  h += ' · ticked ' + esc((snap.stats && snap.stats.ticked) || 0);
+  h += 'active ' + _topbarEscHtml(snap.active || 0) + ' completed ' + _topbarEscHtml(snap.completed || 0) + ' total ' + _topbarEscHtml(snap.count || 0);
+  h += ' · ticked ' + _topbarEscHtml((snap.stats && snap.stats.ticked) || 0);
   h += '</div>';
   (snap.commitments || []).slice(-3).forEach(function(c){
     var executorLabel = (c.executorOffice || c.executorDept || '') + (c.executorHolder ? '/' + c.executorHolder : '');
     h += '<div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">';
-    h += esc(c.type || 'commitment') + ' ' + esc(c.status || '') + ' progress ' + esc(c.progress || 0);
-    h += ' · paid ' + esc(c.paidCost || 0) + '/' + esc(c.cost || 0);
-    if (executorLabel) h += ' · executor ' + esc(executorLabel);
-    if (c.executorReliability != null) h += ' · reliability ' + esc(c.executorReliability);
-    if (c.courtDecision) h += ' · court ' + esc(c.courtDecision);
-    if (c.linkedIssue) h += ' · ' + esc(c.linkedIssue);
+    h += _topbarEscHtml(c.type || 'commitment') + ' ' + _topbarEscHtml(c.status || '') + ' progress ' + _topbarEscHtml(c.progress || 0);
+    h += ' · paid ' + _topbarEscHtml(c.paidCost || 0) + '/' + _topbarEscHtml(c.cost || 0);
+    if (executorLabel) h += ' · executor ' + _topbarEscHtml(executorLabel);
+    if (c.executorReliability != null) h += ' · reliability ' + _topbarEscHtml(c.executorReliability);
+    if (c.courtDecision) h += ' · court ' + _topbarEscHtml(c.courtDecision);
+    if (c.linkedIssue) h += ' · ' + _topbarEscHtml(c.linkedIssue);
     h += '</div>';
   });
   return h;

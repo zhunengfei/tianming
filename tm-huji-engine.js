@@ -78,7 +78,7 @@
     luying:   { name:'绿营',   source:'募兵', paymentModel:'wage',  profession:true,  dynasties:['清'] }
   };
 
-  // 25 大徭役预设（精选 20 条）
+  // 25 大徭役预设
   var LARGE_CORVEE_PRESETS = [
     { id:'qin_changcheng',    name:'秦筑长城',  dynasty:'秦',   duration:10, laborDemand:300000, deathRate:0.18, legitimacyImpact:-15, techBoost:{ defense:5 } },
     { id:'qin_afang',         name:'秦建阿房宫',dynasty:'秦',   duration:8,  laborDemand:700000, deathRate:0.25, legitimacyImpact:-30 },
@@ -99,7 +99,12 @@
     { id:'tang_jiangling',    name:'唐修江陵城',dynasty:'唐',   duration:2,  laborDemand:50000,  deathRate:0.03, legitimacyImpact:2 },
     { id:'song_jiangnan_yun', name:'宋营江南运河',dynasty:'宋', duration:5,  laborDemand:70000,  deathRate:0.03, legitimacyImpact:5, techBoost:{ transport:4 } },
     { id:'ming_junzhen',      name:'明建军镇',  dynasty:'明',   duration:8,  laborDemand:150000, deathRate:0.06, legitimacyImpact:-3, techBoost:{ defense:6 } },
-    { id:'qing_xibei_tun',    name:'清新疆屯田',dynasty:'清',   duration:10, laborDemand:80000,  deathRate:0.04, legitimacyImpact:5 }
+    { id:'qing_xibei_tun',    name:'清新疆屯田',dynasty:'清',   duration:10, laborDemand:80000,  deathRate:0.04, legitimacyImpact:5 },
+    { id:'han_changan_water', name:'汉修长安漕渠',dynasty:'汉', duration:4,  laborDemand:90000,  deathRate:0.035,legitimacyImpact:4, techBoost:{ irrigation:5, transport:3 } },
+    { id:'sui_luoyang_city',  name:'隋营东都洛阳',dynasty:'隋', duration:5,  laborDemand:300000, deathRate:0.12, legitimacyImpact:-18, techBoost:{ transport:4 } },
+    { id:'tang_bianqu_repair',name:'唐修汴渠', dynasty:'唐',   duration:3,  laborDemand:70000,  deathRate:0.025,legitimacyImpact:3, techBoost:{ transport:5, floodControl:3 } },
+    { id:'song_bianliang_dike',name:'宋筑汴梁堤防',dynasty:'宋',duration:4, laborDemand:90000, deathRate:0.035,legitimacyImpact:4, techBoost:{ floodControl:5 } },
+    { id:'ming_liaodong_wall',name:'明筑辽东边墙',dynasty:'明', duration:7,  laborDemand:180000, deathRate:0.07, legitimacyImpact:-4, techBoost:{ defense:7 } }
   ];
 
   // 8 大卫所预设
@@ -140,6 +145,7 @@
       if (!G.population.corvee) G.population.corvee = _defaultCorvee();
       if (!G.population.military) G.population.military = _defaultMilitary();
       if (!G.population.meta) G.population.meta = _defaultMeta();
+      _ensureDeepDemographics(G.population);
       return;
     }
 
@@ -174,6 +180,7 @@
       garrisons: [],            // 卫所
       migrationEvents: []       // 触发的迁徙事件
     };
+    _ensureDeepDemographics(G.population);
   }
 
   function _inferDynasty(sc) {
@@ -251,12 +258,107 @@
       corveeAvailable: 0, militaryEligible: 0,
       yearlyBirths: 0, yearlyDeaths: 0, yearlyNetMigration: 0,
       // 深化模块：族群/宗教/保甲/里甲
+      byAge: {}, byGender: {}, byEthnicity: {}, byFaith: {},
       ethnicity: { han:0.95, other:0.05 },
       religion: { confucian:0.6, buddhist:0.2, taoist:0.15, other:0.05 },
       baojiaUnits: 0, lijiaUnits: 0,
       // 深化模块：屯田/卫所/羁縻
       tunTianAcres: 0, garrisonStrength: 0, jimiAutonomy: 0
     };
+  }
+
+  function _sumObj(obj) {
+    var total = 0;
+    Object.keys(obj || {}).forEach(function(k) {
+      var v = Number(obj[k]);
+      if (isFinite(v)) total += v;
+    });
+    return total;
+  }
+
+  function _maxShare(obj) {
+    var total = _sumObj(obj);
+    var max = 0;
+    Object.keys(obj || {}).forEach(function(k) {
+      var v = Number(obj[k]);
+      if (isFinite(v)) max = Math.max(max, v);
+    });
+    if (total <= 1.5) return Math.max(0, Math.min(1, max));
+    return max / Math.max(1, total);
+  }
+
+  function _scaleBucketsToTotal(obj, total, template) {
+    obj = obj || {};
+    total = Math.max(0, Math.round(total || 0));
+    var keys = Object.keys(template || obj || {});
+    if (!keys.length) return {};
+    var current = _sumObj(obj);
+    var out = {};
+    var assigned = 0;
+    keys.forEach(function(k, idx) {
+      var base = current > 0 ? Number(obj[k] || 0) / current : Number(template[k] || 0);
+      var val = idx === keys.length - 1 ? Math.max(0, total - assigned) : Math.round(total * base);
+      out[k] = val;
+      assigned += val;
+    });
+    return out;
+  }
+
+  function _ensureRegionDeepFields(r) {
+    if (!r) return;
+    var mouths = Math.max(0, Math.round(r.mouths || 0));
+    var ageTemplate = {
+      age_0_10:0.20, age_11_20:0.18, age_21_30:0.15, age_31_40:0.13,
+      age_41_50:0.11, age_51_60:0.10, age_61_70:0.08, age_71_plus:0.05
+    };
+    r.byAge = _scaleBucketsToTotal(r.byAge || r.ageLayers, mouths, ageTemplate);
+    var gender = r.byGender || r.gender || {};
+    r.byGender = _scaleBucketsToTotal(gender, mouths, { male:0.52, female:0.48 });
+    if (!r.byEthnicity || !Object.keys(r.byEthnicity).length) r.byEthnicity = Object.assign({}, r.ethnicity || { han:0.95, other:0.05 });
+    if (!r.byFaith || !Object.keys(r.byFaith).length) r.byFaith = Object.assign({}, r.religion || r.byReligion || { confucian:0.6, buddhist:0.2, taoist:0.15, folk:0.05 });
+    r.ethnicity = Object.assign({}, r.byEthnicity);
+    r.religion = Object.assign({}, r.byFaith);
+    if (typeof r.baojiaUnits !== 'number') r.baojiaUnits = Math.max(0, Math.round((r.households || 0) / 10 * 0.2));
+    if (typeof r.lijiaUnits !== 'number') r.lijiaUnits = Math.max(0, Math.round((r.households || 0) / 110 * 0.2));
+  }
+
+  function _computeDeepServiceDing(P) {
+    if (!P || !P.byRegion) return P && P.national ? P.national.ding || 0 : 0;
+    var total = 0;
+    Object.keys(P.byRegion).forEach(function(rid) {
+      var r = P.byRegion[rid];
+      _ensureRegionDeepFields(r);
+      var age = r.byAge || {};
+      var gender = r.byGender || {};
+      var genderTotal = Math.max(1, _sumObj(gender));
+      var maleShare = Math.max(0.25, Math.min(0.75, (gender.male || genderTotal * 0.52) / genderTotal));
+      var serviceAge = (age.age_21_30 || 0) + (age.age_31_40 || 0) + (age.age_41_50 || 0) + (age.age_51_60 || 0) + (age.age_11_20 || 0) * 0.4;
+      total += serviceAge * maleShare * 0.85;
+    });
+    return Math.max(0, Math.round(Math.min(P.national.ding || total, total)));
+  }
+
+  function _ensureDeepDemographics(P) {
+    if (!P) return;
+    Object.keys(P.byRegion || {}).forEach(function(rid) { _ensureRegionDeepFields(P.byRegion[rid]); });
+    var byAge = {}, byGender = {}, ledger = [];
+    Object.keys(P.byRegion || {}).forEach(function(rid) {
+      var r = P.byRegion[rid];
+      Object.keys(r.byAge || {}).forEach(function(k) { byAge[k] = (byAge[k] || 0) + (r.byAge[k] || 0); });
+      Object.keys(r.byGender || {}).forEach(function(k) { byGender[k] = (byGender[k] || 0) + (r.byGender[k] || 0); });
+    });
+    if (!Object.keys(byAge).length && P.national) {
+      byAge = _scaleBucketsToTotal({}, P.national.mouths || 0, {
+        age_0_10:0.20, age_11_20:0.18, age_21_30:0.15, age_31_40:0.13,
+        age_41_50:0.11, age_51_60:0.10, age_61_70:0.08, age_71_plus:0.05
+      });
+      byGender = _scaleBucketsToTotal({}, P.national.mouths || 0, { male:0.52, female:0.48 });
+    }
+    P.byAge = byAge;
+    P.byGender = byGender;
+    if (!P.deepFieldEffects) P.deepFieldEffects = {};
+    P.deepFieldEffects.serviceAgeDing = _computeDeepServiceDing(P);
+    if (!Array.isArray(P.deepFieldEffects.ledger)) P.deepFieldEffects.ledger = ledger;
   }
 
   function _defaultDynamics() {
@@ -349,6 +451,7 @@
   function _tickPopulationDynamics(ctx, mr) {
     var P = global.GM.population;
     if (!P) return;
+    _ensureDeepDemographics(P);
     var d = P.dynamics;
     // 年景因子
     var G = global.GM;
@@ -403,6 +506,83 @@
     d.lastYearNet = net * 12;
   }
 
+  function _deepFieldDiversityPressure(r) {
+    var ethPressure = 1 - _maxShare(r.byEthnicity || r.ethnicity || {});
+    var faithPressure = 1 - _maxShare(r.byFaith || r.religion || {});
+    return Math.max(0, Math.min(1, ethPressure + faithPressure * 0.5));
+  }
+
+  function _tickDeepFieldLinkages(ctx, mr) {
+    var G = global.GM;
+    var P = G && G.population;
+    if (!P || !P.byRegion) return;
+    _ensureDeepDemographics(P);
+    var ledger = [];
+    var serviceAgeDing = _computeDeepServiceDing(P);
+    var totalPressure = 0;
+    var totalHiddenDelta = 0;
+    var totalFugitiveDelta = 0;
+    var minxin = G.minxin && typeof G.minxin === 'object' ? (G.minxin.trueIndex || G.minxin.index || 50) : (G.minxin || 50);
+    var huangquan = G.huangquan && typeof G.huangquan === 'object' ? (G.huangquan.index || 50) : (G.huangquan || 50);
+    var activeWar = Array.isArray(G.activeWars) && G.activeWars.length > 0;
+
+    Object.keys(P.byRegion).forEach(function(rid) {
+      var r = P.byRegion[rid];
+      _ensureRegionDeepFields(r);
+
+      if (activeWar && r.byGender && typeof r.byGender.male === 'number') {
+        var maleLoss = Math.round(r.byGender.male * 0.002 * mr);
+        if (maleLoss > 0) {
+          r.byGender.male = Math.max(0, r.byGender.male - maleLoss);
+          r.yearlyDeaths = (r.yearlyDeaths || 0) + maleLoss;
+          ledger.push({ kind:'gender-war-loss', regionId:rid, maleLoss:maleLoss });
+        }
+      }
+
+      var households = Math.max(1, r.households || Math.round((r.mouths || 0) / 5));
+      var baojiaCoverage = Math.max(0, Math.min(1, (r.baojiaUnits || 0) * 10 / households));
+      if (baojiaCoverage > 0.25) {
+        var hiddenBefore = Math.max(0, Math.round(r.hiddenCount != null ? r.hiddenCount : (r.hidden || 0)));
+        var fugitivesBefore = Math.max(0, Math.round(r.fugitives || 0));
+        var hiddenReduced = Math.round(hiddenBefore * baojiaCoverage * 0.05 * mr / 12);
+        var fugitiveReduced = Math.round(fugitivesBefore * baojiaCoverage * 0.04 * mr / 12);
+        if (hiddenReduced || fugitiveReduced) {
+          r.hidden = Math.max(0, hiddenBefore - hiddenReduced);
+          r.hiddenCount = r.hidden;
+          r.fugitives = Math.max(0, fugitivesBefore - fugitiveReduced);
+          totalHiddenDelta -= hiddenReduced;
+          totalFugitiveDelta -= fugitiveReduced;
+          ledger.push({ kind:'baojia-registration', regionId:rid, coverage:baojiaCoverage, hiddenReduced:hiddenReduced, fugitiveReduced:fugitiveReduced });
+        }
+      }
+
+      var pressure = _deepFieldDiversityPressure(r);
+      totalPressure += pressure;
+      if (pressure > 0.35 && (minxin < 50 || huangquan < 45)) {
+        var stress = pressure * (50 - Math.min(minxin, huangquan)) / 50;
+        var newFugitives = Math.round((r.mouths || 0) * stress * 0.001 * mr);
+        if (newFugitives > 0) {
+          r.fugitives = Math.max(0, (r.fugitives || 0) + newFugitives);
+          totalFugitiveDelta += newFugitives;
+          ledger.push({ kind:'ethnicity-faith-fugitive-pressure', regionId:rid, pressure:pressure, newFugitives:newFugitives });
+        }
+      }
+    });
+
+    P.hiddenCount = Math.max(0, Math.round((P.hiddenCount || 0) + totalHiddenDelta));
+    P.fugitives = Math.max(0, Math.round((P.fugitives || 0) + totalFugitiveDelta));
+    if (P.meta && totalHiddenDelta < 0) {
+      P.meta.registrationAccuracy = Math.max(P.meta.registrationAccuracy || 0.5, Math.min(1, (P.meta.registrationAccuracy || 0.85) + Math.abs(totalHiddenDelta) / Math.max(1, P.national.households || 1) * 0.5));
+    }
+    _ensureDeepDemographics(P);
+    P.deepFieldEffects.serviceAgeDing = serviceAgeDing;
+    P.deepFieldEffects.ethnicityFaithPressure = Object.keys(P.byRegion).length ? totalPressure / Object.keys(P.byRegion).length : 0;
+    P.deepFieldEffects.hiddenDelta = totalHiddenDelta;
+    P.deepFieldEffects.fugitiveDelta = totalFugitiveDelta;
+    P.deepFieldEffects.ledger = (P.deepFieldEffects.ledger || []).concat(ledger);
+    if (P.deepFieldEffects.ledger.length > 80) P.deepFieldEffects.ledger.splice(0, P.deepFieldEffects.ledger.length - 80);
+  }
+
   // ═══════════════════════════════════════════════════════════════════
   //  Ⅴ 徭役征发 + 死亡率 + 逃役
   // ═══════════════════════════════════════════════════════════════════
@@ -413,7 +593,8 @@
     var c = P.corvee;
     // 计算有效丁
     var totalDing = P.national.ding || 0;
-    var effectiveDing = totalDing;
+    var serviceAgeDing = P.deepFieldEffects && P.deepFieldEffects.serviceAgeDing ? P.deepFieldEffects.serviceAgeDing : _computeDeepServiceDing(P);
+    var effectiveDing = Math.min(totalDing, serviceAgeDing || totalDing);
     c.exemptions.forEach(function(ex) {
       // 按 group 估算免除人数（简化）
       if (ex.group === '官员') effectiveDing -= (global.GM.chars || []).filter(function(ch){ return ch.alive!==false && ch.officialTitle; }).length;
@@ -421,6 +602,12 @@
       if (ex.group === '军户' && P.byCategory.junhu) effectiveDing -= P.byCategory.junhu.ding || 0;
     });
     effectiveDing = Math.max(0, effectiveDing);
+    c.deepFieldEffects = {
+      source: 'age-gender-service-ding',
+      totalDing: totalDing,
+      serviceAgeDing: serviceAgeDing,
+      effectiveDing: effectiveDing
+    };
     // 折银
     if (c.fullyCommuted) {
       // 一条鞭法后：所有役折银
@@ -536,7 +723,8 @@
     if (!P || !P.military || !P.military.enabled) return;
     var m = P.military;
     // 总可征兵基数
-    var pool = (P.national.ding || 0) - (P.fugitives || 0);
+    var serviceAgeDing = P.deepFieldEffects && P.deepFieldEffects.serviceAgeDing ? P.deepFieldEffects.serviceAgeDing : _computeDeepServiceDing(P);
+    var pool = (serviceAgeDing || P.national.ding || 0) - (P.fugitives || 0);
     // 军户 = 世袭
     if (m.types.junhu && m.types.junhu.enabled && P.byCategory.junhu) {
       m.types.junhu.strength = Math.round((P.byCategory.junhu.ding || 0) * 0.6);
@@ -556,6 +744,12 @@
       }
     }
     m.totalPool = pool;
+    m.deepFieldEffects = {
+      source: 'age-gender-service-ding',
+      serviceAgeDing: serviceAgeDing,
+      fugitives: P.fugitives || 0,
+      totalPool: pool
+    };
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -650,6 +844,9 @@
     lines.push('朝代：' + P.dynasty + '；全国：户 ' + _fmt(P.national.households) + '，口 ' + _fmt(P.national.mouths) + '，丁 ' + _fmt(P.national.ding));
     if (P.fugitives > 10000) lines.push('逃户：' + _fmt(P.fugitives));
     if (P.hiddenCount > 10000) lines.push('隐户：' + _fmt(P.hiddenCount));
+    if (P.deepFieldEffects && P.deepFieldEffects.serviceAgeDing) {
+      lines.push('适役丁口：' + _fmt(P.deepFieldEffects.serviceAgeDing) + '；族教压力 ' + Math.round((P.deepFieldEffects.ethnicityFaithPressure || 0) * 100) + '%');
+    }
     if (P.corvee && P.corvee.fullyCommuted) lines.push('役法：役银合一（一条鞭法后）');
     if (P.military && P.military.types) {
       var milLines = [];
@@ -684,6 +881,7 @@
     }
     var mr = ctx.monthRatio || 1;
     try { _tickPopulationDynamics(ctx, mr); } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'huji] dynamics:') : console.error('[huji] dynamics:', e); }
+    try { _tickDeepFieldLinkages(ctx, mr); } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'huji] deepFields:') : console.error('[huji] deepFields:', e); }
     try { _tickCorvee(ctx, mr); } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'huji] corvee:') : console.error('[huji] corvee:', e); }
     try { _tickLargeCorvee(ctx, mr); } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'huji] largeCorvee:') : console.error('[huji] largeCorvee:', e); }
     try { _tickMilitary(ctx, mr); } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'huji] military:') : console.error('[huji] military:', e); }

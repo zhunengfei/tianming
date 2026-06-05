@@ -400,19 +400,29 @@ function _adjustMinxin(delta, reason) {
 // v5·D1-D3·经费回落 + 中央扣款 + 阶段自动扣费
 // ══════════════════════════════════════════════════════════════════
 
+function _kejuWalkDivisions(nodes, visitor, ancestors) {
+  ancestors = ancestors || [];
+  for (var i = 0; i < (nodes || []).length; i++) {
+    var n = nodes[i];
+    if (!n) continue;
+    if (visitor(n, ancestors) === false) return false;
+    if (n.children && _kejuWalkDivisions(n.children, visitor, ancestors.concat([n])) === false) return false;
+  }
+  return true;
+}
+
 /** 在 adminHierarchy 中递归找节点 */
 function _kejuFindDivision(id, hierarchy) {
   if (!hierarchy) hierarchy = GM.adminHierarchy;
   if (!hierarchy || !hierarchy.player || !hierarchy.player.divisions) return null;
   var result = null;
-  function walk(nodes) {
-    for (var i=0;i<(nodes||[]).length;i++) {
-      if (!nodes[i]) continue;
-      if (nodes[i].id === id || nodes[i].name === id) { result = nodes[i]; return; }
-      if (nodes[i].children) { walk(nodes[i].children); if (result) return; }
+  _kejuWalkDivisions(hierarchy.player.divisions, function(n) {
+    if (n.id === id || n.name === id) {
+      result = n;
+      return false;
     }
-  }
-  walk(hierarchy.player.divisions);
+    return true;
+  });
   return result;
 }
 
@@ -423,14 +433,11 @@ function _kejuFindAncestorByLevel(node, level, hierarchy) {
   // 暴力扫：找所有 level=level 的节点·判断是否为 node 的祖先
   var all = [];
   if (!hierarchy) hierarchy = GM.adminHierarchy;
-  function walk(nodes, ancestors) {
-    (nodes||[]).forEach(function(n){
-      if (!n) return;
+  if (hierarchy && hierarchy.player) {
+    _kejuWalkDivisions(hierarchy.player.divisions, function(n, ancestors) {
       all.push({ node: n, ancestors: ancestors.slice() });
-      if (n.children) walk(n.children, ancestors.concat([n]));
     });
   }
-  if (hierarchy && hierarchy.player) walk(hierarchy.player.divisions, []);
   var mine = all.find(function(x){ return x.node === node; });
   if (!mine) return null;
   // 从祖先链里找 level 匹配的
@@ -490,26 +497,21 @@ function _kejuSettleLocalCosts(exam) {
 
   if (!GM.adminHierarchy || !GM.adminHierarchy.player) return;
   var shortfallProvinces = [];
-  function walk(nodes) {
-    (nodes||[]).forEach(function(n){
-      if (!n) return;
-      if (n.level === 'county') {
-        var r = payKejuLocalCost('童试', n, perCounty);
-        if (r.shortfall) shortfallProvinces.push(n.name);
-      } else if (n.level === 'prefecture') {
-        var r2 = payKejuLocalCost('府试', n, perPref);
-        if (r2.shortfall) shortfallProvinces.push(n.name);
-      } else if (n.level === 'province') {
-        // 院试（只按省扣一次·走 province 级）
-        if (!n._kejuYuanshiPaid) {
-          _kejuDeductFromDivision(n, perPE);
-          n._kejuYuanshiPaid = true;
-        }
+  _kejuWalkDivisions(GM.adminHierarchy.player.divisions, function(n) {
+    if (n.level === 'county') {
+      var r = payKejuLocalCost('童试', n, perCounty);
+      if (r.shortfall) shortfallProvinces.push(n.name);
+    } else if (n.level === 'prefecture') {
+      var r2 = payKejuLocalCost('府试', n, perPref);
+      if (r2.shortfall) shortfallProvinces.push(n.name);
+    } else if (n.level === 'province') {
+      // 院试（只按省扣一次·走 province 级）
+      if (!n._kejuYuanshiPaid) {
+        _kejuDeductFromDivision(n, perPE);
+        n._kejuYuanshiPaid = true;
       }
-      if (n.children) walk(n.children);
-    });
-  }
-  walk(GM.adminHierarchy.player.divisions);
+    }
+  });
   if (shortfallProvinces.length) {
     _adjustMinxin(-2, '\u79D1\u4E3E\u00B7\u5730\u65B9\u7ECF\u8D39\u65ED\u4E0D\u8DB3\u00B7' + shortfallProvinces.slice(0,3).join('\u3001'));
   }

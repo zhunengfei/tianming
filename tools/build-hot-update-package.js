@@ -193,6 +193,19 @@ function shouldKeepInDefaultHotPackage(file, indexRefs) {
   return indexRefs && indexRefs.has(file.path);
 }
 
+// --include-preview 时仍剔掉 preview 里的 mockup(设计截图/codemod/日志·非运行时·~300MB)·
+// 只留运行时:preview/img/**(御案UI图+底图数据)、preview/scenario-editor-*(剧本工坊)、*-bundle.js、少量 html/css。
+function isPreviewMockup(p) {
+  if (!p.startsWith('preview/')) return false;
+  var base = p.split('/').pop();
+  if (base.charAt(0) === '_') return true;                         // 任何 _前缀 = 开发脚本/临时(含 img/_remove-white-bg.js)·剔
+  if (/\.(png|jpe?g|webp|gif|bmp)$/i.test(base)) {                 // 图片:
+    return !p.startsWith('preview/img/');                          //   只留 preview/img/ 下的运行时御案图·其余(含 *-verify.png 验证截图)剔
+  }
+  if (/\.(log|txt|ya?ml)$/i.test(base)) return true;               // 杂项·剔
+  return false;                                                    // 其余 js/html/css(含剧本工坊 scenario-editor-*、bundle、御案img数据)保留
+}
+
 function walkAppMainImpl() {
   const APP_MAIN_IMPL = path.join(APP_ROOT, 'main-impl.js');
   if (!fs.existsSync(APP_MAIN_IMPL)) return [];
@@ -268,9 +281,11 @@ function main() {
   } else {
     walk(WEB_ROOT, manifestEntries);
   }
-  const filtered = includePreview || explicitFiles.length
+  const filtered = explicitFiles.length
     ? Array.from(manifestEntries.values())
-    : Array.from(manifestEntries.values()).filter(file => shouldKeepInDefaultHotPackage(file, indexRefs));
+    : includePreview
+      ? Array.from(manifestEntries.values()).filter(file => !isPreviewMockup(file.path))
+      : Array.from(manifestEntries.values()).filter(file => shouldKeepInDefaultHotPackage(file, indexRefs));
   if (!explicitFiles.length && !filtered.some(file => file.path === 'index.html')) {
     console.error('index.html not found in hot-update file list');
     process.exit(1);
@@ -326,7 +341,7 @@ function main() {
   // mirror the archive's preview filter (line ~242) so the manifest never advertises preview/ files that
   // aren't shipped — otherwise applyHotUpdateBundle's per-file existence check throws '热更新文件不存在'.
   const finalManifestFiles = Array.from(manifestEntries.values())
-    .filter(entry => includePreview || explicitFiles.length || shouldKeepInDefaultHotPackage(entry, indexRefs))
+    .filter(entry => explicitFiles.length ? true : (includePreview ? !isPreviewMockup(entry.path) : shouldKeepInDefaultHotPackage(entry, indexRefs)))
     .map(entry => ({ path: entry.path, sha256: entry.sha256, size: entry.size, absPath: entry.absPath }))
     .sort((a, b) => a.path.localeCompare(b.path))
     .map(entry => ({ path: entry.path, sha256: entry.sha256, size: entry.size }));
