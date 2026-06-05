@@ -438,6 +438,9 @@
       parties: getParties(source).map(snapshotParty).filter(function(x) { return !!x.name; }),
       factions: getFactions(source).map(snapshotFaction).filter(function(x) { return !!x.name; }),
       relations: snapshotRelations(source),
+      classCharacterRelations: (TM.ClassCharacterRelations && typeof TM.ClassCharacterRelations.snapshot === 'function')
+        ? TM.ClassCharacterRelations.snapshot(source, { limit: 24 })
+        : { count: 0, edges: [], history: [] },
       courtIssues: snapshotCourtIssues(source),
       relationIndex: source._partyGoalRelationIndex || null,
       structuredPlayerSignals: (TM.PlayerActionSignals && typeof TM.PlayerActionSignals.snapshot === 'function')
@@ -477,18 +480,23 @@
       issue_goal_links: [
         { issueId: 'issue id from snapshot', party: 'party name', className: 'class name', goalText: 'short party objective tied to the court issue', affinityDelta: 0, emergent: true, reason: 'short reason' }
       ],
+      class_character_relation_updates: [
+        { className: 'class name from snapshot', characterName: 'character name from snapshot.classCharacterRelations or characters', role: 'spokesperson/patron/broker/suppressor/symbol/debtor', affinityDelta: 0, legitimacyDelta: 0, mobilizationDelta: 0, trustDelta: 0, grievanceDelta: 0, evidence: ['short current evidence'], reason: 'short reason' }
+      ],
       notes: ['short note']
     };
     var system = [
       'You calibrate a historical simulation game state.',
-      'Use only faction, party, class, and court issue names present in the snapshot.',
+      'Use only faction, party, class, character, and court issue names present in the snapshot.',
       'Do not create fixed permanent pairings. Infer gradual dynamic changes from current evidence.',
       'Different scenarios may have unrelated factions/classes/parties. Treat all links as runtime evidence that can emerge, cool down, or reverse.',
       'Prefer structuredPlayerSignals and playerOperations when judging the latest player action impact.',
       'Use socialPoliticalSignals as deterministic system/court evidence already produced by game subsystems.',
       'Court issue updates should tie topics to party short goals or class demands only when the snapshot evidence supports it.',
+      'Class-character relation updates should describe who a class treats as spokesperson, patron, broker, suppressor, symbol, or debtor from current evidence only.',
       'Return strict JSON only. No markdown, no prose outside JSON.',
       'Deltas should usually be small: affinity/trust/grievance between -25 and 25, satisfaction/cohesion between -10 and 10, faction deltas between -8 and 8.',
+      'For class-character relation updates use fractional deltas between -0.25 and 0.25 and keep evidence short.',
       'For new or uncertain party-class links set emergent:true and keep affinityDelta small.'
     ].join('\n');
     var user = [
@@ -540,6 +548,7 @@
       faction_updates: toArray(parsed.faction_updates || parsed.factionUpdates),
       court_issue_updates: toArray(parsed.court_issue_updates || parsed.courtIssueUpdates),
       issue_goal_links: toArray(parsed.issue_goal_links || parsed.issueGoalLinks),
+      class_character_relation_updates: toArray(parsed.class_character_relation_updates || parsed.classCharacterRelationUpdates || parsed.classCharacterUpdates),
       notes: toArray(parsed.notes).map(textOf).filter(Boolean)
     };
   }
@@ -981,7 +990,7 @@
     result = normalizeResponse(result);
     var turn = Number(options.turn != null ? options.turn : source.turn) || 0;
     var sourceName = options.source || 'party-class-llm-calibration';
-    var applied = { relations: 0, classes: 0, parties: 0, factions: 0, courtIssues: 0, issueGoalLinks: 0, goals: 0 };
+    var applied = { relations: 0, classes: 0, parties: 0, factions: 0, courtIssues: 0, issueGoalLinks: 0, classCharacterRelations: 0, goals: 0 };
     result.relation_adjustments.forEach(function(adj) {
       if (!TM.PartyGoals || typeof TM.PartyGoals.applyDynamicRelationAdjustment !== 'function') return;
       var edge = TM.PartyGoals.applyDynamicRelationAdjustment(source, adj, {
@@ -1007,6 +1016,17 @@
       var linked = applyIssueGoalLink(source, link, turn, sourceName);
       if (linked && (linked.issue || linked.goal || linked.relation)) applied.issueGoalLinks++;
       if (linked && linked.relation) applied.relations++;
+    });
+    result.class_character_relation_updates.forEach(function(update) {
+      if (!TM.ClassCharacterRelations || typeof TM.ClassCharacterRelations.adjustRelation !== 'function') return;
+      var edge = TM.ClassCharacterRelations.adjustRelation(source, Object.assign({}, update, {
+        source: update && (update.source || update.reason) ? (update.source || sourceName) : sourceName,
+        evidence: update && (update.evidence || update.reason || update.summary)
+      }), {
+        turn: turn,
+        source: sourceName
+      });
+      if (edge) applied.classCharacterRelations++;
     });
     try {
       if (TM.PartyGoals && typeof TM.PartyGoals.buildScenarioRelationIndex === 'function') TM.PartyGoals.buildScenarioRelationIndex(source, { turn: turn, source: sourceName });
@@ -1189,7 +1209,7 @@
         turn: turn,
         source: options.source || 'party-class-llm'
       });
-      var appliedCount = applied.relations + applied.classes + applied.parties + applied.factions + applied.courtIssues + applied.issueGoalLinks + applied.goals;
+      var appliedCount = applied.relations + applied.classes + applied.parties + applied.factions + applied.courtIssues + applied.issueGoalLinks + applied.classCharacterRelations + applied.goals;
       row.status = appliedCount ? 'applied' : 'completed_no_action';
       row.finishedAt = Date.now();
       row.applied = clone(applied);

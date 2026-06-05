@@ -1443,6 +1443,80 @@ function _officeBuildTreeV10(opts) {
   };
 }
 
+function _officeConfigEnsure() {
+  if (!P.officeConfig) P.officeConfig = { costVariables: [], shortfallEffects: '' };
+  if (!Array.isArray(P.officeConfig.costVariables)) P.officeConfig.costVariables = [];
+  if (P.officeConfig.shortfallEffects == null) P.officeConfig.shortfallEffects = '';
+  else P.officeConfig.shortfallEffects = String(P.officeConfig.shortfallEffects);
+  return P.officeConfig;
+}
+
+function _officeConfigVariableNames() {
+  var src = P.variables || [];
+  var rows = [];
+  if (Array.isArray(src)) rows = src;
+  else {
+    if (Array.isArray(src.base)) rows = rows.concat(src.base);
+    if (Array.isArray(src.other)) rows = rows.concat(src.other);
+  }
+  var names = [];
+  rows.forEach(function(v) {
+    var name = v && (v.name || v.id);
+    if (name && names.indexOf(name) < 0) names.push(name);
+  });
+  return names;
+}
+
+function _officeConfigCostOptions(selected) {
+  var names = _officeConfigVariableNames();
+  if (selected && names.indexOf(selected) < 0) names.unshift(selected);
+  if (!names.length) return '<option value="">未配置变量</option>';
+  return names.map(function(name) {
+    var safe = escHtml(name);
+    return '<option value="' + safe + '"' + (name === selected ? ' selected' : '') + '>' + safe + '</option>';
+  }).join('');
+}
+
+function _officeConfigAddCostVariable() {
+  _officeConfigEnsure();
+  var names = _officeConfigVariableNames();
+  P.officeConfig.costVariables.push({
+    variable: names[0] || '',
+    perDept: 5,
+    perOfficial: 2
+  });
+  renderEdTab('t-office');
+}
+
+function _officeConfigRemoveCostVariable(index) {
+  _officeConfigEnsure();
+  P.officeConfig.costVariables.splice(index, 1);
+  renderEdTab('t-office');
+}
+
+function _renderOfficeConfigCostPanel() {
+  // TM_OFFICE_CONFIG_UI: cost-variable-editor-restored.
+  _officeConfigEnsure();
+  var rows = P.officeConfig.costVariables.map(function(cv, ci) {
+    cv = cv || {};
+    return '<div style="display:grid;grid-template-columns:minmax(140px,1fr) 92px 92px auto;gap:6px;align-items:end;margin-bottom:6px">'
+      + '<div class="fd"><label>变量</label><select onchange="P.officeConfig.costVariables[' + ci + '].variable=this.value">' + _officeConfigCostOptions(cv.variable || '') + '</select></div>'
+      + '<div class="fd"><label>每部门</label><input type="number" value="' + (cv.perDept == null ? 5 : Number(cv.perDept) || 0) + '" onchange="P.officeConfig.costVariables[' + ci + '].perDept=Number(this.value)||0"></div>'
+      + '<div class="fd"><label>每官员</label><input type="number" value="' + (cv.perOfficial == null ? 2 : Number(cv.perOfficial) || 0) + '" onchange="P.officeConfig.costVariables[' + ci + '].perOfficial=Number(this.value)||0"></div>'
+      + '<button class="bd bsm" onclick="_officeConfigRemoveCostVariable(' + ci + ')">删除</button>'
+      + '</div>';
+  }).join('');
+  if (!rows) rows = '<div style="font-size:12px;color:var(--txt-d);margin-bottom:6px">尚未配置官制资源消耗。</div>';
+  return '<details id="office-config-cost-panel" open style="margin-bottom:10px;border:1px solid #3a2a10;border-radius:8px;background:#0d0904;padding:8px 10px">'
+    + '<summary style="cursor:pointer;color:var(--gold);font-weight:700">官制资源消耗</summary>'
+    + '<div style="margin-top:8px">'
+    + rows
+    + '<button class="bt bsm" onclick="_officeConfigAddCostVariable()">＋ 添加消耗变量</button>'
+    + '<div class="fd full" style="margin-top:8px"><label>资源不足时的负面效果</label>'
+    + '<textarea rows="3" onchange="P.officeConfig.shortfallEffects=this.value" placeholder="AI每回合读取">' + escHtml(P.officeConfig.shortfallEffects || '') + '</textarea></div>'
+    + '</div></details>';
+}
+
 function renderOfficeTab(em) {
   if (!P.officeTree) P.officeTree = [];
   if (!P._officeCollapsed) P._officeCollapsed = {};
@@ -1603,6 +1677,7 @@ function renderOfficeTab(em) {
     + '<button class="bai" onclick="aiGenOfficeEd()">&#x1F916; AI生成</button>'
     + '<span style="font-size:11px;color:var(--txt-d);margin-left:auto">滚轮缩放 拖动平移</span>'
     + '</div>'
+    + _renderOfficeConfigCostPanel()
     + '<div id="' + wrapperId + '" style="overflow:hidden;border:1px solid #3a2a10;border-radius:8px;background:#0a0804;position:relative;height:520px;cursor:grab">'
     + '<div id="' + canvasId + '" style="position:absolute;transform-origin:0 0;left:0;top:0;width:' + cw + 'px;height:' + ch + 'px">'
     + '<svg id="' + svgId + '" style="position:absolute;top:0;left:0;pointer-events:none" width="' + cw + '" height="' + ch + '">'

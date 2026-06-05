@@ -438,34 +438,6 @@ function _launchPostTurnJobs() {
   _dbg('[PostTurn] launch', jobs.length, 'jobs; pending=', q.pending.length);
 }
 
-/** 等待所有 post-turn jobs 完成（下回合开始时调用） */
-async function _awaitPostTurnJobs() {
-  if (!GM || !GM._postTurnJobs || !GM._postTurnJobs.pending) return;
-  var pending = GM._postTurnJobs.pending;
-  if (pending.length === 0) return;
-  _dbg('[PostTurn] 等待', pending.length, '个任务·已运行', Math.round((Date.now() - GM._postTurnJobs.launchedAt)/1000), 's');
-  try {
-    await Promise.all(pending.map(function(p) { return p.promise; }));
-  } catch(_e) { /* 已被单任务 catch */ }
-  try {
-    if (typeof recordMemoryDiagnostic === 'function') recordMemoryDiagnostic('post_turn_await', { status: 'done', count: pending.length, snapshot: (typeof buildMemoryDiagnosticSnapshot === 'function' ? buildMemoryDiagnosticSnapshot(GM) : null) });
-  } catch(_) {}
-  GM._postTurnJobs = null;
-  delete GM._turnAiResults;
-}
-
-/** 压缩最旧的归档为一条综合总纲（超出上限时调用） */
-async function _awaitPostTurnJobsForSave(ids) {
-  if (!GM || !GM._postTurnJobs || !Array.isArray(GM._postTurnJobs.pending)) return;
-  var wanted = GM._postTurnJobs.pending.slice();
-  if (Array.isArray(ids) && ids.length) {
-    wanted = wanted.filter(function(job) { return job && ids.indexOf(job.id) >= 0; });
-  }
-  if (!wanted.length) return;
-  _dbg('[PostTurn] wait before save:', wanted.map(function(job) { return job.id || '?'; }).join(','));
-  await Promise.all(wanted.map(function(job) { return job.promise; }));
-}
-
 function _detachRemainingPostTurnJobs(remaining, sourceTurn) {
   if (!remaining || !remaining.length) return;
   if (!Array.isArray(GM._postTurnDetachedJobs)) GM._postTurnDetachedJobs = [];

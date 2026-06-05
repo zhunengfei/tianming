@@ -126,6 +126,12 @@
     return String(party && (party.name || party.partyName || party.id) || '').trim();
   }
 
+  function entryName(entry) {
+    if (typeof entry === 'string') return entry.trim();
+    if (!entry || typeof entry !== 'object') return '';
+    return String(entry.name || entry.characterName || entry.person || entry.npc || entry.id || entry.actor || entry.delegateCharacter || '').trim();
+  }
+
   function ensureMemory(root) {
     root = pickRoot(root);
     if (!root._partyClassActorMemory || typeof root._partyClassActorMemory !== 'object' || Array.isArray(root._partyClassActorMemory)) {
@@ -158,7 +164,11 @@
       confidence: clamp(raw.confidence != null ? raw.confidence : 0.68, 0, 1),
       expiry: Number(raw.expiry != null ? raw.expiry : raw.expiresTurn),
       linkedIssue: compact(raw.linkedIssue || raw.issueId, 100),
-      actionId: raw.actionId || ''
+      actionId: raw.actionId || '',
+      delegateCharacter: compact(raw.delegateCharacter || raw.delegateName || '', 80),
+      delegateCharacterId: compact(raw.delegateCharacterId || raw.delegateId || '', 80),
+      delegateRole: compact(raw.delegateRole || '', 32),
+      delegateEvidence: compact(raw.delegateEvidence || '', 180)
     };
     if (!isFinite(entry.expiry)) entry.expiry = turn + 6;
     store.items.push(entry);
@@ -255,6 +265,7 @@
     if (!existing || !action) return false;
     var source = String(action.source || '').toLowerCase();
     if (/calibrat|llm|issue-link|goal-link/.test(source)) return true;
+    if (!existing.delegateCharacter && action.delegateCharacter) return true;
     if (!existing.agenda && action.agenda) return true;
     if (String(action.agenda || '').length > String(existing.agenda || '').length + 12) return true;
     return false;
@@ -270,10 +281,98 @@
     }
   }
 
+  function classDelegateEdges(root, cls, turn) {
+    var className = classNameOf(cls);
+    var out = [];
+    var seen = {};
+    function addEdge(edge) {
+      if (!edge || normalizeName(edge.className) !== normalizeName(className)) return;
+      var expiry = Number(edge.expiry);
+      if (isFinite(expiry) && expiry < turn) return;
+      var role = String(edge.role || '').toLowerCase();
+      if (/suppressor|enemy/.test(role)) return;
+      if ((Number(edge.grievance) || 0) >= 0.5) return;
+      var key = normalizeName(edge.characterId || edge.characterName);
+      if (!key || seen[key]) return;
+      seen[key] = true;
+      out.push(edge);
+    }
+    toArray(cls && cls.classCharacterRelations).forEach(addEdge);
+    var store = root && root.classCharacterRelations && root.classCharacterRelations.edges;
+    if (store && typeof store === 'object') {
+      Object.keys(store).forEach(function(k) { addEdge(store[k]); });
+    }
+    return out.sort(function(a, b) {
+      function score(e) {
+        var role = String(e && e.role || '').toLowerCase();
+        var roleBonus = role === 'spokesperson' ? 0.12 : (role === 'broker' ? 0.08 : (role === 'patron' ? 0.06 : 0));
+        return (Number(e.affinity) || 0) * 0.2
+          + (Number(e.legitimacy) || 0) * 0.28
+          + (Number(e.trust) || 0) * 0.28
+          + (Number(e.mobilization) || 0) * 0.18
+          - (Number(e.grievance) || 0) * 0.3
+          + roleBonus;
+      }
+      return score(b) - score(a);
+    });
+  }
+
+  function classRepresentativeFallback(cls) {
+    var lists = [cls && cls.representativeNpcs, cls && cls.leaders, cls && cls.representatives];
+    for (var i = 0; i < lists.length; i += 1) {
+      var rows = toArray(lists[i]);
+      for (var j = 0; j < rows.length; j += 1) {
+        var name = entryName(rows[j]);
+        if (name) {
+          return {
+            characterName: name,
+            characterId: rows[j] && typeof rows[j] === 'object' ? String(rows[j].id || rows[j].characterId || '') : '',
+            role: 'spokesperson',
+            source: 'class-representative',
+            evidence: ['class representative field']
+          };
+        }
+      }
+    }
+    return null;
+  }
+
+  function classDelegateForAction(root, cls, options) {
+    root = pickRoot(root);
+    options = options || {};
+    var turn = Number(options.turn != null ? options.turn : root.turn) || 0;
+    var edge = classDelegateEdges(root, cls, turn)[0] || classRepresentativeFallback(cls);
+    if (!edge) return null;
+    return {
+      characterName: compact(edge.characterName || edge.name, 80),
+      characterId: compact(edge.characterId || '', 80),
+      role: compact(edge.role || 'spokesperson', 32),
+      source: compact(edge.source || 'class-character-relations', 80),
+      evidence: compact(toArray(edge.evidence).join(' / '), 180)
+    };
+  }
+
+  function enrichClassActionDelegate(root, actor, raw, options) {
+    raw = raw || {};
+    if (raw.actorType !== 'class') return raw;
+    if (raw.delegateCharacter || raw.delegateCharacterId) return raw;
+    var delegate = classDelegateForAction(root, actor, options);
+    if (!delegate || !delegate.characterName) return raw;
+    var next = Object.assign({}, raw);
+    next.delegateCharacter = delegate.characterName;
+    next.delegateCharacterId = delegate.characterId;
+    next.delegateRole = delegate.role;
+    next.delegateEvidence = delegate.evidence;
+    next.delegateSource = delegate.source;
+    next.linkedCharacters = [{ id: delegate.characterId, name: delegate.characterName, role: delegate.role }];
+    return next;
+  }
+
   function addAction(root, actor, raw, options) {
     root = pickRoot(root);
     options = options || {};
     raw = raw || {};
+    raw = enrichClassActionDelegate(root, actor, raw, options);
     var turn = Number(options.turn != null ? options.turn : root.turn) || 0;
     if (!root.party_actions) root.party_actions = [];
     if (!root.class_actions) root.class_actions = [];
@@ -290,7 +389,13 @@
       confidence: clamp(raw.confidence != null ? raw.confidence : 0.68, 0, 1),
       expiry: Number(raw.expiry != null ? raw.expiry : turn + 4),
       linkedIssue: compact(raw.linkedIssue || '', 100),
-      status: raw.status || 'planned'
+      status: raw.status || 'planned',
+      delegateCharacter: compact(raw.delegateCharacter || raw.delegateName || '', 80),
+      delegateCharacterId: compact(raw.delegateCharacterId || raw.delegateId || '', 80),
+      delegateRole: compact(raw.delegateRole || '', 32),
+      delegateSource: compact(raw.delegateSource || '', 80),
+      delegateEvidence: compact(raw.delegateEvidence || '', 180),
+      linkedCharacters: toArray(raw.linkedCharacters).filter(Boolean).slice(0, 4).map(clone)
     };
     if (!ACTION_TYPES.includes(action.actionType)) return null;
     if (!action.actorType || !action.actorId) return null;
@@ -304,6 +409,12 @@
       existing.confidence = Math.max(Number(existing.confidence) || 0, Number(action.confidence) || 0);
       existing.expiry = Math.max(Number(existing.expiry) || 0, Number(action.expiry) || 0);
       existing.status = action.status || existing.status;
+      existing.delegateCharacter = action.delegateCharacter || existing.delegateCharacter || '';
+      existing.delegateCharacterId = action.delegateCharacterId || existing.delegateCharacterId || '';
+      existing.delegateRole = action.delegateRole || existing.delegateRole || '';
+      existing.delegateSource = action.delegateSource || existing.delegateSource || '';
+      existing.delegateEvidence = action.delegateEvidence || existing.delegateEvidence || '';
+      existing.linkedCharacters = action.linkedCharacters && action.linkedCharacters.length ? clone(action.linkedCharacters) : toArray(existing.linkedCharacters).map(clone);
       existing.updatedTurn = turn;
       existing.updatedSource = action.source || '';
       syncActorAction(actor, action.actorType === 'party' ? 'party_actions' : 'class_actions', existing);
@@ -318,7 +429,11 @@
         confidence: existing.confidence,
         expiry: existing.expiry,
         linkedIssue: existing.linkedIssue,
-        actionId: existing.id
+        actionId: existing.id,
+        delegateCharacter: existing.delegateCharacter,
+        delegateCharacterId: existing.delegateCharacterId,
+        delegateRole: existing.delegateRole,
+        delegateEvidence: existing.delegateEvidence
       });
       return clone(existing);
     }
@@ -340,7 +455,11 @@
       confidence: action.confidence,
       expiry: action.expiry,
       linkedIssue: action.linkedIssue,
-      actionId: action.id
+      actionId: action.id,
+      delegateCharacter: action.delegateCharacter,
+      delegateCharacterId: action.delegateCharacterId,
+      delegateRole: action.delegateRole,
+      delegateEvidence: action.delegateEvidence
     });
     return clone(action);
   }

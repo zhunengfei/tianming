@@ -95,12 +95,81 @@
     return [];
   }
 
+  function getCharacters(root) {
+    root = pickRoot(root);
+    var lists = [
+      root.characters,
+      root.chars,
+      root.people,
+      root.ministers,
+      root.scriptData && root.scriptData.characters,
+      root.scriptData && root.scriptData.chars,
+      global.P && global.P.characters,
+      global.P && global.P.chars,
+      global.scriptData && global.scriptData.characters,
+      global.scriptData && global.scriptData.chars
+    ];
+    var out = [];
+    var seen = {};
+    lists.forEach(function(list) {
+      toArray(list).forEach(function(ch) {
+        if (!ch || typeof ch !== 'object') return;
+        var name = characterNameOf(ch);
+        var id = characterIdOf(ch);
+        var key = normalize(id || name);
+        if (!key || seen[key]) return;
+        seen[key] = true;
+        out.push(ch);
+      });
+    });
+    return out;
+  }
+
   function classNameOf(cls) {
     return String(cls && (cls.name || cls.className || cls.id) || '').trim();
   }
 
   function partyNameOf(party) {
     return String(party && (party.name || party.partyName || party.id) || '').trim();
+  }
+
+  function characterNameOf(ch) {
+    return String(ch && (ch.name || ch.characterName || ch.id) || '').trim();
+  }
+
+  function characterIdOf(ch) {
+    return String(ch && (ch.id || ch.key || ch.charId || ch.characterId) || '').trim();
+  }
+
+  function resolveCharacter(root, raw) {
+    raw = raw || {};
+    var explicitName = compact(raw.characterName || raw.executorName || raw.delegateCharacter || raw.sourceCharacter || raw.actorName || raw.personName || '', 80);
+    var explicitId = compact(raw.characterId || raw.executorId || raw.delegateCharacterId || raw.sourceCharacterId || raw.charId || raw.personId || '', 80);
+    var candidates = [
+      explicitId,
+      explicitName,
+      raw.targetId,
+      raw.target,
+      raw.actor,
+      raw.from,
+      raw.to,
+      raw.proposer
+    ].map(textOf).filter(Boolean);
+    var chars = getCharacters(root);
+    for (var i = 0; i < chars.length; i += 1) {
+      var ch = chars[i];
+      var name = characterNameOf(ch);
+      var id = characterIdOf(ch);
+      for (var j = 0; j < candidates.length; j += 1) {
+        var c = candidates[j];
+        if (!c) continue;
+        if ((id && normalize(c) === normalize(id)) || (name && normalize(c) === normalize(name))) {
+          return { name: name, id: id };
+        }
+      }
+    }
+    if (explicitName || explicitId) return { name: explicitName || explicitId, id: explicitId };
+    return { name: '', id: '' };
   }
 
   function collectTexts(obj, fields) {
@@ -371,6 +440,7 @@
     ].map(textOf).join(' ');
     var candidateClasses = inferCandidateClasses(root, signalText);
     var candidateParties = inferCandidateParties(root, signalText, candidateClasses);
+    var character = resolveCharacter(root, raw);
     return {
       id: 'pas-' + (Number(root.turn) || 0) + '-' + seq,
       turn: Number(raw.turn != null ? raw.turn : root.turn) || 0,
@@ -384,6 +454,8 @@
       actor: compact(raw.actor || raw.from || raw.proposer || '', 80),
       target: compact(raw.target || raw.to || raw.targetId || '', 80),
       targetId: raw.targetId || '',
+      characterName: compact(character.name || '', 80),
+      characterId: compact(character.id || '', 80),
       intensity: Math.max(0, Math.min(1, Number(raw.intensity != null ? raw.intensity : 0.5) || 0.5)),
       policyTags: policyTags,
       candidateClasses: candidateClasses,
@@ -433,6 +505,9 @@
         confidence: profile.isFormal ? 0.72 : 0.58,
         linkedIssue: raw.linkedIssue || raw.issueId || raw.chaoyiTrackId || '',
         reason: signal.text || signal.topic || signal.action || 'player action',
+        characterName: signal.characterName || '',
+        characterId: signal.characterId || '',
+        sourceCharacter: signal.characterName || '',
         affectedClasses: classes,
         affectedParties: parties,
         evidence: toArray(signal.evidence).concat([

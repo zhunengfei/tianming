@@ -240,6 +240,11 @@
       confidence: clamp(raw.confidence != null ? raw.confidence : 0.7, 0, 1),
       linkedIssue: compact(raw.linkedIssue || raw.issueId || raw.topicId || raw.chaoyiTrackId || '', 100),
       reason: reason,
+      characterName: compact(raw.characterName || raw.character || raw.executorName || raw.delegateCharacter || raw.sourceCharacter || raw.actorName || '', 80),
+      characterId: compact(raw.characterId || raw.charId || raw.executorId || raw.delegateCharacterId || raw.sourceCharacterId || '', 80),
+      executorName: compact(raw.executorName || raw.executor || '', 80),
+      delegateCharacter: compact(raw.delegateCharacter || '', 80),
+      sourceCharacter: compact(raw.sourceCharacter || '', 80),
       affectedClasses: toArray(raw.affectedClasses || raw.classes || raw.classImpacts).map(normalizeClassImpact).filter(function(x) { return !!x.name; }),
       affectedParties: toArray(raw.affectedParties || raw.parties || raw.partyImpacts).map(normalizePartyImpact).filter(function(x) { return !!x.name; }),
       relationAdjustments: toArray(raw.relationAdjustments || raw.relations || raw.partyClassRelations).map(normalizeRelationAdjustment).filter(function(x) { return !!(x.className && x.party); }),
@@ -1881,6 +1886,7 @@
       lines.push('- T' + signal.turn + '#' + signal.seq + ' [' + signal.sourceSystem + '/' + signal.kind + '] '
         + compact(signal.reason, 120)
         + (signal.linkedIssue ? ' issue=' + signal.linkedIssue : '')
+        + (signal.characterName ? ' char=' + signal.characterName : '')
         + (cls ? ' classes=' + cls : '')
         + (parties ? ' parties=' + parties : '')
         + (rels ? ' relations=' + rels : ''));

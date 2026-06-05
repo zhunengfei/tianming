@@ -47,6 +47,26 @@
   var TM = global.TM = global.TM || {};
 
   function _str(v) { return v == null ? '' : String(v); }
+  function _arr(v) { return Array.isArray(v) ? v.slice() : (v ? [v] : []); }
+  function _num(v) {
+    var n = Number(v);
+    return isFinite(n) ? n : 0;
+  }
+  function _pct(v) {
+    var n = _num(v);
+    if (Math.abs(n) <= 1) n *= 100;
+    return Math.max(0, Math.min(100, Math.round(n)));
+  }
+  function _roleLabel(role) {
+    role = _str(role).toLowerCase();
+    if (role === 'patron') return '庇护';
+    if (role === 'broker') return '调停';
+    if (role === 'suppressor') return '压制';
+    if (role === 'symbol') return '象征';
+    if (role === 'debtor') return '亏欠';
+    if (role === 'enemy') return '仇怨';
+    return '代表';
+  }
 
   /**
    * Base sysP·朝代 + 剧本 + 角色 + 难度 + 文风 + gameMode + historicalLimit
@@ -147,19 +167,50 @@
     return s;
   }
 
+  function buildClassCharacterContext(char, options) {
+    options = options || {};
+    if (!char) return '';
+    var lines = [];
+    var support = _str(char.classSupportSummary || '').trim();
+    var opposition = _str(char.classOppositionSummary || '').trim();
+    var edges = _arr(char.classBackings || (char._classCharacterEffect && char._classCharacterEffect.backingClasses))
+      .concat(_arr(char._classCharacterEffect && char._classCharacterEffect.opposingClasses));
+    if (char.socialCapital != null || char.classPoliticalCapital != null) {
+      lines.push('  - 社会资本：' + _pct(char.socialCapital != null ? char.socialCapital : char.classPoliticalCapital));
+    }
+    if (char.classPressure != null) lines.push('  - 阶层压力：' + _pct(char.classPressure));
+    if (support) lines.push('  - 阶层背书：' + support);
+    if (opposition) lines.push('  - 阶层怨望：' + opposition);
+    edges.slice(0, 5).forEach(function(edge) {
+      if (!edge || !edge.className) return;
+      var evidence = _arr(edge.evidence).map(function(x) { return _str(x).trim(); }).filter(Boolean).join('/');
+      var row = '  - ' + edge.className + '：' + _roleLabel(edge.role) + '，信任' + _pct(edge.trust) + '，怨望' + _pct(edge.grievance);
+      if (evidence) row += '，近因：' + evidence;
+      lines.push(row);
+    });
+    if (!lines.length) return '';
+    var text = '【阶层政治关系·' + (char.name || char.id || '') + '】\n' + lines.join('\n');
+    var maxLen = Number(options.classContextMaxLen) || 420;
+    if (maxLen > 0 && text.length > maxLen) text = text.slice(0, maxLen) + '...(截断)';
+    return text;
+  }
+
   /**
-   * NPC.aiPersonaText 注入·specialty NPC subcall (cc3/sc18) 用
-   * char 是 GM.chars[i]·若有 aiPersonaText 则注入
+   * NPC.aiPersonaText 注入·specialty NPC subcall (cc3/sc18) 用。
+   * 同时补入阶层政治关系，让 NPC 决策能感知背书、怨望与社会压力。
    */
 function buildAiPersonaText(char, options) {
     options = options || {};
-    if (!char || !char.aiPersonaText) return '';
-    var text = _str(char.aiPersonaText);
+    if (!char) return '';
+    var text = char.aiPersonaText ? _str(char.aiPersonaText) : '';
     var maxLen = Number(options.maxLen) || 0;
     if (maxLen > 0 && text.length > maxLen) {
       text = text.slice(0, maxLen) + '...(截断)';
     }
-    return '\n【NPC 内省·' + (char.name || '') + '】\n' + text + '\n';
+    var classContext = buildClassCharacterContext(char, options);
+    var parts = [text, classContext].filter(function(x) { return !!x; });
+    if (!parts.length) return '';
+    return '\n【NPC 内省·' + (char.name || '') + '】\n' + parts.join('\n') + '\n';
   }
 
   function getBatchPersonaMaxLen(sc, fallback) {

@@ -278,6 +278,9 @@ function _ty3_calcEligibilityByPartyTaboo(ch, topic) {
 function _ty3_calcEligibilityByPrestige(ch) {
   // v1.4 加·composite = (prestige + influence) / 2
   var composite = (((ch && ch.prestige) || 50) + ((ch && ch.influence) || 50)) / 2;
+  // 名望影响廷议话语权(设计-角色经济·资源三)·×(1+fame/100)·fame≠prestige 各自独立·clamp 防极端
+  var _fameTy = (ch && ch.resources && typeof ch.resources.fame === 'number') ? ch.resources.fame : 0;
+  if (_fameTy) composite *= Math.max(0.5, Math.min(1.5, 1 + _fameTy / 100));
   var rankLevel = _cyRankLevelOfSafe(_cyGetRankSafe(ch));
   if (composite >= 90)                       return { category: '必召', layer: 6 };
   if (composite >= 75 && rankLevel <= 8)     return { category: '必召', layer: 6 };
@@ -1528,6 +1531,7 @@ function _ty3_calcUrgency(proposer, type) {
   if ((dims.honor || 0) >= 0.7)         urgency += 1;
   if ((dims.boldness || 0) >= 0.7)      urgency += 1;
   if (proposer.prestige >= 80)          urgency += 1;
+  if (proposer.resources && proposer.resources.fame >= 50) urgency += 1;  // 名望卓著者提议更受重视(设计·改革通过率↑)
   if (proposer.loyalty < 30)            urgency -= 2;
   if (typeof GM !== 'undefined' && GM._convening_言官离心 > 30) urgency += 2;
   if (typeof GM !== 'undefined' && GM._convening_民意度 < -50)  urgency += 2;
@@ -2712,13 +2716,16 @@ function _ty3_buildImpeachmentCharges(accusedCh, partyMetrics, topicText) {
   return charges.slice(0, 4);
 }
 
-function _ty3_impeachmentVerdictGrade(charges, partyMetrics, inquiryBody) {
+function _ty3_impeachmentVerdictGrade(charges, partyMetrics, inquiryBody, accusedCh) {
   var score = inquiryBody && inquiryBody.weight ? inquiryBody.weight : 0;
   (charges || []).forEach(function(ch) { score += Math.max(1, parseInt(ch.severity, 10) || 1); });
   if (partyMetrics) {
     if (typeof partyMetrics.influence === 'number') score += Math.max(0, Math.round((partyMetrics.influence - 40) / 20));
     if (typeof partyMetrics.cohesion === 'number') score += Math.max(0, Math.round((60 - partyMetrics.cohesion) / 10));
   }
+  // 名望防弹劾(设计-角色经济·资源三)：高名望者清誉难扳·名声已坏则更易定罪·fame≠prestige
+  var _fameIm = (accusedCh && accusedCh.resources && typeof accusedCh.resources.fame === 'number') ? accusedCh.resources.fame : 0;
+  if (_fameIm) score -= Math.round(_fameIm / 25);   // fame +100→-4 难成案 · -100→+4 易成案
   if (score >= 15) return 'S';
   if (score >= 12) return 'A';
   if (score >= 9) return 'B';
@@ -2765,7 +2772,7 @@ function _ty3_buildImpeachmentTopicMeta(accuserName, accuserCh, accusedCh, topic
   var partyMetrics = _ty3_partyMetrics(partyName);
   var inquiryBody = _ty3_pickInquiryBody(dynasty, accusedCh);
   var charges = _ty3_buildImpeachmentCharges(accusedCh, partyMetrics, topicText);
-  var verdictGrade = _ty3_impeachmentVerdictGrade(charges, partyMetrics, inquiryBody);
+  var verdictGrade = _ty3_impeachmentVerdictGrade(charges, partyMetrics, inquiryBody, accusedCh);
   var consequenceLadder = _ty3_impeachmentConsequenceLadder(verdictGrade);
   var supportingParties = _ty3_buildSupportingParties(accuserCh, accusedCh, partyMetrics);
   return {
@@ -2812,7 +2819,7 @@ function _ty3_buildAccusationMemorialStructured(accuserName, accuserCh, accusedC
   var accuserNameText = accuserCh ? accuserCh.name : (accuserName || 'unknown');
   var charges = Array.isArray(meta.charges) ? meta.charges.slice() : [];
   var inquiryBody = meta.inquiryBody || _ty3_pickInquiryBody(meta.dynasty || 'default', accusedCh);
-  var verdictGrade = meta.verdictGrade || _ty3_impeachmentVerdictGrade(charges, _ty3_partyMetrics(accusedCh.party || ''), inquiryBody);
+  var verdictGrade = meta.verdictGrade || _ty3_impeachmentVerdictGrade(charges, _ty3_partyMetrics(accusedCh.party || ''), inquiryBody, accusedCh);
   var consequenceLadder = Array.isArray(meta.consequenceLadder) ? meta.consequenceLadder.slice() : _ty3_impeachmentConsequenceLadder(verdictGrade);
   var content = '';
   content += '\u81e3' + accuserNameText + '\u6020\u6162\u5230\u8FBE\uFF0C\u8BF7\u4E0A\u8FBE\u5F39\u52BE\u3002\n';
@@ -3081,7 +3088,7 @@ function _ty3_openPreAudit(seedTopic) {
 
   // Topic handling note. (v2.6 polish·真声明 inp·非 bare 引用·避 ReferenceError)
   var inp = document.getElementById('ty3-pa-topic');
-  if (inp) inp.oninput = _ty3_paUpdateForecast;
+  if (inp) inp.oninput = _ty3_schedulePaUpdateForecast;
 
   // 鏆傚瓨 meta
   CY._ty3_paMeta = topicMeta;
@@ -3128,6 +3135,15 @@ function _ty3_paPickPending(sel) {
   CY._ty3_paMeta = (typeof item === 'object') ? item : null;
   _ty3_paUpdateForecast();
   _ty3_paUpdateProposer(CY._ty3_paMeta);
+}
+
+var _ty3PaForecastTimer = 0;
+function _ty3_schedulePaUpdateForecast(delay) {
+  if (_ty3PaForecastTimer) clearTimeout(_ty3PaForecastTimer);
+  _ty3PaForecastTimer = setTimeout(function() {
+    _ty3PaForecastTimer = 0;
+    _ty3_paUpdateForecast();
+  }, delay == null ? 140 : delay);
 }
 
 function _ty3_paUpdateForecast() {
@@ -5269,6 +5285,24 @@ function _ty3_phase6_recordSeal(status, ctx, detail) {
   if (goalOutcome) seal.goalOutcome = goalOutcome;
   _ty3_recordSocialPoliticalSignal(seal, meta, ctx);
   _ty3_recordCourtOutcomeRecord(seal, meta, ctx);
+  try {
+    if (typeof window !== 'undefined' && window.AuthorityComplete && typeof window.AuthorityComplete.handleCrisisSurfaceResponse === 'function') {
+      window.AuthorityComplete.handleCrisisSurfaceResponse({
+        channel: 'tinyi',
+        text: [topic, status, body, seal.demandText, meta && meta.demandText, ctx.decision && (ctx.decision.text || ctx.decision.reason || ctx.decision.mode)].filter(Boolean).join(' '),
+        decision: status,
+        topic: topic,
+        target: sourceParty,
+        targetName: sourceParty,
+        crisisAction: seal.crisisAction || (meta && (meta.crisisAction || meta.authorityCrisisAction)) || null
+      }, {
+        turn: GM.turn || 0,
+        source: 'tinyi-stage6-crisis-surface'
+      });
+    }
+  } catch (_crisisSurfaceE) {
+    try { window.TM && TM.errors && TM.errors.captureSilent(_crisisSurfaceE, 'tinyi-stage6-crisis-surface'); } catch (_) {}
+  }
 
   if (status === 'blocked') {
     _ty3_applyPolicyPartyResult(sourceParty, opposingParties, grade, 'blocked', seal.blockerParty);

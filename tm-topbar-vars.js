@@ -1485,7 +1485,7 @@ function _renderAllVarsBody() {
 
   // 过滤输入
   html += '<div class="all-vars-filter">'+
-    '<input type="text" id="all-vars-search" placeholder="筛选变量名…" oninput="_filterAllVars(this.value)">'+
+    '<input type="text" id="all-vars-search" placeholder="筛选变量名…" oninput="_scheduleFilterAllVars(this.value)">'+
     '<span style="font-size:0.72rem;color:var(--txt-d);">七官方变量已在顶栏单独展示</span>'+
   '</div>';
 
@@ -1538,6 +1538,15 @@ function _renderAllVarsBody() {
   }
 
   body.innerHTML = html;
+}
+
+var _filterAllVarsTimer=0;
+function _scheduleFilterAllVars(query, delay) {
+  if(_filterAllVarsTimer)clearTimeout(_filterAllVarsTimer);
+  _filterAllVarsTimer=setTimeout(function(){
+    _filterAllVarsTimer=0;
+    _filterAllVars(query);
+  },delay==null?90:delay);
 }
 
 function _filterAllVars(query) {

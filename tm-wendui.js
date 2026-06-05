@@ -573,13 +573,29 @@ function _wdDoDirectOrder() {
   var _dlEl = _$('wd-order-deadline'); var deadline = _dlEl ? (parseInt(_dlEl.value, 10) || 3) : 3;
   if (!GM._npcCommitments) GM._npcCommitments = {};
   if (!GM._npcCommitments[name]) GM._npcCommitments[name] = [];
+  var _orderKey = task.slice(0, 30);
+  var _sameTurnOrder = GM._npcCommitments[name].find(function(c) {
+    if (!c || c.assignedTurn !== (GM.turn || 0)) return false;
+    var _oldTask = String(c.task || '');
+    return _oldTask.slice(0, 30) === _orderKey || _oldTask.indexOf(_orderKey.slice(0, 14)) >= 0 || task.indexOf(_oldTask.slice(0, 14)) >= 0;
+  });
+  if (_sameTurnOrder) {
+    _sameTurnOrder.task = task.slice(0, 60);
+    _sameTurnOrder.deadline = deadline;
+    _sameTurnOrder.status = _sameTurnOrder.status || 'pending';
+    _sameTurnOrder.lastUpdateTurn = GM.turn || 0;
+    _sameTurnOrder._source = _sameTurnOrder._source || 'direct-order';
+    _sameTurnOrder.responsibility = 'npc';
+    if (typeof toast === 'function') toast('已更新同回合面谕差遣');
+    return true;
+  }
   var loy = (typeof ch.loyalty === 'number') ? ch.loyalty : 50;
   var rap = (typeof ch._rapport === 'number') ? ch._rapport : 50;
   var willingness = Math.max(0.2, Math.min(0.95, (loy + rap) / 200));
   GM._npcCommitments[name].push({
     id: (typeof uid === 'function' ? uid() : 'ord_' + (GM.turn || 0) + '_' + name + '_' + GM._npcCommitments[name].length),
     task: task.slice(0, 60), category: 'other', assignedTurn: GM.turn || 0, deadline: deadline,
-    willingness: willingness, npcPromise: '面谕当面领命', conditions: '', status: 'pending', progress: 0, attempts: 0, feedback: '', _source: 'direct-order'
+    willingness: willingness, npcPromise: '面谕当面领命', conditions: '', status: 'pending', progress: 0, attempts: 0, feedback: '', _source: 'direct-order', responsibility: 'npc'
   });
   if (typeof _spendEnergy === 'function') _spendEnergy(2, '面谕差遣');
   if (typeof addEB === 'function') addEB('问对·差遣', name + '领命：' + task.slice(0, 40));
@@ -1584,9 +1600,27 @@ async function _wd_extractCommitments(targetName) {
 
     obj.commitments.forEach(function(c) {
       if (!c || !c.task) return;
+      var _cTask = String(c.task || '').trim();
+      if (!_cTask) return;
+      var _cKey = _cTask.slice(0, 30);
+      var _dupCommit = GM._npcCommitments[targetName].find(function(old) {
+        if (!old || old.assignedTurn !== GM.turn) return false;
+        var _oldTask = String(old.task || '');
+        if (!_oldTask) return false;
+        return _oldTask.slice(0, 30) === _cKey || _oldTask.indexOf(_cKey.slice(0, 14)) >= 0 || _cTask.indexOf(_oldTask.slice(0, 14)) >= 0;
+      });
+      if (_dupCommit) {
+        _dupCommit.category = c.category || _dupCommit.category || 'other';
+        _dupCommit.deadline = parseInt(c.deadline,10) || _dupCommit.deadline || 3;
+        _dupCommit.willingness = parseFloat(c.willingness) || _dupCommit.willingness || 0.6;
+        if (c.npcPromise && !_dupCommit.npcPromise) _dupCommit.npcPromise = c.npcPromise;
+        if (c.conditions && !_dupCommit.conditions) _dupCommit.conditions = c.conditions;
+        _dupCommit.responsibility = 'npc';
+        return;
+      }
       var commit = {
         id: (typeof uid==='function'?uid():'cmt_'+Date.now()),
-        task: c.task,
+        task: _cTask,
         category: c.category || 'other',
         assignedTurn: GM.turn,
         deadline: parseInt(c.deadline,10) || 3,
@@ -1596,7 +1630,9 @@ async function _wd_extractCommitments(targetName) {
         status: 'pending',       // pending/executing/completed/failed/delayed
         progress: 0,
         attempts: 0,
-        feedback: ''
+        feedback: '',
+        responsibility: 'npc',
+        _source: 'wendui-extract'
       };
       GM._npcCommitments[targetName].push(commit);
       // 事件板

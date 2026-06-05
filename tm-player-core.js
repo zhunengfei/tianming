@@ -123,6 +123,14 @@ function _confirmAbdication(heirName) {
 
 // 史记浮动按钮
 var _shijiPage=0,_shijiKw='',_shijiPageSize=10;
+var _floatingShijiRenderTimer=0;
+function scheduleFloatingShijiPanelRender(delay){
+  if(_floatingShijiRenderTimer)clearTimeout(_floatingShijiRenderTimer);
+  _floatingShijiRenderTimer=setTimeout(function(){
+    _floatingShijiRenderTimer=0;
+    _renderShijiPanel();
+  },delay==null?120:delay);
+}
 function openShiji(){
   if(!GM.shijiHistory||GM.shijiHistory.length===0){showTurnResult("<div style='text-align:center;padding:2rem;color:var(--txt-d);'>\u5c1a\u65e0\u53f2\u8bb0</div>");return;}
   _shijiPage=0;_shijiKw='';
@@ -140,7 +148,7 @@ function _renderShijiPanel(){
   // header
   html+='<div style="display:flex;align-items:center;gap:0.6rem;padding:0.6rem 0.8rem;border-bottom:1px solid var(--bdr);flex-shrink:0">';
   html+='<strong style="color:var(--gold);font-size:1.05rem;">\u53f2\u8bb0 / \u8d77\u5c45\u6ce8</strong>';
-  html+='<input id="shiji-kw" class="fd" style="flex:1;font-size:0.85rem" placeholder="\u641c\u7d22\u5173\u952e\u8bcd\u2026" value="'+(_shijiKw||'').replace(/"/g,'&quot;')+'" oninput="_shijiKw=this.value;_shijiPage=0;_renderShijiPanel()">';
+  html+='<input id="shiji-kw" class="fd" style="flex:1;font-size:0.85rem" placeholder="\u641c\u7d22\u5173\u952e\u8bcd\u2026" value="'+(_shijiKw||'').replace(/"/g,'&quot;')+'" oninput="_shijiKw=this.value;_shijiPage=0;scheduleFloatingShijiPanelRender()">';
   html+='<button class="bt bs bsm" onclick="_shijiExport()" title="\u5bfc\u51fa">\u2193 \u5bfc\u51fa</button>';
   html+='<button class="bt bs bsm" onclick="_historyCompare()" title="\u4E0E\u771F\u5B9E\u5386\u53F2\u5BF9\u6BD4">\u2696 \u5386\u53F2\u5BF9\u6BD4</button>';
   html+='<button class="bt bs bsm" onclick="closeTurnResult()">\u2715</button>';
@@ -1764,6 +1772,9 @@ var TmTooltip = {
 // ============================================================
 // 全局资源栏渲染（顶栏动态指标+回合变化量）
 // ============================================================
+// TM_RETENTION_GUARD: legacy-bar-resources-shim.
+// renderGameState still calls this. It intentionally leaves the legacy
+// .bar-resources container empty while the real metrics live in renderTopBarVars.
 function renderBarResources() {
   var bar = _$('bar');
   if (!bar || !GM.running) return;
@@ -3166,24 +3177,30 @@ function _rwpResItem(val, unit, type) {
   var display = v >= 10000 ? (v/10000).toFixed(1)+'万' : v >= 1000 ? v.toLocaleString() : Math.round(v);
   return '<div class="rwp-res-item">'+svg+'<span><span class="rwp-res-val'+(neg?' neg':'')+'">'+display+'</span><span class="rwp-res-unit">'+unit+'</span></span></div>';
 }
+// 自动升迁概率(每次铨选检查)·接功名系统 tm-promotion。
+//   读真源 resources.virtueMerit + resolveRankLevel(officeTree 权威品级)·按 TMPromotion 阈值表。
+//   政治区(从三品及以上)返 0=不自动(归玩家诏令/廷推/AI)。皇权高/皇威低/忠诚低各调。返每次检查概率(自动引擎里再按 monthRatio 缩放)。
 function calcPromotionChance(char) {
   if (!char) return 0;
   var G = typeof GM !== 'undefined' ? GM : null;
-  var merit = char.virtueMerit || 30;
-  var rank = char.rank || 5;
-  var hq = G && G.huangquan && G.huangquan.index || 55;
-  var hw = G && G.huangwei && G.huangwei.index || 50;
-  var thresholds = { 5: 60, 4: 75, 3: 85, 2: 92, 1: 97 };
-  var needed = thresholds[rank] || 100;
-  if (merit < needed) return 0;
-  var baseChance = 0.3;
-  if (merit >= needed + 20) baseChance = 0.7;
-  else if (merit >= needed + 10) baseChance = 0.5;
-  if (hq > 70) baseChance *= 1.3;
-  else if (hq < 40) baseChance *= 0.6;
-  if (hw < 30) baseChance *= 0.4;
-  if ((char.loyalty || 50) < 40) baseChance *= 0.2;
-  return Math.max(0, Math.min(0.95, baseChance));
+  var TP = (typeof window !== 'undefined' ? window : (typeof global !== 'undefined' ? global : this)).TMPromotion;
+  if (!TP) return 0;
+  var merit = (char.resources && char.resources.virtueMerit) || 0;
+  var lv = TP.resolveRankLevel(char, G);          // 当前品级 level(1-18)
+  if (lv <= 1) return 0;                            // 已正一品·无可升
+  var nextLv = lv - 1;                              // 拟升一阶
+  if (TP.isPoliticalZone(nextLv)) return 0;        // 从三品及上=政治擢升·不自动
+  var needed = TP.meritFloor(nextLv);
+  if (merit < needed) return 0;                     // 功名未达下一阶门槛
+  var hq = (G && G.huangquan && G.huangquan.index) || 55;
+  var hw = (G && G.huangwei && G.huangwei.index) || 50;
+  var span = Math.max(1, needed - TP.meritFloor(lv));
+  var over = (merit - needed) / span;               // 超出门槛程度(相对本阶跨度)
+  var base = 0.10 + Math.min(0.30, over * 0.30);
+  if (hq > 70) base *= 1.3; else if (hq < 40) base *= 0.6;
+  if (hw < 30) base *= 0.5;
+  if ((char.loyalty || 50) < 40) base *= 0.4;
+  return Math.max(0, Math.min(0.6, base));
 }
 
 var _tmPlayerGlobal = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : (typeof global !== 'undefined' ? global : this));

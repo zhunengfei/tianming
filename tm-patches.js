@@ -591,6 +591,7 @@ openSettings=function(){
     "<div class=\"fd\"><label>AI \u8BCA\u65AD</label><div style=\"display:flex;gap:0.4rem;\">"+
     "<button class=\"bt bs bsm\" onclick=\"if(window.TM&&TM.ai&&TM.ai.showCostPanel){TM.ai.showCostPanel();}else if(typeof showAICostPanel==='function'){showAICostPanel();}else{toast('\u6210\u672C\u9762\u677F\u672A\u52A0\u8F7D');}\">\uD83D\uDCCA AI \u6210\u672C\u9762\u677F</button>"+
     "<button class=\"bt bs bsm\" onclick=\"if(window.TM&&TM.ai&&TM.ai.exportDiagnostics){TM.ai.exportDiagnostics();}else if(typeof exportAIDiagnosticsJSON==='function'){exportAIDiagnosticsJSON();}else{toast('\u8BCA\u65AD API \u672A\u52A0\u8F7D');}\">\u2193 \u5BFC\u51FA\u65E5\u5FD7</button>"+
+    ((typeof _renderMemoryDiagnosticsButton === 'function') ? _renderMemoryDiagnosticsButton() : "<button class=\"bt bs bsm\" onclick=\"if(window.TM&&TM.ai&&TM.ai.openMemoryDiagnostics){TM.ai.openMemoryDiagnostics();}else if(typeof openMemoryDiagnostics==='function'){openMemoryDiagnostics();}else{toast('\u8BB0\u5FC6\u8BCA\u65AD\u672A\u52A0\u8F7D');}\">\u8BB0\u5FC6\u8BCA\u65AD</button>")+
     "</div></div>"+
     // Phase 7.5 A\u00B79 \u4E2A\u65B0 P.ai opt-in toggle \u66B4\u9732\u00B7user \u53EF\u52FE\u9009\u5207\u6362
     "<div class=\"fd\" style=\"flex-direction:column;align-items:flex-start;gap:0.3rem;\"><label>AI \u7BA1\u7EBF\u5F00\u5173 (\u9AD8\u7EA7)</label>"+
@@ -1533,9 +1534,67 @@ function _tmStartPrimeFormalRuntime(sid, sc, reason) {
   return fixed;
 }
 
+function _tmStartValidateScenarioBeforeLaunch(sc){
+  // TM_START_GUARD: validate-scenario-before-start.
+  if (typeof validateScenario !== 'function') return true;
+  try {
+    var validation = validateScenario(sc);
+    if (!validation) return true;
+    if (validation.valid === false) {
+      var errors = Array.isArray(validation.errors) ? validation.errors : [];
+      if (typeof toast === 'function') toast('\u5267\u672C\u9519\u8BEF: ' + errors.join('; '));
+      try { console.error('[startGame] scenario validation failed:', errors); } catch(_) {}
+      return false;
+    }
+    if (validation.warnings && validation.warnings.length > 0) {
+      try { console.warn('[startGame] scenario validation warnings:', validation.warnings); } catch(_) {}
+      try { if (typeof _dbg === 'function') _dbg('[startGame] validation warnings: ' + validation.warnings.join('; ')); } catch(_) {}
+    }
+  } catch(e) {
+    if (window.TM && TM.errors && TM.errors.capture) TM.errors.capture(e, 'startGame scenario validation');
+    else try { console.warn('[startGame scenario validation]', e); } catch(_) {}
+    if (typeof toast === 'function') toast('\u5267\u672C\u6821\u9A8C\u5931\u8D25');
+    return false;
+  }
+  return true;
+}
+
+function _tmStartConfirmModelRequirementsBeforeLaunch(sc){
+  // TM_START_GUARD: model-requirements-warning-before-start.
+  try {
+    if (!sc || !sc.modelRequirements || !P || !P.ai || !P.ai.model) return true;
+    var req = sc.modelRequirements;
+    var warnings = [];
+    var wlCtx = (typeof _matchModelCtx === 'function') ? _matchModelCtx(P.ai.model) : 0;
+    var wlOut = (typeof _matchModelOutput === 'function') ? _matchModelOutput(P.ai.model) : 0;
+    var conf = P.conf || {};
+    var measuredCtx = conf._detectedContextK || wlCtx;
+    var measuredOutK = conf._measuredMaxOutput ? Math.round(conf._measuredMaxOutput / 1024) : (conf._detectedMaxOutput ? Math.round(conf._detectedMaxOutput / 1024) : wlOut);
+    if (req.minContextK && measuredCtx > 0 && measuredCtx < req.minContextK) warnings.push('\u4E0A\u4E0B\u6587 ' + measuredCtx + 'K < \u63A8\u8350 ' + req.minContextK + 'K');
+    if (req.minOutputK && measuredOutK > 0 && measuredOutK < req.minOutputK) warnings.push('\u8F93\u51FA ' + measuredOutK + 'K < \u63A8\u8350 ' + req.minOutputK + 'K\u00B7\u4E3B\u63A8\u6F14 JSON \u6613\u88AB\u622A\u65AD');
+    if (warnings.length === 0) return true;
+    var models = (req.recommendedModels || []).join('/').slice(0, 80);
+    var msg = '\u26A0 \u672C\u5267\u672C\u63A8\u8350: ' + models
+      + '\n\u5F53\u524D\u6A21\u578B: ' + P.ai.model
+      + '\n\n\u68C0\u51FA\u95EE\u9898:\n  \u00B7 ' + warnings.join('\n  \u00B7 ')
+      + '\n\n' + (req.warningThreshold || '')
+      + '\n\n\u662F\u5426\u4ECD\u8981\u5F00\u59CB?';
+    if (typeof confirm === 'function' && !confirm(msg)) {
+      if (typeof toast === 'function') toast('\u5DF2\u53D6\u6D88\u00B7\u8BF7\u5728\u8BBE\u7F6E\u4E2D\u66F4\u6362\u6A21\u578B\u6216\u91CD\u8DD1\u6A21\u578B\u80FD\u529B\u6821\u9A8C');
+      return false;
+    }
+  } catch(e) {
+    if (window.TM && TM.errors && TM.errors.capture) TM.errors.capture(e, 'M1 modelReq check');
+    else try { console.warn('[M1 modelReq check]', e); } catch(_) {}
+  }
+  return true;
+}
+
 startGame=async function(sid){
   var sc=_tmStartFindScenario(sid, 'startGame-pre') || findScenarioById(sid);
   if(!sc){toast("\u672A\u627E\u5230");return;}
+  if (!_tmStartValidateScenarioBeforeLaunch(sc)) return;
+  if (!_tmStartConfirmModelRequirementsBeforeLaunch(sc)) return;
   _$("scn-page").classList.remove("show");
   _$("launch").style.display="none";
 
@@ -2547,21 +2606,4 @@ function doActualStart(sid){
 // 奏议批复写入纪事本末
 // 注意：此包装层已废弃，功能已迁移到 EndTurnHooks 系统（钩子2）
 
-// 官制资源消耗设置
-// ⚠️ 死代码：本赋值会被 tm-office-editor.js (line 1371) function renderOfficeTab(em){...} 覆盖
-//   index.html 加载顺序：tm-patches.js (line 429) → tm-office-editor.js (line 452)
-//   office-editor 的函数声明 hoisting 会把这里的赋值覆盖掉·所以本块永不执行
-//   保留是为了 grep 易找·真要改请改 tm-office-editor.js
-renderOfficeTab=function(em){
-  var sid=editingScenarioId;var vars=P.variables.filter(function(v){return v.sid===sid;});
-  if(!P.officeConfig)P.officeConfig={costVariables:[],shortfallEffects:""};
-  em.innerHTML="<h4 style=\"color:var(--gold);\">\u5B98\u5236</h4>"+
-    "<div style=\"display:flex;gap:0.3rem;margin-bottom:0.8rem;\"><button class=\"bt bp\" onclick=\"if(!P.officeTree)P.officeTree=[];P.officeTree.push({name:prompt('\u90E8\u95E8:')||'\u65B0',positions:[],subs:[]});renderEdTab('t-office');\">\uFF0B \u90E8\u95E8</button><button class=\"bai\" onclick=\"aiGenOfficeEd()\">\uD83E\uDD16 AI</button></div>"+
-    (P.officeTree||[]).map(function(d,i){return "<div class=\"cd\"><strong>"+d.name+"</strong> ("+(d.positions||[]).length+"\u5B98) <button class=\"bd bsm\" onclick=\"P.officeTree.splice("+i+",1);renderEdTab('t-office');\">\u2715</button></div>";}).join("")+
-    "<hr class=\"dv\"><div style=\"font-size:0.95rem;font-weight:700;color:var(--gold);margin-bottom:0.5rem;\">\u5B98\u5236\u8D44\u6E90\u6D88\u8017</div>"+
-    "<div style=\"font-size:0.8rem;color:var(--txt-d);margin-bottom:0.5rem;\">\u6BCF\u56DE\u5408\u6D88\u8017\u8D44\u6E90\uFF0C\u7C7B\u4F3C\u53D1\u4FF8\u7984\u3002</div>"+
-    (P.officeConfig.costVariables||[]).map(function(cv,ci){var opts=vars.map(function(v){return "<option "+(v.name===cv.variable?"selected":"")+">"+v.name+"</option>";}).join("");return "<div style=\"display:flex;gap:0.3rem;margin-bottom:0.3rem;\"><select onchange=\"P.officeConfig.costVariables["+ci+"].variable=this.value\">"+opts+"</select><div class=\"fd q\"><label>\u6BCF\u90E8\u95E8</label><input type=\"number\" value=\""+(cv.perDept||5)+"\" style=\"width:50px;\" onchange=\"P.officeConfig.costVariables["+ci+"].perDept=+this.value\"></div><div class=\"fd q\"><label>\u6BCF\u5B98\u5458</label><input type=\"number\" value=\""+(cv.perOfficial||2)+"\" style=\"width:50px;\" onchange=\"P.officeConfig.costVariables["+ci+"].perOfficial=+this.value\"></div><button class=\"bd bsm\" onclick=\"P.officeConfig.costVariables.splice("+ci+",1);renderEdTab('t-office');\">\u2715</button></div>";}).join("")+
-    "<button class=\"bt bs bsm\" onclick=\"P.officeConfig.costVariables.push({variable:'"+(vars[0]?vars[0].name:"")+"',perDept:5,perOfficial:2});renderEdTab('t-office');\">\uFF0B \u6DFB\u52A0\u6D88\u8017</button>"+
-    "<div class=\"fd full\" style=\"margin-top:0.8rem;\"><label>\u8D44\u6E90\u4E0D\u8DB3\u65F6\u7684\u8D1F\u9762\u6548\u679C</label><textarea rows=\"3\" onchange=\"P.officeConfig.shortfallEffects=this.value\" placeholder=\"AI\u6BCF\u56DE\u5408\u8BFB\u53D6\">"+(P.officeConfig.shortfallEffects||"")+"</textarea></div>";
-};
 // ============================================================

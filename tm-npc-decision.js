@@ -770,27 +770,244 @@ function _hasMilitaryCommand(npc) {
   return /将|帅|军|营|总兵|提督|都督|指挥|General/i.test(title);
 }
 
+function _npcNumber(v, fallback) {
+  var n = Number(v);
+  return isFinite(n) ? n : (fallback == null ? 50 : fallback);
+}
+
+function _npcAbilityValue(npc, key, fallback) {
+  npc = npc || {};
+  var sources = [
+    npc[key],
+    npc.abilities && npc.abilities[key],
+    npc.stats && npc.stats[key],
+    npc.attributes && npc.attributes[key]
+  ];
+  for (var i = 0; i < sources.length; i++) {
+    if (sources[i] != null) return _npcNumber(sources[i], fallback == null ? 50 : fallback);
+  }
+  return fallback == null ? 50 : fallback;
+}
+
+function _npcAbilityProfile(npc) {
+  return {
+    intelligence: _npcAbilityValue(npc, 'intelligence', 50),
+    valor: _npcAbilityValue(npc, 'valor', 50),
+    military: _npcAbilityValue(npc, 'military', _npcAbilityValue(npc, 'valor', 50)),
+    administration: _npcAbilityValue(npc, 'administration', 50),
+    management: _npcAbilityValue(npc, 'management', _npcAbilityValue(npc, 'administration', 50)),
+    charisma: _npcAbilityValue(npc, 'charisma', 50),
+    diplomacy: _npcAbilityValue(npc, 'diplomacy', 50),
+    benevolence: _npcAbilityValue(npc, 'benevolence', 50)
+  };
+}
+
+function _npcWuchangProfile(npc) {
+  return {
+    ren: _npcWuchangScore(npc, '仁', _npcAbilityValue(npc, 'benevolence', 50)),
+    yi: _npcWuchangScore(npc, '义', _npcAbilityValue(npc, 'integrity', 50)),
+    li: _npcWuchangScore(npc, '礼', _npcAbilityValue(npc, 'charisma', 50)),
+    zhi: _npcWuchangScore(npc, '智', _npcAbilityValue(npc, 'intelligence', 50)),
+    xin: _npcWuchangScore(npc, '信', _npcAbilityValue(npc, 'integrity', 50))
+  };
+}
+
+function _npcPositiveFit(value, scale, cap) {
+  return Math.min(cap == null ? 20 : cap, Math.max(0, (Number(value || 0) - 50) * (scale == null ? 0.2 : scale)));
+}
+
+function _npcInverseFit(value, scale, cap) {
+  return Math.min(cap == null ? 20 : cap, Math.max(0, (50 - Number(value || 0)) * (scale == null ? 0.2 : scale)));
+}
+
+function _npcAvg(values) {
+  var sum = 0;
+  var count = 0;
+  values.forEach(function(v) {
+    var n = Number(v);
+    if (isFinite(n)) { sum += n; count++; }
+  });
+  return count ? sum / count : 50;
+}
+
+function _npcGetEconomyRow(npc, context) {
+  if (!npc) return null;
+  var list = context && Array.isArray(context.characterEconomy) ? context.characterEconomy : [];
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] && list[i].name === npc.name) return list[i];
+  }
+  if (typeof _npcBuildCharacterEconomySnapshot === 'function') return _npcBuildCharacterEconomySnapshot(npc);
+  return null;
+}
+
+function _npcPublicTreasuryPressure(npc, context) {
+  var row = _npcGetEconomyRow(npc, context);
+  if (!row) return 0;
+  var publicPurse = row.publicPurse || {};
+  var publicTreasury = row.publicTreasury || {};
+  var deficit = Math.max(0, Number(publicTreasury.deficit || 0));
+  var balance = Number(publicTreasury.balance != null ? publicTreasury.balance : publicPurse.money || 0);
+  var lowPurse = balance > 0 ? Math.max(0, 2000 - balance) : 2000;
+  return Math.min(24, deficit / 450 + lowPurse / 600);
+}
+
+function _npcPrivateDebtPressure(npc, context) {
+  var row = _npcGetEconomyRow(npc, context);
+  if (!row) return 0;
+  var money = row.privateWealth ? Number(row.privateWealth.money || 0) : 0;
+  var debt = Number(row.debt || (money < 0 ? Math.abs(money) : 0));
+  return Math.min(24, debt / 80 + Math.max(0, 500 - money) / 160 + Math.max(0, Number(row.stress || 0) - 55) / 3);
+}
+
+function _npcShadowWealthPressure(npc, context) {
+  var row = _npcGetEconomyRow(npc, context);
+  if (!row) return 0;
+  return Math.min(24,
+    Math.max(0, Number(row.hiddenWealth || 0)) / 350 +
+    Math.max(0, -Number(row.fame || 0)) / 3 +
+    Math.max(0, -Number(row.virtueMerit || 0)) / 25
+  );
+}
+
+function _npcVirtueEconomyPull(npc, context) {
+  var row = _npcGetEconomyRow(npc, context);
+  if (!row) return 0;
+  return Math.min(16, Math.max(0, Number(row.virtueMerit || 0)) / 55 + Math.max(0, Number(row.fame || 0)) / 6);
+}
+
+function _npcAbilityActionFit(type, npc) {
+  var a = _npcAbilityProfile(npc);
+  var avg = 50;
+  if (type === 'office_duty') avg = _npcAvg([a.administration, a.management, a.intelligence]);
+  else if (type === 'petition' || type === 'seek_audience') avg = _npcAvg([a.intelligence, a.diplomacy, a.charisma]);
+  else if (type === 'recommend' || type === 'impeach') avg = _npcAvg([a.intelligence, a.administration, a.diplomacy]);
+  else if (type === 'conspire' || type === 'court_politics' || type === 'obstruct' || type === 'slander') avg = _npcAvg([a.intelligence, a.charisma, a.diplomacy]);
+  else if (type === 'private_correspondence' || type === 'build_network') avg = _npcAvg([a.diplomacy, a.charisma, a.intelligence]);
+  else if (type === 'train_troops' || type === 'patrol' || type === 'fortify') avg = _npcAvg([a.military, a.valor, a.intelligence]);
+  else if (type === 'request_funds') avg = _hasMilitaryCommand(npc) ? _npcAvg([a.military, a.diplomacy, a.intelligence]) : _npcAvg([a.management, a.administration, a.diplomacy]);
+  else if (type === 'develop_local') avg = _npcAvg([a.administration, a.management, a.benevolence]);
+  else if (type === 'relief') avg = _npcAvg([a.benevolence, a.administration, a.management, a.diplomacy]);
+  else if (type === 'private_life') avg = _npcAvg([a.management, a.intelligence]);
+  else if (type === 'palace_intrigue') avg = _npcAvg([a.charisma, a.diplomacy, a.intelligence]);
+  else if (type === 'send_letter') avg = _npcAvg([a.diplomacy, a.intelligence]);
+  return Math.round(_npcPositiveFit(avg, 0.28, 18));
+}
+
+function _npcWuchangActionFit(type, npc) {
+  var w = _npcWuchangProfile(npc);
+  var fit = 0;
+  if (type === 'recommend' || type === 'impeach') fit = _npcPositiveFit(_npcAvg([w.yi, w.xin, w.zhi]), 0.3, 18);
+  else if (type === 'office_duty' || type === 'petition') fit = _npcPositiveFit(_npcAvg([w.yi, w.xin, w.li, w.zhi]), 0.22, 16);
+  else if (type === 'relief') fit = _npcPositiveFit(_npcAvg([w.ren, w.yi, w.xin]), 0.35, 20);
+  else if (type === 'develop_local') fit = _npcPositiveFit(_npcAvg([w.ren, w.li, w.zhi]), 0.22, 14);
+  else if (type === 'private_life') fit = _npcPositiveFit(_npcAvg([w.li, w.zhi]), 0.12, 8);
+  else if (type === 'train_troops' || type === 'patrol' || type === 'fortify') fit = _npcPositiveFit(_npcAvg([w.yi, w.xin, w.zhi]), 0.16, 12);
+  else if (type === 'send_letter' || type === 'seek_audience') fit = _npcPositiveFit(_npcAvg([w.li, w.xin, w.zhi]), 0.18, 12);
+  else if (type === 'build_network' || type === 'private_correspondence' || type === 'court_politics' || type === 'palace_intrigue') fit = _npcPositiveFit(_npcAvg([w.li, w.zhi]), 0.2, 14);
+  else if (type === 'conspire' || type === 'obstruct' || type === 'slander') {
+    fit = _npcInverseFit(_npcAvg([w.yi, w.xin]), 0.34, 18) + _npcPositiveFit(_npcAvg([w.zhi, w.li]), 0.12, 8);
+  }
+  return Math.round(fit);
+}
+
+function _npcEconomyActionFit(type, npc, context) {
+  var publicPressure = _npcPublicTreasuryPressure(npc, context);
+  var debtPressure = _npcPrivateDebtPressure(npc, context);
+  var shadowPressure = _npcShadowWealthPressure(npc, context);
+  var virtuePull = _npcVirtueEconomyPull(npc, context);
+  var fit = 0;
+  if (type === 'request_funds') fit += publicPressure + debtPressure * 0.25;
+  else if (type === 'office_duty') fit += publicPressure * 0.8 + virtuePull * 0.25;
+  else if (type === 'private_life') fit += debtPressure;
+  else if (type === 'conspire' || type === 'obstruct' || type === 'slander') fit += shadowPressure + debtPressure * 0.35;
+  else if (type === 'private_correspondence' || type === 'build_network' || type === 'court_politics') fit += shadowPressure * 0.65 + debtPressure * 0.15;
+  else if (type === 'recommend' || type === 'impeach') fit += virtuePull;
+  else if (type === 'relief' || type === 'develop_local') fit += virtuePull * 0.7;
+  else if (type === 'seek_audience' || type === 'petition') fit += Math.max(publicPressure, debtPressure) * 0.4;
+  return Math.round(Math.min(24, Math.max(0, fit)));
+}
+
+function _npcFamilyEconomyFor(npc, context) {
+  var row = _npcGetEconomyRow(npc, context);
+  return row && row.familyEconomy || null;
+}
+
+function _npcSocialTierFor(npc, context) {
+  var row = _npcGetEconomyRow(npc, context);
+  return row && row.socialTier || null;
+}
+
+function _npcFamilyActionFit(type, npc, context) {
+  var fam = _npcFamilyEconomyFor(npc, context);
+  if (!fam) return 0;
+  var shared = Math.max(0, Number(fam.sharedWealth || 0));
+  var renown = Math.max(0, Number(fam.renown || fam.prestige || 0));
+  var tier = String(fam.tier || '').toLowerCase();
+  var influence = Math.min(24, shared / 2500 + renown / 10 + (fam.isHead ? 4 : 0));
+  if (tier.indexOf('great') >= 0 || tier.indexOf('noble') >= 0 || tier.indexOf('imperial') >= 0) influence += 3;
+  if (type === 'build_network' || type === 'court_politics' || type === 'private_correspondence') return Math.round(Math.min(24, influence));
+  if (type === 'recommend' || type === 'petition' || type === 'seek_audience') return Math.round(Math.min(16, influence * 0.55));
+  if (type === 'private_life') return Math.round(Math.min(12, shared / 3600 + (fam.isHead ? 2 : 0)));
+  return Math.round(Math.min(8, influence * 0.2));
+}
+
+function _npcTierActionFit(type, npc, context) {
+  var tier = _npcSocialTierFor(npc, context);
+  var row = _npcGetEconomyRow(npc, context);
+  if (!tier) return 0;
+  var key = String(tier.key || '').toLowerCase();
+  var params = tier.classParams || {};
+  var pw = row && row.privateWealth || {};
+  var commerce = Math.max(0, Number(pw.commerce || 0));
+  var land = Math.max(0, Number(pw.land || 0));
+  var fit = 0;
+  if (key === 'merchant') {
+    if (type === 'build_network' || type === 'private_correspondence' || type === 'send_letter') fit += commerce / 900 + Number(params.commerceYield || 0) * 80 + 4;
+    else if (type === 'private_life') fit += commerce / 1300 + Number(params.commerceYield || 0) * 60 + 3;
+    else if (type === 'petition' || type === 'seek_audience') fit += commerce / 2400;
+  } else if (key === 'civilofficial') {
+    if (type === 'office_duty' || type === 'petition' || type === 'recommend') fit += 6 + Math.max(0, 8 - Number(tier.rankLevel || 9));
+    if (type === 'court_politics' || type === 'build_network') fit += 3;
+  } else if (key === 'militaryofficial') {
+    if (type === 'train_troops' || type === 'patrol' || type === 'fortify' || type === 'request_funds') fit += 10;
+  } else if (key === 'noble' || key === 'imperial') {
+    if (type === 'build_network' || type === 'court_politics' || type === 'seek_audience' || type === 'recommend') fit += 10;
+  } else if (key === 'landlord') {
+    if (type === 'private_life' || type === 'develop_local') fit += land / 90 + Number(params.landYield || 0) * 60;
+  } else if (key === 'commoner') {
+    if (type === 'private_life') fit += Math.min(8, Number(row && row.debt || 0) / 260 + Math.max(0, Number(row && row.stress || 0) - 55) / 8);
+    if (type === 'seek_audience') fit += Math.min(6, Math.max(0, Number(row && row.stress || 0) - 60) / 6);
+  }
+  return Math.round(Math.min(24, Math.max(0, fit)));
+}
+
 function _buildNpcMotiveProfile(npc, context) {
   npc = npc || {};
   context = context || {};
   var loyalty = typeof npc.loyalty === 'number' ? npc.loyalty : 50;
   var ambition = typeof npc.ambition === 'number' ? npc.ambition : 50;
-  var intel = typeof npc.intelligence === 'number' ? npc.intelligence : 50;
-  var integrity = typeof npc.integrity === 'number' ? npc.integrity : 50;
-  var valor = typeof npc.valor === 'number' ? npc.valor : 50;
+  var ability = _npcAbilityProfile(npc);
+  var wuchang = _npcWuchangProfile(npc);
+  var intel = ability.intelligence;
+  var integrity = typeof npc.integrity === 'number' ? npc.integrity : _npcAvg([wuchang.yi, wuchang.xin]);
+  var valor = ability.valor;
   var stress = typeof npc.stress === 'number' ? npc.stress : 0;
   var capital = GM && GM._capital || 'Capital';
   var localKey = npc.jurisdiction || npc.location || npc.province || '';
   var localStats = GM && GM.provinceStats && localKey ? GM.provinceStats[localKey] : null;
   var localUnrest = localStats ? Number(localStats.unrest || 0) : 0;
+  var publicPressure = _npcPublicTreasuryPressure(npc, context);
+  var debtPressure = _npcPrivateDebtPressure(npc, context);
+  var shadowPressure = _npcShadowWealthPressure(npc, context);
+  var virtuePull = _npcVirtueEconomyPull(npc, context);
   return {
-    career: Math.max(0, 12 + (hasOffice(npc.name) ? 14 : 0) + (intel - 50) * 0.2 + (ambition - 50) * 0.15),
-    networking: Math.max(0, 10 + (ambition - 45) * 0.35 + Math.max(0, 70 - loyalty) * 0.12 + (_npcHasRealParty(npc) ? 8 : 0)),
-    military: Math.max(0, (_hasMilitaryCommand(npc) ? 28 : 0) + (valor - 50) * 0.25),
-    local: Math.max(0, (npc.location && npc.location !== capital ? 18 : 0) + (localKey ? 8 : 0) + localUnrest * 0.18),
-    integrity: Math.max(0, (integrity - 45) * 0.35 + (intel - 55) * 0.12 + (loyalty - 50) * 0.08),
-    grievance: Math.max(0, Math.max(0, 55 - loyalty) * 0.28 + Math.max(0, ambition - 60) * 0.22 + stress * 0.16),
-    survival: Math.max(0, stress * 0.2 + Math.max(0, 45 - loyalty) * 0.2)
+    career: Math.max(0, 12 + (hasOffice(npc.name) ? 14 : 0) + (intel - 50) * 0.2 + (ambition - 50) * 0.15 + _npcPositiveFit(_npcAvg([ability.administration, ability.management]), 0.15, 8) + publicPressure * 0.25),
+    networking: Math.max(0, 10 + (ambition - 45) * 0.35 + Math.max(0, 70 - loyalty) * 0.12 + (_npcHasRealParty(npc) ? 8 : 0) + _npcPositiveFit(_npcAvg([ability.charisma, ability.diplomacy]), 0.18, 10) + shadowPressure * 0.25),
+    military: Math.max(0, (_hasMilitaryCommand(npc) ? 28 : 0) + (valor - 50) * 0.18 + (ability.military - 50) * 0.28 + _npcPositiveFit(wuchang.yi, 0.08, 5)),
+    local: Math.max(0, (npc.location && npc.location !== capital ? 18 : 0) + (localKey ? 8 : 0) + localUnrest * 0.18 + _npcPositiveFit(_npcAvg([ability.administration, ability.benevolence]), 0.16, 9) + virtuePull * 0.2),
+    integrity: Math.max(0, (integrity - 45) * 0.24 + (intel - 55) * 0.12 + (loyalty - 50) * 0.08 + _npcPositiveFit(_npcAvg([wuchang.yi, wuchang.xin]), 0.24, 14) + virtuePull * 0.35),
+    grievance: Math.max(0, Math.max(0, 55 - loyalty) * 0.28 + Math.max(0, ambition - 60) * 0.22 + stress * 0.16 + _npcInverseFit(_npcAvg([wuchang.yi, wuchang.xin]), 0.18, 10) + shadowPressure * 0.35),
+    survival: Math.max(0, stress * 0.2 + Math.max(0, 45 - loyalty) * 0.2 + debtPressure * 0.75 + _npcPositiveFit(ability.management, 0.08, 5))
   };
 }
 
@@ -827,6 +1044,11 @@ function _scoreNpcActionCandidate(candidate, npc, context) {
   var intel = typeof npc.intelligence === 'number' ? npc.intelligence : 50;
   var score = candidate.baseScore || 10;
   if (typeof candidate.motiveScore === 'number') score += candidate.motiveScore * 0.35;
+  score += Number(candidate.abilityFit || 0) * 0.4;
+  score += Number(candidate.wuchangFit || 0) * 0.4;
+  score += Number(candidate.economyFit || 0) * 0.8;
+  score += Number(candidate.familyFit || 0) * 0.65;
+  score += Number(candidate.tierFit || 0) * 0.65;
   if (candidate.behaviorType === 'petition') {
     score += Math.max(0, intel - 50) * 0.15;
     score += loyalty >= 60 ? 8 : 3;
@@ -839,6 +1061,7 @@ function _scoreNpcActionCandidate(candidate, npc, context) {
   } else if (candidate.behaviorType === 'build_network') {
     score += Math.max(0, ambition - 55) * 0.28;
     score += _npcHasRealParty(npc) ? 6 : 0;
+    score += Number(candidate.familyFit || 0) * 0.45 + Number(candidate.tierFit || 0) * 0.55;
   } else if (candidate.behaviorType === 'train_troops') {
     score += _hasMilitaryCommand(npc) ? 15 : 0;
     score += Math.max(0, (npc.valor || 50) - 50) * 0.2;
@@ -870,6 +1093,7 @@ function _scoreNpcActionCandidate(candidate, npc, context) {
     score += !hasOffice(npc.name) ? 12 : 1;
     score += Math.max(0, (npc.management || npc.intelligence || 50) - 50) * 0.16;
     score += Math.max(0, ambition - 50) * 0.08;
+    score += Number(candidate.tierFit || 0) * 0.25;
   } else if (candidate.behaviorType === 'palace_intrigue') {
     score += _npcIsPlayerConsort(npc) ? 16 : 0;
     score += Math.max(0, (npc.charisma || 50) - 50) * 0.18;
@@ -899,6 +1123,11 @@ function _makeNpcActionCandidate(npc, type, target, intent, baseScore, context) 
     motive: motive,
     motiveScore: Math.round(Number(motives[motive] || 0))
   };
+  candidate.abilityFit = _npcAbilityActionFit(type, npc);
+  candidate.wuchangFit = _npcWuchangActionFit(type, npc);
+  candidate.economyFit = _npcEconomyActionFit(type, npc, context || null);
+  candidate.familyFit = _npcFamilyActionFit(type, npc, context || null);
+  candidate.tierFit = _npcTierActionFit(type, npc, context || null);
   candidate.score = _scoreNpcActionCandidate(candidate, npc, context || null);
   return candidate;
 }
@@ -1160,6 +1389,7 @@ function _isNpcActionCoolingDown(npc, type, target, context, actionId) {
 
 function _recordNpcActionLedger(npc, decision) {
   if (!npc || !decision || !decision.behaviorType || decision.behaviorType === 'none') return;
+  var stateEffects = decision._executionResult ? { executionResult: decision._executionResult } : null;
   if (typeof TM !== 'undefined' && TM.NPC && TM.NPC.ActionLedger && TM.NPC.ActionLedger.record) {
     TM.NPC.ActionLedger.record({
       source: 'npc-autonomy',
@@ -1172,6 +1402,13 @@ function _recordNpcActionLedger(npc, decision) {
       intent: decision.intent || '',
       actionId: decision.actionId || '',
       status: 'applied',
+      result: decision._executionResult && decision._executionResult.outcome || '',
+      abilityFit: decision.abilityFit,
+      wuchangFit: decision.wuchangFit,
+      economyFit: decision.economyFit,
+      familyFit: decision.familyFit,
+      tierFit: decision.tierFit,
+      stateEffects: stateEffects,
       uiRoutes: ['event', 'memory']
     }, { markHandled: true });
     return;
@@ -1189,6 +1426,13 @@ function _recordNpcActionLedger(npc, decision) {
       target: decision.target || '',
       intent: decision.intent || '',
       actionId: decision.actionId || '',
+      result: decision._executionResult && decision._executionResult.outcome || '',
+      abilityFit: decision.abilityFit,
+      wuchangFit: decision.wuchangFit,
+      economyFit: decision.economyFit,
+      familyFit: decision.familyFit,
+      tierFit: decision.tierFit,
+      stateEffects: stateEffects,
       source: 'npc-autonomy'
     });
   }
@@ -1217,7 +1461,11 @@ function _isNpcCandidateBlockedByQueuePressure(candidate) {
   if (!candidate) return false;
   var type = candidate.behaviorType;
   var score = Number(candidate.score || candidate.baseScore || 0);
-  if ((type === 'petition' || type === 'request_funds') && _npcPendingMemorialCount() >= 10) {
+  if (type === 'request_funds' && _npcPendingMemorialCount() >= 10) {
+    if (Number(candidate.economyFit || 0) < 12) return true;
+    return score < 55;
+  }
+  if (type === 'petition' && _npcPendingMemorialCount() >= 10) {
     return score < 45;
   }
   if (type === 'seek_audience' && _npcPendingAudienceCount() >= 6) {
@@ -1237,9 +1485,16 @@ function _buildNpcActionCandidates(npc, context) {
   var memorialQueueBusy = _npcPendingMemorialCount() >= 10;
   var officeInfo = findNpcOffice(npc.name);
   var hasOfficialRole = !!officeInfo || !!npc.officialTitle || !!npc.title;
+  var privateDebtPressure = _npcPrivateDebtPressure(npc, context);
+  var publicTreasuryPressure = _npcPublicTreasuryPressure(npc, context);
+  var networkFamilyFit = _npcFamilyActionFit('build_network', npc, context);
+  var networkTierFit = _npcTierActionFit('build_network', npc, context);
   if (hasOfficialRole) {
     var officeTarget = npc.jurisdiction || npc.location || (officeInfo && (officeInfo.deptName + officeInfo.posName)) || 'court';
     candidates.push(_makeNpcActionCandidate(npc, 'office_duty', officeTarget, '履行本职，处置官署公务', 17, context));
+    if (!_npcIsPlayerConsort(npc) && privateDebtPressure >= 8) {
+      candidates.push(_makeNpcActionCandidate(npc, 'private_life', npc.name, '私财承压，整顿家计以求自保', 12, context));
+    }
   } else if (!_npcIsPlayerConsort(npc)) {
     candidates.push(_makeNpcActionCandidate(npc, 'private_life', npc.name, '经营家计或处理日常琐事', 12, context));
   }
@@ -1254,6 +1509,9 @@ function _buildNpcActionCandidates(npc, context) {
   if (!memorialQueueBusy && (hasOffice(npc.name) || npc.officialTitle || npc.title)) {
     candidates.push(_makeNpcActionCandidate(npc, 'petition', '朝廷', '上奏陈事，请求朝廷裁断', 18, context));
   }
+  if (!memorialQueueBusy && hasOfficialRole && !_hasMilitaryCommand(npc) && publicTreasuryPressure >= 8) {
+    candidates.push(_makeNpcActionCandidate(npc, 'request_funds', '朝廷', '公库亏空，请求拨帑周转', 15, context));
+  }
   if (!memorialQueueBusy && hasOffice(npc.name) && ((npc.integrity || 50) >= 70 || (npc.intelligence || 50) >= 78)) {
     var recommendTarget = _selectNpcActionTarget(npc, 'recommend', context) || '';
     if (recommendTarget) candidates.push(_makeNpcActionCandidate(npc, 'recommend', recommendTarget, 'Recommend a useful official to court', 14, context));
@@ -1267,6 +1525,11 @@ function _buildNpcActionCandidates(npc, context) {
     candidates.push(_makeNpcActionCandidate(npc, 'private_correspondence', contactTarget, '私下通书，互探局势', 14, context));
     var networkTarget = _selectNpcActionTarget(npc, 'build_network', context) || contactTarget || allyTarget;
     candidates.push(_makeNpcActionCandidate(npc, 'build_network', networkTarget, 'Build a durable political network', 15, context));
+  }
+  if ((networkFamilyFit >= 8 || networkTierFit >= 8) && !candidates.some(function(c) { return c.behaviorType === 'build_network'; })) {
+    var supportedNetworkTarget = _selectNpcActionTarget(npc, 'build_network', context) || _selectNpcActionTarget(npc, 'private_correspondence', context) || npc.name;
+    var supportedBase = networkTierFit >= 8 ? 18 : 16;
+    candidates.push(_makeNpcActionCandidate(npc, 'build_network', supportedNetworkTarget, 'Use family or class resources to build a durable network', supportedBase, context));
   }
   if (_hasMilitaryCommand(npc)) {
     candidates.push(_makeNpcActionCandidate(npc, 'train_troops', npc.name, '整训所部，申严军纪', 20, context));
@@ -1344,6 +1607,14 @@ function _recordNpcInternalAction(kind, item) {
     actionId: item._actionId || item.actionId || item.id || '',
     visibility: item.visibility || item.type || 'internal'
   };
+  if (item.amount != null) rec.amount = Number(item.amount) || 0;
+  if (item.abilityFit != null) rec.abilityFit = Number(item.abilityFit) || 0;
+  if (item.wuchangFit != null) rec.wuchangFit = Number(item.wuchangFit) || 0;
+  if (item.economyFit != null) rec.economyFit = Number(item.economyFit) || 0;
+  if (item.familyFit != null) rec.familyFit = Number(item.familyFit) || 0;
+  if (item.tierFit != null) rec.tierFit = Number(item.tierFit) || 0;
+  if (item.resultType || item.outcome) rec.resultType = item.resultType || item.outcome;
+  if (item.effects) rec.effects = item.effects;
   var exists = history.some(function(x) {
     if (!x) return false;
     if (rec.actionId && x.actionId === rec.actionId) return true;
@@ -1357,7 +1628,7 @@ function executePetitionBehavior(npc, target, decision, context) {
   var list = _npcEnsureArray(GM, 'memorials');
   var title = _npcShortText(decision.title || decision.subject || decision.intent, npc.name + '上疏言事', 36);
   var content = _npcShortText(decision.content || decision.publicReason || decision.intent, '臣请朝廷垂察。', 260);
-  list.push({
+  var rec = {
     id: _npcGeneratedId('memorial', npc),
     from: npc.name,
     author: npc.name,
@@ -1373,7 +1644,9 @@ function executePetitionBehavior(npc, target, decision, context) {
     _npcAutonomous: true,
     _actionId: decision.actionId || '',
     reply: ''
-  });
+  };
+  if (decision._npcFundingRequest) rec._npcFundingRequest = decision._npcFundingRequest;
+  list.push(rec);
   addEB('奏疏', npc.name + '递上一封奏疏：' + title);
   _npcRemember(npc.name, '自主上疏：' + title, '敬', 5, '朝堂');
 }
@@ -1485,13 +1758,6 @@ function executeSeekAudienceBehavior(npc, target, decision, context) {
   _npcRemember(npc.name, '请求入对：' + _npcShortText(decision.intent, '', 50), '敬', 5, '天子');
 }
 
-function executeRequestFundsBehavior(npc, target, decision, context) {
-  decision.title = decision.title || '请给饷修械';
-  decision.content = decision.content || decision.intent || '请给军饷器械，以固军心。';
-  decision.petitionType = decision.petitionType || '军务';
-  executePetitionBehavior(npc, target, decision, context);
-}
-
 function _npcProvinceKeyFor(npc, target) {
   var key = target || (npc && (npc.jurisdiction || npc.location || npc.province)) || '';
   if (key && GM.provinceStats && GM.provinceStats[key]) return key;
@@ -1558,67 +1824,165 @@ function _npcWuchangScore(npc, key, fallback) {
 }
 
 function _npcRecordMoneyAction(kind, npc, target, intent, amount, visibility) {
-  _recordNpcInternalAction(kind, {
+  var meta = arguments.length > 6 && arguments[6] ? arguments[6] : null;
+  var rec = {
     from: npc.name,
     to: target || '',
     intent: intent || '',
     amount: Math.round(amount || 0),
     turn: GM.turn,
     visibility: visibility || 'public'
-  });
+  };
+  if (meta) {
+    rec.abilityFit = meta.abilityFit;
+    rec.wuchangFit = meta.wuchangFit;
+    rec.economyFit = meta.economyFit;
+    rec.familyFit = meta.familyFit;
+    rec.tierFit = meta.tierFit;
+    rec.resultType = meta.resultType || meta.outcome || '';
+    rec.effects = meta.effects || null;
+  }
+  _recordNpcInternalAction(kind, rec);
 }
 
-function executeOfficeDutyBehavior(npc, target, decision, context) {
-  var office = findNpcOffice(npc.name);
-  var key = _npcProvinceKeyFor(npc, target || npc.jurisdiction || npc.location);
-  var admin = Number(npc.administration || npc.management || npc.intelligence || 50);
-  var manage = Number(npc.management || npc.administration || 50);
-  var integrity = Number(npc.integrity || 50);
-  var zhi = _npcWuchangScore(npc, '智', npc.intelligence || 50);
-  var xin = _npcWuchangScore(npc, '信', integrity);
-  var yi = _npcWuchangScore(npc, '义', integrity);
-  var li = _npcWuchangScore(npc, '礼', npc.charisma || 50);
-  var ability = (admin + manage + zhi + xin + yi + li) / 6;
-  var corruptPressure = Math.max(0, (npc.ambition || 50) - 60) + Math.max(0, 58 - integrity) + Math.max(0, 55 - xin) + Math.max(0, 55 - yi);
-  var amount = Math.round(800 + ability * 28);
-  var intent = decision.intent || (office ? (office.deptName + office.posName + '履职') : '履行官署公务');
-  if (corruptPressure > 45) {
-    _npcAdjustGuoku(-amount);
-    _npcAdjustPrivateWealth(npc, Math.round(amount * 0.55), '侵吞公帑');
-    if (GM.corruption) {
-      GM.corruption.trueIndex = Math.min(100, Number(GM.corruption.trueIndex || 0) + 0.4);
-      if (GM.corruption.subDepts && GM.corruption.subDepts.provincial) {
-        GM.corruption.subDepts.provincial.true = Math.min(100, Number(GM.corruption.subDepts.provincial.true || 0) + 0.5);
+function _npcEnsureExecutionFactors(npc, type, context, decision) {
+  decision = decision || {};
+  var factors = {
+    abilityFit: Number(decision.abilityFit != null ? decision.abilityFit : _npcAbilityActionFit(type, npc)),
+    wuchangFit: Number(decision.wuchangFit != null ? decision.wuchangFit : _npcWuchangActionFit(type, npc)),
+    economyFit: Number(decision.economyFit != null ? decision.economyFit : _npcEconomyActionFit(type, npc, context || null)),
+    ability: _npcAbilityProfile(npc),
+    wuchang: _npcWuchangProfile(npc),
+    publicPressure: _npcPublicTreasuryPressure(npc, context || null),
+    debtPressure: _npcPrivateDebtPressure(npc, context || null),
+    shadowPressure: _npcShadowWealthPressure(npc, context || null),
+    virtuePull: _npcVirtueEconomyPull(npc, context || null),
+    familyFit: Number(decision.familyFit != null ? decision.familyFit : _npcFamilyActionFit(type, npc, context || null)),
+    tierFit: Number(decision.tierFit != null ? decision.tierFit : _npcTierActionFit(type, npc, context || null)),
+    familyEconomy: _npcFamilyEconomyFor(npc, context || null),
+    socialTier: _npcSocialTierFor(npc, context || null)
+  };
+  if (!isFinite(factors.abilityFit)) factors.abilityFit = 0;
+  if (!isFinite(factors.wuchangFit)) factors.wuchangFit = 0;
+  if (!isFinite(factors.economyFit)) factors.economyFit = 0;
+  if (!isFinite(factors.familyFit)) factors.familyFit = 0;
+  if (!isFinite(factors.tierFit)) factors.tierFit = 0;
+  decision.abilityFit = factors.abilityFit;
+  decision.wuchangFit = factors.wuchangFit;
+  decision.economyFit = factors.economyFit;
+  decision.familyFit = factors.familyFit;
+  decision.tierFit = factors.tierFit;
+  decision._executionFactors = factors;
+  return factors;
+}
+
+function _npcRound(v) {
+  var n = Number(v || 0);
+  return isFinite(n) ? Math.round(n) : 0;
+}
+
+function _npcAdjustPublicPurse(npc, delta, reason) {
+  var r = _npcEnsureCharResources(npc);
+  if (!r.publicPurse) r.publicPurse = { money: 0, grain: 0, cloth: 0 };
+  var publicPurse = r.publicPurse;
+  var publicTreasury = r.publicTreasury || null;
+  var amount = _npcRound(delta);
+  var purseBefore = Number(publicPurse.money || 0);
+  publicPurse.money = purseBefore + amount;
+  var result = {
+    reason: reason || '',
+    delta: amount,
+    purseBefore: purseBefore,
+    purseAfter: publicPurse.money,
+    deficitBefore: publicTreasury ? Number(publicTreasury.deficit || 0) : 0,
+    deficitAfter: publicTreasury ? Number(publicTreasury.deficit || 0) : 0
+  };
+  if (publicTreasury) {
+    var balanceBefore = Number(publicTreasury.balance != null ? publicTreasury.balance : publicTreasury.money || purseBefore);
+    publicTreasury.balance = balanceBefore + amount;
+    if (publicTreasury.money != null) publicTreasury.money = Number(publicTreasury.money || 0) + amount;
+    if (amount > 0 && publicTreasury.deficit != null) {
+      publicTreasury.deficit = Math.max(0, Number(publicTreasury.deficit || 0) - amount);
+    } else if (amount < 0 && publicTreasury.balance < 0) {
+      publicTreasury.deficit = Number(publicTreasury.deficit || 0) + Math.abs(publicTreasury.balance);
+    }
+    result.balanceBefore = balanceBefore;
+    result.balanceAfter = publicTreasury.balance;
+    result.deficitAfter = Number(publicTreasury.deficit || 0);
+  }
+  return result;
+}
+
+function _npcApplyPublicGrant(npc, amount, reason) {
+  var grant = Math.max(0, _npcRound(amount));
+  if (grant <= 0) return _npcAdjustPublicPurse(npc, 0, reason || '拨款');
+  _npcAdjustGuoku(-grant);
+  return _npcAdjustPublicPurse(npc, grant, reason || '拨款');
+}
+
+function _npcFindFamilyRecord(npc, familyEconomy) {
+  var fam = familyEconomy || _npcFamilyEconomyFor(npc, null);
+  if (!fam) return null;
+  var ids = [fam.clanId, fam.id, fam.clanName, fam.name].filter(Boolean).map(String);
+  var containers = [GM && GM.clans, GM && GM.families];
+  for (var c = 0; c < containers.length; c++) {
+    var src = containers[c];
+    if (!src) continue;
+    if (Array.isArray(src)) {
+      for (var i = 0; i < src.length; i++) {
+        var rec = src[i];
+        if (rec && ids.indexOf(String(rec.id || rec.key || rec.name || '')) >= 0) return rec;
+      }
+    } else {
+      for (var k in src) {
+        if (!Object.prototype.hasOwnProperty.call(src, k)) continue;
+        var item = src[k];
+        if (!item) continue;
+        if (ids.indexOf(String(k)) >= 0 || ids.indexOf(String(item.id || item.key || item.name || '')) >= 0) return item;
       }
     }
-    addEB('NPC履职', npc.name + '借履职侵吞公帑。');
-    _npcRemember(npc.name, '借履职侵吞公帑，私囊稍丰', '贪', 7, target || '公库');
-    _npcRecordMoneyAction('office_duty', npc, target || key, intent + '·贪墨', -amount, 'hidden');
-  } else if (ability >= 66) {
-    _npcAdjustGuoku(amount);
-    _npcAdjustProvinceStat(key, 'prosperity', 2, 0, 100);
-    _npcAdjustProvinceStat(key, 'corruption', -1, 0, 100);
-    addEB('NPC履职', npc.name + '清理公务，为公库增收。');
-    _npcRemember(npc.name, '勤于履职，为公库增收', '敬', 5, target || '公库');
-    _npcRecordMoneyAction('office_duty', npc, target || key, intent + '·增收', amount, 'public');
-  } else {
-    _npcAdjustGuoku(-Math.round(amount * 0.45));
-    _npcAdjustProvinceStat(key, 'unrest', -1, 0, 100);
-    addEB('NPC履职', npc.name + '动用公帑办理公务。');
-    _npcRemember(npc.name, '动用公帑办理公务', '平', 4, target || '公库');
-    _npcRecordMoneyAction('office_duty', npc, target || key, intent + '·支出', -Math.round(amount * 0.45), 'public');
   }
+  return null;
 }
 
-function executePrivateLifeBehavior(npc, target, decision, context) {
-  var manage = Number(npc.management || npc.intelligence || 50);
-  var ambition = Number(npc.ambition || 50);
-  var li = _npcWuchangScore(npc, '礼', npc.charisma || 50);
-  var delta = Math.round((manage - 48) * 18 + (ambition - 50) * 8 + (li - 50) * 4);
-  if (Math.abs(delta) < 80) delta = manage >= 55 ? 120 : -120;
-  _npcAdjustPrivateWealth(npc, delta, delta >= 0 ? '经营家计有得' : '日用开销');
-  _npcRecordMoneyAction('private_life', npc, target || npc.name, decision.intent || '处理日常家计', delta, 'private');
-  addEB('NPC日常', npc.name + (delta >= 0 ? '经营私产有得。' : '日常开销耗费私财。'));
+function _npcAdjustFamilySharedWealth(npc, delta, familyEconomy, reason) {
+  var rec = _npcFindFamilyRecord(npc, familyEconomy);
+  if (!rec) return { reason: reason || '', delta: 0, before: 0, after: 0, spent: 0 };
+  var key = rec.sharedWealth != null ? 'sharedWealth' : (rec.commonWealth != null ? 'commonWealth' : 'sharedWealth');
+  var before = Number(rec[key] || 0);
+  var amount = _npcRound(delta);
+  rec[key] = Math.max(0, before + amount);
+  return {
+    reason: reason || '',
+    clanId: rec.id || rec.key || familyEconomy && familyEconomy.clanId || '',
+    clanName: rec.name || familyEconomy && familyEconomy.clanName || '',
+    delta: amount,
+    before: before,
+    after: rec[key],
+    spent: amount < 0 ? before - rec[key] : 0
+  };
+}
+
+function _npcPushExecutionResult(npc, decision, result) {
+  if (!npc || !decision || !result) return result;
+  var factors = decision._executionFactors || _npcEnsureExecutionFactors(npc, decision.behaviorType, null, decision);
+  result = Object.assign({
+    turn: GM.turn || 0,
+    actor: npc.name,
+    behaviorType: decision.behaviorType,
+    target: decision.target || '',
+    abilityFit: factors.abilityFit,
+    wuchangFit: factors.wuchangFit,
+    economyFit: factors.economyFit,
+    familyFit: factors.familyFit,
+    tierFit: factors.tierFit
+  }, result);
+  decision._executionResult = result;
+  npc._lastNpcExecution = result;
+  var list = _npcEnsureArray(GM, '_npcExecutionResults');
+  list.push(result);
+  if (list.length > 120) list.splice(0, list.length - 120);
+  return result;
 }
 
 function executePalaceIntrigueBehavior(npc, target, decision, context) {
@@ -1714,24 +2078,263 @@ function executeFortifyBehavior(npc, target, decision, context) {
   addEB('NPC Fortify', npc.name + ' strengthens defenses at ' + (key || 'the frontier') + '.');
 }
 
+// Economy-aware NPC execution handlers.
+function executeRequestFundsBehavior(npc, target, decision, context) {
+  var factors = _npcEnsureExecutionFactors(npc, 'request_funds', context, decision);
+  var civilFiscal = !_hasMilitaryCommand(npc) && factors.publicPressure > 0;
+  var requestedAmount = Math.max(800, Math.round(600 + factors.economyFit * 170 + factors.abilityFit * 80 + factors.wuchangFit * 60));
+  decision._npcFundingRequest = {
+    civilFiscal: !!civilFiscal,
+    requestedAmount: requestedAmount,
+    abilityFit: factors.abilityFit,
+    wuchangFit: factors.wuchangFit,
+    economyFit: factors.economyFit,
+    publicPressure: factors.publicPressure,
+    debtPressure: factors.debtPressure
+  };
+  decision.title = decision.title || (civilFiscal ? 'NPC civil public-fund request' : 'NPC military fund request');
+  decision.content = decision.content || decision.intent || (civilFiscal ? 'Requests court funds to repair the attached public treasury.' : 'Requests supplies and funds for troops.');
+  decision.petitionType = decision.petitionType || (civilFiscal ? 'Finance' : 'Military');
+  decision.subtype = decision.subtype || (civilFiscal ? 'PublicPurse' : 'MilitaryFunds');
+  executePetitionBehavior(npc, target || 'court', decision, context);
+  if (civilFiscal) {
+    var grant = Math.min(requestedAmount, Math.max(600, Math.round(500 + factors.publicPressure * 210 + factors.abilityFit * 65 + factors.wuchangFit * 45)));
+    var purse = _npcApplyPublicGrant(npc, grant, 'npc-civil-public-fund-grant');
+    _npcRecordMoneyAction('request_funds', npc, target || 'court', decision.intent || 'request public funds', grant, 'public', {
+      abilityFit: factors.abilityFit,
+      wuchangFit: factors.wuchangFit,
+      economyFit: factors.economyFit,
+      familyFit: factors.familyFit,
+      tierFit: factors.tierFit,
+      resultType: 'civil_funds',
+      effects: purse
+    });
+    _npcPushExecutionResult(npc, decision, {
+      outcome: 'civil_funds',
+      grant: grant,
+      publicPurse: purse
+    });
+  } else {
+    _npcPushExecutionResult(npc, decision, {
+      outcome: 'memorial_only',
+      requestedAmount: requestedAmount
+    });
+  }
+}
+
+function executeOfficeDutyBehavior(npc, target, decision, context) {
+  var factors = _npcEnsureExecutionFactors(npc, 'office_duty', context, decision);
+  var office = findNpcOffice(npc.name);
+  var key = _npcProvinceKeyFor(npc, target || npc.jurisdiction || npc.location);
+  var a = factors.ability || _npcAbilityProfile(npc);
+  var w = factors.wuchang || _npcWuchangProfile(npc);
+  var admin = Number(a.administration || npc.administration || npc.management || npc.intelligence || 50);
+  var manage = Number(a.management || npc.management || npc.administration || 50);
+  var integrity = Number(npc.integrity || _npcAvg([w.yi, w.xin]) || 50);
+  var ability = _npcAvg([admin, manage, a.intelligence, w.zhi, w.xin, w.yi]);
+  var corruptPressure = Math.max(0, Number(npc.ambition || 50) - 60)
+    + Math.max(0, 58 - integrity)
+    + Math.max(0, 55 - Number(w.xin || 50))
+    + Math.max(0, 55 - Number(w.yi || 50))
+    + factors.shadowPressure * 1.4;
+  var amount = Math.round(800 + ability * 28 + factors.abilityFit * 42 + factors.economyFit * 55);
+  var intent = decision.intent || (office ? (office.deptName + office.posName + ' office duty') : 'office duty');
+  if (corruptPressure > 45) {
+    var hiddenGain = Math.round(amount * (0.16 + Math.min(0.35, factors.shadowPressure / 90) + Math.max(0, 55 - integrity) / 260));
+    var purseLossAmount = Math.max(120, Math.round(amount * (0.34 + Math.min(0.22, corruptPressure / 420))));
+    var r = _npcEnsureCharResources(npc);
+    r.hiddenWealth = Number(r.hiddenWealth || 0) + hiddenGain;
+    _npcAdjustGuoku(-purseLossAmount);
+    var corruptPurse = _npcAdjustPublicPurse(npc, -purseLossAmount, 'npc-corrupt-office-duty');
+    _npcAdjustPrivateWealth(npc, Math.round(hiddenGain * 0.45), 'npc-corrupt-private-gain');
+    if (GM.corruption) {
+      GM.corruption.trueIndex = Math.min(100, Number(GM.corruption.trueIndex || 0) + 0.4);
+      if (GM.corruption.subDepts && GM.corruption.subDepts.provincial) {
+        GM.corruption.subDepts.provincial.true = Math.min(100, Number(GM.corruption.subDepts.provincial.true || 0) + 0.5);
+      }
+    }
+    var corruptResult = _npcPushExecutionResult(npc, decision, {
+      outcome: 'corrupt',
+      amount: -purseLossAmount,
+      hiddenGain: hiddenGain,
+      publicPurse: corruptPurse
+    });
+    _npcRecordMoneyAction('office_duty', npc, target || key, intent + ':corrupt', -purseLossAmount, 'hidden', {
+      abilityFit: factors.abilityFit,
+      wuchangFit: factors.wuchangFit,
+      economyFit: factors.economyFit,
+      familyFit: factors.familyFit,
+      tierFit: factors.tierFit,
+      resultType: corruptResult.outcome,
+      effects: corruptResult
+    });
+    addEB('NPC office duty', npc.name + ' abuses office funds.');
+  } else if (ability >= 66 || factors.abilityFit + factors.wuchangFit >= 18) {
+    var publicGain = Math.max(180, Math.round(amount * (0.32 + factors.abilityFit / 120 + factors.wuchangFit / 150 + factors.economyFit / 190)));
+    _npcAdjustGuoku(publicGain);
+    var cleanPurse = _npcAdjustPublicPurse(npc, publicGain, 'npc-clean-office-duty');
+    _npcAdjustProvinceStat(key, 'prosperity', 2 + Math.floor(factors.abilityFit / 9), 0, 100);
+    _npcAdjustProvinceStat(key, 'corruption', -1 - Math.floor(factors.wuchangFit / 14), 0, 100);
+    var cleanResult = _npcPushExecutionResult(npc, decision, {
+      outcome: 'clean',
+      amount: publicGain,
+      publicPurse: cleanPurse
+    });
+    _npcRecordMoneyAction('office_duty', npc, target || key, intent + ':clean', publicGain, 'public', {
+      abilityFit: factors.abilityFit,
+      wuchangFit: factors.wuchangFit,
+      economyFit: factors.economyFit,
+      familyFit: factors.familyFit,
+      tierFit: factors.tierFit,
+      resultType: cleanResult.outcome,
+      effects: cleanResult
+    });
+    addEB('NPC office duty', npc.name + ' replenishes public funds.');
+  } else {
+    var routineCost = Math.max(80, Math.round(amount * 0.28));
+    _npcAdjustGuoku(-routineCost);
+    var routinePurse = _npcAdjustPublicPurse(npc, -routineCost, 'npc-routine-office-duty');
+    _npcAdjustProvinceStat(key, 'unrest', -1, 0, 100);
+    var routineResult = _npcPushExecutionResult(npc, decision, {
+      outcome: 'routine',
+      amount: -routineCost,
+      publicPurse: routinePurse
+    });
+    _npcRecordMoneyAction('office_duty', npc, target || key, intent + ':routine', -routineCost, 'public', {
+      abilityFit: factors.abilityFit,
+      wuchangFit: factors.wuchangFit,
+      economyFit: factors.economyFit,
+      familyFit: factors.familyFit,
+      tierFit: factors.tierFit,
+      resultType: routineResult.outcome,
+      effects: routineResult
+    });
+    addEB('NPC office duty', npc.name + ' spends public funds on routine affairs.');
+  }
+}
+
+function executePrivateLifeBehavior(npc, target, decision, context) {
+  var factors = _npcEnsureExecutionFactors(npc, 'private_life', context, decision);
+  var a = factors.ability || _npcAbilityProfile(npc);
+  var w = factors.wuchang || _npcWuchangProfile(npc);
+  var r = _npcEnsureCharResources(npc);
+  var pw = r.privateWealth;
+  var moneyBefore = Number(pw.money || 0);
+  var debtBefore = Number(pw.debt || Math.max(0, -moneyBefore));
+  var base = (Number(a.management || 50) - 48) * 18 + (Number(a.intelligence || 50) - 50) * 6 + (Number(w.li || 50) - 50) * 4;
+  var debtRelief = factors.debtPressure > 0 ? 140 + factors.debtPressure * 42 + factors.economyFit * 28 : 0;
+  var tier = factors.socialTier || {};
+  var tierKey = String(tier.key || '').toLowerCase();
+  var tierParams = tier.classParams || {};
+  var commerceYield = 0;
+  if (tierKey === 'merchant') {
+    commerceYield = Math.round(Math.max(0, Number(pw.commerce || 0)) * (Number(tierParams.commerceYield || 0.08)) / 3 + factors.tierFit * 18);
+  }
+  var tierOutcome = commerceYield > 0 ? { type: tierKey, commerceYield: commerceYield } : null;
+  var familySupport = null;
+  if (debtBefore > 0 && factors.familyEconomy && Number(factors.familyEconomy.sharedWealth || 0) > 0) {
+    var familyAid = Math.min(Math.round(debtBefore * 0.35), Math.round(Number(factors.familyEconomy.sharedWealth || 0) * 0.04), 900);
+    if (familyAid > 0) familySupport = _npcAdjustFamilySharedWealth(npc, -familyAid, factors.familyEconomy, 'npc-family-debt-support');
+  }
+  var delta = Math.round(base + debtRelief + commerceYield + (familySupport ? familySupport.spent : 0));
+  if (Math.abs(delta) < 80) delta = Number(a.management || 50) >= 55 ? 120 : -120;
+  var hiddenGain = 0;
+  if (delta > 0 && (Number(w.yi || 50) < 35 || Number(w.xin || 50) < 35) && factors.shadowPressure >= 8) {
+    hiddenGain = Math.round(delta * 0.28);
+    r.hiddenWealth = Number(r.hiddenWealth || 0) + hiddenGain;
+    delta -= hiddenGain;
+  }
+  var moneyAfter = _npcAdjustPrivateWealth(npc, delta, delta >= 0 ? 'npc-private-life-gain' : 'npc-private-life-cost');
+  if (delta > 0 && debtBefore > 0) {
+    pw.debt = Math.max(0, debtBefore - delta);
+  }
+  var result = _npcPushExecutionResult(npc, decision, {
+    outcome: 'private_life',
+    delta: delta,
+    hiddenGain: hiddenGain,
+    familySupport: familySupport,
+    tierOutcome: tierOutcome,
+    moneyBefore: moneyBefore,
+    moneyAfter: moneyAfter,
+    debtBefore: debtBefore,
+    debtAfter: Number(pw.debt || 0)
+  });
+  _npcRecordMoneyAction('private_life', npc, target || npc.name, decision.intent || 'private life', delta, 'private', {
+    abilityFit: factors.abilityFit,
+    wuchangFit: factors.wuchangFit,
+    economyFit: factors.economyFit,
+    familyFit: factors.familyFit,
+    tierFit: factors.tierFit,
+    resultType: result.outcome,
+    effects: result
+  });
+  addEB('NPC private life', npc.name + (delta >= 0 ? ' improves private finances.' : ' spends private wealth.'));
+}
+
 function executeDevelopLocalBehavior(npc, target, decision, context) {
+  var factors = _npcEnsureExecutionFactors(npc, 'develop_local', context, decision);
   var key = _npcProvinceKeyFor(npc, target);
-  _npcAdjustProvinceStat(key, 'prosperity', 5, 0, 100);
-  _npcAdjustProvinceStat(key, 'unrest', -1, 0, 100);
+  var cost = Math.max(260, Math.round(350 + factors.abilityFit * 35 + factors.wuchangFit * 18));
+  var purse = _npcAdjustPublicPurse(npc, -cost, 'npc-develop-local-investment');
+  var prosperityGain = Math.max(5, Math.round(4 + factors.abilityFit / 7 + factors.wuchangFit / 12));
+  var unrestDrop = Math.max(1, Math.round(1 + factors.wuchangFit / 18));
+  _npcAdjustProvinceStat(key, 'prosperity', prosperityGain, 0, 100);
+  _npcAdjustProvinceStat(key, 'unrest', -unrestDrop, 0, 100);
+  var result = _npcPushExecutionResult(npc, decision, {
+    outcome: 'develop_local',
+    cost: cost,
+    prosperityGain: prosperityGain,
+    unrestDrop: unrestDrop,
+    publicPurse: purse
+  });
+  _npcRecordMoneyAction('develop_local', npc, key, decision.intent || 'develop local', -cost, 'public', {
+    abilityFit: factors.abilityFit,
+    wuchangFit: factors.wuchangFit,
+    economyFit: factors.economyFit,
+    familyFit: factors.familyFit,
+    tierFit: factors.tierFit,
+    resultType: result.outcome,
+    effects: result
+  });
   addEB('NPC Local', npc.name + ' develops ' + (key || 'local administration') + '.');
-  _npcRemember(npc.name, 'Promoted local development at ' + (key || 'his post'), '敬', 4, key || 'local');
 }
 
 function executeReliefBehavior(npc, target, decision, context) {
+  var factors = _npcEnsureExecutionFactors(npc, 'relief', context, decision);
   var key = _npcProvinceKeyFor(npc, target);
-  _npcAdjustProvinceStat(key, 'unrest', -6, 0, 100);
-  _npcAdjustProvinceStat(key, 'prosperity', 1, 0, 100);
+  var cost = Math.max(320, Math.round(420 + factors.abilityFit * 30 + factors.wuchangFit * 42 + factors.economyFit * 18));
+  var purse = _npcAdjustPublicPurse(npc, -cost, 'npc-relief-funds');
+  var unrestDrop = Math.max(6, Math.round(5 + factors.abilityFit / 6 + factors.wuchangFit / 8 + factors.economyFit / 10));
+  var prosperityGain = Math.max(1, Math.round(1 + factors.wuchangFit / 16));
+  _npcAdjustProvinceStat(key, 'unrest', -unrestDrop, 0, 100);
+  _npcAdjustProvinceStat(key, 'prosperity', prosperityGain, 0, 100);
+  var result = _npcPushExecutionResult(npc, decision, {
+    outcome: 'relief',
+    cost: cost,
+    unrestDrop: unrestDrop,
+    prosperityGain: prosperityGain,
+    publicPurse: purse
+  });
+  _npcRecordMoneyAction('relief', npc, key, decision.intent || 'relief', -cost, 'public', {
+    abilityFit: factors.abilityFit,
+    wuchangFit: factors.wuchangFit,
+    economyFit: factors.economyFit,
+    familyFit: factors.familyFit,
+    tierFit: factors.tierFit,
+    resultType: result.outcome,
+    effects: result
+  });
   addEB('NPC Relief', npc.name + ' organizes relief at ' + (key || 'his jurisdiction') + '.');
-  _npcRemember(npc.name, 'Organized relief at ' + (key || 'his post'), '敬', 5, key || 'local');
 }
 
 function executeBuildNetworkBehavior(npc, target, decision, context) {
+  var factors = _npcEnsureExecutionFactors(npc, 'build_network', context, decision);
   var to = target || decision.targetName || _selectNpcActionTarget(npc, 'build_network', context || buildNpcBehaviorContext()) || '';
+  var familySupport = null;
+  if (factors.familyEconomy && factors.familyEconomy.isHead && Number(factors.familyEconomy.sharedWealth || 0) > 0) {
+    var networkCost = Math.min(Math.round(Number(factors.familyEconomy.sharedWealth || 0) * 0.06), Math.round(240 + factors.familyFit * 55 + factors.tierFit * 24), 2400);
+    if (networkCost > 0) familySupport = _npcAdjustFamilySharedWealth(npc, -networkCost, factors.familyEconomy, 'npc-build-network-family-support');
+  }
   if (typeof TM !== 'undefined' && TM.NPC && TM.NPC.ActionLedger && TM.NPC.ActionLedger.recordPlan) {
     TM.NPC.ActionLedger.recordPlan({
       actor: npc.name,
@@ -1752,7 +2355,18 @@ function executeBuildNetworkBehavior(npc, target, decision, context) {
     to: to,
     intent: decision.intent || 'Build a court network',
     turn: GM.turn,
-    visibility: 'internal'
+    visibility: 'internal',
+    abilityFit: factors.abilityFit,
+    wuchangFit: factors.wuchangFit,
+    economyFit: factors.economyFit,
+    familyFit: factors.familyFit,
+    tierFit: factors.tierFit
+  });
+  _npcPushExecutionResult(npc, decision, {
+    outcome: 'build_network',
+    familySupport: familySupport,
+    tierOutcome: factors.socialTier ? { type: factors.socialTier.key || '', classParams: factors.socialTier.classParams || null } : null,
+    target: to
   });
   addEB('NPC Plan', npc.name + ' begins building a network' + (to ? ' with ' + to : '') + '.');
 }
@@ -1904,6 +2518,22 @@ function _normalizeNpcDecision(raw, fallbackName, context) {
   decision.behaviorType = behaviorType;
   decision.target = raw.target || raw.to || raw.object || raw.targetName || (candidate && candidate.target) || '';
   decision.intent = raw.intent || raw.action || raw.description || raw.reason || raw.reasoning || raw.publicReason || (candidate && candidate.intent) || behaviorType;
+  decision.actionId = raw.actionId || raw.cardId || (candidate && candidate.id) || decision.actionId || '';
+  if (candidate) {
+    decision.abilityFit = candidate.abilityFit;
+    decision.wuchangFit = candidate.wuchangFit;
+    decision.economyFit = candidate.economyFit;
+    decision.familyFit = candidate.familyFit;
+    decision.tierFit = candidate.tierFit;
+    decision.actionScore = candidate.score;
+    decision.motive = decision.motive || candidate.motive || '';
+  } else {
+    if (raw.abilityFit != null) decision.abilityFit = Number(raw.abilityFit) || 0;
+    if (raw.wuchangFit != null) decision.wuchangFit = Number(raw.wuchangFit) || 0;
+    if (raw.economyFit != null) decision.economyFit = Number(raw.economyFit) || 0;
+    if (raw.familyFit != null) decision.familyFit = Number(raw.familyFit) || 0;
+    if (raw.tierFit != null) decision.tierFit = Number(raw.tierFit) || 0;
+  }
   if (typeof raw.shouldExecute === 'boolean') {
     decision.shouldExecute = raw.shouldExecute;
   } else {
@@ -2031,7 +2661,11 @@ function _executeNormalizedNpcDecision(rawDecision, fallbackNpc, context, option
     _recordNpcDecisionDiagnostic(decision, 'skipped', 'cooldown');
     return false;
   }
+  _npcEnsureExecutionFactors(npc, decision.behaviorType, context, decision);
   NpcBehaviorRegistry.execute(npc, decision, context);
+  if (!decision._executionResult) {
+    _npcPushExecutionResult(npc, decision, { outcome: 'applied' });
+  }
   _recordNpcActionLedger(npc, decision);
   addEB('NPC行为', npc.name + '：' + decision.intent);
   _recordNpcDecisionDiagnostic(decision, 'executed', decision.intent || decision.behaviorType);
@@ -2299,6 +2933,9 @@ async function batchNpcDecisions(npcs, context, options) {
   if (context.courtWorkload) {
     prompt += '\nCourtWorkload(JSON):' + JSON.stringify(context.courtWorkload) + '\n';
   }
+  if (context.characterEconomy && context.characterEconomy.length) {
+    prompt += 'CharacterEconomy(JSON):' + JSON.stringify(context.characterEconomy.slice(0, 12)).slice(0, 1800) + '\n';
+  }
   if (context.npcInternalActions && context.npcInternalActions.length) {
     prompt += 'NpcInternalActions(JSON):' + JSON.stringify(context.npcInternalActions).slice(0, 900) + '\n';
   }
@@ -2399,7 +3036,7 @@ async function batchNpcDecisions(npcs, context, options) {
     var actionCards = _buildNpcActionCandidates(npc, context).slice(0, 5);
     if (actionCards.length > 0) {
       prompt += '候选行动ActionCards：' + actionCards.map(function(card) {
-        return card.id + '=' + card.behaviorType + ' target=' + (card.target || '') + ' score=' + card.score + ' intent=' + (card.intent || '');
+        return card.id + '=' + card.behaviorType + ' target=' + (card.target || '') + ' score=' + card.score + ' fit=' + [card.abilityFit || 0, card.wuchangFit || 0, card.economyFit || 0, card.familyFit || 0, card.tierFit || 0].join('/') + ' intent=' + (card.intent || '');
       }).join('; ') + '\n';
     }
   });
@@ -2467,6 +3104,101 @@ function _collectRecentNpcInternalActions(limit) {
   return out.slice(0, limit || 8);
 }
 
+function _npcEconomyNum(v) {
+  var n = Number(v || 0);
+  return isFinite(n) ? n : 0;
+}
+
+function _npcBuildCharacterEconomySnapshot(npc) {
+  if (!npc || npc.alive === false) return null;
+  if (typeof CharEconEngine !== 'undefined' && CharEconEngine && typeof CharEconEngine.buildEconomySnapshot === 'function') {
+    try {
+      var sharedSnapshot = CharEconEngine.buildEconomySnapshot(npc);
+      if (sharedSnapshot) {
+        return Object.assign({
+          name: npc.name || '',
+          title: npc.officialTitle || npc.title || '',
+          rank: npc.rank || npc.rankLevel || null,
+          faction: npc.faction || '',
+          debt: sharedSnapshot.privateWealth ? sharedSnapshot.privateWealth.debt : 0
+        }, sharedSnapshot);
+      }
+    } catch (_) {}
+  }
+  if (!npc.resources) return null;
+  var r = npc.resources || {};
+  var privateWealth = r.privateWealth || r.private || {};
+  var money = _npcEconomyNum(privateWealth.money);
+  var publicPurse = r.publicPurse || null;
+  var publicTreasury = r.publicTreasury || null;
+  var debt = money < 0 ? Math.abs(money) : _npcEconomyNum(privateWealth.debt);
+  return {
+    name: npc.name || '',
+    title: npc.officialTitle || npc.title || '',
+    rank: npc.rank || npc.rankLevel || null,
+    faction: npc.faction || '',
+    privateWealth: {
+      money: money,
+      grain: _npcEconomyNum(privateWealth.grain),
+      cloth: _npcEconomyNum(privateWealth.cloth),
+      land: _npcEconomyNum(privateWealth.land != null ? privateWealth.land : privateWealth.landAcres),
+      treasure: _npcEconomyNum(privateWealth.treasure),
+      commerce: _npcEconomyNum(privateWealth.commerce),
+      debt: debt
+    },
+    debt: debt,
+    hiddenWealth: _npcEconomyNum(r.hiddenWealth),
+    fame: _npcEconomyNum(r.fame),
+    virtueMerit: _npcEconomyNum(r.virtueMerit),
+    virtueStage: _npcEconomyNum(r.virtueStage),
+    health: _npcEconomyNum(r.health),
+    stress: _npcEconomyNum(r.stress),
+    publicPurse: publicPurse ? {
+      money: _npcEconomyNum(publicPurse.money),
+      grain: _npcEconomyNum(publicPurse.grain),
+      cloth: _npcEconomyNum(publicPurse.cloth)
+    } : null,
+    publicTreasury: publicTreasury ? {
+      linkedPost: publicTreasury.linkedPost || publicTreasury.post || null,
+      linkedRegion: publicTreasury.linkedRegion || publicTreasury.region || null,
+      balance: _npcEconomyNum(publicTreasury.balance != null ? publicTreasury.balance : publicTreasury.money),
+      grain: _npcEconomyNum(publicTreasury.grain),
+      cloth: _npcEconomyNum(publicTreasury.cloth),
+      deficit: _npcEconomyNum(publicTreasury.deficit != null ? publicTreasury.deficit : publicTreasury.lastHandoverDeficit),
+      isReadOnly: publicTreasury.isReadOnly !== false
+    } : null,
+    lastTick: {
+      income: npc._lastTickIncome || null,
+      expense: npc._lastTickExpense || null,
+      net: _npcEconomyNum(npc._lastTickNet)
+    }
+  };
+}
+
+function _npcCharacterEconomyScore(row) {
+  if (!row) return 0;
+  var score = 0;
+  if (row.title) score += 20;
+  if (row.publicPurse) score += 12;
+  if (row.publicTreasury) score += 12;
+  score += Math.min(18, Math.abs(row.privateWealth.money || 0) / 500);
+  score += Math.min(12, Math.abs(row.hiddenWealth || 0) / 400);
+  score += Math.min(10, Math.abs(row.fame || 0) / 5);
+  score += Math.min(10, Math.abs(row.virtueMerit || 0) / 60);
+  score += Math.min(10, Math.abs(row.lastTick.net || 0) / 30);
+  score += Math.min(10, row.debt / 120);
+  if (row.stress >= 60) score += 5;
+  return score;
+}
+
+function _npcBuildCharacterEconomyContext(limit) {
+  var rows = (GM.chars || []).map(_npcBuildCharacterEconomySnapshot).filter(Boolean);
+  rows.sort(function(a, b) {
+    return _npcCharacterEconomyScore(b) - _npcCharacterEconomyScore(a);
+  });
+  return rows.slice(0, limit || 12);
+}
+
 function buildNpcBehaviorContext() {
   var context = {
     turn: GM.turn,
@@ -2512,6 +3244,7 @@ function buildNpcBehaviorContext() {
     internalActionHistory: Array.isArray(GM._npcInternalActionHistory) ? GM._npcInternalActionHistory.length : 0
   };
   context.npcInternalActions = _collectRecentNpcInternalActions(8);
+  context.characterEconomy = _npcBuildCharacterEconomyContext(12);
 
   return context;
 }
@@ -2629,6 +3362,9 @@ function hasOffice(charName) {
 
 /** @deprecated 使用 batchNpcDecisions 替代。仅作为批量失败时的回退。 */
 // 为单个 NPC 推演行为
+// TM_RETENTION_GUARD: executeNpcBehavior-single-npc-fallback.
+// Keep until tm-help-social.js and any single-NPC fallback paths are migrated
+// away from executeNpcBehavior(npc, context).
 async function executeNpcBehavior(npc, context) {
   if (typeof AICache === 'undefined') return null;
   try {
@@ -2668,6 +3404,9 @@ async function executeNpcBehavior(npc, context) {
     }
 
     prompt += '\n资源状态：' + JSON.stringify(context.resources) + '\n';
+    if (context.characterEconomy && context.characterEconomy.length) {
+      prompt += 'CharacterEconomy(JSON):' + JSON.stringify(context.characterEconomy.slice(0, 12)).slice(0, 1800) + '\n';
+    }
     prompt += '关系状态：' + JSON.stringify(context.relations) + '\n';
 
     prompt += '\n请推演该角色在本回合可能采取的行动。返回 JSON：\n';

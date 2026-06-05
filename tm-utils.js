@@ -439,6 +439,9 @@ function checkpointRng() {
  * 定义在 tm-utils.js 以确保所有后续文件都能访问
  * @returns {number}
  */
+// TM_RETENTION_GUARD: early-days-per-turn-provider.
+// This early-loaded definition is intentionally kept for scripts loaded before
+// tm-edict-lifecycle.js redefines the same helper. Centralize before removing.
 function _getDaysPerTurn() {
   if (!P || !P.time) return 30;
   // 新格式：直接读 daysPerTurn
@@ -1079,7 +1082,10 @@ function _tmIsAtPlayerLocation(ch) {
 /** 模糊查找角色（精确→去空格标点→前2字唯一→别名→null） */
 function _fuzzyFindChar(name) {
   if (!name || !GM.chars) return null;
-  var n = name.trim();
+  var n = String(name).trim();
+  try {
+    if (typeof canonicalizeCharName === 'function') n = canonicalizeCharName(n) || n;
+  } catch (_) {}
   // 1. 精确
   var exact = GM.chars.find(function(c) { return c.name === n; });
   if (exact) return exact;

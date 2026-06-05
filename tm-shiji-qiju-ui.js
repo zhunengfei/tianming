@@ -20,6 +20,14 @@
 // 史记列表（带分页+搜索+导出）
 // 史官档案默认不裁掉旧回合；玩家可手动改为分页。
 var _sjlPage=0,_sjlKw='',_sjlPageSize='all',_sjlYrFilter='',_sjlTypeFilter='';
+var _sjlRenderTimer=0;
+function scheduleShijiListRender(delay){
+  if(_sjlRenderTimer)clearTimeout(_sjlRenderTimer);
+  _sjlRenderTimer=setTimeout(function(){
+    _sjlRenderTimer=0;
+    renderShijiList();
+  },delay==null?120:delay);
+}
 function _sjlPageSizeNum(total){
   if (_sjlPageSize === 'all') return Math.max(1, total || 1);
   var n = parseInt(_sjlPageSize, 10);
@@ -134,7 +142,7 @@ function renderShijiList(force){
   // 工具栏
   var h = '<div class="sj-tools">';
   h += '<span class="sj-tools-lbl">\u7FFB\u3000\u9605</span>';
-  h += '<div class="sj-search-wrap"><input id="sjl-kw" class="sj-search" placeholder="\u641C\u7D22\u56DE\u5408\u00B7\u65E5\u671F\u00B7\u8981\u95FB\u2026\u2026" value="' + (_sjlKw||'').replace(/"/g,'&quot;') + '" oninput="_sjlKw=this.value;_sjlPage=0;renderShijiList()"></div>';
+  h += '<div class="sj-search-wrap"><input id="sjl-kw" class="sj-search" placeholder="\u641C\u7D22\u56DE\u5408\u00B7\u65E5\u671F\u00B7\u8981\u95FB\u2026\u2026" value="' + (_sjlKw||'').replace(/"/g,'&quot;') + '" oninput="_sjlKw=this.value;_sjlPage=0;scheduleShijiListRender()"></div>';
   // 年份下拉
   var yrOpts = '<option value="">\u5168\u90E8\u5E74\u4EFD</option>';
   Object.keys(_allYears).forEach(function(y){

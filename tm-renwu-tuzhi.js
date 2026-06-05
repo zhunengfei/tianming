@@ -399,6 +399,29 @@ function relGen(rel){rel=String(rel||'');if(/祖/.test(rel))return -2;if(/父|�
 /* ===================== 真数据适配器（接线图核心） ===================== */
 function effAttr(c,k){try{return (typeof getEffectiveAttr==='function')?getEffectiveAttr(c,k):(c[k]||0);}catch(e){return c[k]||0;}}
 function isConsort(c){try{return (typeof _tmIsPlayerConsort==='function')?!!_tmIsPlayerConsort(c):!!(c&&c.spouse===true);}catch(e){return !!(c&&c.spouse===true);}}
+/* 品级真源=c.rankLevel(数字)→RANK_HIERARCHY 映射为「正X品」标签·c.rank 在运行时恒空 */
+function _rankLabel(c){
+  if(c.rank)return c.rank;
+  var lv=null;
+  try{if(typeof getRankLevel==='function'){var g=getRankLevel(c.officialTitle||c.title);if(g!=null&&g>0&&g<18)lv=g;}}catch(e){}
+  // c.rankLevel 里 18(从九品)是默认堆(约80%人)·视为「未设」不显·只认真品级
+  if(lv==null&&c.rankLevel!=null&&c.rankLevel<18)lv=c.rankLevel;
+  if(lv==null)return '';
+  try{if(typeof RANK_HIERARCHY!=='undefined'&&RANK_HIERARCHY){for(var i=0;i<RANK_HIERARCHY.length;i++)if(RANK_HIERARCHY[i].level===lv)return RANK_HIERARCHY[i].label;}}catch(e){}
+  return '';
+}
+/* 五常真源=c.wuchangOverride{仁义礼智信}·c.wuchang 在运行时恒空 */
+function _wuchangOf(c){var w=c.wuchang;if(w&&typeof w==='object'&&Object.keys(w).length)return w;return c.wuchangOverride||{};}
+/* 名望真源=c.resources.fame(可负·越低越声名狼藉)·c.mingwang/reputation 恒空 */
+function _mingwangOf(c){if(c.mingwang!=null)return Math.round(c.mingwang);if(c.reputation!=null)return Math.round(c.reputation);if(c.resources&&c.resources.fame!=null)return Math.round(c.resources.fame);return null;}
+/* 功名(旧称贤能)真源=c.resources.virtueMerit(累积政绩·升迁凭据·0~∞·可负)+virtueStage(数字阶)·阶名走 CharEconEngine.getVirtueStageName(未识/有闻/清誉/儒望/朝宗/师表) */
+function _gongmingOf(c){
+  var r=c.resources||{};
+  var merit=(r.virtueMerit!=null?Math.round(r.virtueMerit):(c.virtueMerit!=null?Math.round(c.virtueMerit):null));
+  var stage=(r.virtueStage!=null?r.virtueStage:c.virtueStage);var tier='';
+  try{if(window.CharEconEngine&&CharEconEngine.getVirtueStageName)tier=CharEconEngine.getVirtueStageName(stage);}catch(e){}
+  return {merit:merit,tier:tier};
+}
 function adaptTraits(c){
   var out=[];
   if(Array.isArray(c.traits)){c.traits.forEach(function(t){
@@ -430,7 +453,7 @@ function adaptCareer(c){return Array.isArray(c.career)?c.career.map(function(x){
 function adaptChar(c){
   var isP=!!c.isPlayer||(_p().playerInfo&&_p().playerInfo.characterName===c.name);
   return {
-    _ref:c, name:c.name, zi:c.zi||c.courtesy||'', title:c.title, officialTitle:c.officialTitle, role:c.role, rank:c.rank,
+    _ref:c, name:c.name, zi:c.zi||c.courtesy||'', title:c.title, officialTitle:c.officialTitle, role:c.role, rank:_rankLabel(c),
     faction:c.faction||(isConsort(c)?'后宫':'无派系'), party:c.party, partyRank:c.partyRank,
     age:c.age, gender:c.gender||(isConsort(c)?'女':''), birthplace:c.birthplace, ethnicity:c.ethnicity, faith:c.faith, culture:c.culture, learning:c.learning, stance:c.stance, speechStyle:c.speechStyle,
     family:c.family, familyTier:c.familyTier, isPlayer:isP, alive:c.alive!==false, deathReason:c.deathReason, deathTurn:c.deathTurn,
@@ -438,8 +461,8 @@ function adaptChar(c){
     portrait:c.portrait,
     loyalty:num(c.loyalty,50), intelligence:effAttr(c,'intelligence'), valor:effAttr(c,'valor'), administration:effAttr(c,'administration'), management:effAttr(c,'management'), charisma:effAttr(c,'charisma'), diplomacy:effAttr(c,'diplomacy'), military:effAttr(c,'military'), benevolence:effAttr(c,'benevolence'),
     ambition:num(c.ambition,50), stress:num(c.stress,0), health:num(c.health,80), integrity:(c.integrity!=null?Math.round(c.integrity):null),
-    mingwang:(c.mingwang!=null?Math.round(c.mingwang):(c.reputation!=null?Math.round(c.reputation):null)), xianneng:(c.xianneng!=null?Math.round(c.xianneng):null),
-    wuchang:c.wuchang||{}, traits:adaptTraits(c),
+    mingwang:_mingwangOf(c), gongming:_gongmingOf(c).merit, gongmingTier:_gongmingOf(c).tier,
+    wuchang:_wuchangOf(c), traits:adaptTraits(c),
     _mood:c._mood, location:c.location, _travelTo:c._travelTo, _imprisoned:c._imprisoned||c.imprisoned, _imprisonReason:c._imprisonReason, _exiled:c._exiled||c.exiled, _exileReason:c._exileReason, _fled:c._fled||c._missing, _mourning:c._mourning, _retired:c._retired, _scheming:c._scheming,
     children:(c.children||[]).slice(), spouse:c.spouse, spouseRank:c.spouseRank, motherClan:c.motherClan,
     bloodRelatives:adaptBlood(c), relationships:adaptRels(c), impressions:adaptImpr(c),
@@ -451,6 +474,8 @@ var _peopleCache=null;
 function loadPeople(force){
   if(_peopleCache&&!force)return _peopleCache;
   var GM=_g(),seen={},out=[];
+  /* 功名重标定迁移(幂等)·保证面板读到的是 derive 拨发后的新尺度功名(开局/读档/中盘皆对)·引擎侧 endTurn 另有覆盖 */
+  try{if(GM&&window.TMPromotion&&TMPromotion.migrateAllMerit)TMPromotion.migrateAllMerit(GM);}catch(e){}
   function add(c){if(!c||!c.name||seen[c.name])return;seen[c.name]=true;try{out.push(adaptChar(c));}catch(e){}}
   (GM.chars||[]).forEach(add);(GM.allCharacters||[]).forEach(add);
   if(window.P&&Array.isArray(P.characters))P.characters.forEach(add);
@@ -461,6 +486,7 @@ function findP(name){var l=PEOPLE();for(var i=0;i<l.length;i++)if(l[i].name===na
 
 /* ===================== 状态 ===================== */
 var state={sel:null,q:'',fac:'all',role:'all',sort:'loyalty',dead:false,tab:'overview',roleStat:'all',compare:null,compare2:null,view:'liezhuan',phSort:'loyalty'};
+var _zhiRosterRenderTimer=0;
 
 /* ===================== 立绘字形 / SVG 基件 ===================== */
 function faceHtml(p,cls){ if(p.portrait){return '<img loading="lazy" src="'+esc(p.portrait)+'" alt="" onerror="this.style.display=\'none\';this.parentNode.classList.add(\'fallback\')">';} return '<span class="glyph">'+esc((p.name||'?').charAt(0))+'</span>'; }
@@ -511,7 +537,7 @@ function pcard(p){
   return '<button class="pcard'+(p.name===state.sel?' active':'')+(p.alive===false?' dead':'')+(isPinned(p.name)?' pinned':'')+'" style="--fc:'+fc+'" onclick="TMZhi.selectP(\''+esc(p.name).replace(/'/g,"\\'")+'\')">'
     +'<span class="pc-face">'+faceHtml(p)+'</span>'
     +'<span class="pc-body"><span class="pc-name">'+(isPinned(p.name)?'<span class="pc-star">★</span>':'')+'<b>'+esc(p.name)+'</b>'+(p.zi?'<span class="zi">字'+esc(p.zi)+'</span>':'')+'<span class="age">'+(p.age||'?')+'岁</span></span>'
-    +'<span class="pc-off">'+esc(p.officialTitle||p.title||'布衣')+' <span class="rk">'+esc(p.rank||'')+'</span></span>'
+    +'<span class="pc-off">'+esc(p.officialTitle||p.title||'布衣')+(p.rank?' <span class="rk">'+esc(p.rank)+'</span>':'')+'</span>'
     +'<span class="pc-bars">'+bars.map(function(b){return '<span class="pc-bar">'+b[0]+'<i style="--v:'+clamp(b[1])+'%"></i></span>';}).join('')+'</span>'
     +'<span class="pc-tags">'+tags.join('')+'</span></span>'
     +'<span class="pc-loy">'+loyRing(p.loyalty,30)+'</span>'
@@ -528,6 +554,13 @@ function renderRoster(){
     box.innerHTML=keys.map(function(k){return '<div class="fac-hdr" style="--fc:'+facColor(k)+'">'+esc(k)+'<span class="n">'+groups[k].length+'人</span></div>'+groups[k].map(pcard).join('');}).join('');
   }else box.innerHTML=list.map(pcard).join('');
 }
+function scheduleZhiRosterRender(delay){
+  if(_zhiRosterRenderTimer)clearTimeout(_zhiRosterRenderTimer);
+  _zhiRosterRenderTimer=setTimeout(function(){
+    _zhiRosterRenderTimer=0;
+    renderRoster();
+  },delay==null?120:delay);
+}
 function renderStatbar(){var st=computeStat(),cells=[['all',st.all,'在朝'],['civil',st.civil,'文臣'],['mili',st.mili,'武将'],['harem',st.harem,'内廷'],['bu',st.bu,'布衣'],['dead',st.dead,'已殁']];var b=q('#tm-zhi-statbar');if(b)b.innerHTML=cells.map(function(c){return '<div class="stat'+(state.roleStat===c[0]?' on':'')+'" onclick="TMZhi.quickStat(\''+c[0]+'\')"><b>'+c[1]+'</b><span>'+c[2]+'</span></div>';}).join('');}
 function renderFacOptions(){var facs=[];PEOPLE().forEach(function(p){if(facs.indexOf(p.faction)<0)facs.push(p.faction);});var s=q('#tm-zhi-ffac');if(s)s.innerHTML='<option value="all">全部党派</option>'+facs.map(function(f){return '<option value="'+esc(f)+'"'+(state.fac===f?' selected':'')+'>'+esc(f)+'</option>';}).join('');}
 
@@ -539,7 +572,7 @@ function dossierHead(p){
   return '<div class="dossier-head"><div class="dh-loy">'+loyRing(p.loyalty,74)+'<div class="lbl">忠诚</div></div>'
     +'<div class="dh-mountwrap"><div class="dh-mount"><div class="dh-portrait">'+faceHtml(p)+'<span class="dh-seal-on">'+sealMark(p)+'</span></div><div class="dh-mount-cap">立 轴 · 立 绘</div></div>'+(colophon?'<div class="dh-colophon">'+colophon+'</div>':'')+'</div>'
     +'<div class="dh-info"><div class="dh-titleline"><h2>'+esc(p.name)+'</h2>'+sealMark(p)+(p.zi?'<span class="zi">字 '+esc(p.zi)+'</span>':'')+'<span class="age">'+(p.age||'?')+'岁 · '+esc(p.gender||'')+'</span></div>'
-    +'<div class="dh-pills"><span class="dh-pill fac">'+esc(p.faction)+'</span>'+(p.party?'<span class="dh-pill">'+esc(p.party)+'</span>':'')+'<span class="dh-pill rank">'+esc(p.rank||'')+'</span><span class="dh-pill">'+esc(p.officialTitle||p.title||'布衣')+'</span></div>'
+    +'<div class="dh-pills"><span class="dh-pill fac">'+esc(p.faction)+'</span>'+(p.party?'<span class="dh-pill">'+esc(p.party)+'</span>':'')+(p.rank?'<span class="dh-pill rank">'+esc(p.rank)+'</span>':'')+'<span class="dh-pill">'+esc(p.officialTitle||p.title||'布衣')+'</span></div>'
     +situationBanner(p)
     +'<div class="dh-hearts">'+hearts.map(function(h){return '<div class="dh-heart'+(h[2]?' warn':'')+'"><b>'+(h[1]==null?'—':Math.round(h[1]))+'</b><span>'+h[0]+'</span></div>';}).join('')+'</div>'
     +'<div class="dh-acts">'+headActs(p)+'</div></div></div>';
@@ -558,12 +591,13 @@ function verdict(p){return '<div class="verdict"><p>'+esc(p.personalGoal||p.bio|
 function tabOverview(p){
   var ra=[{label:'智',value:p.intelligence},{label:'武',value:p.valor},{label:'军',value:p.military},{label:'政',value:p.administration},{label:'管',value:p.management},{label:'交',value:p.diplomacy},{label:'魅',value:p.charisma},{label:'仁',value:p.benevolence}];
   var wc=p.wuchang||{},wa=[{label:'仁',value:wc['仁']},{label:'义',value:wc['义']},{label:'礼',value:wc['礼']},{label:'智',value:wc['智']},{label:'信',value:wc['信']}];
-  var bars=[['忠诚',p.loyalty,'#557f6f','#6fa291'],['野心',p.ambition,'#8e6aa8','#a98ac4'],['压力',p.stress,'#a83228','#c64a3e'],['康健',p.health,'#7d5e22','#d8b96a'],['廉介',p.integrity,'#557f6f','#6fa291'],['名望',p.mingwang,'#7d5e22','#d8b96a'],['贤能',p.xianneng,'#4a5e8a','#7388b8']];
+  var bars=[['忠诚',p.loyalty,'#557f6f','#6fa291'],['野心',p.ambition,'#8e6aa8','#a98ac4'],['压力',p.stress,'#a83228','#c64a3e'],['康健',p.health,'#7d5e22','#d8b96a'],['廉介',p.integrity,'#557f6f','#6fa291'],['名望',p.mingwang,'#7d5e22','#d8b96a']];
   var hasWc=['仁','义','礼','智','信'].some(function(k){return wc[k]!=null;});
   return '<section class="sec full"><div class="sec-t">禀 赋 命 盘 <small>八维评量'+(hasWc?' · 五常心性':'')+'</small></div>'
     +'<div class="mingpan-row"><div class="mingpan">'+radar(ra,{color:'#a83228',size:230})+'<div class="cap">八 维 评 量</div></div>'
     +(hasWc?'<div class="mingpan">'+radar(wa,{color:'#557f6f',size:230})+'<div class="cap">五 常 心 性</div></div>':'<div class="mingpan"><div class="stub">此人未录五常。</div></div>')+'</div></section>'
     +'<section class="sec full"><div class="sec-t">心 性 状 态</div><div class="bars">'+bars.map(function(b){return '<div class="bar"><div class="k"><span>'+b[0]+'</span><b>'+(b[1]==null?'—':Math.round(b[1]))+'</b></div><div class="track"><div class="fill" style="width:'+clamp(b[1])+'%;--c1:'+b[2]+';--c2:'+b[3]+'"></div></div></div>';}).join('')+'</div></section>'
+    +'<section class="sec full"><div class="sec-t">功 名 <small>累 积 政 绩 · 升 迁 凭 据</small></div><div style="display:flex;align-items:baseline;gap:12px;padding:6px 4px 12px"><b style="font-size:1.7rem;font-family:serif;color:#a83228">'+(p.gongming==null?'—':p.gongming)+'</b>'+(p.gongmingTier?'<span style="font-size:1.05rem;font-family:KaiTi,STKaiti,serif;color:#7d5e22;letter-spacing:.12em">'+esc(p.gongmingTier)+'</span>':'')+'<span style="font-size:.72rem;color:#9c8b6b;margin-left:auto;font-family:FangSong,serif">六阶累进 · 处事建功而得 · 用于升迁</span></div></section>'
     +'<div class="dgrid"><section class="sec"><div class="sec-t">当 前 志 向</div><div class="prose">'+esc(p.personalGoal||'未录')+'</div></section>'
     +'<section class="sec"><div class="sec-t">性 格 特 质</div><div class="traits">'+(p.traits.length?p.traits.map(function(t){return '<span class="trait '+(t.c||'')+'">'+esc(t.n)+'</span>';}).join(''):'<span class="trait">未录特质</span>')+'</div>'+(p.personality?'<div class="prose" style="margin-top:9px">'+esc(p.personality)+'</div>':'')+'</section></div>';
 }
@@ -577,7 +611,7 @@ function tabIdentity(p){
     +idcell('立场',p.stance)+idcell('家族',(p.family||'')+(tier[p.familyTier]?'·'+tier[p.familyTier]:''),true)
     +(p.speechStyle?idcell('辞令',p.speechStyle,true):'')+idcell('当前所在',p.location)
     +'</div></section>'
-    +'<div class="dual"><div class="dualbox" style="--dc:var(--gold-d)"><div class="lb">公 职 身 份</div><div class="v">'+esc(p.officialTitle||p.title||'布衣')+'</div><div class="s">'+esc(p.faction)+(p.party?' · '+esc(p.party)+(p.partyRank?'（'+esc(p.partyRank)+'）':''):'')+' · '+esc(p.rank||'')+'</div></div>'
+    +'<div class="dual"><div class="dualbox" style="--dc:var(--gold-d)"><div class="lb">公 职 身 份</div><div class="v">'+esc(p.officialTitle||p.title||'布衣')+'</div><div class="s">'+esc(p.faction)+(p.party?' · '+esc(p.party)+(p.partyRank?'（'+esc(p.partyRank)+'）':''):'')+(p.rank?' · '+esc(p.rank):'')+'</div></div>'
     +'<div class="dualbox" style="--dc:var(--purple)"><div class="lb">私 人 身 份</div><div class="v">'+esc(p.name)+(p.age?'，'+p.age+'岁':'')+'</div><div class="s">'+esc(p.personality||'—')+'</div></div></div>'
     +'<section class="sec full"><div class="sec-t">形 貌 与 传 略</div>'+(p.appearance?'<div class="prose" style="font-style:italic;margin-bottom:9px">'+esc(p.appearance)+'</div>':'')+'<div class="prose indent prose-paper">'+esc(p.bio||'传略未录。')+'</div></section>';
 }
@@ -701,13 +735,13 @@ function renderChaoju(){
   var cards='<div class="cj-cards">'+keys.map(function(k){var f=facs[k];return '<div class="cj-card" style="--fc:'+f.color+'"><div class="ct"><b style="color:'+f.color+'">'+esc(k)+'</b><span class="pw">'+f.members.length+'人 · '+Math.round(f.power)+'</span></div><div class="cj-members">'+f.members.map(function(p){return '<span class="cj-mem'+(p===f.lead?' lead':'')+(p.alive===false?' dead':'')+'" onclick="TMZhi.selectP(\''+oj(p.name)+'\')">'+esc(p.name)+'</span>';}).join('')+'</div></div>';}).join('')+'</div>';
   ms.innerHTML='<div class="chaoju"><div class="sec-t" style="margin-bottom:11px">朝 局 全 景 <small>派系势力 · 张力 · 谁主谁从</small></div>'+balance+'<div class="chaoju-graph">'+svg+'</div>'+legend+cards+'</div>';
 }
-var PH_DIMS=[['loyalty','忠诚'],['xianneng','贤能'],['ambition','野心'],['stress','压力'],['mingwang','名望'],['integrity','廉介'],['military','军事'],['administration','政务']];
+var PH_DIMS=[['loyalty','忠诚'],['gongming','功名'],['ambition','野心'],['stress','压力'],['mingwang','名望'],['integrity','廉介'],['military','军事'],['administration','政务']];
 function renderPaihang(){
   var ms=q('#tm-zhi-main');if(!ms)return;
   var sk=state.phSort,list=PEOPLE().filter(function(p){return state.dead?true:p.alive!==false;}).slice().sort(function(a,b){return (b[sk]||0)-(a[sk]||0);}),maxV=Math.max.apply(null,list.map(function(p){return p[sk]||0;}))||100,dimLabel=(PH_DIMS.find(function(d){return d[0]===sk;})||['',''])[1];
   var ctrl='<div class="ph-ctrl"><span class="lb">排序维度：</span>'+PH_DIMS.map(function(d){return '<button class="phb'+(d[0]===sk?' active':'')+'" onclick="TMZhi.setPhSort(\''+d[0]+'\')">'+d[1]+'</button>';}).join('')+'</div>';
-  var rows=list.map(function(p,i){var v=Math.round(p[sk]||0),bw=Math.round((p[sk]||0)/maxV*84);return '<tr class="'+(p.alive===false?'dead':'')+'" onclick="TMZhi.selectP(\''+oj(p.name)+'\')"><td class="ph-rank'+(i<3?' top':'')+'">'+(i+1)+'</td><td class="ph-name">'+esc(p.name)+'<small>'+esc(p.faction)+'</small></td><td>'+esc(p.officialTitle||p.title||'布衣')+'</td><td class="ph-pri"><b>'+v+'</b><i class="vb" style="width:'+bw+'px"></i></td><td>'+Math.round(p.loyalty||0)+'</td><td>'+Math.round(p.ambition||0)+'</td><td>'+Math.round(p.stress||0)+'</td><td>'+(p.mingwang==null?'—':Math.round(p.mingwang))+'</td><td>'+(p.xianneng==null?'—':Math.round(p.xianneng))+'</td></tr>';}).join('');
-  ms.innerHTML='<div class="paihang"><div class="sec-t" style="margin-bottom:8px">群 臣 排 行 <small>全 '+list.length+' 人 · 点行入列传</small></div>'+ctrl+'<table class="ph-table"><thead><tr><th>名次</th><th style="text-align:left">姓名</th><th>官职</th><th style="color:var(--cinnabar-d)">'+esc(dimLabel)+' ▼</th><th>忠诚</th><th>野心</th><th>压力</th><th>名望</th><th>贤能</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  var rows=list.map(function(p,i){var v=Math.round(p[sk]||0),bw=Math.round((p[sk]||0)/maxV*84);return '<tr class="'+(p.alive===false?'dead':'')+'" onclick="TMZhi.selectP(\''+oj(p.name)+'\')"><td class="ph-rank'+(i<3?' top':'')+'">'+(i+1)+'</td><td class="ph-name">'+esc(p.name)+'<small>'+esc(p.faction)+'</small></td><td>'+esc(p.officialTitle||p.title||'布衣')+'</td><td class="ph-pri"><b>'+v+'</b><i class="vb" style="width:'+bw+'px"></i></td><td>'+Math.round(p.loyalty||0)+'</td><td>'+Math.round(p.ambition||0)+'</td><td>'+Math.round(p.stress||0)+'</td><td>'+(p.mingwang==null?'—':Math.round(p.mingwang))+'</td><td>'+(p.gongming==null?'—':Math.round(p.gongming))+'</td></tr>';}).join('');
+  ms.innerHTML='<div class="paihang"><div class="sec-t" style="margin-bottom:8px">群 臣 排 行 <small>全 '+list.length+' 人 · 点行入列传</small></div>'+ctrl+'<table class="ph-table"><thead><tr><th>名次</th><th style="text-align:left">姓名</th><th>官职</th><th style="color:var(--cinnabar-d)">'+esc(dimLabel)+' ▼</th><th>忠诚</th><th>野心</th><th>压力</th><th>名望</th><th>功名</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
 function renderFolioChaoju(){
   var fo=q('#tm-zhi-folio');if(!fo)return;var facs=factionData(),keys=Object.keys(facs).sort(function(a,b){return facs[b].power-facs[a].power;}),total=keys.reduce(function(s,k){return s+facs[k].power;},0)||1;
@@ -727,13 +761,13 @@ function renderCompare(){
   var cols=['#a83228','#4a5e8a','#557f6f'],clsn=['a','b','c'],dash=['━','┅','┈'];
   var ro={color:cols[0],size:300,second:{axes:cmpAxes(B),color:cols[1]}};if(C)ro.third={axes:cmpAxes(C),color:cols[2]};
   var radarHtml=radar(cmpAxes(A),ro);
-  var metrics=[['忠诚','loyalty'],['野心','ambition'],['压力','stress'],['康健','health'],['名望','mingwang'],['贤能','xianneng'],['廉介','integrity']];
+  var metrics=[['忠诚','loyalty'],['野心','ambition'],['压力','stress'],['康健','health'],['名望','mingwang'],['功名','gongming'],['廉介','integrity']];
   var bars=metrics.map(function(m){var cells=ppl.map(function(p,i){return '<span class="cwbar"><i style="width:'+clamp(p[m[1]])+'%;background:'+cols[i]+'"></i><b style="color:'+cols[i]+'">'+(p[m[1]]==null?'—':Math.round(p[m[1]]))+'</b></span>';}).join('');return '<div class="cmpbarN"><span class="lab">'+m[0]+'</span><span class="cells">'+cells+'</span></div>';}).join('');
   var relPairs=[];for(var i=0;i<ppl.length;i++)for(var j=0;j<ppl.length;j++){if(i===j)continue;var r=(ppl[i].relationships||[]).find(function(x){return x.name===ppl[j].name;});if(r)relPairs.push('“'+esc(ppl[i].name)+'”视“'+esc(ppl[j].name)+'”'+esc(r.label||'')+'（'+(r.strength>0?'+':'')+r.strength+'）');}
   var relTxt=relPairs.length?relPairs.join('；')+'。':'诸人之间无显性关系记录。';
-  var byLoy=ppl.slice().sort(function(a,b){return b.loyalty-a.loyalty;}),byXian=ppl.slice().sort(function(a,b){return (b.xianneng||0)-(a.xianneng||0);});
-  var verdictTxt='<b>权衡：</b>'+esc(byLoy[0].name)+'忠诚最笃（'+Math.round(byLoy[0].loyalty)+'）'+(byLoy[0].ambition>=70?'，然野心炽盛宜防尾大；':'，且野心尚可控驭；')+'　'+esc(byXian[0].name)+'才略最优，可委以繁剧。';
-  var miniP=function(p,i){return '<div class="cmp-person '+clsn[i]+'" style="border-left-color:'+cols[i]+'">'+(i>0?'<span class="cmp-drop" onclick="TMZhi.dropCompare('+i+')" title="移出对参">✕</span>':'')+'<div class="cmp-face">'+faceHtml(p)+'</div><div><div class="nm">'+esc(p.name)+'</div><div class="of">'+esc(p.officialTitle||p.title||'布衣')+' · '+esc(p.rank||'')+'</div><div class="fa" style="color:'+cols[i]+'">'+esc(p.faction)+(p.party?' · '+esc(p.party):'')+'</div></div></div>';};
+  var byLoy=ppl.slice().sort(function(a,b){return b.loyalty-a.loyalty;}),byXian=ppl.slice().sort(function(a,b){return (b.gongming||0)-(a.gongming||0);});
+  var verdictTxt='<b>权衡：</b>'+esc(byLoy[0].name)+'忠诚最笃（'+Math.round(byLoy[0].loyalty)+'）'+(byLoy[0].ambition>=70?'，然野心炽盛宜防尾大；':'，且野心尚可控驭；')+'　'+esc(byXian[0].name)+'功名最著，可委以繁剧。';
+  var miniP=function(p,i){return '<div class="cmp-person '+clsn[i]+'" style="border-left-color:'+cols[i]+'">'+(i>0?'<span class="cmp-drop" onclick="TMZhi.dropCompare('+i+')" title="移出对参">✕</span>':'')+'<div class="cmp-face">'+faceHtml(p)+'</div><div><div class="nm">'+esc(p.name)+'</div><div class="of">'+esc(p.officialTitle||p.title||'布衣')+(p.rank?' · '+esc(p.rank):'')+'</div><div class="fa" style="color:'+cols[i]+'">'+esc(p.faction)+(p.party?' · '+esc(p.party):'')+'</div></div></div>';};
   var legend=ppl.map(function(p,i){return '<span style="color:'+cols[i]+'">'+dash[i]+esc(p.name)+'</span>';}).join(' ');
   var addHint=C?'':'<div class="fnote" style="text-align:center;margin-top:8px">再点名籍卡的 ⇌ 可加第三人同盘对参</div>';
   ms.innerHTML='<div class="cmp-head"><h2>'+(C?'三':'两')+' 人 对 参<small>'+ppl.map(function(p){return esc(p.name);}).join(' ⇌ ')+'</small></h2><button class="cmp-clear" onclick="TMZhi.clearCompare()">✕ 退出对参</button></div>'
@@ -788,7 +822,7 @@ function renderFolio(){
   else if(p.alive===false)acts='<button class="fact primary span" onclick="TMZhi.act(\'works\')">阅其遗著</button><button class="fact" onclick="TMZhi.zhuizeng(\''+esc(p.name).replace(/'/g,"\\'")+'\')">追赠昭雪</button>';
   else acts='<button class="fact primary span" onclick="TMZhi.act(\''+(cap?'wendui':'letter')+'\',\''+esc(p.name).replace(/'/g,"\\'")+'\')">'+(cap?'召入问对':'鸿雁传书')+'</button><button class="fact" onclick="TMZhi.act(\'letter\',\''+esc(p.name).replace(/'/g,"\\'")+'\')">鸿雁传书</button><button class="fact" onclick="TMZhi.act(\'office\')">官制任免</button><button class="fact" onclick="TMZhi.pin(\''+esc(p.name).replace(/'/g,"\\'")+'\')">钉选</button><button class="fact" onclick="TMZhi.switchTab(\'relations\')">关系</button>';
   var html=(getZhubi(p.name)?'<div class="fcard"><div class="ft">御 笔 朱 批</div><div style="font-size:12.5px;color:var(--vermilion);line-height:1.72;font-family:var(--zfont)">'+esc(getZhubi(p.name))+'</div></div>':'')+'<div class="fcard"><div class="ft">可 用 入 口</div><div class="actgrid">'+acts+'</div><div class="fnote">'+(cap?'此人在京，可即召问对。':p.alive===false?'此人已殁，仅存遗事遗著可考。':'此人在外，须以鸿雁传书。')+'</div></div>';
-  html+='<div class="fcard"><div class="ft">朝 堂 研 判</div><div style="padding:8px 10px;border-radius:6px;background:rgba(168,50,40,0.06);border-left:3px solid var(--cinnabar);margin-bottom:9px"><strong style="display:block;font-size:12px;color:var(--cinnabar-d)">'+vd[0]+'</strong><span style="font-size:10.5px;color:var(--ink-soft)">'+vd[1]+'</span></div><div class="risk-grid">'+[['忠诚',p.loyalty],['野心',p.ambition],['压力',p.stress],['康健',p.health],['名望',p.mingwang],['贤能',p.xianneng]].map(function(r){return '<div class="risk"><span>'+r[0]+'</span><b>'+(r[1]==null?'—':Math.round(r[1]))+'</b></div>';}).join('')+'</div></div>';
+  html+='<div class="fcard"><div class="ft">朝 堂 研 判</div><div style="padding:8px 10px;border-radius:6px;background:rgba(168,50,40,0.06);border-left:3px solid var(--cinnabar);margin-bottom:9px"><strong style="display:block;font-size:12px;color:var(--cinnabar-d)">'+vd[0]+'</strong><span style="font-size:10.5px;color:var(--ink-soft)">'+vd[1]+'</span></div><div class="risk-grid">'+[['忠诚',p.loyalty],['野心',p.ambition],['压力',p.stress],['康健',p.health],['名望',p.mingwang],['功名',p.gongming]].map(function(r){return '<div class="risk"><span>'+r[0]+'</span><b>'+(r[1]==null?'—':Math.round(r[1]))+'</b></div>';}).join('')+'</div></div>';
   html+='<div class="fcard"><div class="ft">关 系 焦 点</div>'+(rels.length?'<div class="relnet">'+rels.map(function(r){var cls=r.strength>=25?'good':r.strength<=-25?'bad':'neu';return '<div class="relrow" onclick="TMZhi.selectP(\''+esc(r.name).replace(/'/g,"\\'")+'\')"><span class="nm">'+esc(r.name)+'</span><span class="lbl '+cls+'">'+esc(r.label)+'</span><span class="sc">'+(r.strength>0?'+':'')+r.strength+'</span></div>';}).join('')+'</div>':'<div class="fnote">暂无显性关系。</div>')+'</div>';
   html+='<div class="fcard"><div class="ft">五 常 速 览</div><div style="display:flex;gap:14px;justify-content:center;padding:4px 0 14px">'+['仁','义','礼','智','信'].map(function(k){var v=(p.wuchang||{})[k],lv=v==null?'mid':v>=60?'hi':v>=30?'mid':'lo';return '<span class="wcdot '+lv+'">'+k+'<small>'+(v==null?'?':Math.round(v))+'</small></span>';}).join('')+'</div></div>';
   fo.innerHTML=html;
@@ -837,7 +871,7 @@ function openPanel(name){
   renderAll();
   if(!openPanel._esc){openPanel._esc=function(e){if(e.key==='Escape')closePanel();};document.addEventListener('keydown',openPanel._esc);}
 }
-function closePanel(){var ov=document.getElementById('tm-zhi-overlay');if(ov)ov.style.display='none';document.documentElement.style.overflow='';}
+function closePanel(){var ov=document.getElementById('tm-zhi-overlay');if(ov)ov.style.display='none';if(_zhiRosterRenderTimer){clearTimeout(_zhiRosterRenderTimer);_zhiRosterRenderTimer=0;}document.documentElement.style.overflow='';}
 
 /* 交互 */
 var TMZhi={
@@ -850,13 +884,13 @@ var TMZhi={
   cancelZhubi:function(){renderMain();},
   ceming:function(){try{if(window.TM&&TM.ceming&&typeof TM.ceming.openDialog==='function'){TM.ceming.openDialog();var ov=document.getElementById('ceming-overlay');if(ov)ov.style.zIndex='100001';toast('策名·敕召贤良');return;}}catch(e){}toast('策名系统未就绪');},
   zhuizeng:function(name){name=name||state.sel;try{if(typeof switchGTab==='function'){closePanel();switchGTab(null,'gt-edict');toast('可拟诏追赠 '+name);return;}}catch(e){}toast('追赠 '+name+'（诏书系统未就绪）');},
-  exportBio:function(){var p=findP(state.sel);if(!p){toast('未选人物');return;}var L=['【'+p.name+(p.zi?'　字'+p.zi:'')+'】',(p.officialTitle||p.title||'布衣')+'　'+(p.rank||'')+'　'+(p.faction||'')+(p.party?'·'+p.party:''),(p.appearance?'〔形貌〕'+p.appearance:''),(p.bio?'〔传略〕'+p.bio:''),'〔志向〕'+(p.personalGoal||'—')].filter(Boolean);try{var blob=new Blob([L.join('\n')],{type:'text/plain;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=p.name+'·列传.txt';document.body.appendChild(a);a.click();a.remove();toast('已导出 '+p.name+' 列传');}catch(e){toast('导出失败');}},
+  exportBio:function(){var p=findP(state.sel);if(!p){toast('未选人物');return;}var L=['【'+p.name+(p.zi?'　字'+p.zi:'')+'】',(p.officialTitle||p.title||'布衣')+(p.rank?'　'+p.rank:'')+'　'+(p.faction||'')+(p.party?'·'+p.party:''),(p.appearance?'〔形貌〕'+p.appearance:''),(p.bio?'〔传略〕'+p.bio:''),'〔志向〕'+(p.personalGoal||'—')].filter(Boolean);try{var blob=new Blob([L.join('\n')],{type:'text/plain;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=p.name+'·列传.txt';document.body.appendChild(a);a.click();a.remove();toast('已导出 '+p.name+' 列传');}catch(e){toast('导出失败');}},
   pin:function(name){name=name||state.sel;var now=togglePin(name);renderRoster();renderMain();renderFolio();toast((now?'已钉选 ':'已取消钉选 ')+name);},
   switchTab:function(t){state.tab=t;renderMain();},
   setView:function(v){state.view=v;state.compare=null;renderViewTabs();renderMain();renderFolio();var ms=q('#tm-zhi-main');if(ms)ms.scrollTop=0;},
   filterFaction:function(f){state.fac=f;var sel=q('#tm-zhi-ffac');if(sel)sel.value=f;state.roleStat='all';var fd=factionData()[f];renderRoster();if(fd&&fd.lead)TMZhi.selectP(fd.lead.name);},
   setPhSort:function(k){state.phSort=k;renderPaihang();renderFolio();},
-  onSearch:function(v){state.q=v;var a=q('#tm-zhi-gsearch'),b=q('#tm-zhi-rsearch');if(a&&a.value!==v)a.value=v;if(b&&b.value!==v)b.value=v;renderRoster();},
+  onSearch:function(v){state.q=v;var a=q('#tm-zhi-gsearch'),b=q('#tm-zhi-rsearch');if(a&&a.value!==v)a.value=v;if(b&&b.value!==v)b.value=v;scheduleZhiRosterRender();},
   onFilter:function(){state.fac=(q('#tm-zhi-ffac')||{}).value||'all';state.role=(q('#tm-zhi-frole')||{}).value||'all';state.sort=(q('#tm-zhi-fsort')||{}).value||'loyalty';state.dead=!!(q('#tm-zhi-fdead')||{}).checked;state.roleStat='all';renderRoster();renderStatbar();},
   quickStat:function(k){if(k==='dead'){state.dead=true;var d=q('#tm-zhi-fdead');if(d)d.checked=true;state.role='all';}else if(k==='all'){state.role='all';}else state.role=k;var fr=q('#tm-zhi-frole');if(fr)fr.value=(k==='all'||k==='dead')?'all':k;state.roleStat=state.roleStat===k?'all':k;renderRoster();renderStatbar();},
   act:function(kind,name){

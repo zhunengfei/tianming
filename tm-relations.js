@@ -112,7 +112,17 @@ var FACTION_INTERACTION_TYPES = {
 /**
  * 获取/初始化两角色间关系对象
  */
+function _tmRelationCanonName(name) {
+  if (!name) return name;
+  try {
+    if (typeof canonicalizeCharName === 'function') return canonicalizeCharName(name) || name;
+  } catch (_) {}
+  return name;
+}
+
 function ensureCharRelation(charA, charB) {
+  charA = _tmRelationCanonName(charA);
+  charB = _tmRelationCanonName(charB);
   if (!charA || !charB || charA === charB) return null;
   var a = (typeof findCharByName === 'function') ? findCharByName(charA) : null;
   if (!a) return null;
@@ -206,6 +216,8 @@ if (typeof window !== 'undefined') {
  */
 function applyNpcInteraction(actor, target, type, extra) {
   extra = extra || {};
+  actor = _tmRelationCanonName(actor);
+  target = _tmRelationCanonName(target);
   var def = NPC_INTERACTION_TYPES[type];
   if (!def) return false;
   var rAB = ensureCharRelation(actor, target);
