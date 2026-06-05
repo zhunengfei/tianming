@@ -568,109 +568,6 @@ EndTurnHooks.register('before', function() {
   }
 }, '奏议批复');
 
-// 钩子 3: AI上下文注入 - 剧本文风（原 _origEndTurn3）
-EndTurnHooks.register('before', function() {
-  return; // [slice 3b.4·2026-05-07] migrated to fragment 'scenario-style' (registered at hooks region tail)
-  if(P.ai.key){
-    GM._origPrompt=P.ai.prompt;
-    var fullPrompt=P.ai.prompt||DEFAULT_PROMPT;
-    var sc=findScenarioById(GM.sid);
-
-    if(sc&&sc.scnStyle)fullPrompt+="\n本剧本文风: "+sc.scnStyle;
-    if(sc&&sc.scnStyleRule)fullPrompt+="\n文风规则: "+sc.scnStyleRule;
-    // 4.3b: 文风指令映射
-    var _styleMap = {
-      '文学化': '文辞优美，善用比喻和意象，情感充沛',
-      '史书体': '仿《资治通鉴》纪事本末体，言简意赅，重事实轻渲染',
-      '戏剧化': '矛盾冲突尖锐，人物对话生动，善用悬念和反转',
-      '章回体': '仿《三国演义》章回体小说，每段开头可用对仗回目，文白夹杂',
-      '纪传体': '仿《史记》纪传体，以人物为中心，"太史公曰"式评论',
-      '白话文': '现代白话文风格，通俗易懂，节奏明快'
-    };
-    if(P.conf.style&&_styleMap[P.conf.style])fullPrompt+="\n叙事文风: "+_styleMap[P.conf.style];
-    if(P.conf.customStyle)fullPrompt+="\n自定义文风: "+P.conf.customStyle;
-
-    if(sc&&sc.refText)fullPrompt+="\n\u53C2\u8003: "+sc.refText;
-    if(P.conf.refText)fullPrompt+="\n\u5168\u5C40\u53C2\u8003: "+P.conf.refText;
-
-    if(P.world.entries&&P.world.entries.length>0){
-      fullPrompt+="\n\n=== 世界设定 ===";
-      P.world.entries.forEach(function(e){
-        if(e.category&&e.title&&e.content)fullPrompt+="\n["+e.category+"] "+e.title+": "+e.content;
-      });
-    }
-
-    P.ai.prompt=fullPrompt;
-  }
-}, 'AI上下文-剧本文风');
-
-// 钩子 4: 恢复原始prompt
-EndTurnHooks.register('after', function() {
-  if(GM._origPrompt!==undefined){
-    P.ai.prompt=GM._origPrompt;
-    delete GM._origPrompt;
-  }
-}, '恢复原始prompt');
-
-// 钩子 5: AI上下文注入 - 起居注（原 _origEndTurn5）
-EndTurnHooks.register('before', function() {
-  return; // [slice 3b.4·2026-05-07] migrated to fragment 'qiju-history'
-  if(P.ai.key&&GM.conv.length>0){
-    var qijuLb=P.conf.qijuLookback||5;
-    var recentQ=GM.qijuHistory.slice(-qijuLb);
-    if(recentQ.length>0){
-      var qijuText="\n\n=== 近"+qijuLb+"回合起居注 ===\n";
-      recentQ.forEach(function(q){
-        qijuText+="T"+q.turn+" "+q.time+":\n";
-        if(q.edicts){
-          if(q.edicts.political)qijuText+="  政: "+q.edicts.political+"\n";
-          if(q.edicts.military)qijuText+="  军: "+q.edicts.military+"\n";
-          if(q.edicts.diplomatic)qijuText+="  外: "+q.edicts.diplomatic+"\n";
-          if(q.edicts.economic)qijuText+="  经: "+q.edicts.economic+"\n";
-        }
-        if(q.xinglu)qijuText+="  行: "+q.xinglu+"\n";
-      });
-      if(!GM._origPrompt2)GM._origPrompt2=P.ai.prompt;
-      P.ai.prompt=(P.ai.prompt||"")+qijuText;
-    }
-  }
-}, 'AI上下文-起居注');
-
-// 钩子 6: 恢复prompt
-EndTurnHooks.register('after', function() {
-  if(GM._origPrompt2!==undefined){
-    P.ai.prompt=GM._origPrompt2;
-    delete GM._origPrompt2;
-  }
-}, '恢复prompt-起居注');
-
-// 钩子 6.5: AI 上下文注入 - 史记 N 回合(shijiLookback 唤醒)
-EndTurnHooks.register('before', function() {
-  return; // [slice 3b.4·2026-05-07] migrated to fragment 'shiji-history'
-  if (P.ai && P.ai.key && GM.shijiHistory && GM.shijiHistory.length > 0) {
-    var shijiLb = (P.conf && P.conf.shijiLookback) || 5;
-    var recentS = GM.shijiHistory.slice(-shijiLb);
-    if (recentS.length > 0) {
-      var shijiText = "\n\n=== 近" + shijiLb + "回合史记·时政记/正文摘要 ===\n";
-      recentS.forEach(function(s) {
-        shijiText += "T" + (s.turn || '?') + "·" + (s.time || '') + "\n";
-        if (s.szjTitle) shijiText += "  题：" + s.szjTitle + "\n";
-        if (s.shizhengji) shijiText += "  政：" + String(s.shizhengji).replace(/\s+/g, ' ').slice(0, 280) + "\n";
-        if (s.turnSummary) shijiText += "  要：" + String(s.turnSummary).slice(0, 120) + "\n";
-      });
-      if (!GM._origPromptShiji) GM._origPromptShiji = P.ai.prompt;
-      P.ai.prompt = (P.ai.prompt || "") + shijiText;
-    }
-  }
-}, 'AI上下文-史记');
-
-EndTurnHooks.register('after', function() {
-  if (GM._origPromptShiji !== undefined) {
-    P.ai.prompt = GM._origPromptShiji;
-    delete GM._origPromptShiji;
-  }
-}, '恢复prompt-史记');
-
 // 钩子 6.6: AI 上下文注入 - 玩家总结规则(summaryRule 唤醒)
 // [slice 3b.3·2026-05-07 PoC] 迁 fragment·删 _origPromptSumRule before/after 配对
 // 原 before mutate P.ai.prompt + after restore·新 fragment 仅返回 text·prompt-builder 显式 join
@@ -680,59 +577,6 @@ EndTurnHooks.registerFragment('summary-rule', function(ctx) {
   }
   return null;
 });
-
-// 钩子 6.7: AI 上下文注入 - 近期鸿雁传书摘要(letter 内容影响推演)
-EndTurnHooks.register('before', function() {
-  return; // [slice 3b.4·2026-05-07] migrated to fragment 'letters-recent'
-  if (P.ai && P.ai.key && Array.isArray(GM.letters) && GM.letters.length > 0) {
-    var curT = GM.turn || 1;
-    // 近 3 回合往来信件·含玩家去信+NPC 来信
-    var recentLs = GM.letters.filter(function(l) {
-      return l && (curT - (l.sentTurn || l.deliveryTurn || 0)) <= 3;
-    }).slice(-10);
-    if (recentLs.length > 0) {
-      var lettersText = "\n\n=== 近期鸿雁传书摘要（推演需延续其情·不可忘）===\n";
-      recentLs.forEach(function(l) {
-        var dir = l._npcInitiated ? (l.from + '→皇帝') : ('皇帝→' + l.to);
-        var typeL = (l.letterType || 'personal');
-        var urg = l.urgency === 'extreme' ? '(八百里加急)' : l.urgency === 'urgent' ? '(加急)' : '';
-        var sentAt = 'T' + (l.sentTurn || '?');
-        lettersText += '[' + sentAt + '·' + dir + '·' + typeL + urg + '] ';
-        if (l.subjectLine) lettersText += '《' + l.subjectLine.slice(0, 26) + '》';
-        lettersText += ' 内容摘：' + String(l.content || '').replace(/\s+/g, ' ').slice(0, 140);
-        if (l.reply && !l._npcInitiated) lettersText += '·[回：' + String(l.reply).slice(0, 80) + ']';
-        if (l.suggestion) lettersText += '·建：' + String(l.suggestion).slice(0, 60);
-        lettersText += '\n';
-      });
-      if (!GM._origPromptLtr) GM._origPromptLtr = P.ai.prompt;
-      P.ai.prompt = (P.ai.prompt || "") + lettersText;
-    }
-  }
-}, 'AI上下文-鸿雁传书摘要');
-
-EndTurnHooks.register('after', function() {
-  if (GM._origPromptLtr !== undefined) {
-    P.ai.prompt = GM._origPromptLtr;
-    delete GM._origPromptLtr;
-  }
-}, '恢复prompt-鸿雁');
-
-// 钩子 7: AI上下文注入 - 规则（原 _origEndTurn6）
-EndTurnHooks.register('before', function() {
-  return; // [slice 3b.4·2026-05-07] migrated to fragment 'ai-rules'
-  if(P.ai.key&&P.ai.rules){
-    if(!GM._origPrompt3)GM._origPrompt3=P.ai.prompt;
-    P.ai.prompt=(P.ai.prompt||"")+"\n\n=== 规则 ===\n"+P.ai.rules;
-  }
-}, 'AI上下文-规则');
-
-// 钩子 8: 恢复prompt
-EndTurnHooks.register('after', function() {
-  if(GM._origPrompt3!==undefined){
-    P.ai.prompt=GM._origPrompt3;
-    delete GM._origPrompt3;
-  }
-}, '恢复prompt-规则');
 
 // 钩子 9: 历史检查（重设计 2026-04-30）
 //   ★ 定位修正：不当语法警察纠正玩家·而当现实顾问预测后果
@@ -833,32 +677,7 @@ EndTurnHooks.register('after', function() {
   }
 }, '历史检查');
 
-// 钩子 9b: AI上下文注入 - 史实偏离待演绎（每回合 before·消费上回合 hist_check 产出）
-EndTurnHooks.register('before', function() {
-  return; // [slice 3b.4·2026-05-07] migrated to fragment 'historical-deviations' (TTL 衰减保留为后置 after hook)
-  if (!P.ai || !P.ai.key) return;
-  if (!Array.isArray(GM._historicalDeviations) || GM._historicalDeviations.length === 0) return;
-
-  var pending = GM._historicalDeviations.filter(function(d){ return d && d.ttl > 0; });
-  if (pending.length === 0) return;
-
-  var devText = '\n\n=== 史实偏离·待演绎自然后果（玩家诏令字面照旧执行·你只需让"现实必然反应"在本回合或后续自然显现）===\n';
-  devText += '【铁律】不得改写玩家原诏；只在叙事/NPC行动/势力反应/民意/外族动向中演出后果\n';
-  pending.forEach(function(d){
-    devText += '· T' + d.sourceTurn + '玩家：' + d.playerAction + '\n';
-    if (d.historicalContext) devText += '  时代背景：' + d.historicalContext + '\n';
-    devText += '  应演后果：' + d.realisticConsequence + '（剩 ' + d.ttl + ' 回合内显现）\n';
-  });
-  if (!GM._origPromptHist) GM._origPromptHist = P.ai.prompt;
-  P.ai.prompt = (P.ai.prompt || '') + devText;
-}, 'AI上下文-史实偏离演绎');
-
 EndTurnHooks.register('after', function() {
-  // 恢复 prompt
-  if (GM._origPromptHist !== undefined) {
-    P.ai.prompt = GM._origPromptHist;
-    delete GM._origPromptHist;
-  }
   // TTL 衰减·清理已耗尽条目
   if (Array.isArray(GM._historicalDeviations) && GM._historicalDeviations.length > 0) {
     GM._historicalDeviations.forEach(function(d){ if (d && typeof d.ttl === 'number') d.ttl--; });
@@ -873,41 +692,10 @@ EndTurnHooks.register('after', function() {
   }
 }, '回合结束音效');
 
-// 钩子 11: 游戏模式注入（原 _origEndTurn11）
-EndTurnHooks.register('before', function() {
-  return; // [slice 3b.4·2026-05-07] migrated to fragment 'game-mode' (PREFIX position)
-  var mode = (typeof P !== 'undefined' && P.conf && P.conf.gameMode) || 'yanyi';
-  var origPrompt = (typeof P !== 'undefined' && P.ai && P.ai.prompt != null) ? P.ai.prompt : null;
-
-  if (origPrompt !== null) {
-    GM._origPrompt11 = origPrompt;
-    var modePrefix = '';
-    if (mode === 'yanyi') {
-      modePrefix = '【演义模式】请以演义小说风格推演，允许虚构情节和战征细节，强调戳剧冲突。';
-    } else if (mode === 'light_hist') {
-      modePrefix = '【轻度史实模式】请大体符合历史走向，允许适度演绎，主要人物和事件应有史实依据。';
-    } else if (mode === 'strict_hist') {
-      var refText = (P.conf && P.conf.refText) ? P.conf.refText : '';
-      modePrefix = '\u3010\u4E25\u683C\u53F2\u5B9E\u6A21\u5F0F\u3011\u8BF7\u4E25\u683C\u6309\u6B63\u53F2\u63A8\u6F14\uFF0C\u4E0D\u5F97\u865A\u6784\u4EBA\u7269\u6216\u4E8B\u4EF6\uFF0C\u8BF7\u51C6\u786E\u5F15\u7528\u53F2\u4E66\u8BB0\u8F7D\u3002' + (refText ? '\u53C2\u8003\u8D44\u6599\uFF1A' + refText + '\u3002' : '');
-    }
-    if (modePrefix) {
-      P.ai.prompt = modePrefix + origPrompt;
-    }
-  }
-}, '游戏模式注入');
-
-// 钩子 12: 恢复prompt
-EndTurnHooks.register('after', function() {
-  if(GM._origPrompt11!==undefined){
-    P.ai.prompt=GM._origPrompt11;
-    delete GM._origPrompt11;
-  }
-}, '恢复prompt-游戏模式');
-
 // ════════════════════════════════════════════════════════════
-// [slice 3b.4·2026-05-07] 6 个 prompt-mutating hook 批量迁 fragment paradigm
-// 上方对应 6 个 before-hook 已加 `return;` 早退·after-hook 中的 if-restore 自动 no-op
-// 见 web/docs/endturn-data-flow.md §5 obstacle #6
+// [slice 3b.4 2026-05-07] Prompt-mutating before/after hook shells were removed.
+// The fragment registrations below are the active prompt extension path.
+// historical-deviations still keeps its after hook for TTL decay.
 // ════════════════════════════════════════════════════════════
 
 // fragment·剧本文风 (原 hook 3 _origPrompt)

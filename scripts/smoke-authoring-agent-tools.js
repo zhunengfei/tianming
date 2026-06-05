@@ -191,7 +191,9 @@ function ok(cond, msg) {
     ok(ro.toolCalls.length === 1 && ro.toolCalls[0].name === 'finish' && ro.toolCalls[0].input.summary === 'ok', 'callWithTools 解析 openai tool_calls + 解 arguments JSON');
     ok(/\/chat\/completions$/.test(seen.endpoint), 'openai endpoint 拼接 /chat/completions');
     ok(seen.init.headers.Authorization === 'Bearer k2', 'openai 用 Bearer header');
-    ok(JSON.parse(seen.init.body).tools[0].function.name === 'applyEdit', 'openai tools 用 function 包裹');
+    const openAiTools = JSON.parse(seen.init.body).tools || [];
+    ok(openAiTools.every(t => t && t.type === 'function' && t.function && t.function.name), 'openai tools 用 function 包裹');
+    ok(openAiTools.some(t => t.function.name === 'applyEdit'), 'openai tools 保留 applyEdit');
 
     console.log('— callWithTools：缺 key 报错 —');
     let threw = false;

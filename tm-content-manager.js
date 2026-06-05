@@ -281,6 +281,7 @@
       '.tm-cat-card:hover{transform:translateY(-3px);border-color:rgba(214,177,93,.5);box-shadow:0 10px 24px rgba(0,0,0,.45);}',
       '.tm-cover{position:relative;width:100%;height:118px;overflow:hidden;display:grid;place-items:center;border-bottom:1px solid rgba(214,177,93,.22);font-family:"Noto Serif SC","Songti SC",serif;font-weight:700;color:#f4e2b6;text-shadow:0 1px 3px rgba(0,0,0,.6);box-shadow:inset 0 0 16px rgba(0,0,0,.5);}',
       '.tm-cover .scene{position:absolute;inset:0;width:100%;height:100%;z-index:0;}',
+      '.tm-cover .cover-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;z-index:0;}',
       '.tm-cover::before{content:"";position:absolute;inset:0;z-index:1;background:radial-gradient(closest-side at 50% 56%,rgba(0,0,0,.32),transparent 72%);}',
       '.tm-cover-glyph{position:relative;z-index:2;font-size:2.6rem;line-height:1;}',
       '.tm-official{position:absolute;top:6px;left:6px;z-index:3;font-size:.6rem;padding:.05rem .35rem;border:1px solid var(--gold,#d8b56a);background:rgba(0,0,0,.55);color:#f3da92;}',
@@ -876,8 +877,9 @@
     var official = (p.author === '天命官方') || tags.indexOf('官方') >= 0;
     var tagHtml = tags.length ? '<div class="tm-tags">' + tags.map(function(t){ return '<span class="tm-tagchip">' + esc(t) + '</span>'; }).join('') + '</div>' : '';
     var openDetail = 'onclick="TMContentManager.openPackDetail(' + jsArg(p.id || '') + ')"';
+    var coverUrl = packCoverUrl(p);
     return '<div class="tm-cat-card">' +
-      '<div class="tm-cover" data-glyph="' + esc(ch) + '"' + (official ? ' data-official="1"' : '') + typeAttr + ' style="cursor:pointer;" ' + openDetail + '>' + esc(ch) + '</div>' +
+      '<div class="tm-cover" data-glyph="' + esc(ch) + '"' + (official ? ' data-official="1"' : '') + typeAttr + ' style="cursor:pointer;" ' + openDetail + '>' + (coverUrl ? '<img class="cover-img" src="' + esc(coverUrl) + '" alt="">' : esc(ch)) + '</div>' +
       '<div class="tm-cat-body">' +
         '<div class="tm-cat-title" style="cursor:pointer;" ' + openDetail + '>' + esc(p.title || p.id) + '</div>' +
         '<div class="tm-cat-au">' +
@@ -1016,6 +1018,15 @@
     }
     return '';
   }
+  function renderStoreMedia(p) {
+    var shots = packGalleryImages(p);
+    if (!shots.length) return '';
+    return '<div class="dsec-h">商店展示图 · ' + shots.length + '</div><div class="store-shots">' +
+      shots.map(function(img){
+        return '<button class="store-shot" type="button"><img src="' + esc(img.url) + '" alt="' + esc(img.name || '') + '"></button>';
+      }).join('') +
+    '</div>';
+  }
   function mallCommentRow(c) {
     return '<div class="rev"><div class="av seal">' + esc(String(c.nickname || '友').charAt(0)) + '</div>' +
       '<div><div class="hd"><b>' + esc(c.nickname || '玩家') + '</b><small>' + esc(c.createdAt || '') + '</small></div><p>' + esc(c.text || '') + '</p></div></div>';
@@ -1070,6 +1081,7 @@
           '</div>' +
           (p.parentId ? '<div class="dcopy" style="margin-top:10px;">改编自 <span style="color:var(--gold);cursor:pointer;text-decoration:underline;" onclick="TMContentManager.openPackDetail(' + jsArg(p.parentId) + ')">' + esc(p.parentId) + '</span></div>' : '') +
           (p.description ? '<div class="dsec-h">' + (ptype === 'scenario' ? '剧本提要' : '简介') + '</div><div class="dcopy">' + esc(p.description) + '</div>' : '') +
+          renderStoreMedia(p) +
           renderDetailTypeBody(p) +
           renderLineageTree() +
           '<div class="dsec-h">作者</div><div><span style="color:var(--gold);cursor:pointer;text-decoration:underline;" onclick="TMContentManager.loadAuthorPacks(' + jsArg(p.authorId != null ? p.authorId : '') + ',' + jsArg(p.author || '') + ')">' + esc(p.author || '佚名') + '</span>' + (official ? ' <span class="pill good">官方认证</span>' : '') + '</div>' +
@@ -2205,15 +2217,27 @@
 
   // ===== 全屏商城（对齐 preview-community）=====
   function mallGlyph(p) { return String((p && (p.title || p.id)) || '坊').trim().charAt(0) || '坊'; }
+  function packCoverUrl(p) {
+    var c = p && p.coverImage;
+    if (c && typeof c === 'object' && c.url) return String(c.url);
+    if (c && typeof c === 'string') return c;
+    return '';
+  }
+  function packGalleryImages(p) {
+    var g = p && p.galleryImages;
+    return Array.isArray(g) ? g.filter(function(x){ return x && x.url; }).slice(0, 6) : [];
+  }
   function mallCover(p, sizeStyle) {
     var g = mallGlyph(p);
     var tags = Array.isArray(p && p.tags) ? p.tags : [];
     var official = (p && p.author === '天命官方') || tags.indexOf('官方') >= 0;
     var ptype = String((p && p.type) || 'scenario');
     var tone = (window.TMWorkshopCovers && TMWorkshopCovers.tone) ? TMWorkshopCovers.tone(g) : 'zhu';
+    var coverUrl = packCoverUrl(p);
     var inner = (window.TMWorkshopCovers && TMWorkshopCovers.coverInner)
       ? TMWorkshopCovers.coverInner(g, { official: official, type: ptype, typeLabel: ptype !== 'scenario' ? packTypeLabel(ptype) : '' })
       : ('<span class="glyph">' + esc(g) + '</span>');
+    if (coverUrl) inner = '<img class="cover-img" src="' + esc(coverUrl) + '" alt="">';
     return '<div class="cover ' + tone + '"' + (sizeStyle ? ' style="' + sizeStyle + '"' : '') + '>' + inner + '</div>';
   }
   function mallStars(p) {
@@ -2546,38 +2570,123 @@
   }
 
   // 创作中心（发布 + AI 共创）—— 桌面/网页同一套：从剧本库选剧本上传，或多文件打包资源。
+  function publishDraft() {
+    if (!state.publishDraft) state.publishDraft = { version: '1.0.0', title: '', tags: '', desc: '', notes: '' };
+    if (!state.publishDraft.version) state.publishDraft.version = '1.0.0';
+    return state.publishDraft;
+  }
+
+  function capturePublishDraft() {
+    var d = publishDraft();
+    var title = document.getElementById('tm-webpub-title');
+    var version = document.getElementById('tm-webpub-version');
+    var tags = document.getElementById('tm-webpub-tags');
+    var desc = document.getElementById('tm-webpub-desc');
+    var notes = document.getElementById('tm-webpub-notes');
+    var type = document.getElementById('tm-pub-type');
+    if (title) d.title = title.value.trim();
+    if (version) d.version = version.value.trim();
+    if (tags) d.tags = tags.value.trim();
+    if (desc) d.desc = desc.value.trim();
+    if (notes) d.notes = notes.value.trim();
+    if (type) state.pubType = type.value || state.pubType;
+    return d;
+  }
+
+  function fileLine(file, fallback) {
+    if (!file) return fallback || '未选择';
+    return file.name + ' · ' + formatBytes(file.size || 0);
+  }
+
+  function publishStep(label, done) {
+    return '<div class="pub-step ' + (done ? 'done' : '') + '"><span>' + (done ? '✓' : '·') + '</span><b>' + esc(label) + '</b></div>';
+  }
+
+  function publishStoreReady() {
+    var d = publishDraft();
+    return !!(d.title && d.version && d.desc);
+  }
+
+  function publishPackageReady() {
+    return !!state.publishPackageFile;
+  }
+
+  function publishCoverHtml() {
+    var url = state.publishCoverUrl || '';
+    if (url) return '<img src="' + esc(url) + '" alt="">';
+    return '<div class="up-empty"><div class="up-ic">图</div><b>上传封面</b><small>建议 16:9 或 4:3，用于商店卡片和详情页头图</small></div>';
+  }
+
+  function publishGalleryHtml() {
+    var files = state.publishGalleryFiles || [];
+    if (!files.length) return '<div class="pub-shot empty">展示图</div>';
+    return files.slice(0, 4).map(function(file, i){
+      var urls = state.publishGalleryUrls || [];
+      var url = urls[i] || '';
+      return '<div class="pub-shot">' + (url ? '<img src="' + esc(url) + '" alt="">' : '<span>' + esc(String(file.name || '').charAt(0) || '图') + '</span>') + '</div>';
+    }).join('');
+  }
+
   function renderStudioPane() {
     var user = (state.accountSession || {}).user;
-    var pt = state.pubType || 'scenario';
-    var isScn = pt === 'scenario';
-    var scns = (window.P && Array.isArray(P.scenarios)) ? P.scenarios : [];
-    var opts = scns.map(function(s){ return '<option value="' + esc(s.id) + '">' + esc((s.name || s.id)) + '</option>'; }).join('') || '<option value="">（剧本库为空）</option>';
+    var pt = state.pubType || 'mod';
+    state.pubType = pt;
+    var d = publishDraft();
     var typeSel = '<select id="tm-pub-type" class="input" onchange="TMContentManager.switchPubType(this.value)">' + PACK_TYPES.filter(function(t){ return t.v; }).map(function(t){ return '<option value="' + t.v + '"' + (pt === t.v ? ' selected' : '') + '>' + esc(t.label) + '</option>'; }).join('') + '</select>';
-    var left = isScn
-      ? '<div class="field"><label>选择剧本</label><select id="tm-webpub-scn" class="input">' + opts + '</select></div>'
-      : '<div class="uploader" onclick="var f=document.getElementById(\'tm-asset-files\');if(f)f.click();"><div class="up-empty"><div class="up-ic">⊕</div><b>选择' + (pt === 'portrait' ? '立绘图片' : (pt === 'music' ? '音频文件' : '资源文件')) + '</b><small id="tm-asset-count">点此多选，浏览器内打包成 zip</small></div></div><input id="tm-asset-files" type="file" multiple accept="' + (pt === 'portrait' ? 'image/*' : (pt === 'music' ? 'audio/*' : '*/*')) + '" style="display:none;" onchange="TMContentManager.onAssetFiles(this)">';
-    var ai = isScn ? (
-      '<div class="ai-promo"><div><b>✨ AI 共创起草</b><small>一句话描述你想要的剧本，演绎脑起草骨架，载入剧本库即可发布</small></div></div>' +
-      '<div class="field"><textarea id="tm-ai-prompt" class="input" rows="2" placeholder="例如：靖康之变后，赵构在临安重建朝廷，权臣环伺、金兵压境…"></textarea></div>' +
-      '<div style="margin:8px 0;"><button class="btn sm" onclick="TMContentManager.aiDraftScenario()">生成草稿</button></div>' +
-      (state.aiDraftMsg ? '<div class="status">' + esc(state.aiDraftMsg) + '</div>' : '') +
-      (state.aiDraft ? '<div class="ai-draft"><b>' + esc(state.aiDraft.name || '草稿') + '</b><div class="dcopy" style="margin-top:4px;">' + esc(state.aiDraft.overview || '') + '</div><div style="margin-top:8px;"><button class="btn primary sm" onclick="TMContentManager.useAiDraft()">用此草稿发布</button></div></div>' : '')
-    ) : '';
-    var fork = (isScn && state.forkSource && state.forkSource.id) ? '<div class="status">改编自「' + esc(state.forkSource.title || state.forkSource.id) + '」，发布后记入它的世界线。 <span style="cursor:pointer;color:var(--gold);text-decoration:underline;" onclick="TMContentManager.clearFork()">取消改编</span></div>' : '';
-    var submit = isScn ? 'TMContentManager.webPublishScenario()' : 'TMContentManager.webPublishAssetPack()';
-    return '<div class="sec-h"><h3>创作中心 · 发布到工坊</h3></div>' +
-      fork + ai +
-      '<div class="pub-grid" style="margin-top:6px;"><div>' + left + '</div>' +
-        '<div>' +
-          '<div class="field"><label>内容类型</label>' + typeSel + '</div>' +
-          '<div class="field"><label>标题</label><input id="tm-webpub-title" class="input" placeholder="' + (isScn ? '留空则用剧本名' : '例如：盛唐人物·立绘包') + '"></div>' +
-          '<div class="field"><label>版本</label><input id="tm-webpub-version" class="input" value="1.0.0"></div>' +
-          '<div class="field"><label>标签</label><input id="tm-webpub-tags" class="input" placeholder="' + (isScn ? '剧本 明末' : '立绘 唐 通用') + '"></div>' +
-          '<div class="field"><label>简介</label><input id="tm-webpub-desc" class="input" placeholder="给玩家看的简短说明"></div>' +
-        '</div></div>' +
-      '<div style="margin-top:14px;display:flex;gap:10px;">' +
-        '<button class="btn primary" onclick="' + submit + '"' + (user ? '' : ' disabled') + '>' + (user ? '提交发布（待审核）' : '登录后发布') + '</button>' +
-        '<button class="btn" onclick="TMContentManager.loadWorkshopCatalog()">刷新目录</button>' +
+    var canSubmit = !!(user && publishPackageReady());
+    var fork = (state.forkSource && state.forkSource.id) ? '<div class="status">改编自「' + esc(state.forkSource.title || state.forkSource.id) + '」，发布后记入它的世界线。 <span style="cursor:pointer;color:var(--gold);text-decoration:underline;" onclick="TMContentManager.clearFork()">取消改编</span></div>' : '';
+    return '<div class="sec-h"><h3>创作中心 · 发布申请</h3><span class="more">资源包 + 商店信息齐备后进入审核</span></div>' +
+      fork +
+      '<div class="pub-flow">' +
+        '<div class="pub-steps">' +
+          publishStep('投稿资源包', publishPackageReady()) +
+          publishStep('商店信息', publishStoreReady()) +
+          publishStep('提交审核', canSubmit && publishStoreReady()) +
+        '</div>' +
+        '<div class="pub-grid pub-grid-v2">' +
+          '<section class="pub-card pub-resource">' +
+            '<div class="pub-card-head"><span>1</span><div><b>导入投稿资源</b><small>直接选择创作者已经打好的 .tm-pack 或 .zip；页面不再负责制作内容本体</small></div></div>' +
+            '<div class="uploader pub-drop" onclick="var f=document.getElementById(\'tm-publish-package-file\');if(f)f.click();">' +
+              '<div class="up-empty"><div class="up-ic">包</div><b>' + esc(state.publishPackageFile ? '已选择资源包' : '选择资源包') + '</b><small id="tm-package-file-name">' + esc(fileLine(state.publishPackageFile, '支持 .tm-pack / .zip，建议包含 manifest.json')) + '</small></div>' +
+            '</div>' +
+            '<input id="tm-publish-package-file" type="file" accept=".tm-pack,.zip,application/zip,application/x-zip-compressed" style="display:none;" onchange="TMContentManager.onPublishPackageFile(this)">' +
+            '<div class="pub-note">资源包会作为审核资源上传；包内 manifest、路径安全、资源类型由导入/审核链路校验。</div>' +
+          '</section>' +
+          '<section class="pub-card pub-store">' +
+            '<div class="pub-card-head"><span>2</span><div><b>编辑商店信息</b><small>这些内容决定玩家在工坊里看到什么</small></div></div>' +
+            '<div class="pub-store-grid">' +
+              '<div class="field"><label>商店分类</label>' + typeSel + '</div>' +
+              '<div class="field"><label>版本</label><input id="tm-webpub-version" class="input" value="' + esc(d.version || '1.0.0') + '" placeholder="1.0.0"></div>' +
+              '<div class="field span2"><label>标题</label><input id="tm-webpub-title" class="input" value="' + esc(d.title || '') + '" placeholder="例如：天启朝边镇扩展包"></div>' +
+              '<div class="field span2"><label>标签</label><input id="tm-webpub-tags" class="input" value="' + esc(d.tags || '') + '" placeholder="剧本 明末 地图 立绘"></div>' +
+              '<div class="field span2"><label>简介</label><textarea id="tm-webpub-desc" class="input" rows="3" placeholder="写给玩家看的短说明：内容范围、玩法变化、兼容说明。">' + esc(d.desc || '') + '</textarea></div>' +
+              '<div class="field span2"><label>更新 / 申请说明</label><textarea id="tm-webpub-notes" class="input" rows="2" placeholder="给审核者看的补充说明，可写素材来源、授权情况、兼容版本。">' + esc(d.notes || '') + '</textarea></div>' +
+            '</div>' +
+          '</section>' +
+          '<section class="pub-card pub-media">' +
+            '<div class="pub-card-head"><span>3</span><div><b>商店素材</b><small>封面必填建议，展示图可多张</small></div></div>' +
+            '<div class="pub-media-grid">' +
+              '<div class="uploader pub-cover" onclick="var f=document.getElementById(\'tm-publish-cover-file\');if(f)f.click();">' + publishCoverHtml() + '</div>' +
+              '<div class="pub-gallery" onclick="var f=document.getElementById(\'tm-publish-gallery-files\');if(f)f.click();">' + publishGalleryHtml() + '</div>' +
+            '</div>' +
+            '<input id="tm-publish-cover-file" type="file" accept="image/*" style="display:none;" onchange="TMContentManager.onPublishCoverFile(this)">' +
+            '<input id="tm-publish-gallery-files" type="file" accept="image/*" multiple style="display:none;" onchange="TMContentManager.onPublishGalleryFiles(this)">' +
+            '<div class="pub-note">' + esc(state.publishCoverFile ? ('封面：' + fileLine(state.publishCoverFile)) : '尚未选择封面。') + (state.publishGalleryFiles && state.publishGalleryFiles.length ? ' · 展示图 ' + state.publishGalleryFiles.length + ' 张' : '') + '</div>' +
+          '</section>' +
+          '<section class="pub-card pub-submit">' +
+            '<div class="pub-card-head"><span>审</span><div><b>提交发布申请</b><small>提交后进入待审核状态，通过后才会进入在线目录</small></div></div>' +
+            '<div class="pub-checks">' +
+              '<div class="' + (user ? 'ok' : 'bad') + '">账号身份：' + esc(user ? (user.nickname || user.username) : '未登录') + '</div>' +
+              '<div class="' + (publishPackageReady() ? 'ok' : 'bad') + '">投稿资源：' + esc(publishPackageReady() ? state.publishPackageFile.name : '未导入') + '</div>' +
+              '<div class="' + (publishStoreReady() ? 'ok' : 'bad') + '">商店信息：' + esc(publishStoreReady() ? '已填写' : '缺少标题 / 版本 / 简介') + '</div>' +
+            '</div>' +
+            '<div class="pub-actions">' +
+              '<button class="btn primary" onclick="TMContentManager.submitWorkshopPublication()"' + (canSubmit ? '' : ' disabled') + '>' + esc(user ? (publishPackageReady() ? '提交发布申请' : '等待资源包') : '登录后提交') + '</button>' +
+              '<button class="btn" onclick="TMContentManager.resetPublicationDraft()">清空申请</button>' +
+              '<button class="btn" onclick="TMContentManager.loadWorkshopCatalog()">刷新目录</button>' +
+            '</div>' +
+          '</section>' +
+        '</div>' +
       '</div>' +
       (state.publishMessage ? '<div class="status" style="margin-top:10px;">' + esc(state.publishMessage) + '</div>' : '') +
       renderCommissionSection();
@@ -2958,7 +3067,7 @@
     var notifUnread = (state.notifData && state.notifData.unread) || 0;
     var navItems = [['discover', '发现'], ['feed', '动态'], ['browse', '浏览'], ['ranks', '排行'], ['topics', '专题'], ['circles', '圈子'], ['studio', '创作'], ['friends', '好友'], ['me', '我']];
     var nav = navItems.map(function(it){ return '<a class="' + (pane === it[0] ? 'on' : '') + '" onclick="TMContentManager.switchPane(\'' + it[0] + '\')">' + it[1] + '</a>'; }).join('');
-    bg.innerHTML = '<div class="tm-mall" role="dialog" aria-modal="true" aria-label="天命创意工坊">' +
+    bg.innerHTML = '<main class="tm-mall tm-mall-page" role="main" aria-label="天命创意工坊" tabindex="-1">' +
       '<div class="topbar">' +
         '<div class="brand"><div class="seal" style="width:36px;height:36px;border-radius:6px;font-size:17px;">坊</div><b>天命·创意工坊<small>SCENARIO WORKSHOP</small></b></div>' +
         '<nav class="nav">' + nav + '</nav>' +
@@ -2975,7 +3084,7 @@
       (state.detailOpen ? renderPackDetail() : '') + (state.dmOpen ? renderDmLayer() : '') + (state.chronOpen ? renderChroniclesLayer() : '') +
       (state.arenaOpen ? renderArenaLayer() : '') + (state.collectionOpen ? renderCollectionLayer() : '') + (state.colPickOpen ? renderCollectionPicker() : '') +
       (state.circleOpen ? renderCircleLayer() : '') +
-    '</div>';
+    '</main>';
     bg.style.display = 'flex';
     try { if (window.TMWorkshopCovers) window.TMWorkshopCovers.enhance(bg); } catch (e) {}
   }
@@ -3761,6 +3870,140 @@
     if (el) el.textContent = n ? (n + ' 个文件待打包') : '未选择文件';
   }
 
+  function bytesToBase64Local(bytes) {
+    if (window.TMZipStore && TMZipStore.bytesToBase64) return TMZipStore.bytesToBase64(bytes);
+    if (typeof btoa === 'undefined' && typeof Buffer !== 'undefined') return Buffer.from(bytes).toString('base64');
+    var bin = '', chunk = 0x8000;
+    for (var i = 0; i < bytes.length; i += chunk) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    return btoa(bin);
+  }
+
+  function fileObjectUrl(file) {
+    try { return (window.URL && URL.createObjectURL && file) ? URL.createObjectURL(file) : ''; } catch (e) { return ''; }
+  }
+
+  function revokeObjectUrl(url) {
+    try { if (url && window.URL && URL.revokeObjectURL) URL.revokeObjectURL(url); } catch (e) {}
+  }
+
+  function publishFileBaseName(file) {
+    return String((file && file.name) || '').replace(/\.[^.]+$/, '').replace(/[_\-]+/g, ' ').trim();
+  }
+
+  function onPublishPackageFile(input) {
+    capturePublishDraft();
+    var file = input && input.files && input.files[0];
+    if (!file) { state.publishPackageFile = null; render(); return; }
+    if (!/\.(tm-pack|zip)$/i.test(file.name || '')) {
+      state.publishMessage = '投稿资源必须是 .tm-pack 或 .zip 压缩包。';
+      state.publishPackageFile = null;
+      render();
+      return;
+    }
+    state.publishPackageFile = file;
+    var d = publishDraft();
+    if (!d.title) d.title = publishFileBaseName(file);
+    state.publishMessage = '已导入投稿资源：' + fileLine(file) + '。';
+    render();
+  }
+
+  function onPublishCoverFile(input) {
+    capturePublishDraft();
+    var file = input && input.files && input.files[0];
+    revokeObjectUrl(state.publishCoverUrl);
+    state.publishCoverFile = file || null;
+    state.publishCoverUrl = file ? fileObjectUrl(file) : '';
+    state.publishMessage = file ? ('已选择商店封面：' + fileLine(file)) : '';
+    render();
+  }
+
+  function onPublishGalleryFiles(input) {
+    capturePublishDraft();
+    (state.publishGalleryUrls || []).forEach(revokeObjectUrl);
+    var files = input && input.files ? Array.prototype.slice.call(input.files || []).filter(function(f){ return /^image\//.test(f.type || '') || /\.(png|jpe?g|webp|bmp)$/i.test(f.name || ''); }).slice(0, 6) : [];
+    state.publishGalleryFiles = files;
+    state.publishGalleryUrls = files.map(fileObjectUrl);
+    state.publishMessage = files.length ? ('已选择展示图 ' + files.length + ' 张。') : '';
+    render();
+  }
+
+  async function imagePayload(file) {
+    if (!file) return null;
+    var bytes = new Uint8Array(await file.arrayBuffer());
+    return {
+      name: String(file.name || 'image'),
+      type: String(file.type || 'image/*'),
+      size: Number(file.size || bytes.length || 0),
+      contentBase64: bytesToBase64Local(bytes)
+    };
+  }
+
+  async function submitWorkshopPublication() {
+    var userOk = !!(window.TM && TM.OnlineClient && TM.OnlineClient.isLoggedIn && TM.OnlineClient.isLoggedIn());
+    var d = capturePublishDraft();
+    if (!userOk) { state.publishMessage = '请先登录账号再提交发布申请。'; render(); return; }
+    if (!(window.TM && TM.OnlineClient && TM.OnlineClient.uploadPack)) { state.publishMessage = '在线工坊上传模块未就绪。'; render(); return; }
+    var file = state.publishPackageFile;
+    if (!file) { state.publishMessage = '请先导入 .tm-pack 或 .zip 投稿资源包。'; render(); return; }
+    if (!/\.(tm-pack|zip)$/i.test(file.name || '')) { state.publishMessage = '投稿资源必须是 .tm-pack 或 .zip 压缩包。'; render(); return; }
+    if (!d.title) { state.publishMessage = '请填写商店标题。'; render(); return; }
+    if (!d.version) { state.publishMessage = '请填写版本号。'; render(); return; }
+    if (!d.desc) { state.publishMessage = '请填写商店简介。'; render(); return; }
+    state.publishMessage = '正在读取投稿资源包...';
+    render();
+    try {
+      var bytes = new Uint8Array(await file.arrayBuffer());
+      var cover = await imagePayload(state.publishCoverFile);
+      var galleryFiles = (state.publishGalleryFiles || []).slice(0, 6);
+      var gallery = [];
+      for (var i = 0; i < galleryFiles.length; i++) gallery.push(await imagePayload(galleryFiles[i]));
+      var type = state.pubType || 'mod';
+      var meta = {
+        title: d.title,
+        id: '',
+        version: d.version || '1.0.0',
+        description: d.desc || '',
+        type: type,
+        tags: d.tags || '',
+        filename: file.name || 'workshop-pack.zip',
+        packageKind: 'direct-package',
+        releaseNotes: d.notes || '',
+        assets: [{ name: publishFileBaseName(file) || d.title }],
+        coverImage: cover,
+        galleryImages: gallery
+      };
+      if (state.forkSource && state.forkSource.id) meta.parentId = state.forkSource.id;
+      state.publishMessage = '正在提交发布申请...';
+      render();
+      var res = await TM.OnlineClient.uploadPack(meta, bytesToBase64Local(bytes), state.onlineApiUrl || undefined);
+      if (res && res.success) {
+        state.forkSource = null;
+        autoPostPublish((res.pack && res.pack.title) || d.title, type, res.pack && res.pack.id);
+        state.publishMessage = '已提交发布申请：' + ((res.pack && res.pack.title) || d.title) + '（待审核）。';
+        await loadWorkshopCatalog();
+      } else {
+        state.publishMessage = '提交失败：' + ((res && res.error) || '未知错误');
+        render();
+      }
+    } catch (e) {
+      state.publishMessage = '提交失败：' + (e && e.message || '读取资源包失败');
+      render();
+    }
+  }
+
+  function resetPublicationDraft() {
+    revokeObjectUrl(state.publishCoverUrl);
+    (state.publishGalleryUrls || []).forEach(revokeObjectUrl);
+    state.publishDraft = { version: '1.0.0', title: '', tags: '', desc: '', notes: '' };
+    state.publishPackageFile = null;
+    state.publishCoverFile = null;
+    state.publishCoverUrl = '';
+    state.publishGalleryFiles = [];
+    state.publishGalleryUrls = [];
+    state.publishMessage = '';
+    render();
+  }
+
   // P1-S2c：网页发布资产包（立绘/音乐/地图/MOD）—— 浏览器内打 store-zip + assets 清单 → uploadPack。
   async function webPublishAssetPack() {
     if (!(window.TM && TM.OnlineClient && TM.OnlineClient.isLoggedIn())) { state.publishMessage = '请先登录账号再发布。'; render(); return; }
@@ -4082,10 +4325,15 @@
     webPublishScenario: webPublishScenario,
     webPublishAssetPack: webPublishAssetPack,
     onAssetFiles: onAssetFiles,
+    onPublishPackageFile: onPublishPackageFile,
+    onPublishCoverFile: onPublishCoverFile,
+    onPublishGalleryFiles: onPublishGalleryFiles,
+    submitWorkshopPublication: submitWorkshopPublication,
+    resetPublicationDraft: resetPublicationDraft,
     clearFork: clearFork,
     aiDraftScenario: aiDraftScenario,
     useAiDraft: useAiDraft,
-    switchPubType: function(t){ state.pubType = t || 'scenario'; state.publishMessage = ''; render(); },
+    switchPubType: function(t){ capturePublishDraft(); state.pubType = t || 'mod'; state.publishMessage = ''; render(); },
     accountLogin: accountLogin,
     accountEmailCodeRequest: accountEmailCodeRequest,
     accountEmailLogin: accountEmailLogin,

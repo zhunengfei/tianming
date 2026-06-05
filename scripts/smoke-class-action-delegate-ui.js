@@ -40,6 +40,7 @@ const parties = [
 const people = [
   { id: 'char-qian', name: '\u94b1\u8c26\u76ca', office: '\u793c\u90e8\u4f8d\u90ce', party: '\u4e1c\u6797\u515a' }
 ];
+const nodes = {};
 const action = {
   id: 'pcact-ui-delegate',
   turn: 18,
@@ -95,7 +96,19 @@ const sandbox = {
   parseInt, parseFloat, isNaN, isFinite,
   setTimeout(fn) { if (typeof fn === 'function') fn(); },
   document: {
-    getElementById() { return null; },
+    getElementById(id) { return nodes[id] || null; },
+    createElement() {
+      return {
+        id: '',
+        className: '',
+        style: {},
+        addEventListener(){},
+        remove(){ if (this.id) delete nodes[this.id]; },
+        set innerHTML(v) { this._html = String(v || ''); },
+        get innerHTML() { return this._html || ''; }
+      };
+    },
+    body: { appendChild(node){ if (node && node.id) nodes[node.id] = node; } },
     querySelector() { return null; },
     addEventListener() {}
   },
@@ -165,9 +178,12 @@ const bridge = sandbox.TMPhase8FormalBridge;
 assert(bridge.rightrail && bridge.rightrail.renderers && typeof bridge.rightrail.renderers.ol === 'function', 'right rail outline renderer should load');
 
 const html = bridge.rightrail.renderers.ol();
-assert(html.includes('data-chain-kind="delegate"'), 'class social chain should include delegate step');
-assert(html.includes('\u4ee3\u7406\u4eba\u7269'), 'class action row should label delegate character');
-assert(html.includes('\u94b1\u8c26\u76ca'), 'class action row should show delegate character name');
-assert(html.includes('\u79d1\u4e3e\u5ef7\u8bae'), 'class action row should keep delegate evidence');
+assert(!html.includes('data-chain-kind="delegate"'), 'class card should not render delegate chain inline');
+bridge.rightrail.handleRightPanelAction('outline-select', { type: 'class', key: '\u58eb\u7ec5' });
+const detailHtml = nodes['tm-social-detail-flyout'] && nodes['tm-social-detail-flyout'].innerHTML || '';
+assert(detailHtml.includes('data-chain-kind="delegate"'), 'class detail chain should include delegate step');
+assert(detailHtml.includes('\u4ee3\u7406\u4eba\u7269'), 'class detail action row should label delegate character');
+assert(detailHtml.includes('\u94b1\u8c26\u76ca'), 'class detail action row should show delegate character name');
+assert(detailHtml.includes('\u79d1\u4e3e\u5ef7\u8bae'), 'class detail action row should keep delegate evidence');
 
 console.log('[smoke-class-action-delegate-ui] PASS class action delegate UI chain');

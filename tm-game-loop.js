@@ -2122,11 +2122,15 @@ function showCharPopup(charName, evt) {
   _positionCharPopup(popup, evt);
 
   // 点击外部关闭
+  _installCharPopupOutsideClose(popup);
+}
+
+function _installCharPopupOutsideClose(popup) {
   setTimeout(function() {
-    function _closePopup(e) {
-      if (!popup.contains(e.target)) { popup.remove(); document.removeEventListener('mousedown', _closePopup); }
+    function closePopup(e) {
+      if (!popup.contains(e.target)) { popup.remove(); document.removeEventListener('mousedown', closePopup); }
     }
-    document.addEventListener('mousedown', _closePopup);
+    document.addEventListener('mousedown', closePopup);
   }, 50);
 }
 
@@ -2186,12 +2190,7 @@ function _showCharNotFoundPopup(charName, evt) {
   popup.style.maxWidth = Math.min(340, window.innerWidth - 24) + 'px';
   document.body.appendChild(popup);
   _positionCharPopup(popup, evt);
-  setTimeout(function() {
-    function _closePopup(e) {
-      if (!popup.contains(e.target)) { popup.remove(); document.removeEventListener('mousedown', _closePopup); }
-    }
-    document.addEventListener('mousedown', _closePopup);
-  }, 50);
+  _installCharPopupOutsideClose(popup);
 }
 
 /** 查找档案·调 crystallizePendingCharacter·成功后自动弹出 showCharPopup */

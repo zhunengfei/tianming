@@ -166,6 +166,9 @@ const ALIAS_REGION = '\u5e7f\u5b81';
 const ALIAS_GOV = '\u5b59\u627f\u5b97';
 const ALIAS_OFFICE = '\u7ecf\u7565';
 const ALIAS_COMMANDER = '\u8d75\u7387\u6559';
+const SPARSE_REGION = '\u6d77\u897f\u8bd5\u5730';
+const UNOWNED_REGION = '\u65e0\u4e3b\u8bd5\u5730';
+const EMPTY_FACTION_LABEL = '\u7a7a\u767d\u8bd5\u52bf';
 
 const sandbox = loadGame();
 installTrackedDom(sandbox);
@@ -280,6 +283,9 @@ sandbox.GM.provinceStats = {
     supply: 'LIVE supply field 912',
       minxin: 33,
       corruption: 66,
+      wealth: 72,
+      development: 58,
+      unrest: 27,
       prosperity: 67,
       carryingCapacity: 6789,
       baojia: 'LIVE baojia field 918',
@@ -304,7 +310,10 @@ sandbox.GM.provinceStats = {
     bySettlement: 'LIVE settlement field 917',
     tradeRoutes: LIVE_TRADE,
     recentDisasters: LIVE_DISASTER,
-    threats: LIVE_THREAT
+    threats: LIVE_THREAT,
+    moneyOutput: 4321,
+    grainOutput: 1234,
+    militaryRecruits: 456
   }
 };
 sandbox.GM.adminHierarchy = {
@@ -386,6 +395,11 @@ sandbox.GM.facs = [{
   economy: 88,
   militaryStrength: 4567
 }];
+sandbox.GM.facs.push({
+  id: 'empty-faction',
+  name: EMPTY_FACTION_LABEL,
+  label: EMPTY_FACTION_LABEL
+});
 sandbox.GM.armies = [{
   id: 'army-live-houjin',
   name: '\u540e\u91d1\u6b63\u9ec4\u65d7',
@@ -475,11 +489,13 @@ assertNone(regionHtml, [
   'OLD region type field 121'
 ], 'region overview');
 
-assertAll(regionTab('mood'), ['9000', '2100', '3100', '41', '52', '33', '67', '6789', 'LIVE baojia field 918', 'LIVE gender field 919', 'LIVE age field 920', 'LIVE ethnicity field 921', 'LIVE faith field 922', 'LIVE settlement field 917', 'LIVE temple field 916', LIVE_DISASTER], 'region mood tab');
-assertAll(regionTab('tax'), ['999', '777', '778', '779', '82%', '18%', 'LIVE fiscal autonomy field 925', 'LIVE tax burden field 934', '8765', '3210', '9876', 'LIVE tax level field 924'], 'region tax tab');
-assertAll(regionTab('army'), ['1234', '77', '78', LIVE_COMMANDER, 'LIVE border field 911', 'LIVE supply field 912', LIVE_STRATEGIC, LIVE_THREAT, LIVE_TRADE, '976', '977', '975', 'LIVE navy field 931'], 'region army tab');
+assertAll(regionTab('mood'), ['9000', '2100', '3100', '41', '52', '33', '67', '72', '58', '27', '6789', 'LIVE baojia field 918', 'LIVE gender field 919', 'LIVE age field 920', 'LIVE ethnicity field 921', 'LIVE faith field 922', 'LIVE settlement field 917', 'LIVE temple field 916', LIVE_DISASTER], 'region mood tab');
+assertAll(regionTab('tax'), ['999', '777', '778', '779', '82%', '18%', 'LIVE fiscal autonomy field 925', 'LIVE tax burden field 934', '8765', '3210', '9876', '4321', '1234', 'LIVE tax level field 924'], 'region tax tab');
+assertAll(regionTab('army'), ['1234', '77', '78', '456', LIVE_COMMANDER, 'LIVE border field 911', 'LIVE supply field 912', LIVE_STRATEGIC, LIVE_THREAT, LIVE_TRADE, '976', '977', '975', 'LIVE navy field 931'], 'region army tab');
 assertAll(regionTab('office'), ['LIVE office field 910', LIVE_OFFICIAL, 'LIVE vacancy field 923', '66', 'LIVE execution field 913', 'LIVE local faction field 914', LIVE_GENTRY, 'LIVE academy field 915', 'LIVE tax level field 924', 'LIVE keju field 932', 'LIVE zhizao field 933', 'LIVE note field 930'], 'region office tab');
-assertAll(regionTab('owner'), [LIVE_HOUJIN_LABEL, HOUJIN, 'LIVE dejure field 926', 'LIVE controller key field 927', 'LIVE core field 928', 'LIVE owner history field 929'], 'region owner tab');
+const ownerTabHtml = regionTab('owner');
+assertAll(ownerTabHtml, [LIVE_HOUJIN_LABEL, HOUJIN, 'LIVE dejure field 926', 'LIVE core field 928', 'LIVE owner history field 929'], 'region owner tab');
+assertNone(ownerTabHtml, ['LIVE controller key field 927', '\u52bf\u529b\u952e', '\u5b9e\u9645\u63a7\u5236\u952e', '\u5730\u56fe\u52bf\u529b ID', '\u8fd0\u884c\u6001\u52bf\u529b ID'], 'region owner technical fields');
 const allRegionTabsHtml = ['overview', 'mood', 'tax', 'army', 'office', 'owner'].map(regionTab).join('\n');
 assertNone(allRegionTabsHtml, [OLD_TERRAIN, OLD_RESOURCE, OLD_CULTURE, OLD_STRATEGIC, OLD_COMMANDER, OLD_THREAT, OLD_TRADE, OLD_DISASTER, OLD_GENTRY, 'OLD office field 110', '555', 'OLD supply field 111', 'OLD border field 112', 'OLD execution field 113', 'OLD local faction field 114', 'OLD fiscal autonomy field 118', 'OLD tax burden field 119', 'OLD controller key field 120'], 'region all tabs');
 
@@ -500,6 +516,27 @@ assertAll(factionTab('relations'), [LIVE_FACTION_RELATIONS, 'LIVE allies field 9
 assertAll(factionTab('records'), ['LIVE description field 969', 'LIVE history field 970', 'LIVE events field 971', 'LIVE ai profile field 972', 'LIVE long strategy field 973', 'LIVE victory field 974', 'LIVE defeat field 975'], 'faction records tab');
 const allFactionTabsHtml = ['overview', 'territory', 'military', 'finance', 'relations', 'records'].map(factionTab).join('\n');
 assertNone(allFactionTabsHtml, [OLD_HOUJIN_LABEL, OLD_FACTION_GOAL, OLD_FACTION_RELATIONS, '\u65e7\u9996\u9886'], 'faction all tabs');
+assertNone(allFactionTabsHtml, ['\u56de\u5230\u8206\u56fe', '\u8f6c\u594f\u6863', '\u8f6c\u5fa1\u6848', '\u8d22\u8d4b\u9762\u677f'], 'faction weak actions');
+assertNone(allFactionTabsHtml, ['\u63a8\u6f14\u8bfb\u5199\u8d26\u672c', 'GM.mapData', 'P.mapData', '\u4fdd\u5b58\u8def\u5f84', 'AI \u53ef\u6539\u5b57\u6bb5', '\u5f53\u524d\u6807\u7b7e'], 'faction debug fields');
+
+sandbox.TMPhase8FormalBridge.openFactionByKey('empty-faction');
+const emptyFactionHtml = ppopHtml();
+assertAll(emptyFactionHtml, [EMPTY_FACTION_LABEL, 'data-pp-tab="overview"'], 'empty faction shell');
+assertNone(emptyFactionHtml, [
+  'data-pp-tab="territory"',
+  'data-pp-tab="military"',
+  'data-pp-tab="finance"',
+  'data-pp-tab="relations"',
+  'data-pp-tab="records"',
+  'pp-ledger-grid',
+  '\u6682\u65e0\u5730\u5757',
+  '\u5f53\u524d\u5730\u56fe\u672a\u627e\u5230\u5f52\u5c5e\u5730\u5757',
+  '\u6b64\u52bf\u529b\u6863\u6848\u5408\u5e76\u5730\u56fe\u5f52\u5c5e\u4e0e\u8fd0\u884c\u6001\u52bf\u529b\u6570\u636e',
+  '\u8be5\u52bf\u529b\u6863\u6848\u6765\u81ea\u5f53\u524d\u5267\u672c',
+  '\u5730\u56fe\u7f16\u53f7',
+  '\u8fd0\u884c\u6001\u7f16\u53f7',
+  '\u5730\u56fe\u52bf\u529b\u7f16\u53f7'
+], 'empty faction dead ui');
 
 sandbox.GM.mapData.regions.push({
   id: 'region-alias-guangning',
@@ -528,6 +565,54 @@ assertAll(aliasRegionHtml, [ALIAS_REGION, HOUJIN, ALIAS_GOV, ALIAS_OFFICE], 'reg
 assertNone(aliasRegionHtml, [OLD_OFFICIAL, 'OLD alias office field'], 'region alias overview');
 assertAll(regionTabById('region-alias-guangning', 'army'), ['3456', ALIAS_COMMANDER, 'ALIAS supply field'], 'region alias army tab');
 
+sandbox.GM.mapData.regions.push({
+  id: 'region-sparse-empty',
+  name: SPARSE_REGION,
+  ownerKey: 'houjin',
+  data: { name: SPARSE_REGION, ownerName: HOUJIN }
+});
+sandbox.TMPhase8FormalBridge.openRegionById('region-sparse-empty');
+const sparseRegionHtml = ppopHtml();
+assertAll(sparseRegionHtml, [SPARSE_REGION, LIVE_HOUJIN_LABEL, 'data-pp-tab="overview"', 'data-pp-tab="owner"'], 'sparse region shell');
+assertNone(sparseRegionHtml, [
+  'data-pp-tab="mood"',
+  'data-pp-tab="classPressure"',
+  'data-pp-tab="tax"',
+  'data-pp-tab="army"',
+  'data-pp-tab="office"',
+  '地方设施',
+  '地方底账',
+  'pp-ledger-grid',
+  'pp-dev-triplet',
+  '\u672a\u4efb',
+  '\u6b64\u5730\u6682\u65e0\u4e13\u95e8\u53d9\u8ff0',
+  '\u6b64\u5730\u5c1a\u65e0\u4e13\u95e8\u53d9\u8ff0',
+  '\u672a\u8bb0 ID',
+  '行政区划',
+  '转奏档',
+  '转御案',
+  '入史官'
+], 'sparse region dead ui');
+
+sandbox.GM.mapData.regions.push({
+  id: 'region-unowned-empty',
+  name: UNOWNED_REGION,
+  data: { name: UNOWNED_REGION }
+});
+sandbox.TMPhase8FormalBridge.openRegionById('region-unowned-empty');
+const unownedRegionHtml = ppopHtml();
+assertAll(unownedRegionHtml, [UNOWNED_REGION, 'data-pp-tab="overview"'], 'unowned region shell');
+assertNone(unownedRegionHtml, [
+  'data-pp-tab="owner"',
+  'data-pp-tab="mood"',
+  'data-pp-tab="classPressure"',
+  'data-pp-tab="tax"',
+  'data-pp-tab="army"',
+  'data-pp-tab="office"',
+  '\u672a\u8bb0',
+  '\u6253\u5f00\u52bf\u529b\u6863\u6848'
+], 'unowned region dead ui');
+
 sandbox.GM.armies.push({
   id: 'army-alias-commander',
   name: '\u522b\u540d\u519b',
@@ -550,6 +635,7 @@ assertAll(armyPanelHtml, ['\u522b\u540d\u519b', ALIAS_COMMANDER], 'right army pa
 const bridgeSource = fs.readFileSync(path.join(ROOT, 'phase8-formal-bridge.js'), 'utf8');
 const rightRailSource = fs.readFileSync(path.join(ROOT, 'phase8-formal-rightrail.js'), 'utf8');
 assert((bridgeSource + rightRailSource).includes("garrison: '驻防'"), 'right army detail should localize raw garrison state');
+assert(/validRegionMapTab[\s\S]*classPressure/.test(bridgeSource), 'openRegionTab should accept classPressure tab');
 
 console.log('[smoke-phase8-map-live-panels] PASS');
 process.exit(0);

@@ -1921,6 +1921,13 @@
     return t;
   }
 
+  function _firstNarrativeHit(text, keywords) {
+    for (var i = 0; i < keywords.length; i++) {
+      if (text.indexOf(keywords[i]) >= 0) return keywords[i];
+    }
+    return null;
+  }
+
   // ═══════════════════════════════════════════════════════════════════
   //  军事一致性校验器·Wave 1b
   //  扫『扩军/募兵/裁汰 N 万兵』vs GM.armies / military_changes
@@ -2207,13 +2214,9 @@
     // 战役结果动词
     var battleVerbs = ['大败','大捷','克复','陷落','失守','收复','破','突围','会战','激战','溃败','全军覆没','戍御','解围'];
 
-    function _hit(arr) {
-      for (var i = 0; i < arr.length; i++) if (narrative.indexOf(arr[i]) >= 0) return arr[i];
-      return null;
-    }
-    var startKw = _hit(warStartVerbs);
-    var endKw = _hit(warEndVerbs);
-    var battleKw = _hit(battleVerbs);
+    var startKw = _firstNarrativeHit(narrative, warStartVerbs);
+    var endKw = _firstNarrativeHit(narrative, warEndVerbs);
+    var battleKw = _firstNarrativeHit(narrative, battleVerbs);
     if (!startKw && !endKw && !battleKw) return;
 
     var warnings = [];
@@ -2256,12 +2259,8 @@
     var revoltStartVerbs = ['起事','起义','造反','反叛','暴动','聚众','啸聚','揭竿','作乱','民变','匪乱','盗起','贼起','倡乱','倡反','倡叛','流寇'];
     var revoltEndVerbs = ['镇压','平定','剿','扑灭','招抚','宣抚','讨平','戡定','平息','靖','勘平'];
 
-    function _hit(arr) {
-      for (var i = 0; i < arr.length; i++) if (narrative.indexOf(arr[i]) >= 0) return arr[i];
-      return null;
-    }
-    var startKw = _hit(revoltStartVerbs);
-    var endKw = _hit(revoltEndVerbs);
+    var startKw = _firstNarrativeHit(narrative, revoltStartVerbs);
+    var endKw = _firstNarrativeHit(narrative, revoltEndVerbs);
     if (!startKw && !endKw) return;
 
     var warnings = [];
@@ -3177,17 +3176,6 @@
     });
   }
   global._applyRegentDecisions = _applyRegentDecisions;
-
-  function _tmGateReason(label, reason, item) {
-    var payload = { label: label || '', reason: reason || '', item: item || null };
-    try { if (typeof global.recordAIDiagnostic === 'function') global.recordAIDiagnostic('write_gate', payload); } catch(_) {}
-    try {
-      if (typeof global.addEB === 'function') {
-        global.addEB('AI会签', '【拦截】' + (label || '写回') + '：' + (reason || '字段不足'));
-      }
-    } catch(_) {}
-    return false;
-  }
 
   function _tmExistsChar(G, name) {
     if (!name) return null;

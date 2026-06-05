@@ -23,6 +23,7 @@ function esc(v) {
 
 const playerSignals = [];
 const toasts = [];
+const nodes = {};
 const classes = [
   {
     name: 'Farmers',
@@ -110,7 +111,19 @@ const sandbox = {
   Array, Object, String, Number, Boolean,
   parseInt, parseFloat, isNaN, isFinite,
   setTimeout: (fn) => { if (typeof fn === 'function') fn(); return 1; },
-  document: { getElementById: () => null, createElement: () => ({ addEventListener(){}, remove(){}, style: {} }), body: { appendChild(){} } },
+  document: {
+    getElementById: (id) => nodes[id] || null,
+    createElement: () => ({
+      id: '',
+      className: '',
+      style: {},
+      addEventListener(){},
+      remove(){ if (this.id) delete nodes[this.id]; },
+      set innerHTML(v) { this._html = String(v || ''); },
+      get innerHTML() { return this._html || ''; }
+    }),
+    body: { appendChild(node){ if (node && node.id) nodes[node.id] = node; } }
+  },
   window: {
     TMPhase8FormalBridge: bridge,
     GM: null,
@@ -163,27 +176,45 @@ assert(/\.tmrp-social-chain/.test(bridgeSource), 'social cause chain should have
 assert(/\.tmrp-chain-step/.test(bridgeSource), 'social chain steps should have explicit button styling');
 
 let html = bridge.rightrail.renderers.ol();
-assert(/tmrp-social-cause/.test(html), 'class card should render near-cause entries');
-assert(/fiscal-peasant-burden/.test(html) || /tax pressure/.test(html), 'class near-cause should include signal or turn-change reason');
-assert(/data-right-action="social-action"/.test(html), 'class card should expose social intervention actions');
-assert(/data-actor-type="class"/.test(html), 'class action should identify class actor type');
-assert(/data-social-command="chaoyi"/.test(html), 'class card should expose court-agenda action');
-assert(/data-social-command="edict"/.test(html), 'class card should expose edict action');
-assert(/tmrp-social-chain/.test(html), 'class card should render clickable social cause chain');
-assert(/data-right-action="social-chain"/.test(html), 'social chain entries should be clickable right-rail actions');
-assert(/data-chain-kind="demand"/.test(html), 'social chain should include demand source');
-assert(/data-chain-kind="party"/.test(html), 'social chain should include supporting party');
-assert(/data-chain-kind="issue"/.test(html), 'social chain should include related court issue');
-assert(/data-chain-kind="ruling"/.test(html), 'social chain should include recent ruling');
-assert(/data-chain-kind="risk"/.test(html), 'social chain should include follow-up risk');
+assert(/data-right-action="outline-select"/.test(html), 'class card should remain clickable into detail flyout');
+assert(!/tmrp-social-cause/.test(html), 'class card should not render near-cause entries inline');
+assert(!/tmrp-social-chain/.test(html), 'class card should not render cause chain inline');
+assert(!/data-right-action="social-action"/.test(html), 'class card should not expose intervention actions inline');
+assert(!/fiscal-peasant-burden|tax pressure|reduce emergency levy/.test(html), 'class card should localize or hide raw cause/demand English');
+
+bridge.rightrail.handleRightPanelAction('outline-select', { type: 'class', key: 'Farmers' });
+let detailHtml = nodes['tm-social-detail-flyout'] && nodes['tm-social-detail-flyout'].innerHTML || '';
+assert(/tm-social-detail-flyout/.test(nodes['tm-social-detail-flyout'].className || ''), 'class click should open the social detail flyout');
+assert(/tmrp-social-cause/.test(detailHtml), 'class detail flyout should render near-cause entries');
+assert(/财政民负/.test(detailHtml) || /税负压力/.test(detailHtml), 'class detail flyout should localize signal or turn-change reason');
+assert(/data-right-action="social-action"/.test(detailHtml), 'class detail flyout should expose social intervention actions');
+assert(/data-actor-type="class"/.test(detailHtml), 'class action should identify class actor type');
+assert(/data-social-command="chaoyi"/.test(detailHtml), 'class detail should expose court-agenda action');
+assert(/data-social-command="edict"/.test(detailHtml), 'class detail should expose edict action');
+assert(/tmrp-social-chain/.test(detailHtml), 'class detail should render clickable social cause chain');
+assert(/data-right-action="social-chain"/.test(detailHtml), 'social chain entries should be clickable right-rail actions');
+assert(/data-chain-kind="demand"/.test(detailHtml), 'social chain should include demand source');
+assert(/data-chain-kind="party"/.test(detailHtml), 'social chain should include supporting party');
+assert(/data-chain-kind="issue"/.test(detailHtml), 'social chain should include related court issue');
+assert(/data-chain-kind="ruling"/.test(detailHtml), 'social chain should include recent ruling');
+assert(/data-chain-kind="risk"/.test(detailHtml), 'social chain should include follow-up risk');
+assert(!/fiscal-peasant-burden|tax pressure|reduce emergency levy/.test(detailHtml), 'class detail should not leak raw English slugs');
 
 bridge._state.rightOutlineTab = 'parties';
 html = bridge.rightrail.renderers.ol();
-assert(/tmrp-social-cause/.test(html), 'party card should render near-cause entries');
-assert(/Relief Party/.test(html) && /carry rural relief/.test(html), 'party card should include agenda/goal evidence');
-assert(/data-actor-type="party"/.test(html), 'party action should identify party actor type');
-assert(/data-social-command="audience"/.test(html), 'party card should expose audience action');
-assert(/tmrp-social-chain/.test(html) && /data-chain-kind="issue"/.test(html), 'party card should render social cause chain with issue link');
+assert(/data-right-action="outline-select"/.test(html), 'party card should remain clickable into detail flyout');
+assert(!/tmrp-social-cause/.test(html), 'party card should not render near-cause entries inline');
+assert(!/tmrp-social-chain/.test(html), 'party card should not render cause chain inline');
+assert(!/carry rural relief/.test(html), 'party card should not leak raw agenda English');
+
+bridge.rightrail.handleRightPanelAction('outline-select', { type: 'party', key: 'Relief Party' });
+detailHtml = nodes['tm-social-detail-flyout'] && nodes['tm-social-detail-flyout'].innerHTML || '';
+assert(/tmrp-social-cause/.test(detailHtml), 'party detail flyout should render near-cause entries');
+assert(/Relief Party/.test(detailHtml) && /推动乡里纾困/.test(detailHtml), 'party detail should include localized agenda/goal evidence');
+assert(/data-actor-type="party"/.test(detailHtml), 'party action should identify party actor type');
+assert(/data-social-command="audience"/.test(detailHtml), 'party detail should expose audience action');
+assert(/tmrp-social-chain/.test(detailHtml) && /data-chain-kind="issue"/.test(detailHtml), 'party detail should render social cause chain with issue link');
+assert(!/carry rural relief|rural burden became party agenda/.test(detailHtml), 'party detail should not leak raw English causes');
 
 bridge.rightrail.handleRightPanelAction('social-chain', {
   actorType: 'class',

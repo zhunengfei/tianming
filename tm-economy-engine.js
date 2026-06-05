@@ -1138,7 +1138,10 @@
     { id:'shui_li',       name:'兴水利',      scarReduce:{ waterTableDrop:0.02 },     cost:{ money:100000 } },
     { id:'ken_huang',     name:'垦荒（慎）',  effect:{ farmlandBoost:+0.05 },         cost:{ money:40000 }, risk:{ deforestation:+0.01 } },
     { id:'yu_huang',      name:'育皇林',      scarReduce:{ biodiversityLoss:0.01 },   cost:{ money:25000 } },
-    { id:'jing_wei',      name:'净渭清畿',    scarReduce:{ urbanSewageOverload:0.03 },cost:{ money:50000 } }
+    { id:'jing_wei',      name:'净渭清畿',    scarReduce:{ urbanSewageOverload:0.03 },cost:{ money:50000 } },
+    { id:'migration_relief', name:'迁民减压', scarReduce:{ soilErosion:0.045, deforestation:0.03, urbanSewageOverload:0.02 }, effect:{ migrateShare:0.10, loadRelief:0.10 }, cost:{ money:120000, grain:60000 }, duration:36 },
+    { id:'tech_investment', name:'技术投入', scarReduce:{ waterTableDrop:0.012, riverSilting:0.012, soilFertilityLoss:0.008 }, effect:{ techBoost:{ irrigation:0.25, agriculture:0.15, fertilizer:0.12, toolImprovement:0.10 }, carryingBoost:0.03 }, cost:{ money:160000 }, duration:36 },
+    { id:'disaster_recovery', name:'灾后恢复', scarReduce:{ soilErosion:0.035, riverSilting:0.025, soilFertilityLoss:0.035, salinization:0.018 }, effect:{ arableRestore:0.08, soilFertilityBoost:0.05, disasterRecovery:0.18 }, cost:{ money:140000, grain:50000 }, duration:30 }
   ];
 
   // ═══════════════════════════════════════════════════════════════════
@@ -1338,6 +1341,9 @@
             reg.ecoScars[sk] = Math.max(0, reg.ecoScars[sk] - policy.scarReduce[sk] * mr / 12);
           });
         }
+        if (policy && policy.effect && policy.effect.loadRelief) {
+          reg.currentLoad = Math.max(0.05, (reg.currentLoad || 0.5) - policy.effect.loadRelief * mr / 24);
+        }
       });
       _recomputeRegionCarrying(rid, reg);
     });
@@ -1454,11 +1460,136 @@
   //  Ⅶ 玩家环境政策
   // ═══════════════════════════════════════════════════════════════════
 
+  function _envRegionIds(regionId) {
+    var E = global.GM && global.GM.environment;
+    if (!E || !E.byRegion) return [];
+    if (regionId && regionId !== 'all' && E.byRegion[regionId]) return [regionId];
+    return Object.keys(E.byRegion);
+  }
+
+  function _findEnvReceivingRegion(fromId) {
+    var E = global.GM && global.GM.environment;
+    if (!E || !E.byRegion) return null;
+    var best = null;
+    Object.keys(E.byRegion).forEach(function(rid) {
+      if (rid === fromId) return;
+      var reg = E.byRegion[rid] || {};
+      if (!best || (reg.currentLoad || 0.5) < (E.byRegion[best].currentLoad || 0.5)) best = rid;
+    });
+    return best;
+  }
+
+  function _pushEnvPolicyHistory(entry) {
+    var E = global.GM && global.GM.environment;
+    if (!E) return;
+    if (!Array.isArray(E.policyHistory)) E.policyHistory = [];
+    E.policyHistory.push(entry);
+    if (E.policyHistory.length > 120) E.policyHistory.splice(0, E.policyHistory.length - 120);
+  }
+
+  function _applyPolicyImmediateEffect(policy, policyId, regionId) {
+    var G = global.GM;
+    var E = G && G.environment;
+    if (!G || !E || !E.byRegion || !policy) return { regions: [] };
+    var effect = policy.effect || {};
+    var summary = { regions: [], migrated: 0, techBoosted: 0, restored: 0 };
+    _envRegionIds(regionId).forEach(function(rid) {
+      var reg = E.byRegion[rid];
+      if (!reg) return;
+      var row = { regionId: rid };
+
+      if (effect.migrateShare && G.population && G.population.byRegion && G.population.byRegion[rid]) {
+        var pop = G.population.byRegion[rid];
+        var amount = Math.max(0, Math.round((pop.mouths || 0) * effect.migrateShare));
+        var destId = _findEnvReceivingRegion(rid);
+        if (amount > 0 && destId && G.population.byRegion[destId]) {
+          pop.mouths = Math.max(0, (pop.mouths || 0) - amount);
+          pop.households = Math.max(0, Math.round((pop.households || 0) - amount / 5));
+          pop.ding = Math.max(0, Math.round((pop.ding || 0) - amount * 0.3));
+          pop.yearlyNetMigration = (pop.yearlyNetMigration || 0) - amount;
+          var dst = G.population.byRegion[destId];
+          dst.mouths = (dst.mouths || 0) + amount;
+          dst.households = Math.round((dst.households || 0) + amount / 5);
+          dst.ding = Math.round((dst.ding || 0) + amount * 0.3);
+          dst.yearlyNetMigration = (dst.yearlyNetMigration || 0) + amount;
+          row.migrated = amount;
+          row.toRegionId = destId;
+          summary.migrated += amount;
+        }
+      }
+
+      if (policy.scarReduce) {
+        row.scarImmediate = {};
+        Object.keys(policy.scarReduce).forEach(function(sk) {
+          var beforeScar = reg.ecoScars[sk] || 0;
+          reg.ecoScars[sk] = Math.max(0, beforeScar - policy.scarReduce[sk] * 0.5);
+          row.scarImmediate[sk] = beforeScar - reg.ecoScars[sk];
+        });
+      }
+
+      if (effect.techBoost) {
+        if (!reg.techLevel) reg.techLevel = {};
+        Object.keys(effect.techBoost).forEach(function(k) {
+          reg.techLevel[k] = (reg.techLevel[k] || 1) + effect.techBoost[k];
+          summary.techBoosted += 1;
+        });
+        row.techBoost = Object.assign({}, effect.techBoost);
+      }
+
+      if (effect.carryingBoost) {
+        reg.arableArea = (reg.arableArea || 500000) * (1 + effect.carryingBoost);
+        reg.forestArea = (reg.forestArea || 500000) * (1 + effect.carryingBoost / 2);
+        row.carryingBoost = effect.carryingBoost;
+      }
+
+      if (effect.arableRestore) {
+        var beforeArable = reg.arableArea || 500000;
+        reg.arableArea = beforeArable * (1 + effect.arableRestore);
+        row.arableRestored = Math.round(reg.arableArea - beforeArable);
+        summary.restored += row.arableRestored;
+      }
+
+      if (effect.soilFertilityBoost) {
+        reg.soilFertility = Math.min(1.2, (reg.soilFertility || 0.85) + effect.soilFertilityBoost);
+        row.soilFertilityBoost = effect.soilFertilityBoost;
+      }
+
+      if (effect.disasterRecovery) {
+        var mapRegion = (G.regions || []).find(function(r) { return r && r.id === rid; });
+        if (mapRegion) {
+          mapRegion.disasterLevel = Math.max(0, (mapRegion.disasterLevel || 0) - effect.disasterRecovery);
+          mapRegion.unrest = Math.max(0, (mapRegion.unrest || 0) - Math.round(effect.disasterRecovery * 20));
+        }
+        row.disasterRecovery = effect.disasterRecovery;
+      }
+
+      if (effect.loadRelief) {
+        reg.currentLoad = Math.max(0.05, (reg.currentLoad || 0.5) - effect.loadRelief);
+        row.loadRelief = effect.loadRelief;
+      }
+
+      _recomputeRegionCarrying(rid, reg);
+      summary.regions.push(row);
+    });
+    _recomputeNationalCarrying();
+    _pushEnvPolicyHistory({
+      turn: G.turn || 0,
+      policyId: policyId,
+      name: policy.name,
+      regionId: regionId || 'all',
+      immediate: summary,
+      cost: Object.assign({}, policy.cost || {})
+    });
+    return summary;
+  }
+
   function enactPolicy(policyId, regionId) {
     var policy = ENV_POLICIES.find(function(p) { return p.id === policyId; });
-    if (!policy) return { ok: false };
+    if (!policy) return { ok: false, reason: 'unknown policy' };
     var E = global.GM.environment;
     if (!E) return { ok: false };
+    if (!Array.isArray(E.activePolicies)) E.activePolicies = [];
+    if (!Array.isArray(E.policyHistory)) E.policyHistory = [];
     // 扣钱
     var cost = policy.cost || {};
     if (cost.money && global.GM.guoku) {
@@ -1468,13 +1599,17 @@
     if (cost.grain && global.GM.guoku) {
       global.GM.guoku.grain = Math.max(0, (global.GM.guoku.grain || 0) - cost.grain);
     }
-    // 加入活跃政策（持续 24 回合 2 年）
+    var immediate = _applyPolicyImmediateEffect(policy, policyId, regionId || 'all');
+    // 加入活跃政策（默认持续 24 回合，重点政策可自定）
     E.activePolicies.push({
       id: policyId, regionId: regionId || 'all',
-      startTurn: global.GM.turn || 0, duration: 24
+      name: policy.name,
+      startTurn: global.GM.turn || 0, duration: policy.duration || 24,
+      cost: Object.assign({}, cost),
+      immediate: immediate
     });
     if (global.addEB) global.addEB('环政', '推行 ' + policy.name + (regionId ? '（' + regionId + '）' : '（全国）'));
-    return { ok: true };
+    return { ok: true, policyId: policyId, name: policy.name, regionId: regionId || 'all', immediate: immediate };
   }
 
   function _cleanExpiredPolicies(ctx) {

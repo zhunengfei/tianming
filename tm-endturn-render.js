@@ -670,6 +670,94 @@ function _endTurn_render(shizhengji, zhengwen, playerStatus, playerInner, edicts
     }
     var hasArmies = Array.isArray(GM.armies) && GM.armies.length > 0;
     if (battles.length === 0 && !hasArmies) return;
+    function _battleText(v) {
+      return String(v == null ? '' : v).trim();
+    }
+    function _battleSame(a, b) {
+      a = _battleText(a).replace(/\s+/g, '').toLowerCase();
+      b = _battleText(b).replace(/\s+/g, '').toLowerCase();
+      return !!(a && b && a === b);
+    }
+    function _battleArmyCommander(a) {
+      return _battleText(a && (a.commander || a.commanderName || a.general || a.generalName || a.leader || a.leaderName || a.chiefCommander || a.mainGeneral));
+    }
+    function _battleArmyName(a) {
+      return _battleText(a && (a.name || a.army || a.armyName || a.label || a.id || a.armyId));
+    }
+    function _battleFindArmy(row) {
+      if (!Array.isArray(GM.armies)) return null;
+      row = row || {};
+      var refs = [row.armyId, row.id, row.army, row.name, row.armyName, row.ref, row.target].map(_battleText).filter(Boolean);
+      for (var i = 0; i < GM.armies.length; i += 1) {
+        var a = GM.armies[i] || {};
+        var keys = [a.id, a.armyId, a.name, a.army, a.armyName, a.label].map(_battleText).filter(Boolean);
+        if (refs.some(function(r){ return keys.some(function(k){ return _battleSame(r, k); }); })) return a;
+      }
+      var commander = _battleText(row.commander || (row.commanderFate && row.commanderFate.name));
+      if (commander) {
+        for (var j = 0; j < GM.armies.length; j += 1) {
+          if (_battleSame(_battleArmyCommander(GM.armies[j]), commander)) return GM.armies[j];
+        }
+      }
+      return null;
+    }
+    function _battleOutcomeLabel(outcome) {
+      outcome = _battleText(outcome).toLowerCase();
+      if (!outcome) return '';
+      if (outcome === 'killed' || outcome === 'dead') return '主将阵亡';
+      if (outcome === 'captured') return '主将被俘';
+      if (outcome === 'injured') return '主将负伤';
+      if (outcome === 'fled') return '主将遁走';
+      if (outcome === 'surrendered') return '主将降附';
+      if (outcome === 'survived') return '主将无恙';
+      return outcome;
+    }
+    function _battleStateLabel(state) {
+      state = _battleText(state).toLowerCase();
+      if (!state) return '';
+      if (state === 'routed') return '溃退';
+      if (state === 'disbanded') return '溃散';
+      if (state === 'garrison') return '收兵驻守';
+      if (state === 'marching') return '行军转进';
+      if (state === 'sieging') return '围城未解';
+      return state;
+    }
+    function _battleSideLabel(side) {
+      side = _battleText(side).toLowerCase();
+      if (side === 'attacker') return '攻方';
+      if (side === 'defender') return '守方';
+      return '';
+    }
+    function _battleInferFate(row, liveArmy) {
+      row = row || {};
+      var explicit = _battleText(row.fate || row.destiny || row.result || row.outcome);
+      if (explicit) return explicit;
+      var cf = row.commanderFate || (liveArmy && liveArmy.commanderFate ? { outcome: liveArmy.commanderFate } : null);
+      var cfLabel = cf && _battleOutcomeLabel(cf.outcome || cf.result || cf.fate);
+      var stateLabel = _battleStateLabel(row.state || row.stateAfter || (liveArmy && liveArmy.state));
+      var loss = Number(row.casualties != null ? row.casualties : (row.loss != null ? row.loss : row.soldiersLost));
+      if (!isFinite(loss)) loss = 0;
+      if (stateLabel && cfLabel) return stateLabel + ' · ' + cfLabel;
+      if (stateLabel) return stateLabel;
+      if (cfLabel) return cfLabel;
+      if (row.routed || (liveArmy && liveArmy.routed)) return '溃退';
+      if (row.disbanded || (liveArmy && liveArmy.disbanded)) return '溃散';
+      if (loss > 0) return '受创';
+      var side = _battleText(row.side).toLowerCase();
+      var faction = _battleText(row.faction || row.owner || (liveArmy && (liveArmy.faction || liveArmy.owner)));
+      if (faction && _battleSame(faction, b.winner || b.winnerFactionId || b.winnerFaction)) return '胜后保全';
+      if (faction && _battleSame(faction, b.loser || b.loserFactionId || b.loserFaction)) return '败后整顿';
+      if (side === 'attacker' || side === 'defender') return _battleSideLabel(side) + '保全';
+      return '在阵';
+    }
+    function _battleAttribution(row, liveArmy) {
+      row = row || {};
+      var v = _battleText(row.attribution || row.cause || row.reason || row.source);
+      if (v) return v;
+      if (row.commanderFate || (liveArmy && liveArmy.commanderFate)) return 'commander';
+      if (liveArmy && (liveArmy.owner || liveArmy.faction)) return 'state';
+      return row.side ? row.side : 'state';
+    }
 
     var _sectTitle = battles.length > 0 ? '\u2694\uFE0F \u6218\u51B5' : '\u2694\uFE0F \u5175\u5907';
     battleVisHtml = '<div class="turn-section"><h3>' + _sectTitle + '</h3>';
@@ -734,26 +822,34 @@ function _endTurn_render(shizhengji, zhengwen, playerStatus, playerInner, edicts
         });
         battleVisHtml += '</tr>';
         b.affectedArmies.forEach(function(army) {
-          var fate = String(army.fate || '');
+          army = army || {};
+          var liveArmy = _battleFindArmy(army);
+          var armyName = _battleText(army.name || army.army || army.armyName || army.label) ||
+                         _battleText(liveArmy && (liveArmy.name || liveArmy.army || liveArmy.armyName || liveArmy.label)) ||
+                         _battleArmyName(army) || _battleArmyName(liveArmy) || '未识别军队';
+          var commanderName = _battleText(army.commander || (army.commanderFate && army.commanderFate.name)) || _battleArmyCommander(liveArmy);
+          var fate = _battleInferFate(army, liveArmy);
           var fateColor = fate.indexOf('\u6E83\u706D') >= 0 ? 'var(--vermillion-500,#dc2626)' :
                           fate.indexOf('\u6E83') >= 0 ? 'var(--vermillion-400,#ef4444)' :
                           fate.indexOf('\u4F24') >= 0 ? 'var(--amber-400,#f59e0b)' :
                           fate.indexOf('\u4FDD') >= 0 || fate.indexOf('\u80DC') >= 0 ? 'var(--celadon-400,#84cc16)' :
                           'var(--text,#fff)';
           var attrMap = { commander:'\u4E3B\u5C06', leader:'\u7EDF\u5E05', local:'\u5730\u65B9', throne:'\u5FA1\u8425', banner:'\u65D7\u4E0B', state:'\u56FD\u5BB6' };
-          var attrLabel = attrMap[army.attribution] || army.attribution || '?';
-          var attrBg = army.attribution === 'commander' ? 'rgba(220,80,80,0.2)' :
-                       army.attribution === 'leader'    ? 'rgba(220,180,80,0.2)' :
-                       army.attribution === 'local'     ? 'rgba(120,180,120,0.2)' :
-                       army.attribution === 'throne'    ? 'rgba(220,180,80,0.3)' :
-                       army.attribution === 'banner'    ? 'rgba(180,120,180,0.2)' :
-                       army.attribution === 'state'     ? 'rgba(120,120,180,0.2)' : 'rgba(150,150,150,0.2)';
+          var attribution = _battleAttribution(army, liveArmy);
+          var attrLabel = attrMap[attribution] || _battleSideLabel(attribution) || attribution || '战况';
+          var attrBg = attribution === 'commander' ? 'rgba(220,80,80,0.2)' :
+                       attribution === 'leader'    ? 'rgba(220,180,80,0.2)' :
+                       attribution === 'local'     ? 'rgba(120,180,120,0.2)' :
+                       attribution === 'throne'    ? 'rgba(220,180,80,0.3)' :
+                       attribution === 'banner'    ? 'rgba(180,120,180,0.2)' :
+                       attribution === 'state'     ? 'rgba(120,120,180,0.2)' : 'rgba(150,150,150,0.2)';
+          var casualty = army.casualties != null ? army.casualties : (army.loss != null ? army.loss : (army.soldiersLost || 0));
           battleVisHtml += '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">';
-          battleVisHtml += '<td style="padding:4px;">' + escHtml(army.army || '?') + '</td>';
-          battleVisHtml += '<td style="padding:4px;color:' + fateColor + ';">' + escHtml(fate || '?') + '</td>';
-          battleVisHtml += '<td style="padding:4px;">' + ((army.casualties || 0).toLocaleString()) + '</td>';
+          battleVisHtml += '<td style="padding:4px;">' + escHtml(armyName) + '</td>';
+          battleVisHtml += '<td style="padding:4px;color:' + fateColor + ';">' + escHtml(fate || '在阵') + '</td>';
+          battleVisHtml += '<td style="padding:4px;">' + ((Number(casualty) || 0).toLocaleString()) + '</td>';
           battleVisHtml += '<td style="padding:4px;"><span style="padding:2px 6px;border-radius:3px;font-size:11px;background:' + attrBg + ';">' + escHtml(attrLabel) + '</span></td>';
-          battleVisHtml += '<td style="padding:4px;color:var(--text-dim,#999);">' + escHtml(army.commander || '') + '</td>';
+          battleVisHtml += '<td style="padding:4px;color:var(--text-dim,#999);">' + escHtml(commanderName || '') + '</td>';
           battleVisHtml += '</tr>';
         });
         battleVisHtml += '</table></details>';

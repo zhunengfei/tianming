@@ -314,13 +314,15 @@
     .top-actions {
       display: flex;
       justify-content: flex-end;
-      gap: 8px;
+      flex-wrap: wrap;        /* 放不下就换行，绝不重叠（治国师停靠后顶栏变窄 13 钮溢出重叠） */
+      gap: 6px;
       min-width: 0;
     }
 
     .icon-btn {
-      width: 44px;
-      height: 44px;
+      width: 38px;
+      height: 38px;
+      flex: 0 0 auto;
       border: 1px solid rgba(202,162,76,.46);
       border-radius: 6px;
       background: rgba(21,15,9,.78);
@@ -12118,6 +12120,9 @@
         border-top: 1px solid rgba(184, 154, 83, .18);
       }
       body.je-guoshi-docked #tm-aa-empty { order: 4; }
+      /* 国师停靠后顶栏变窄 → 13 个图标钮收紧到 33px、间距 4px，尽量单行不换行不重叠 */
+      body.je-guoshi-docked .top-actions { gap: 4px; }
+      body.je-guoshi-docked .top-actions .icon-btn { width: 33px; height: 33px; }
     }
     @media (min-width: 1101px) {
       body.je-guoshi-docked .reset-shell { padding-right: calc(var(--tm-aa-dock-w, 340px) + 14px); }   /* UI·AI · 国师调宽时槽宽随动 */
@@ -12132,7 +12137,16 @@
         background: linear-gradient(180deg, rgba(26, 22, 18, .99), rgba(9, 8, 7, .995));
         box-shadow: -18px 0 44px rgba(0, 0, 0, .42), inset 0 0 0 1px rgba(0, 0, 0, .3);
         color: var(--paper);
+        overflow: hidden;
       }
+      /* 治执行时大片死黑空白：极淡居中印记，让空白读作"留白"而非黑洞（在内容之下·不挡操作） */
+      body.je-guoshi-docked #tm-aa-panel::after {
+        content: "國\00A0師"; position: absolute; left: 0; right: 0; top: 54%;
+        transform: translateY(-50%); text-align: center; letter-spacing: .14em;
+        font-family: var(--je-font-kai); font-size: 58px; line-height: 1; font-weight: 700;
+        color: rgba(184, 154, 83, .04); pointer-events: none; z-index: 0;
+      }
+      body.je-guoshi-docked #tm-aa-body { position: relative; z-index: 1; }
       body.je-guoshi-docked #tm-aa-hd {
         background: linear-gradient(90deg, rgba(35, 27, 18, .7), transparent);
         border-bottom: 1px solid rgba(184, 154, 83, .30);
@@ -12153,13 +12167,13 @@
         color: var(--paper-strong);
       }
       body.je-guoshi-docked #tm-aa-req { font-family: var(--je-font-kai); }
-      body.je-guoshi-docked #tm-aa-go {            /* celadon = AI/创作 */
-        background: linear-gradient(180deg, rgba(126, 184, 167, .92), rgba(90, 143, 127, .92));
-        color: #0b1512; font-family: var(--je-font-kai); border-radius: var(--je-radius);
+      body.je-guoshi-docked #tm-aa-go {            /* 御案金 = 生成/起念（与"采纳"绿区分） */
+        background: linear-gradient(180deg, rgba(201, 168, 76, .94), rgba(150, 120, 48, .94));
+        color: #20160a; font-family: var(--je-font-kai); border-radius: var(--je-radius); font-weight: 700;
       }
-      body.je-guoshi-docked #tm-aa-apply {         /* vermillion = 施行/落定 */
-        background: linear-gradient(180deg, rgba(192, 64, 48, .92), rgba(139, 46, 37, .92));
-        color: #ffe1ac; border-radius: var(--je-radius);
+      body.je-guoshi-docked #tm-aa-apply {         /* celadon 绿 = 采纳/应用（对齐 Claude Code accept=绿） */
+        background: linear-gradient(180deg, rgba(110, 188, 150, .95), rgba(74, 148, 112, .95));
+        color: #06140d; border-radius: var(--je-radius); font-weight: 700;
       }
       body.je-guoshi-docked #tm-aa-apply.warn {    /* amber = 待确认 */
         background: linear-gradient(180deg, rgba(201, 168, 76, .92), rgba(138, 109, 43, .92));
@@ -12168,6 +12182,23 @@
       body.je-guoshi-docked #tm-aa-discard {
         background: rgba(58, 53, 48, .82); color: var(--paper); border-radius: var(--je-radius);
       }
+      /* 气泡对称：助手「本次改动说明」做成左对齐气泡（左下尖角），与右侧用户紫气泡呼应（对齐 Claude 网页端左右气泡） */
+      body.je-guoshi-docked .tm-aa-summary {
+        max-width: 94%; margin: 6px auto 6px 0; width: fit-content;
+        background: rgba(8, 7, 5, .52); border: 1px solid rgba(184, 154, 83, .24);
+        border-left: 3px solid rgba(110, 188, 150, .72);
+        border-radius: 10px 10px 10px 3px; color: var(--paper-strong);
+      }
+      body.je-guoshi-docked .tm-aa-summary b { color: var(--gold-bright); }
+      body.je-guoshi-docked .tm-aa-summary .note { color: var(--paper-dim); }
+      body.je-guoshi-docked .tm-aa-summary.tm-aa-clamped::after { background: linear-gradient(rgba(8, 7, 5, 0), rgba(8, 7, 5, .9)); }
+      body.je-guoshi-docked .tm-aa-clamp-btn { color: var(--gold-bright); }
+      /* 用户气泡：贴齐 reset 御案紫金质感（右下尖角已是助手镜像） */
+      body.je-guoshi-docked .tm-aa-msg-user {
+        background: rgba(122, 92, 255, .14); border: 1px solid rgba(184, 154, 83, .3);
+        color: var(--paper-strong); border-radius: 10px 10px 3px 10px;
+      }
+      body.je-guoshi-docked .tm-aa-msg-user .mu-who { color: var(--gold-bright); }
     }
 
     /* ===== L1 · 左列「卷册目录」精修 — 对齐右侧国师质感（纯视觉·不改信息架构·2026-06-04） =====

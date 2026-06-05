@@ -60,7 +60,6 @@ console.log('=== 1·flag=false·全 no-op ===');
 resetGM({ flagOn: false, preset: { wuju_enabled: true, fanyi_enabled: true, tongzi_enabled: true } });
 fns._kjInitSpecialExamCalendar();
 check('flag=false·init 后 GM 不建 namespace', global.GM._specialExamCalendar === undefined || !global.GM._specialExamCalendar);
-// 注·_kjInit 本身不查 flag·flag 在 Check/Spawn·所以 init 会建·重 setup
 check('flag=false·CheckTriggers 返 0', fns._kjCheckSpecialExamTriggers() === 0);
 check('flag=false·Spawn 返 false', fns._kjSpawnSpecialExam('enke', 'x') === false);
 check('flag=false·Consume 返空', fns._kjConsumeSpecialExamForAgenda().length === 0);

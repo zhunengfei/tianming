@@ -185,21 +185,40 @@ const bridge = {
 };
 sandbox.TMPhase8FormalBridge = bridge;
 sandbox.window.TMPhase8FormalBridge = bridge;
-sandbox.document = { getElementById: () => null, createElement: () => ({ addEventListener(){}, remove(){}, style: {} }), body: { appendChild(){} } };
+const nodes = {};
+sandbox.document = {
+  getElementById: (id) => nodes[id] || null,
+  createElement: () => ({
+    id: '',
+    className: '',
+    style: {},
+    addEventListener(){},
+    remove(){ if (this.id) delete nodes[this.id]; },
+    set innerHTML(v) { this._html = String(v || ''); },
+    get innerHTML() { return this._html || ''; }
+  }),
+  body: { appendChild(node){ if (node && node.id) nodes[node.id] = node; } }
+};
 sandbox.window.document = sandbox.document;
 
 load('phase8-formal-rightrail.js');
 assert(bridge.rightrail && bridge.rightrail.renderers && typeof bridge.rightrail.renderers.ol === 'function', 'right rail outline renderer should load');
 
 let html = bridge.rightrail.renderers.ol();
-assert(/tmrp-actor-action/.test(html), 'class card should show autonomous actor actions');
-assert(/Canal Tenants/.test(html) && /petition/.test(html), 'class card should show class petition action');
+assert(!/tmrp-actor-action/.test(html), 'class card should not show autonomous actor actions inline');
+bridge.rightrail.handleRightPanelAction('outline-select', { type: 'class', key: 'Canal Tenants' });
+let detailHtml = nodes['tm-social-detail-flyout'] && nodes['tm-social-detail-flyout'].innerHTML || '';
+assert(/tmrp-actor-action/.test(detailHtml), 'class detail should show autonomous actor actions');
+assert(/Canal Tenants/.test(detailHtml) && /petition|请愿/.test(detailHtml), 'class detail should show class petition action');
 
 bridge._state.rightOutlineTab = 'parties';
 html = bridge.rightrail.renderers.ol();
-assert(/tmrp-actor-action/.test(html), 'party card should show autonomous actor actions');
-assert(/Relief League/.test(html) && /memorial/.test(html), 'party card should show party memorial action');
-assert(!/data-relation-command=/.test(html), 'actor action visibility should not expose direct relation command buttons');
+assert(!/tmrp-actor-action/.test(html), 'party card should not show autonomous actor actions inline');
+bridge.rightrail.handleRightPanelAction('outline-select', { type: 'party', key: 'Relief League' });
+detailHtml = nodes['tm-social-detail-flyout'] && nodes['tm-social-detail-flyout'].innerHTML || '';
+assert(/tmrp-actor-action/.test(detailHtml), 'party detail should show autonomous actor actions');
+assert(/Relief League/.test(detailHtml) && /memorial|奏疏|上书/.test(detailHtml), 'party detail should show party memorial action');
+assert(!/data-relation-command=/.test(detailHtml), 'actor action visibility should not expose direct relation command buttons');
 
 const indexHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 assert(indexHtml.indexOf('tm-party-class-action-scheduler.js') > indexHtml.indexOf('tm-party-class-actors.js'), 'index should load scheduler after actors');

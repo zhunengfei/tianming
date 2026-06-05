@@ -49,7 +49,7 @@ function makeEl(id) {
     classList: classList(),
     addEventListener() {},
     appendChild() {},
-    remove() {},
+    remove() { if (this.id) delete elements[this.id]; },
     querySelector() { return null; },
     querySelectorAll() { return []; },
     setAttribute(key, value) { this[key] = String(value); }
@@ -148,7 +148,7 @@ const sandbox = {
     querySelectorAll() { return []; },
     createElement(tag) { return makeEl(tag + '-' + Object.keys(elements).length); },
     addEventListener() {},
-    body: { appendChild() {} }
+    body: { appendChild(node) { if (node && node.id) elements[node.id] = node; return node; } }
   },
   window: {},
   scriptData: {},
@@ -271,8 +271,11 @@ function load(file) {
   load('phase8-formal-rightrail.js');
   assert(bridgeShell.rightrail && bridgeShell.rightrail.renderers && typeof bridgeShell.rightrail.renderers.ol === 'function', 'right rail renderer should load');
   const rightHtml = bridgeShell.rightrail.renderers.ol();
-  assert(/阶层民心/.test(rightHtml), 'right rail should render class-minxin block');
-  assert(/Canal Laborers/.test(rightHtml) && /Canal Ward/.test(rightHtml), 'right rail should render class-minxin class and region evidence');
+  assert(!/阶层民心/.test(rightHtml), 'right rail card should not render class-minxin block inline');
+  bridgeShell.rightrail.handleRightPanelAction('outline-select', { type: 'class', key: 'Canal Laborers' });
+  const detailHtml = elements['tm-social-detail-flyout'] && elements['tm-social-detail-flyout'].innerHTML || '';
+  assert(/阶层民心/.test(detailHtml), 'right rail detail should render class-minxin block');
+  assert(/Canal Laborers/.test(detailHtml) && /Canal Ward/.test(detailHtml), 'right rail detail should render class-minxin class and region evidence');
 
   const endturnSource = fs.readFileSync(path.join(ROOT, 'tm-endturn-core.js'), 'utf8');
   assert(/ClassMinxinBridge\.maintain/.test(endturnSource), 'pre-submit endturn path should maintain class-minxin bridge even without fresh LLM changes');

@@ -313,7 +313,10 @@ assert(/ClassMinxinBridge\.formatForPrompt/.test(endturnSource), 'endturn prompt
 const drawerSource = fs.readFileSync(path.join(ROOT, 'tm-var-drawers.js'), 'utf8');
 assert(/_classMinxinBridgeLedger/.test(drawerSource) && /lastPressure/.test(drawerSource), 'minxin drawer should show class-minxin bridge near causes');
 const rightRailSource = fs.readFileSync(path.join(ROOT, 'phase8-formal-rightrail.js'), 'utf8');
-assert(/rightClassMinxinBridgeRows/.test(rightRailSource) && /minxin\.byClass/.test(rightRailSource), 'right rail class cards should show class-minxin bridge rows');
+const classHeadMatch = rightRailSource.match(/function rightSocialClassHead[\s\S]*?function rightSocialClassDetail/);
+const classDetailMatch = rightRailSource.match(/function rightSocialClassDetail[\s\S]*?function renderRightClassPanel/);
+assert(classDetailMatch && /rightClassMinxinBridgeRows/.test(classDetailMatch[0]) && /minxin\.byClass/.test(rightRailSource), 'right rail class detail should show class-minxin bridge rows');
+assert(classHeadMatch && !/rightClassMinxinBridgeRows/.test(classHeadMatch[0]), 'right rail class cards should keep class-minxin bridge out of the main card');
 const mapSource = fs.readFileSync(path.join(ROOT, 'phase8-formal-map.js'), 'utf8');
 assert(/data-map-mode="classPressure"/.test(mapSource), 'formal map should expose a class pressure layer button');
 assert(/classPressureForRegion/.test(mapSource) && /ClassMinxinBridge/.test(mapSource), 'formal map should render class-minxin pressure per region');

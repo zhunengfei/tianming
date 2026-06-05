@@ -22,6 +22,17 @@
 // 侨置系统（P3）
 // ============================================================
 
+function _qiaozhiFindDivisionByName(divs, name) {
+  var found = null;
+  (function walk(list) {
+    for (var i = 0; i < (list || []).length; i++) {
+      if (list[i].name === name) { found = list[i]; return; }
+      if (list[i].children) walk(list[i].children);
+    }
+  })(divs);
+  return found;
+}
+
 /**
  * 打开侨置选择面板（领土丢失后调用）
  * lostName: 丢失的行政区名称
@@ -138,13 +149,7 @@ function doQiaozhi(lostName, mode) {
     if (!hostName || !_ahData) { toast('\u8BF7\u9009\u62E9\u5BBF\u4E3B'); return; }
 
     // 从宿主划出20%人口和经济
-    var hostFound = null;
-    (function _find(divs) {
-      for (var i = 0; i < divs.length; i++) {
-        if (divs[i].name === hostName) { hostFound = divs[i]; return; }
-        if (divs[i].children) _find(divs[i].children);
-      }
-    })(_ahData.divisions);
+    var hostFound = _qiaozhiFindDivisionByName(_ahData.divisions, hostName);
 
     if (!hostFound) { toast('\u5BBF\u4E3B\u4E0D\u5B58\u5728'); return; }
 
@@ -247,13 +252,7 @@ function restoreQiaozhiDivision(qiaozhiName, recoveredDivisionName) {
 
   // 如果是划出治所侨置，归还数据给宿主
   if (qzNode._qiaozhiType === 'allocated' && qzNode._hostName) {
-    var hostFound = null;
-    (function _find(divs) {
-      for (var i = 0; i < divs.length; i++) {
-        if (divs[i].name === qzNode._hostName) { hostFound = divs[i]; return; }
-        if (divs[i].children) _find(divs[i].children);
-      }
-    })(_ahData.divisions);
+    var hostFound = _qiaozhiFindDivisionByName(_ahData.divisions, qzNode._hostName);
 
     if (hostFound) {
       hostFound.population = (hostFound.population || 0) + (qzNode.population || 0);

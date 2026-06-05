@@ -24,6 +24,7 @@ function esc(v) {
 const playerSignals = [];
 const llmActions = [];
 const toasts = [];
+const nodes = {};
 
 const classes = [
   {
@@ -96,7 +97,19 @@ const sandbox = {
   Array, Object, String, Number, Boolean,
   parseInt, parseFloat, isNaN, isFinite,
   setTimeout: fn => { if (typeof fn === 'function') fn(); return 1; },
-  document: { getElementById: () => null, createElement: () => ({ addEventListener(){}, remove(){}, style: {} }), body: { appendChild(){} } },
+  document: {
+    getElementById: id => nodes[id] || null,
+    createElement: () => ({
+      id: '',
+      className: '',
+      style: {},
+      addEventListener(){},
+      remove(){ if (this.id) delete nodes[this.id]; },
+      set innerHTML(v) { this._html = String(v || ''); },
+      get innerHTML() { return this._html || ''; }
+    }),
+    body: { appendChild(node){ if (node && node.id) nodes[node.id] = node; } }
+  },
   window: {
     TMPhase8FormalBridge: bridge,
     GM: null,
@@ -185,13 +198,16 @@ const bridgeSource = fs.readFileSync(path.join(ROOT, 'phase8-formal-bridge.js'),
 assert(!/\.tmrp-ecology-actions/.test(bridgeSource), 'ecology relation rows should not style direct relation intervention buttons');
 
 let html = bridge.rightrail.renderers.ol();
-assert(/tmrp-ecology/.test(html), 'ecology relation rows should still render');
-assert(!/data-right-action="social-relation"/.test(html), 'ecology relation rows must not expose direct relation actions');
-assert(!/data-relation-command=/.test(html), 'ecology relation rows must not expose support/suppress/mediate/court relation commands');
-assert(!/data-forecast=/.test(html), 'ecology forecasts should be display-only, not direct action payloads');
-assert(/data-right-action="social-action"[^>]*data-social-command="audience"/.test(html), 'formal audience route should remain available');
-assert(/data-right-action="social-action"[^>]*data-social-command="chaoyi"/.test(html), 'formal court route should remain available');
-assert(/data-right-action="social-action"[^>]*data-social-command="edict"/.test(html), 'formal edict route should remain available');
+assert(!/tmrp-ecology/.test(html), 'ecology relation rows should not render inline on class cards');
+bridge.rightrail.handleRightPanelAction('outline-select', { type: 'class', key: 'Canal Tenants' });
+const detailHtml = nodes['tm-social-detail-flyout'] && nodes['tm-social-detail-flyout'].innerHTML || '';
+assert(/tmrp-ecology/.test(detailHtml), 'ecology relation rows should render in detail flyout');
+assert(!/data-right-action="social-relation"/.test(detailHtml), 'ecology relation rows must not expose direct relation actions');
+assert(!/data-relation-command=/.test(detailHtml), 'ecology relation rows must not expose support/suppress/mediate/court relation commands');
+assert(!/data-forecast=/.test(detailHtml), 'ecology forecasts should be display-only, not direct action payloads');
+assert(/data-right-action="social-action"[^>]*data-social-command="audience"/.test(detailHtml), 'formal audience route should remain available');
+assert(/data-right-action="social-action"[^>]*data-social-command="chaoyi"/.test(detailHtml), 'formal court route should remain available');
+assert(/data-right-action="social-action"[^>]*data-social-command="edict"/.test(detailHtml), 'formal edict route should remain available');
 
 const reliefEdge = sandbox.GM.partyClassRelations.edges['canaltenants::reliefleague'];
 const revenueEdge = sandbox.GM.partyClassRelations.edges['canaltenants::revenueclique'];

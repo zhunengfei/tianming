@@ -48,6 +48,7 @@ function esc(v) {
 
 const calls = [];
 const playerSignals = [];
+const nodes = {};
 const sandbox = {
   console,
   Math, Date, JSON, RegExp, Error, Promise,
@@ -58,12 +59,16 @@ const sandbox = {
   setInterval: () => 1,
   clearInterval(){},
   document: {
-    getElementById: () => fakeEl(),
+    getElementById: (id) => id === 'tm-social-detail-flyout' ? (nodes[id] || null) : fakeEl(),
     querySelector: () => fakeEl(),
     querySelectorAll: () => [],
     addEventListener(){},
-    createElement: () => fakeEl(),
-    body: fakeEl(),
+    createElement: () => {
+      const el = fakeEl();
+      el.remove = function(){ if (this.id) delete nodes[this.id]; };
+      return el;
+    },
+    body: Object.assign(fakeEl(), { appendChild(node){ if (node && node.id) nodes[node.id] = node; return node; } }),
     head: fakeEl(),
     readyState: 'complete'
   },
@@ -329,12 +334,18 @@ function load(file) {
   load('phase8-formal-rightrail.js');
   assert(bridge.rightrail && bridge.rightrail.renderers && typeof bridge.rightrail.renderers.ol === 'function', 'right rail outline renderer should load');
   let html = bridge.rightrail.renderers.ol();
-  assert(/tmrp-social-chain/.test(html), 'class outline should render social cause chain');
-  assert(/Emergency grain levy/.test(html), 'class chain should expose related tinyi issue');
-  assert(/issued B/.test(html), 'class chain should expose recent ruling from court record');
+  assert(!/tmrp-social-chain/.test(html), 'class outline should not render social cause chain inline');
+  bridge.rightrail.handleRightPanelAction('outline-select', { type: 'class', key: 'Farmers' });
+  let detailHtml = nodes['tm-social-detail-flyout'] && nodes['tm-social-detail-flyout'].innerHTML || '';
+  assert(/tmrp-social-chain/.test(detailHtml), 'class detail should render social cause chain');
+  assert(/急征粮役/.test(detailHtml), 'class chain should expose localized related tinyi issue');
+  assert(/已明发 B/.test(detailHtml), 'class chain should expose localized recent ruling from court record');
   bridge._state.rightOutlineTab = 'parties';
   html = bridge.rightrail.renderers.ol();
-  assert(/Relief Party/.test(html) && /farmer levy relief/.test(html), 'party outline should show calibrated goal/action evidence');
+  assert(/Relief Party/.test(html) && !/farmer levy relief/.test(html), 'party outline should keep calibrated goal evidence out of the main card');
+  bridge.rightrail.handleRightPanelAction('outline-select', { type: 'party', key: 'Relief Party' });
+  detailHtml = nodes['tm-social-detail-flyout'] && nodes['tm-social-detail-flyout'].innerHTML || '';
+  assert(/Relief Party/.test(detailHtml) && /农户征派纾困/.test(detailHtml), 'party detail should show localized calibrated goal/action evidence');
 
   console.log('[smoke-party-class-closed-loop] PASS party/class closed loop');
 })().catch((e) => {

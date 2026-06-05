@@ -8,6 +8,7 @@ const path = require('path');
 const vm = require('vm');
 
 const ROOT = path.resolve(__dirname, '..');
+const nodes = {};
 
 function assert(cond, msg) {
   if (!cond) throw new Error('[assert] ' + msg);
@@ -102,7 +103,19 @@ const sandbox = {
   Array, Object, String, Number, Boolean,
   parseInt, parseFloat, isNaN, isFinite,
   setTimeout: fn => { if (typeof fn === 'function') fn(); return 1; },
-  document: { getElementById: () => null, createElement: () => ({ addEventListener(){}, remove(){}, style: {} }), body: { appendChild(){} } },
+  document: {
+    getElementById: (id) => nodes[id] || null,
+    createElement: () => ({
+      id: '',
+      className: '',
+      style: {},
+      addEventListener(){},
+      remove(){ if (this.id) delete nodes[this.id]; },
+      set innerHTML(v) { this._html = String(v || ''); },
+      get innerHTML() { return this._html || ''; }
+    }),
+    body: { appendChild(node){ if (node && node.id) nodes[node.id] = node; } }
+  },
   window: {
     TMPhase8FormalBridge: bridge,
     GM: null,
@@ -176,19 +189,29 @@ assert(/\.tmrp-ecology/.test(bridgeSource), 'ecology relation rows should have e
 assert(/\.tmrp-ecology-edge/.test(bridgeSource), 'ecology relation edge rows should have explicit styling');
 
 let html = bridge.rightrail.renderers.ol();
-assert(/tmrp-ecology/.test(html), 'class card should render ecology relation block');
-assert(/生态关系/.test(html), 'class card should label ecology relation block');
-assert(/Relief League/.test(html) && /aligned/.test(html), 'class card should show aligned supporter from dynamic ecology');
-assert(/Revenue Clique/.test(html) && /estranged/.test(html), 'class card should show estranged hostile party from dynamic ecology');
-assert(/亲和 52/.test(html) && /信 49/.test(html) && /怨 33/.test(html), 'class card should show affinity/trust/grievance numbers');
-assert(/tax-pressure/.test(html) && /smoke-ecology-tax-21/.test(html), 'class card should show recent ecology signal cause');
-assert(/data-chain-kind="party"/.test(html) && /data-target="Relief League"/.test(html), 'ecology supporter should remain clickable through the social chain');
+assert(!/tmrp-ecology/.test(html), 'class card should not render ecology relation block inline');
+assert(/data-right-action="outline-select"/.test(html), 'class card should remain clickable into detail flyout');
+
+bridge.rightrail.handleRightPanelAction('outline-select', { type: 'class', key: 'Canal Tenants' });
+let detailHtml = nodes['tm-social-detail-flyout'] && nodes['tm-social-detail-flyout'].innerHTML || '';
+assert(/tmrp-ecology/.test(detailHtml), 'class detail flyout should render ecology relation block');
+assert(/生态关系/.test(detailHtml), 'class detail should label ecology relation block');
+assert(/Relief League/.test(detailHtml) && /趋同/.test(detailHtml), 'class detail should show localized aligned supporter from dynamic ecology');
+assert(/Revenue Clique/.test(detailHtml) && /疏离/.test(detailHtml), 'class detail should show localized estranged hostile party');
+assert(/亲和 52/.test(detailHtml) && /信 49/.test(detailHtml) && /怨 33/.test(detailHtml), 'class detail should show affinity/trust/grievance numbers');
+assert(/税负压力/.test(detailHtml) && /税负生态信号T21/.test(detailHtml), 'class detail should show localized recent ecology signal cause');
+assert(/data-chain-kind="party"/.test(detailHtml) && /data-target="Relief League"/.test(detailHtml), 'ecology supporter should remain clickable through the social chain');
+assert(!/>aligned<|>estranged<|tax-pressure|smoke-ecology-tax-21/.test(detailHtml), 'class detail should not leak raw visible ecology English');
 
 bridge._state.rightOutlineTab = 'parties';
 html = bridge.rightrail.renderers.ol();
-assert(/tmrp-ecology/.test(html), 'party card should render ecology relation block');
-assert(/Canal Tenants/.test(html) && /aligned/.test(html), 'party card should show linked class from ecology relation');
-assert(/smoke-ecology-apply-21/.test(html), 'party card should show relation update source');
-assert(!/Revenue Clique<\/b><span>.*Revenue Clique/.test(html), 'party card should not list itself as a linked party');
+assert(!/tmrp-ecology/.test(html), 'party card should not render ecology relation block inline');
+bridge.rightrail.handleRightPanelAction('outline-select', { type: 'party', key: 'Relief League' });
+detailHtml = nodes['tm-social-detail-flyout'] && nodes['tm-social-detail-flyout'].innerHTML || '';
+assert(/tmrp-ecology/.test(detailHtml), 'party detail flyout should render ecology relation block');
+assert(/Canal Tenants/.test(detailHtml) && /趋同/.test(detailHtml), 'party detail should show linked class from ecology relation');
+assert(/生态关系更新T21/.test(detailHtml), 'party detail should show localized relation update source');
+assert(!/Revenue Clique<\/b><span>.*Revenue Clique/.test(detailHtml), 'party detail should not list itself as a linked party');
+assert(!/>aligned<|smoke-ecology-apply-21/.test(detailHtml), 'party detail should not leak raw visible relation English');
 
 console.log('[smoke-phase8-party-class-ecology-ui] PASS phase8 ecology relation UI');

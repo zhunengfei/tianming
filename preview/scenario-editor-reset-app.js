@@ -870,6 +870,36 @@
     }, 60);
     return true;
   }
+  // 精确跳转：把 diff 路径（如 characters.5.name / military.initialTroops.3.name）解析到对应折子的
+  //   选中态（新可视化折子各用各的 _folioSel/_facFolioSel/_genSel/_milTab…，不是旧 selectedEntityIndex），
+  //   选中模块+实体、清掉名册筛选(保证卡片可见)、渲染后滚到选中卡并金框高亮。修「国师改完跳转位置不准」。
+  function _clearRosterFilter(kind) { try { var ts = rosterTBState(kind); ts.q = ''; ts.filter = 'all'; ts.sort = 'default'; } catch (e) {} }
+  function revealPath(path) {
+    if (!path || !state.scenario) return false;
+    var parts = String(path).split(/[.\[\]]+/).filter(function (s) { return s !== ''; });
+    var field = parts[0];
+    if (!field) return false;
+    var mod = moduleHomeForField(field) || inferModuleForField(field);
+    if (mod) state.selectedModuleId = mod;
+    state.selectedField = field;
+    var idx = (parts.length > 1 && /^\d+$/.test(parts[1])) ? Number(parts[1]) : null;
+    if (field === 'characters' && idx != null) { state._folioSel = idx; _clearRosterFilter('characters'); }
+    else if (field === 'factions' && idx != null) { state._facFolioSel = idx; state._facFolioTab = 'roster'; _clearRosterFilter('factions'); }
+    else if (field === 'events' && idx != null) { state._genSel = state._genSel || {}; state._genSel.events = idx; _clearRosterFilter('events'); }
+    else if (field === 'variables' && idx != null) { state._genSel = state._genSel || {}; state._genSel.variables = idx; state._rulesTab = 'vars'; }
+    else if (field === 'military' && parts[1] === 'initialTroops' && /^\d+$/.test(parts[2] || '')) { state._genSel = state._genSel || {}; state._genSel.troops = Number(parts[2]); state._milTab = 'troops'; _clearRosterFilter('troops'); }
+    else if (field === 'officeTree') { state._officeView = 'list'; }
+    if (idx != null) state.selectedEntityIndex = idx;
+    renderAll();
+    setTimeout(function () {
+      try {
+        var sel = document.querySelector('#module-primary-view .rwf2-rc.active, #module-primary-view .adt-node.active, #module-primary-view .oc-node.active');
+        if (sel && sel.scrollIntoView) { sel.scrollIntoView({ block: 'center', behavior: 'smooth' }); sel.classList.add('folio-reveal-flash'); setTimeout(function () { sel.classList.remove('folio-reveal-flash'); }, 1200); }
+        else { var fr = document.getElementById('module-primary-view'); if (fr) { fr.classList.add('folio-reveal-flash'); setTimeout(function () { fr.classList.remove('folio-reveal-flash'); }, 1100); } }
+      } catch (e) {}
+    }, 90);
+    return true;
+  }
   // N4 · 国师改动在折子高亮回显：标记被改顶层字段，渲染时折子对应行脉冲高亮，几秒后清。
   function markAgentTouched(fields) {
     if (!Array.isArray(fields) || !fields.length) return;
@@ -1264,8 +1294,18 @@
     return normalized;
   }
 
+  // 与正式游戏同步：游戏把主 API 存在 P.ai（localStorage 的 tm_P 全量 / tm_P_lite 精简）。
+  // 读取时游戏配了就以游戏为准（全游戏通用主 API）；保存时写回游戏 P.ai → 双向同步。
+  function readGameAiConfig() {
+    function rj(k) { try { var r = global.localStorage && global.localStorage.getItem(k); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
+    var pl = rj('tm_P_lite'); if (pl && pl.ai && (pl.ai.key || pl.ai.url)) return pl.ai;
+    var pf = rj('tm_P'); if (pf && pf.ai && (pf.ai.key || pf.ai.url)) return pf.ai;
+    return null;
+  }
   function readApiSettings() {
-    var main = readJsonStorage(API_SETTINGS_KEY);
+    var main = readJsonStorage(API_SETTINGS_KEY) || {};
+    var g = readGameAiConfig();
+    if (g && g.key) main = { key: g.key, url: g.url, model: g.model, temp: g.temp };
     var image = readJsonStorage(IMAGE_API_SETTINGS_KEY);
     return normalizeApiSettings({ main: main, image: image });
   }
@@ -1389,6 +1429,14 @@
       } else {
         global.localStorage.removeItem(IMAGE_API_SETTINGS_KEY);
       }
+      // 与正式游戏同步：把主 API 写回游戏 P.ai（tm_P_lite + tm_P · best-effort · quota 安全）
+      try {
+        var ai = { key: next.main.key, url: next.main.url, model: next.main.model };
+        if (next.main.temp != null) ai.temp = next.main.temp;
+        ['tm_P_lite', 'tm_P'].forEach(function (k) {
+          try { var raw = global.localStorage.getItem(k); if (!raw) return; var obj = JSON.parse(raw); if (!obj || typeof obj !== 'object') return; obj.ai = Object.assign({}, obj.ai, ai); global.localStorage.setItem(k, JSON.stringify(obj)); } catch (e) {}
+        });
+      } catch (e) {}
     }
     state.apiSettings = next;
     renderApiSettingsWorkbench();
@@ -1401,6 +1449,56 @@
     if (!value) return '未设置';
     if (String(value).length <= 8) return '已设置';
     return String(value).slice(0, 4) + '…' + String(value).slice(-4);
+  }
+
+  function gmApiVal(id) { var e = document.getElementById(id); return e ? e.value : ''; }
+  function gmApiCollect() { return { main: { key: gmApiVal('gm-api-key'), url: gmApiVal('gm-api-url'), model: gmApiVal('gm-api-model') }, image: { key: gmApiVal('gm-img-key'), url: gmApiVal('gm-img-url'), model: gmApiVal('gm-img-model') } }; }
+  function closeApiSettingsModal() { var m = document.getElementById('gm-api-modal'); if (m && m.parentNode) m.parentNode.removeChild(m); }
+  function openApiSettingsModal() {
+    closeApiSettingsModal();
+    var s = readApiSettings();
+    var ov = document.createElement('div');
+    ov.id = 'gm-api-modal';
+    ov.setAttribute('style', 'position:fixed;inset:0;z-index:4000;background:rgba(30,22,12,.55);display:flex;align-items:center;justify-content:center');
+    ov.innerHTML = '<style>' +
+      '#gm-api-modal .gm-card{width:min(560px,94vw);max-height:90vh;overflow:auto;background:linear-gradient(160deg,#fffdf3,#f6efda);border:1px solid #c9a84c;border-radius:14px;box-shadow:0 12px 40px rgba(30,20,10,.4);font-family:"KaiTi","STKaiti","Noto Serif SC",serif;color:#241d15}' +
+      '#gm-api-modal .gm-h{display:flex;align-items:baseline;gap:10px;padding:14px 18px 10px;border-bottom:1px solid rgba(168,131,58,.3)}' +
+      '#gm-api-modal .gm-h b{font-size:17px;color:#7a2018}#gm-api-modal .gm-h span{font-size:11px;color:#9c8b6b;flex:1;line-height:1.4}' +
+      '#gm-api-modal .gm-x{cursor:pointer;border:none;background:none;font-size:20px;color:#9c8b6b;line-height:1}' +
+      '#gm-api-modal .gm-b{padding:12px 18px;display:flex;flex-direction:column;gap:9px}' +
+      '#gm-api-modal .gm-b label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#574733}' +
+      '#gm-api-modal .gm-b input{border:1px solid #dcc99c;border-radius:6px;background:rgba(255,252,242,.9);font:inherit;font-size:13px;color:#241d15;padding:5px 8px}' +
+      '#gm-api-modal .gm-b input:focus{border-color:#a8833a;outline:none}' +
+      '#gm-api-modal .gm-sub{margin-top:6px;font-size:11px;font-weight:700;color:#a8833a;border-left:3px solid #a8833a;padding-left:7px}' +
+      '#gm-api-modal .gm-f{display:flex;align-items:center;gap:8px;padding:10px 18px 16px;border-top:1px solid rgba(168,131,58,.3)}' +
+      '#gm-api-modal .gm-status{flex:1;font-size:11px;color:#574733;min-height:1em}' +
+      '#gm-api-modal .gm-save{cursor:pointer;border:1px solid #a8833a;background:#a8833a;color:#fff;border-radius:7px;padding:5px 16px;font:inherit;font-size:13px}' +
+      '#gm-api-modal .gm-mini{cursor:pointer;border:1px solid #c9a84c;background:transparent;color:#7d5e22;border-radius:7px;padding:5px 12px;font:inherit;font-size:12px}' +
+    '</style>' +
+    '<div class="gm-card">' +
+      '<div class="gm-h"><b>API 设置</b><span>全游戏通用主 API · 与正式游戏共用一份（存 tm_api）· 国师助手 / 生图都用它</span><button class="gm-x" data-editor-command="close-api-settings-modal" aria-label="关闭">×</button></div>' +
+      '<div class="gm-b">' +
+        '<label>主 API · 地址（URL）<input id="gm-api-url" value="' + escapeHtml(s.main.url || 'https://api.openai.com/v1/chat/completions') + '" placeholder="https://api.openai.com/v1/chat/completions 或中转站地址"></label>' +
+        '<label>主 API · 模型<input id="gm-api-model" value="' + escapeHtml(s.main.model || 'gpt-4o') + '" placeholder="gpt-4o / claude-sonnet-4 / deepseek-chat …"></label>' +
+        '<label>主 API · Key<input id="gm-api-key" type="password" value="' + escapeHtml(s.main.key || '') + '" placeholder="sk-…（仅存本机，不写进剧本包）"></label>' +
+        '<div class="gm-sub">生图 API（留空则复用主 API）</div>' +
+        '<label>生图 · 地址<input id="gm-img-url" value="' + escapeHtml(s.image.url || '') + '" placeholder="https://api.openai.com/v1/images/generations"></label>' +
+        '<label>生图 · 模型<input id="gm-img-model" value="' + escapeHtml(s.image.model || '') + '" placeholder="dall-e-3 / gpt-image-1"></label>' +
+        '<label>生图 · Key<input id="gm-img-key" type="password" value="' + escapeHtml(s.image.key || '') + '" placeholder="留空复用主 API"></label>' +
+      '</div>' +
+      '<div class="gm-f"><span class="gm-status" id="gm-api-status"></span><button class="gm-mini" data-editor-command="test-api-settings-modal">测试连接</button><button class="gm-save" data-editor-command="save-api-settings-modal">保存</button><button class="gm-mini" data-editor-command="close-api-settings-modal">关闭</button></div>' +
+    '</div>';
+    ov.addEventListener('click', function (e) { if (e.target === ov) closeApiSettingsModal(); });
+    document.body.appendChild(ov);
+  }
+  function saveApiSettingsModal() { saveApiSettings(gmApiCollect()); closeApiSettingsModal(); setStatus('API 设置已保存（全游戏通用主 API · 国师 / 生图共用）', 'good'); }
+  function testApiSettingsModal() {
+    var st = document.getElementById('gm-api-status'); if (st) { st.textContent = '测试中…'; st.style.color = '#574733'; }
+    saveApiSettings(gmApiCollect());
+    var AA = global.TM && global.TM.AuthoringAgent;
+    if (!AA || typeof AA.testConnection !== 'function') { if (st) st.textContent = '测试不可用（国师助手未加载）'; return; }
+    AA.testConnection().then(function (r) { var s2 = document.getElementById('gm-api-status'); if (s2) { s2.textContent = (r && r.ok ? '✓ ' : '✗ ') + ((r && r.detail) || (r && r.ok ? '连通' : '失败')); s2.style.color = (r && r.ok) ? '#2d5848' : '#a83228'; } })
+      .catch(function (e) { var s2 = document.getElementById('gm-api-status'); if (s2) { s2.textContent = '✗ ' + (e && e.message || e); s2.style.color = '#a83228'; } });
   }
 
   function renderApiSettingsWorkbench() {
@@ -13516,7 +13614,11 @@
     spouseRank: { empress: '皇后', consort_noble: '贵妃', consort: '妃嫔', consort_dowager: '太妃', concubine: '侧室' }
   };
   var CHAR_ENUM_OPTS = { type: 1, familyTier: 1, royalRelation: 1, spouseRank: 1 };
-  var CHAR_HIDE_KEYS = { id: 1, sid: 1, traitIds: 1, rels: 1, wuchangOverride: 1 };
+  var CHAR_HIDE_KEYS = { id: 1, sid: 1, traitIds: 1, rels: 1, wuchang: 1, wuchangOverride: 1, abilityAudit: 1, simulationHints: 1, aiTurnUse: 1, dataConfidence: 1, refinementVersion: 1, cardParityVersion: 1, isSupplement: 1 };
+  var CHAR_NEST_LABELS = { relations: '关系网', career: '仕途履历', familyMembers: '家族成员', familyStatus: '家族状况', valueSystem: '价值体系', personalGoals: '人生目标', resources: '私产', dialogues: '语录', skills: '技艺', achievements: '功业', titles: '封号爵位', personalGrudges: '私怨', aliases: '别名', formerNames: '曾用名', mentees: '门生', studentsIds: '门生', honors: '荣衔', possessions: '持有物', network: '人脉', marriages: '婚姻', feuds: '仇隙' };
+  var CHAR_NEST_SUB = { familyStatus: { tier: '门第', prestige: '声望', head: '家主', seat: '籍贯' }, valueSystem: { order: '秩序', profit: '功利', faith: '信仰', honor: '荣誉', survival: '存续' }, resources: { privateWealth: '私财', fame: '声望', virtueMerit: '功德', health: '健康', stress: '压力' } };
+  // 人物嵌套字段里不该由角色编辑的子键（公帑/公库是官职属性·绑 officeTree publicTreasuryInit·非角色私产）·2026-06-05
+  var CHAR_NEST_HIDE = { resources: { publicPurse: 1, publicTreasury: 1, publicFund: 1, publicFunds: 1 } };
   function charEnumOptions(key, value) {
     var map = CHAR_ENUM_MAPS[key] || {};
     var opts = ['<option value="">（未设）</option>'], hasVal = false;
@@ -13613,6 +13715,64 @@
     var label = key.indexOf('wuchang.') === 0 ? (WUCHANG_LABELS[key.slice(8)] || key.slice(8)) : specialistFieldLabel(key);
     return '<label class="rwf2-f' + wide + '"><span class="rwf2-fl">' + escapeHtml(label) + '</span>' + charFieldControl(c, i, key) + '</label>';
   }
+  // 可复用名册工具栏样式（搜索/筛选/排序·sticky 顶栏）·2026-06-05
+  var ROSTER_TB_CSS =
+    '.rwf2-rtb{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;gap:5px;align-items:center;padding:4px 2px 7px;margin-bottom:3px;background:linear-gradient(#fbf7ec,rgba(251,247,236,.96));border-bottom:1px solid rgba(168,131,58,.25)}' +
+    '.rwf2-rsearch{flex:1;min-width:108px;border:1px solid #c9a84c;border-radius:6px;background:rgba(255,252,242,.95);font:inherit;font-size:12px;color:#241d15;padding:3px 7px}' +
+    '.rwf2-rsearch:focus{outline:none;border-color:#a83228}' +
+    '.rwf2-rsel{border:1px solid #d8c089;border-radius:6px;background:rgba(255,252,242,.9);font:inherit;font-size:11px;color:#574733;padding:3px 4px;cursor:pointer}' +
+    '.rwf2-rcount{font-size:10px;color:#9c8b6b;width:100%;margin-top:1px}';
+  // 通用名册工具栏系统（搜索/筛选/排序）·人物/势力/事件/部队共用·2026-06-05
+  function rosterTBState(kind) { var m = state._rosterTB || (state._rosterTB = {}); return m[kind] || (m[kind] = { q: '', filter: 'all', sort: 'default' }); }
+  function rnum(o, k) { return Number(o && o[k]) || 0; }
+  function rosterToolbarHtml(kind, cfg, shown, total) {
+    var ts = rosterTBState(kind);
+    var filt = (cfg.filters && cfg.filters.length) ? '<select class="rwf2-rsel" data-roster-filter="' + kind + '">' + cfg.filters.map(function (o) { return '<option value="' + o[0] + '"' + (ts.filter === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' : '';
+    var sort = (cfg.sorts && cfg.sorts.length) ? '<select class="rwf2-rsel" data-roster-sort="' + kind + '">' + cfg.sorts.map(function (o) { return '<option value="' + o[0] + '"' + (ts.sort === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' : '';
+    return '<div class="rwf2-rtb"><input class="rwf2-rsearch" data-roster-search="' + kind + '" value="' + escapeHtml(ts.q) + '" placeholder="' + escapeHtml(cfg.ph || '搜索…') + '">' + filt + sort + '<span class="rwf2-rcount">' + shown + ' / ' + total + (cfg.unit || ' 项') + '</span></div>';
+  }
+  function rosterIdx(items, kind, cfg) {
+    var ts = rosterTBState(kind);
+    var q = (ts.q || '').trim().toLowerCase();
+    var idx = [];
+    items.forEach(function (it, i) {
+      if (!it) return;
+      if (q && !(cfg.searchKeys || []).some(function (k) { return it[k] && String(it[k]).toLowerCase().indexOf(q) >= 0; })) return;
+      if (ts.filter && ts.filter !== 'all' && cfg.filterFn && !cfg.filterFn(it, ts.filter)) return;
+      idx.push(i);
+    });
+    if (ts.sort && ts.sort !== 'default' && cfg.sortFns && cfg.sortFns[ts.sort]) idx.sort(function (a, b) { return cfg.sortFns[ts.sort](items[a], items[b]); });
+    return idx;
+  }
+  function rosterActive(kind) { var ts = rosterTBState(kind); return !!(ts.q || (ts.filter && ts.filter !== 'all') || (ts.sort && ts.sort !== 'default')); }
+  function rdesc(k) { return function (a, b) { return rnum(b, k) - rnum(a, k); }; }
+  function rname(k) { return function (a, b) { return String((a && a[k]) || '').localeCompare(String((b && b[k]) || ''), 'zh'); }; }
+  var CHAR_ROSTER_CFG = {
+    ph: '搜索 名 / 字 / 官职 / 势力…', unit: ' 人',
+    searchKeys: ['name', 'zi', 'haoName', 'displayName', 'title', 'officialTitle', 'faction', 'party', 'role', 'occupation', 'birthplace'],
+    filters: [['all', '全部'], ['historical', '史实'], ['fictional', '虚构']],
+    filterFn: function (c, f) { if (f === 'historical') return c.isHistorical !== false && c.isFictional !== true; if (f === 'fictional') return c.isFictional === true || c.isHistorical === false; return true; },
+    sorts: [['default', '默认序'], ['loyalty', '忠诚'], ['intelligence', '智谋'], ['valor', '武勇'], ['military', '军事'], ['diplomacy', '外交'], ['administration', '政务'], ['age', '年龄'], ['faction', '按势力']],
+    sortFns: { loyalty: rdesc('loyalty'), intelligence: rdesc('intelligence'), valor: rdesc('valor'), military: rdesc('military'), diplomacy: rdesc('diplomacy'), administration: rdesc('administration'), age: rdesc('age'), faction: rname('faction') }
+  };
+  var FAC_ROSTER_CFG = {
+    ph: '搜索 名 / 首领 / 类型…', unit: ' 方',
+    searchKeys: ['name', 'leader', 'leaderTitle', 'type', 'factionType', 'ideology', 'capital', 'territory'],
+    sorts: [['default', '默认'], ['strength', '实力'], ['prestige', '声望'], ['playerRelation', '与玩家关系'], ['name', '按名']],
+    sortFns: { strength: rdesc('strength'), prestige: rdesc('prestige'), playerRelation: rdesc('playerRelation'), name: rname('name') }
+  };
+  var EVENT_ROSTER_CFG = {
+    ph: '搜索 标题 / 类型 / 内容…', unit: ' 条',
+    searchKeys: ['name', 'title', 'type', 'category', 'desc', 'description', 'narrative', 'historical'],
+    sorts: [['default', '默认'], ['turn', '回合'], ['year', '年份'], ['name', '按名']],
+    sortFns: { turn: function (a, b) { return (rnum(a, 'turn') || rnum(a, 'triggerTurn')) - (rnum(b, 'turn') || rnum(b, 'triggerTurn')); }, year: function (a, b) { return rnum(a, 'year') - rnum(b, 'year'); }, name: rname('name') }
+  };
+  var TROOP_ROSTER_CFG = {
+    ph: '搜索 部队 / 统帅 / 驻地…', unit: ' 支',
+    searchKeys: ['name', 'commander', 'commanderTitle', 'garrison', 'armyType', 'faction', 'location', 'ethnicity'],
+    sorts: [['default', '默认'], ['soldiers', '兵员'], ['loyalty', '忠诚'], ['morale', '士气'], ['training', '训练'], ['quality', '素质']],
+    sortFns: { soldiers: rdesc('soldiers'), loyalty: rdesc('loyalty'), morale: rdesc('morale'), training: rdesc('training'), quality: rdesc('quality') }
+  };
   function rosterCard(c, i, sel) {
     if (!c || typeof c !== 'object') return '';
     var fc = folioColorFor(c.faction || c.family || c.name);
@@ -13632,8 +13792,16 @@
     }).join('');
     var extras = Object.keys(c).filter(function (k) { return !used[k] && !CHAR_HIDE_KEYS[k] && k.charAt(0) !== '_' && !isObject(c[k]) && !(Array.isArray(c[k]) && c[k][0] && typeof c[k][0] === 'object'); });
     var extraHtml = extras.length ? '<div class="rwf2-sec"><div class="rwf2-st">其他</div><div class="rwf2-grid2">' + extras.map(function (k) { used[k] = 1; return charDetailField(c, i, k); }).join('') + '</div></div>' : '';
-    var complex = Object.keys(c).filter(function (k) { return !used[k] && k.charAt(0) !== '_' && (isObject(c[k]) || (Array.isArray(c[k]) && c[k][0] && typeof c[k][0] === 'object')); });
-    var complexHtml = complex.length ? '<div class="rwf2-complex">结构化字段（' + complex.map(function (k) { return escapeHtml(specialistFieldLabel(k)); }).join('、') + '）较复杂，可在下方「⚙ 高级」专业表单里编辑。</div>' : '';
+    var complex = Object.keys(c).filter(function (k) { return !used[k] && !CHAR_HIDE_KEYS[k] && k.charAt(0) !== '_' && (isObject(c[k]) || (Array.isArray(c[k]) && c[k][0] && typeof c[k][0] === 'object')); });
+    var complexHtml = '';
+    if (complex.length) {
+      var nestLabels = {}; complex.forEach(function (k) { nestLabels[k] = CHAR_NEST_LABELS[k] || specialistFieldLabel(k); used[k] = 1; });
+      complexHtml = '<div class="rwf2-sec"><div class="rwf2-st">关系 · 家族 · 履历 · 其它结构</div><div class="rwf2-grid2">' + complex.map(function (k) {
+        var val = c[k];
+        if (CHAR_NEST_HIDE[k] && isObject(val)) { var fv = {}; Object.keys(val).forEach(function (sk) { if (!CHAR_NEST_HIDE[k][sk]) fv[sk] = val[sk]; }); val = fv; }
+        return genFieldBlock('characters', i, k, val, nestLabels, CHAR_NEST_SUB);
+      }).join('') + '</div></div>';
+    }
     var psrc = charPortraitSrc(c);
     var inner = psrc ? '<img class="rwf2-portrait" src="' + escapeHtml(psrc) + '" alt="立绘" onerror="this.classList.add(&#39;rwf2-noimg&#39;)">' : '<span class="rwf2-portrait rwf2-noimg"></span>';
     var face = '<button class="rwf2-pbtn" data-editor-command="folio-pick-portrait" title="点击设置立绘路径">' + inner + '<span class="rwf2-pedit">设立绘</span></button>';
@@ -13797,7 +13965,7 @@
     return css + '<div class="frel-wrap">' + head + '<div class="frel-stage">' + svg + '</div>' + strip + legend + '</div>';
   }
 
-  var FAC_LABELS = { name: '名称', leader: '首领', leaderTitle: '首领头衔', type: '类型', factionType: '势力类型', color: '代表色', capital: '治所/都城', territory: '疆域', ideology: '意识形态', mainstream: '主流思想', culture: '文化', cultureLevel: '文化水平', desc: '简述', description: '简述', personality: '性格', goal: '目标', strategy: '方略', longTermStrategy: '长远战略', strength: '综合实力', militaryStrength: '兵力', economy: '经济', courtInfluence: '朝堂影响', popularInfluence: '民间影响', prestige: '声望', playerRelation: '与玩家关系', attitude: '态度', traits: '特质', members: '核心成员', internalParties: '内部党派', mainResources: '主要资源', resources: '资源', leadership: '领导层', treasury: '府库', cohesion: '凝聚力', leaderInfo: '首领档案', heirInfo: '继承人', militaryBreakdown: '兵力构成', economicStructure: '经济结构', succession: '继承制度', techLevel: '技术水平', population: '人口', warState: '战争状态', economicPolicy: '经济政策', publicOpinion: '民意', knownSpies: '已知细作', aiProfile: 'AI画像', attitudeDetail: '立场详情', relations: '对外关系', allies: '盟友', enemies: '敌对', neutrals: '中立', partyRelations: '党派关系', history: '历史沿革', historicalEvents: '历史大事', foundYear: '立国年', peakYear: '鼎盛年', strengths: '优势', weaknesses: '劣势', victoryConditions: '胜利条件', defeatConditions: '失败条件', strategicPriorities: '战略优先', decisionHints: '决策提示', npcDecisionHints: 'NPC决策提示', openingProblems: '开局难题', tabooMoves: '禁招', offendThresholds: '触怒阈值', sourceRefs: '史料出处', isSupplement: '补充条目', sid: '剧本ID', id: 'ID' };
+  var FAC_LABELS = { name: '名称', leader: '首领', leaderTitle: '首领头衔', type: '类型', factionType: '势力类型', color: '代表色', capital: '治所/都城', territory: '疆域', ideology: '意识形态', mainstream: '主流思想', culture: '文化', cultureLevel: '文化水平', desc: '简述', description: '简述', personality: '性格', goal: '目标', strategy: '方略', longTermStrategy: '长远战略', strength: '综合实力', militaryStrength: '兵力', economy: '经济', courtInfluence: '朝堂影响', popularInfluence: '民间影响', prestige: '声望', playerRelation: '与玩家关系', attitude: '态度', traits: '特质', members: '核心成员', internalParties: '内部党派', mainResources: '主要资源', resources: '资源', leadership: '领导层', treasury: '府库', cohesion: '凝聚力', leaderInfo: '首领档案', heirInfo: '继承人', militaryBreakdown: '兵力构成', economicStructure: '经济结构', succession: '继承制度', techLevel: '技术水平', population: '人口', warState: '战争状态', economicPolicy: '经济政策', publicOpinion: '民意', knownSpies: '已知细作', aiProfile: 'AI画像', attitudeDetail: '立场详情', relations: '对外关系', allies: '盟友', enemies: '敌对', neutrals: '中立', partyRelations: '党派关系', history: '历史沿革', historicalEvents: '历史大事', foundYear: '立国年', peakYear: '鼎盛年', strengths: '优势', weaknesses: '劣势', victoryConditions: '胜利条件', defeatConditions: '失败条件', strategicPriorities: '战略优先', decisionHints: '决策提示', npcDecisionHints: 'NPC决策提示', openingProblems: '开局难题', tabooMoves: '禁招', offendThresholds: '触怒阈值', sourceRefs: '史料出处', isSupplement: '补充条目', sid: '剧本ID', id: '编号' };
   var FAC_SUB = {
     leadership: { ruler: '君主', regent: '摄政', general: '统帅', chancellor: '宰辅', spy: '谍首' },
     treasury: { money: '银', grain: '粮', cloth: '布', note: '备注' },
@@ -13809,9 +13977,10 @@
     succession: { rule: '继承法', designatedHeir: '指定继承', stability: '稳定度' },
     techLevel: { overall: '总体', agriculture: '农', military: '军', navigation: '航海', medicine: '医', metallurgy: '冶金', printing: '印刷', astronomy: '天文', mathematics: '算学' },
     population: { registered: '在册', actual: '实际', hidden: '隐户', ethnicities: '族群比例' },
-    warState: { active: '进行中', pending: '待发', recent: '近期' },
+    warState: { active: '进行中', pending: '待发', recent: '近期', readiness: '战备', activeFronts: '交战面' },
+    offendThresholds: { warning: '警告', hostile: '敌对', war: '开战' },
     economicPolicy: { taxation: '赋税', trade: '贸易', currency: '货币', labor: '徭役' },
-    publicOpinion: { amongGentry: '士绅', amongPeasantry: '百姓', amongScholars: '士林' },
+    publicOpinion: { amongGentry: '士绅', amongPeasantry: '百姓', amongScholars: '士林', localSupport: '地方支持' },
     knownSpies: { in_manchu: '在满洲', in_mongol: '在蒙古', in_pirate: '在海寇' },
     aiProfile: { posture: '态势', decisionStyle: '决策风格', riskTolerance: '风险偏好', playerVisibleTheme: '玩家可见主题' },
     attitudeDetail: { self: '自我', enemies: '敌', allies: '友', neutrals: '中立' }
@@ -13828,7 +13997,34 @@
   ];
   function facLabel(k) { return FAC_LABELS[k] || k; }
   function facSubLabel(parent, sub) { return (FAC_SUB[parent] && FAC_SUB[parent][sub]) || sub; }
-  function facCompact(o) { try { return Object.keys(o).map(function (k) { return k + ':' + (o[k] && typeof o[k] === 'object' ? '…' : o[k]); }).join('　').slice(0, 90); } catch (e) { return ''; } }
+  // 对象数组 item 的键名/枚举值中文表（compact 视图防英文键刷屏：触怒阈值 score/consequences、历史大事 turn/event/impact 等）·2026-06-05
+  var OA_KEY_LABELS = {
+    name: '名称', title: '头衔', label: '名目', text: '内容', desc: '描述', description: '描述', summary: '概要', detail: '详情', note: '备注', notes: '备注', remark: '按语',
+    type: '类型', kind: '类别', category: '类别', value: '数值', score: '分值', weight: '权重', count: '数量', amount: '数额', level: '层级', rank: '品级', tier: '等第', degree: '程度',
+    year: '年份', date: '日期', time: '时间', turn: '回合', month: '月', day: '日', age: '年龄', since: '起', until: '止', from: '始', to: '止', duration: '时长',
+    reason: '缘由', cause: '起因', effect: '效果', effects: '效果', impact: '影响', condition: '条件', conditions: '条件', trigger: '触发', result: '结果', outcome: '结局', consequence: '后果', consequences: '后果', requirement: '要求', requirements: '要求',
+    status: '状态', state: '状态', stage: '阶段', target: '对象', source: '来源', origin: '出处', role: '角色', position: '职位', office: '官职', post: '职位', duty: '职责', duties: '职责',
+    location: '地点', place: '地点', region: '地区', area: '区域', city: '城', faction: '势力', party: '党派', class: '阶层', group: '群体', clan: '宗族', family: '家族',
+    relation: '关系', relationship: '关系', relationType: '关系类型', stance: '立场', attitude: '态度', emotion: '情绪', sentiment: '情绪', loyalty: '忠诚', trust: '信任', affinity: '亲疏', tension: '张力',
+    event: '事件', milestone: '里程碑', achievement: '功业', deed: '事迹', episode: '桥段',
+    person: '人物', character: '人物', people: '人物', leader: '首领', holder: '担任', appointee: '任命',
+    choice: '选项', option: '选项', priority: '优先', strategy: '方略', goal: '目标',
+    color: '颜色', icon: '图标', tag: '标签', tags: '标签', id: '编号', sid: '剧本ID', key: '键', refId: '引用编号',
+    zi: '字', hao: '号', gender: '性别', birthYear: '生年', deathYear: '卒年', ethnicity: '族属', faith: '信仰', culture: '文化', personality: '性格', traits: '特质', resources: '资源',
+    vassalType: '封臣类型', playerRelation: '与玩家关系', isHistorical: '史实', isFictional: '虚构',
+    severity: '烈度', risk: '风险', chance: '概率', probability: '概率', range: '范围', scope: '范围', mode: '模式', phase: '阶段',
+    refs: '出处', sourceRefs: '史料出处', citation: '引文', url: '链接',
+    generation: '辈分', dead: '已故', deceased: '已故', inLaw: '姻亲', longTerm: '长期', shortTerm: '短期', progress: '进展', dynamic: '演变', createdTurn: '创建回合', deceasedYear: '卒年', bornYear: '生年', startTurn: '起始回合', endTurn: '终止回合', spouse: '配偶', parent: '父母', child: '子女', sibling: '兄弟姐妹', mentor: '师承', student: '门生', superior: '上级', subordinate: '下属', ally: '盟友', rival: '政敌', enemy: '仇敌', kinship: '亲缘', closeness: '亲密度', intensity: '强度', context: '背景', period: '时期', appointedBy: '荐任者',
+    resource: '资源', unit: '编制', era: '时代', commander: '统帅', size: '规模', morale: '士气', supply: '补给', equipment: '装备', armyType: '兵种', soldiers: '兵员', garrison: '驻防', quality: '素质', training: '训练', prereqs: '前置', unlocked: '已解锁', relatedVars: '关联变量',
+    base: '基数', baseFallback: '基数回退', baseFactor: '基数系数', rate: '比率', storeAs: '存入', formulaType: '公式类型', nominalRate: '名义税率', occupationRate: '实征率', dept: '部门', years: '年数',
+    startYear: '起始年', startMonth: '起始月', startDay: '起始日', dimension: '维度', parties: '党派', divisionType: '区划类型', officialPosition: '设官',
+    control: '控制', commanderTitle: '统帅衔', sourceTag: '来源标签', annual: '年额', parentDivisionId: '父区划编号', capital: '治所', governor: '主官', mappedRegions: '映射地块', dejureOwner: '法理归属',
+    activity: '活动', equipmentCondition: '装备状况', controlLevel: '控制度', payArrearsMonths: '欠饷月数', mutinyRisk: '哗变风险', standingArmy: '常备军', terrain: '地形'
+  };
+  function oaKeyLabel(k) { return OA_KEY_LABELS[k] || (typeof FAC_LABELS !== 'undefined' && FAC_LABELS[k]) || k; }
+  var OA_VAL_LABELS = { hostile: '敌对', friendly: '友好', neutral: '中立', allied: '结盟', ally: '盟友', enemy: '敌对', vassal: '附庸', rival: '对手', war: '交战', peace: '和平', truce: '休战', historical: '史实', fictional: '虚构', high: '高', medium: '中', low: '低', positive: '正面', negative: '负面', male: '男', female: '女', 'true': '是', 'false': '否', active: '进行中', pending: '待发', recent: '近期', warning: '警告', mild: '轻', severe: '重', minor: '小', major: '大' };
+  function oaVal(v) { if (v == null) return ''; if (typeof v === 'object') return '…'; var s = String(v); return OA_VAL_LABELS[s] || s; }
+  function facCompact(o) { try { return Object.keys(o).map(function (k) { return oaKeyLabel(k) + ':' + oaVal(o[k]); }).join('　').slice(0, 90); } catch (e) { return ''; } }
   function facKilo(n) { n = Number(n) || 0; return n >= 10000 ? (Math.round(n / 1000) / 10 + '万') : (n >= 1000 ? (Math.round(n / 100) / 10 + '千') : n); }
   function facObjArrayView(arr) {
     return '<div class="facf-objarr">' + arr.slice(0, 14).map(function (it) { return '<div class="facf-oa-item">' + escapeHtml(facCompact(it)) + '</div>'; }).join('') + (arr.length > 14 ? '<div class="facf-oa-more">…共 ' + arr.length + ' 条（在「⚙ 高级」表单编辑）</div>' : '') + '</div>';
@@ -13929,6 +14125,7 @@
       '.facf-tabs{display:flex;gap:6px;margin:2px 2px 8px}' +
       '.facf-tab{font:inherit;font-size:12px;cursor:pointer;border:1px solid #dcc99c;background:rgba(255,252,242,.7);color:#7d5e22;border-radius:8px 8px 0 0;padding:4px 16px}' +
       '.facf-tab.on{background:linear-gradient(160deg,#fffdf3,#f8f1dc);border-bottom-color:transparent;color:#7a2018;font-weight:700}' +
+      ROSTER_TB_CSS +
     '</style>';
     var tabbar = '<div class="facf-tabs">' +
       '<button class="facf-tab' + (tab === 'roster' ? ' on' : '') + '" data-editor-command="fac-folio-tab" data-fac-tab="roster">势力名册</button>' +
@@ -13937,9 +14134,11 @@
     if (tab === 'graph') return css + '<div class="rwf2-wrap">' + tabbar + '</div>' + renderFactionRelationFolio();
     if (!facs.length) return css + '<div class="rwf2-wrap">' + tabbar + '<div class="rwf2-head">本剧本暂无势力。可在「⚙ 高级」专业表单新增，或让国师生成。</div></div>';
     var sel = (typeof state._facFolioSel === 'number' && state._facFolioSel >= 0 && state._facFolioSel < facs.length) ? state._facFolioSel : 0;
-    var roster = facs.map(function (f, i) { return facRosterCard(f, i, sel); }).join('');
-    return css + '<div class="rwf2-wrap">' + tabbar + '<div class="rwf2-head">势力档案 · ' + facs.length + ' 方 · 左点势力，右侧逐字段编辑（含领导层 / 府库 / 凝聚力 / 兵力构成等嵌套项；每字段标了正式游戏里的叫法）</div>' +
-      '<div class="rwf2-cols"><aside class="rwf2-roster">' + roster + '</aside><section class="rwf2-detail">' + facDetailPanel(facs[sel], sel) + '</section></div></div>';
+    var facIdx = rosterIdx(facs, 'factions', FAC_ROSTER_CFG);
+    var roster = facIdx.length ? facIdx.map(function (i) { return facRosterCard(facs[i], i, sel); }).join('') : '<div class="rwf2-empty">无匹配势力</div>';
+    var facTB = rosterToolbarHtml('factions', FAC_ROSTER_CFG, facIdx.length, facs.length);
+    return css + '<div class="rwf2-wrap">' + tabbar + '<div class="rwf2-head">势力档案 · ' + facs.length + ' 方 · 搜索 / 排序 · 左点势力，右侧逐字段编辑（含领导层 / 府库 / 凝聚力 / 兵力构成等嵌套项）</div>' +
+      '<div class="rwf2-cols"><aside class="rwf2-roster">' + facTB + roster + '</aside><section class="rwf2-detail">' + facDetailPanel(facs[sel], sel) + '</section></div></div>';
   }
 
   // ───────── 通用实体渲染基建（章节主视图复用：标量/嵌套对象/数组分发 + 就地编辑）─────────
@@ -13970,9 +14169,10 @@
       '.facf-objarr{display:flex;flex-direction:column;gap:3px;background:rgba(168,131,58,.06);border:1px solid rgba(168,131,58,.2);border-radius:6px;padding:6px 8px;max-height:170px;overflow:auto}' +
       '.facf-oa-item{font-size:11px;color:#574733;border-bottom:1px dotted rgba(168,131,58,.3);padding-bottom:2px}.facf-oa-more{font-size:10px;color:#9c8b6b}' +
       '.facf-swatch{width:22px;height:22px;border-radius:5px;border:1px solid #c9a84c;flex:0 0 auto}' +
+      ROSTER_TB_CSS +
     '</style>';
   }
-  function genCompact(o) { try { return Object.keys(o).map(function (k) { return k + ':' + (o[k] && typeof o[k] === 'object' ? '…' : o[k]); }).join('　').slice(0, 90); } catch (e) { return ''; } }
+  function genCompact(o) { try { return Object.keys(o).map(function (k) { return oaKeyLabel(k) + ':' + oaVal(o[k]); }).join('　').slice(0, 90); } catch (e) { return ''; } }
   function genKilo(n) { n = Number(n) || 0; return n >= 10000 ? (Math.round(n / 1000) / 10 + '万') : (n >= 1000 ? (Math.round(n / 100) / 10 + '千') : n); }
   function genObjArrayView(arr) { return '<div class="facf-objarr">' + arr.slice(0, 14).map(function (it) { return '<div class="facf-oa-item">' + escapeHtml(genCompact(it)) + '</div>'; }).join('') + (arr.length > 14 ? '<div class="facf-oa-more">…共 ' + arr.length + ' 条（在「⚙ 高级」表单编辑）</div>' : '') + '</div>'; }
   function genFieldBlock(kind, i, key, v, labels, sublabels) {
@@ -14022,6 +14222,7 @@
     if (kind === 'parties') return sc.parties;
     if (kind === 'classes') return sc.classes;
     if (kind === 'families') return sc.families;
+    if (kind === 'characters') return sc.characters;
     if (kind === 'adminDiv') return state._adminCurDiv ? [state._adminCurDiv] : null;
     return null; // 配置型：直接取 scenario[kind]
   }
@@ -14048,7 +14249,7 @@
   }
 
   // ───────── 事件章 ─────────
-  var EVENT_LABELS = { name: '事件名', type: '类型', importance: '重要度', trigger: '触发条件', condition: '前置条件', effect: '结果效果', description: '描述', linkedChars: '关联人物', linkedFactions: '关联势力', category: '分类', triggered: '已触发', turn: '回合', date: '日期', weight: '权重', repeatable: '可重复', oneTime: '一次性', choices: '选项', sid: '剧本ID', id: 'ID' };
+  var EVENT_LABELS = { name: '事件名', type: '类型', importance: '重要度', trigger: '触发条件', condition: '前置条件', effect: '结果效果', description: '描述', linkedChars: '关联人物', linkedFactions: '关联势力', category: '分类', triggered: '已触发', turn: '回合', date: '日期', weight: '权重', repeatable: '可重复', oneTime: '一次性', choices: '选项', sid: '剧本ID', id: '编号', triggerTurn: '触发回合', isOpeningEvent: '开局事件', historical: '史实经过', narrative: '叙事', affectedRegion: '波及地区', longTermConsequences: '长远后果', historicalNote: '史注', aiHint: 'AI提示', chainNext: '后续事件' };
   var EVENT_GROUPS = [
     ['概况', ['name', 'type', 'category', 'importance', 'turn', 'date', 'weight', 'repeatable', 'oneTime', 'triggered']],
     ['触发与结果', ['trigger', 'condition', 'effect', 'description', 'choices']],
@@ -14065,16 +14266,23 @@
     var evs = Array.isArray(state.scenario.events) ? state.scenario.events : [];
     if (!evs.length) return genFolioCss() + '<div class="rwf2-wrap"><div class="rwf2-head">本剧本暂无事件。可在「⚙ 高级」专业表单新增，或让国师生成。</div></div>';
     var sel = genSelIndex('events', evs.length);
-    var groups = {};
-    evs.forEach(function (e, i) { var c = (e && (e.category || e.type)) || '（未分类）'; (groups[c] = groups[c] || []).push(i); });
-    var roster = Object.keys(groups).map(function (c) {
-      return '<div class="rwf2-gcat" style="--fc:' + folioColorFor(c) + '">' + escapeHtml(c) + '<span>' + groups[c].length + '</span></div>' +
-        groups[c].map(function (i) { return genEventCard(evs[i], i, sel); }).join('');
-    }).join('');
+    var evIdx = rosterIdx(evs, 'events', EVENT_ROSTER_CFG);
+    var roster;
+    if (!evIdx.length) roster = '<div class="rwf2-empty">无匹配事件</div>';
+    else if (rosterActive('events')) roster = evIdx.map(function (i) { return genEventCard(evs[i], i, sel); }).join('');
+    else {
+      var groups = {};
+      evIdx.forEach(function (i) { var c = (evs[i] && (evs[i].category || evs[i].type)) || '（未分类）'; (groups[c] = groups[c] || []).push(i); });
+      roster = Object.keys(groups).map(function (c) {
+        return '<div class="rwf2-gcat" style="--fc:' + folioColorFor(c) + '">' + escapeHtml(c) + '<span>' + groups[c].length + '</span></div>' +
+          groups[c].map(function (i) { return genEventCard(evs[i], i, sel); }).join('');
+      }).join('');
+    }
+    var evTB = rosterToolbarHtml('events', EVENT_ROSTER_CFG, evIdx.length, evs.length);
     var e0 = evs[sel];
     var head = '<div class="rwf2-dh"><span class="facf-swatch" style="background:' + eventColor(e0) + '"></span><span class="rwf2-dh-t"><b>' + escapeHtml(e0.name || '无名事件') + '</b><span>' + escapeHtml((e0.type || '') + (e0.importance ? ' · ' + e0.importance : '')) + '</span></span></div>';
-    return genFolioCss() + '<div class="rwf2-wrap"><div class="rwf2-head">事件库 · ' + evs.length + ' 条 · 左点事件，右侧逐字段编辑（每字段标了正式游戏里的叫法）</div>' +
-      '<div class="rwf2-cols"><aside class="rwf2-roster">' + roster + '</aside><section class="rwf2-detail">' + head + genDetail('events', e0, sel, EVENT_GROUPS, EVENT_LABELS, {}) + '</section></div></div>';
+    return genFolioCss() + '<div class="rwf2-wrap"><div class="rwf2-head">事件库 · ' + evs.length + ' 条 · 搜索 / 排序 · 左点事件，右侧逐字段编辑</div>' +
+      '<div class="rwf2-cols"><aside class="rwf2-roster">' + evTB + roster + '</aside><section class="rwf2-detail">' + head + genDetail('events', e0, sel, EVENT_GROUPS, EVENT_LABELS, {}) + '</section></div></div>';
   }
 
   // ───────── 配置型章节通用：configSection ─────────
@@ -14096,18 +14304,87 @@
     currencyRules: { enabledCoins: '通行币', initialStandard: '本位', description: '说明', silverSourceShares: '银源占比', paperCurrency: '纸币', mints: '铸局', privateCoinage: '私铸' }
   };
   var CORRUPT_LABELS = { trueIndex: '吏治浊度', subDepts: '六部门浊度', supervision: '监察', entrenchedFactions: '盘踞集团' };
+  var CORRUPT_SUB = { subDepts: { central: '中枢', provincial: '地方', military: '军务', fiscal: '财计', judicial: '刑名', imperial: '内廷' }, supervision: { level: '强度', note: '备注', institutions: '机构' } };
   var ECON_LABELS = { enabled: '启用', currency: '货币', baseIncome: '基础收入', tributeRatio: '朝贡比', tributeAdjustment: '朝贡调整', taxRate: '税率', inflationRate: '通胀率', economicCycle: '经济周期', specialResources: '特产', tradeSystem: '贸易体系', description: '说明', redistributionRate: '再分配率', tradeBonus: '贸易加成', agricultureMultiplier: '农业系数', commerceMultiplier: '商业系数' };
   function renderFiscalFolio() {
     return genFolioCss() + '<div class="rwf2-wrap"><div class="rwf2-head">财政 · 吏治 · 经济 配置 · 逐字段编辑（含税目 / 央地分成 / 内帑等嵌套项；每字段标了正式游戏里的叫法）</div>' +
       configSection('fiscalConfig', '财政 · 钱粮税制', FISCAL_LABELS, FISCAL_SUB) +
-      configSection('corruption', '吏治 · 浊度', CORRUPT_LABELS, {}) +
+      configSection('corruption', '吏治 · 浊度', CORRUPT_LABELS, CORRUPT_SUB) +
       configSection('economyConfig', '经济 · 收入物产', ECON_LABELS, {}) +
     '</div>';
   }
 
   // ───────── 开篇章 ─────────
   var GAMESET_LABELS = { enabledSystems: '启用系统', startYear: '起始年', startMonth: '起始月', startDay: '起始日', enableGanzhi: '干支纪年', enableGanzhiDay: '干支纪日', enableEraName: '用年号', eraName: '年号', eraNames: '年号表', daysPerTurn: '每回合天数', turnDuration: '回合时长', turnUnit: '回合单位' };
-  var PLAYERINFO_LABELS = { playerRole: '玩家身份', playerRoleCustom: '自定身份', leaderIsPlayer: '首领即玩家', factionName: '势力名', factionType: '势力类型', factionLeader: '势力首领', factionLeaderTitle: '首领头衔', factionTerritory: '疆域', factionStrength: '实力', factionCulture: '文化', factionGoal: '目标', factionResources: '资源', factionDesc: '势力简述', characterName: '角色名', characterTitle: '角色头衔', characterFaction: '所属势力', characterAge: '年龄', characterGender: '性别', characterPersonality: '性格', characterFaith: '信仰', characterCulture: '文化', characterBio: '小传' };
+  var GAMESET_SUB = { enabledSystems: { items: '物品', military: '军事', techTree: '科技树', civicTree: '民政树', events: '事件', map: '地图', characters: '人物', factions: '势力', classes: '阶层', rules: '规则', officeTree: '官制', parties: '党派', variables: '变量', timeline: '时间线', economy: '经济', diplomacy: '外交', tinyi: '廷议', keju: '科举' } };
+  var PLAYERINFO_LABELS = { playerRole: '玩家身份', playerRoleCustom: '自定身份', leaderIsPlayer: '首领即玩家', factionName: '势力名', factionType: '势力类型', factionLeader: '势力首领', factionLeaderTitle: '首领头衔', factionTerritory: '疆域', factionStrength: '实力', factionCulture: '文化', factionGoal: '目标', factionResources: '资源', factionDesc: '势力简述', characterName: '角色名', characterTitle: '角色头衔', characterFaction: '所属势力', characterAge: '年龄', characterGender: '性别', characterPersonality: '性格', characterFaith: '信仰', characterCulture: '文化', characterBio: '小传', characterDesc: '角色简述', characterAppearance: '角色外貌', characterCharisma: '魅力', loyalty: '忠诚', ambition: '野心', intelligence: '智谋', valor: '武勇', military: '军事', benevolence: '仁德', administration: '政务', management: '管理', integrity: '廉节', diplomacy: '外交' };
+  // 玩家入口·从已有势力/角色下拉选→一键导入字段（照搬老编辑器 pickFactionForPlayer/pickCharacterForPlayer 范式）·2026-06-05
+  function playerPickerOptions(list, cur, ph) {
+    var opts = '<option value="">' + ph + '</option>';
+    (list || []).forEach(function (x) {
+      var nm = x && x.name; if (!nm) return;
+      var tail = x.leader ? '（' + x.leader + '）' : (x.title ? '（' + x.title + '）' : (x.officialTitle ? '（' + x.officialTitle + '）' : ''));
+      opts += '<option value="' + escapeHtml(nm) + '"' + (nm === cur ? ' selected' : '') + '>' + escapeHtml(nm + tail) + '</option>';
+    });
+    return opts;
+  }
+  function renderPlayerEntryPicker(sc) {
+    var info = isObject(sc.playerInfo) ? sc.playerInfo : {};
+    var facs = Array.isArray(sc.factions) ? sc.factions : [];
+    var chars = Array.isArray(sc.characters) ? sc.characters : [];
+    var facWarn = (info.factionName && !facs.some(function (f) { return f.name === info.factionName; })) ? '<i>⚠ 势力「' + escapeHtml(info.factionName) + '」不在势力列表（开局将自动创建）</i>' : '';
+    var chWarn = (info.characterName && !chars.some(function (c) { return c.name === info.characterName; })) ? '<i>⚠ 角色「' + escapeHtml(info.characterName) + '」不在角色列表（开局将自动创建）</i>' : '';
+    var warn = (facWarn || chWarn) ? '<div style="margin-top:6px;font-size:11px;color:#a8742a;display:flex;flex-direction:column;gap:2px">' + facWarn + chWarn + '</div>' : '';
+    var selStyle = 'border:1px solid #c9a84c;border-radius:6px;background:rgba(255,252,242,.9);font:inherit;font-size:13px;color:#241d15;padding:4px 7px;max-width:340px;margin-top:3px';
+    return '<div class="rwf2-detail" style="margin-bottom:12px"><div class="rwf2-sec"><div class="rwf2-st">玩家入口 · 先从已有势力/角色中选（自动填充下方字段，不必手填）</div>' +
+      '<div style="display:flex;gap:16px;flex-wrap:wrap">' +
+      '<label style="flex:1;min-width:200px;font-size:12px;color:#574733;display:flex;flex-direction:column">玩家扮演的势力' +
+        '<select class="rwf2-ctl" data-player-pick-faction style="' + selStyle + '">' + playerPickerOptions(facs, info.factionName, '— 从已有 ' + facs.length + ' 个势力中选 —') + '</select></label>' +
+      '<label style="flex:1;min-width:200px;font-size:12px;color:#574733;display:flex;flex-direction:column">玩家扮演的角色' +
+        '<select class="rwf2-ctl" data-player-pick-char style="' + selStyle + '">' + playerPickerOptions(chars, info.characterName, '— 从已有 ' + chars.length + ' 个角色中选 —') + '</select></label>' +
+      '</div>' + warn + '</div></div>';
+  }
+  function pickFactionForPlayer(name) {
+    var sc = state.scenario; if (!isObject(sc.playerInfo)) sc.playerInfo = {};
+    if (!name) return;
+    var f = (sc.factions || []).find(function (x) { return x.name === name; }); if (!f) return;
+    var pi = sc.playerInfo;
+    pi.factionName = f.name || '';
+    pi.factionType = f.type || f.factionType || pi.factionType || '';
+    pi.factionLeader = f.leader || pi.factionLeader || '';
+    pi.factionLeaderTitle = f.leaderTitle || pi.factionLeaderTitle || '';
+    pi.factionTerritory = f.territory || pi.factionTerritory || '';
+    if (f.strength != null) pi.factionStrength = f.strength;
+    pi.factionCulture = f.culture || pi.factionCulture || '';
+    pi.factionGoal = f.goal || f.strategy || pi.factionGoal || '';
+    pi.factionResources = f.mainResources || f.resources || pi.factionResources || '';
+    pi.factionDesc = f.desc || f.description || pi.factionDesc || '';
+    recordHistory('玩家入口', '从势力库导入 ' + f.name);
+    reRenderModulePrimary();
+    setStatus('已从势力「' + f.name + '」导入玩家入口字段', 'good');
+  }
+  function pickCharacterForPlayer(name) {
+    var sc = state.scenario; if (!isObject(sc.playerInfo)) sc.playerInfo = {};
+    if (!name) return;
+    var c = (sc.characters || []).find(function (x) { return x.name === name; }); if (!c) return;
+    var pi = sc.playerInfo;
+    pi.characterName = c.name || '';
+    pi.characterTitle = c.title || c.officialTitle || pi.characterTitle || '';
+    pi.characterFaction = c.faction || pi.characterFaction || '';
+    if (c.age != null) pi.characterAge = c.age;
+    pi.characterGender = c.gender || pi.characterGender || '';
+    pi.characterPersonality = c.personality || pi.characterPersonality || '';
+    pi.characterFaith = c.faith || pi.characterFaith || '';
+    pi.characterCulture = c.culture || pi.characterCulture || '';
+    pi.characterBio = c.bio || pi.characterBio || '';
+    pi.characterDesc = c.desc || pi.characterDesc || '';
+    pi.characterAppearance = c.appearance || pi.characterAppearance || '';
+    if (c.charisma != null) pi.characterCharisma = c.charisma;
+    ['loyalty', 'ambition', 'intelligence', 'valor', 'military', 'benevolence', 'administration', 'management', 'integrity', 'diplomacy'].forEach(function (k) { if (c[k] != null) pi[k] = c[k]; });
+    recordHistory('玩家入口', '从角色库导入 ' + c.name);
+    reRenderModulePrimary();
+    setStatus('已从角色「' + c.name + '」导入玩家入口字段', 'good');
+  }
   function renderOpeningFolio() {
     var sc = state.scenario;
     var top = '<div class="rwf2-detail" style="margin-bottom:12px"><div class="rwf2-sec"><div class="rwf2-st">剧本总览</div><div class="rwf2-grid2">' +
@@ -14116,7 +14393,8 @@
       (sc.summary != null ? genFieldBlock('__root', 0, 'summary', sc.summary, { summary: '总述' }, {}) : '') +
     '</div></div></div>';
     return genFolioCss() + '<div class="rwf2-wrap"><div class="rwf2-head">剧本开篇 · 总览 / 开局设置 / 玩家入口 · 逐字段编辑</div>' +
-      top + configSection('gameSettings', '开局设置 · 时间历法', GAMESET_LABELS, {}) + configSection('playerInfo', '玩家入口 · 势力与角色', PLAYERINFO_LABELS, {}) +
+      top + configSection('gameSettings', '开局设置 · 时间历法', GAMESET_LABELS, GAMESET_SUB) +
+      renderPlayerEntryPicker(sc) + configSection('playerInfo', '玩家入口 · 势力与角色（可手改覆盖）', PLAYERINFO_LABELS, {}) +
     '</div>';
   }
 
@@ -14129,7 +14407,7 @@
     totalForces: { onPaper: '账面', actuallyAvailable: '实可用', eliteCore: '精锐', noShow: '空额', avgArrearsMonths: '欠饷月均' }
   };
   var MIL_SYS_GROUPS = [['说明', ['systemDesc', 'supplyDesc', 'battleDesc']], ['编成', ['troops', 'facilities', 'organization', 'militarySystem', 'campaigns', 'armies', 'initialTroops']], ['军械与制度', ['weaponArsenal', 'conscriptionSystem', 'militaryPolicies', 'totalForces']]];
-  var TROOP_LABELS = { name: '部队名', armyType: '兵种', soldiers: '兵员', garrison: '驻地', quality: '素质', morale: '士气', training: '训练', loyalty: '忠诚', control: '控制', commander: '统帅', commanderTitle: '统帅衔', ethnicity: '族属', activity: '活动', equipmentCondition: '装备状况' };
+  var TROOP_LABELS = { name: '部队名', armyType: '兵种', soldiers: '兵员', garrison: '驻地', quality: '素质', morale: '士气', training: '训练', loyalty: '忠诚', control: '控制', commander: '统帅', commanderTitle: '统帅衔', ethnicity: '族属', activity: '活动', equipmentCondition: '装备状况', description: '描述', faction: '所属', location: '位置', controlLevel: '控制度', payArrearsMonths: '欠饷月数', mutinyRisk: '哗变风险', sid: '剧本ID', id: '编号' };
   var TROOP_GROUPS = [['概况', ['name', 'armyType', 'commander', 'commanderTitle', 'garrison', 'ethnicity', 'activity']], ['战力', ['soldiers', 'quality', 'morale', 'training', 'loyalty', 'control', 'equipmentCondition']]];
   function genTroopCard(t, i, sel) {
     var col = (t.loyalty >= 70 ? '#2d5848' : (t.loyalty < 40 ? '#a83228' : '#a8833a'));
@@ -14146,10 +14424,12 @@
     var troops = Array.isArray(mil.initialTroops) ? mil.initialTroops : [];
     if (!troops.length) return genFolioCss() + GEN_TABS_CSS + '<div class="rwf2-wrap">' + tabbar + '<div class="rwf2-head">无初始部队，详见「军制总览」。</div></div>';
     var sel = genSelIndex('troops', troops.length);
-    var roster = troops.map(function (t, i) { return genTroopCard(t, i, sel); }).join('');
+    var trIdx = rosterIdx(troops, 'troops', TROOP_ROSTER_CFG);
+    var roster = trIdx.length ? trIdx.map(function (i) { return genTroopCard(troops[i], i, sel); }).join('') : '<div class="rwf2-empty">无匹配部队</div>';
+    var trTB = rosterToolbarHtml('troops', TROOP_ROSTER_CFG, trIdx.length, troops.length);
     var t0 = troops[sel];
     var head = '<div class="rwf2-dh"><span class="rwf2-dh-t"><b>' + escapeHtml(t0.name || '无名部队') + '</b><span>' + escapeHtml((t0.armyType || '') + (t0.commander ? ' · ' + t0.commander : '')) + '</span></span></div>';
-    return genFolioCss() + GEN_TABS_CSS + '<div class="rwf2-wrap">' + tabbar + '<div class="rwf2-head">初始部队 · ' + troops.length + ' 支 · 左点部队，右侧逐字段编辑</div><div class="rwf2-cols"><aside class="rwf2-roster">' + roster + '</aside><section class="rwf2-detail">' + head + genDetail('troops', t0, sel, TROOP_GROUPS, TROOP_LABELS, {}) + '</section></div></div>';
+    return genFolioCss() + GEN_TABS_CSS + '<div class="rwf2-wrap">' + tabbar + '<div class="rwf2-head">初始部队 · ' + troops.length + ' 支 · 搜索 / 排序 · 左点部队，右侧逐字段编辑</div><div class="rwf2-cols"><aside class="rwf2-roster">' + trTB + roster + '</aside><section class="rwf2-detail">' + head + genDetail('troops', t0, sel, TROOP_GROUPS, TROOP_LABELS, {}) + '</section></div></div>';
   }
 
   // ───────── 官制章：官职树（org chart，就地编辑各官职现任/员额/缺员）─────────
@@ -14163,12 +14443,20 @@
     '.oft-pos .rwf2-ctl{font-size:11px;padding:1px 4px}' +
     '.oft-vac{color:#a83228}' +
     '.oft-subs{margin-top:2px}' +
+    '.oft-pos2{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:2px 0 1px}' +
+    '.oft-pos2 .rwf2-ctl{font-size:11px;padding:1px 4px;flex:1;min-width:60px}' +
+    '.oft-duties{display:flex;gap:4px;align-items:center;margin:1px 0 3px}.oft-duties .rwf2-ctl{font-size:11px;padding:1px 4px}' +
+    '.oft-l{font-size:10px;color:#9c8b6b;flex:0 0 auto}' +
   '</style>';
   function officeNodeHtml(node, nodePath) {
     var posRows = (node.positions || []).map(function (pos, j) {
       var base = nodePath.concat(['positions', j]).join('.');
       function ctl(field, val, ph, num) { return '<input ' + (num ? 'type="number" ' : '') + 'class="rwf2-ctl' + (num ? ' rwf2-num' : '') + '" data-office-path="' + base + '" data-office-field="' + field + '" value="' + escapeHtml(val == null ? '' : val) + '"' + (ph ? ' placeholder="' + ph + '"' : '') + (field === 'vacancyCount' && Number(val) > 0 ? ' style="color:#a83228"' : '') + '>'; }
-      return '<div class="oft-pos">' + ctl('name', pos.name, '官职') + ctl('rank', pos.rank, '品级') + ctl('holder', pos.holder, '现任(空缺则留白)') + ctl('establishedCount', pos.establishedCount, '员额', true) + ctl('vacancyCount', pos.vacancyCount, '缺员', true) + '</div>';
+      var row1 = '<div class="oft-pos">' + ctl('name', pos.name, '官职') + ctl('rank', pos.rank, '品级') + ctl('holder', pos.holder, '现任(空缺则留白)') + ctl('establishedCount', pos.establishedCount, '员额', true) + ctl('vacancyCount', pos.vacancyCount, '缺员', true) + '</div>';
+      function ctl2(field, val, ph, num) { return '<input ' + (num ? 'type="number" ' : '') + 'class="rwf2-ctl' + (num ? ' rwf2-num' : '') + '" data-office-path="' + base + '" data-office-field="' + field + '" value="' + escapeHtml(val == null ? '' : val) + '" placeholder="' + ph + '">'; }
+      var hasExtra = ('salary' in pos) || ('perPersonSalary' in pos) || ('duties' in pos) || ('authority' in pos) || ('succession' in pos) || ('powers' in pos) || ('privateIncome' in pos);
+      var row2 = hasExtra ? '<div class="oft-pos2"><span class="oft-l">俸</span>' + ctl2('salary', pos.salary, '俸禄', true) + ctl2('perPersonSalary', pos.perPersonSalary, '俸注') + '<span class="oft-l">权</span>' + ctl2('authority', pos.authority, '权限') + ctl2('succession', pos.succession, '继任') + ('powers' in pos ? ctl2('powers', pos.powers, '权责') : '') + ('privateIncome' in pos ? ctl2('privateIncome', pos.privateIncome, '灰收') : '') + '</div>' + ('duties' in pos ? '<div class="oft-duties"><span class="oft-l">职责</span>' + ctl2('duties', pos.duties, '职责') + '</div>' : '') : '';
+      return row1 + row2;
     }).join('');
     var subs = (node.subs || []).map(function (sub, k) { return officeNodeHtml(sub, nodePath.concat(['subs', k])); }).join('');
     return '<div class="oft-node"><div class="oft-h"><b>' + escapeHtml(node.name || '') + '</b><span>' + escapeHtml(node.desc || '') + '</span></div>' +
@@ -14185,19 +14473,138 @@
     recordHistory('官制', (obj.name || field) + ' · ' + field);
     var host = document.getElementById('module-primary-view'); if (host) host.innerHTML = modulePrimaryView(state.selectedModuleId) || '';
   }
+  // ───────── 通用树状图(org-chart)·行政/官制共用·移植老编辑器布局+连线+平移缩放折叠·2026-06-05 ─────────
+  var OC_CSS = '<style>' +
+    '.oc-wrap{position:relative;height:60vh;min-height:340px;overflow:hidden;border:1px solid #dcc99c;border-radius:10px;background:linear-gradient(160deg,#fbf7ec,#f1e6cc);cursor:grab;user-select:none}' +
+    '.oc-wrap.oc-panning{cursor:grabbing}' +
+    '.oc-inner{position:absolute;top:0;left:0;transform-origin:0 0}' +
+    '.oc-node{position:absolute;box-sizing:border-box;background:linear-gradient(120deg,#fffdf3,#f6efda);border:1px solid #d8c089;border-radius:8px;padding:5px 9px;font-family:inherit;cursor:pointer;box-shadow:0 1px 4px rgba(120,90,40,.12);text-align:left}' +
+    '.oc-node:hover{border-color:#a8833a}' +
+    '.oc-node.active{border-color:#a83228;box-shadow:0 0 0 2px rgba(168,50,40,.35)}' +
+    '.oc-node b{display:block;font-size:13px;color:#7a2018;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+    '.oc-node em{display:block;font-size:10px;color:#9c8b6b;font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+    '.oc-root{background:linear-gradient(120deg,#7a2018,#9a3b2a);border-color:#7a2018;cursor:default}' +
+    '.oc-root b{color:#fbe7c8}.oc-root em{color:#e8cfae}' +
+    '.oc-tog{position:absolute;right:-8px;bottom:-8px;width:18px;height:18px;line-height:15px;text-align:center;font-size:11px;border:1px solid #a8833a;border-radius:50%;background:#fff7e6;color:#7a2018;cursor:pointer;padding:0}' +
+    '.oc-tog:hover{border-color:#a83228;color:#a83228}' +
+    '.oc-ctrls{position:absolute;top:8px;right:8px;display:flex;gap:4px;z-index:5}' +
+    '.oc-ctrls button{width:25px;height:25px;border:1px solid #a8833a;border-radius:6px;background:#fff7e6;color:#7a2018;cursor:pointer;font-size:13px;padding:0}' +
+    '.oc-ctrls button:hover{border-color:#a83228}' +
+    '.oc-hint{position:absolute;left:9px;bottom:6px;font-size:10px;color:#9c8b6b;z-index:5;pointer-events:none}' +
+  '</style>';
+  function orgChartState(kind) { if (!state._orgChart) state._orgChart = {}; return state._orgChart[kind] || (state._orgChart[kind] = { scale: 1, panX: 14, panY: 8, collapsed: {} }); }
+  function buildOrgLayout(rootLabel, rootSub, roots, cfg, ocs) {
+    var NODE_W = cfg.nodeW || 158, GAP_X = 16, GAP_Y = 42;
+    var laid = [];
+    var root = { id: '__root__', label: rootLabel, sub: rootSub, x: 0, y: 0, w: NODE_W, h: 0, depth: 0, children: [], isRoot: true };
+    laid.push(root);
+    function build(arr, parentPath, parent, depth) {
+      (arr || []).forEach(function (n, i) {
+        var path = parentPath.concat([cfg.childField, i]);
+        var id = cfg.getId(n, depth === 1 ? [i] : path);
+        var collapsed = !!ocs.collapsed[id];
+        var kids = (n && n[cfg.childField]) || [];
+        var ln = { node: n, id: id, label: cfg.getLabel(n), sub: cfg.getSub(n), x: 0, y: 0, w: NODE_W, h: 0, depth: depth, children: [], collapsed: collapsed, hasKids: kids.length > 0 };
+        parent.children.push(ln); laid.push(ln);
+        if (!collapsed && kids.length) build(kids, depth === 1 ? [i] : path, ln, depth + 1);
+      });
+    }
+    build(roots, [], root, 1);
+    laid.forEach(function (n) { n.h = 38 + (n.sub ? 15 : 0); });
+    function stw(ln) { if (!ln.children.length) return ln.w; var t = 0; ln.children.forEach(function (c, i) { if (i) t += GAP_X; t += stw(c); }); return Math.max(ln.w, t); }
+    var maxH = {}; laid.forEach(function (n) { if (!maxH[n.depth] || n.h > maxH[n.depth]) maxH[n.depth] = n.h; });
+    function assign(ln, leftX, topY) {
+      var w = stw(ln); ln.x = leftX + (w - ln.w) / 2; ln.y = topY;
+      if (ln.children.length) { var cy = topY + (maxH[ln.depth] || ln.h) + GAP_Y, cx = leftX; ln.children.forEach(function (c) { var cw = stw(c); assign(c, cx, cy); cx += cw + GAP_X; }); }
+    }
+    assign(root, 30, 24);
+    var maxX = 0, maxY = 0; laid.forEach(function (n) { maxX = Math.max(maxX, n.x + n.w); maxY = Math.max(maxY, n.y + n.h); });
+    return { laid: laid, root: root, w: maxX + 30, h: maxY + 30 };
+  }
+  function renderOrgChart(kind, rootLabel, rootSub, roots, cfg) {
+    if (!roots || !roots.length) return '<div class="rwf2-empty">暂无可呈现的层级</div>';
+    var ocs = orgChartState(kind);
+    var L = buildOrgLayout(rootLabel, rootSub, roots, cfg, ocs);
+    var lines = '';
+    (function draw(ln) { ln.children.forEach(function (c) { var x1 = ln.x + ln.w / 2, y1 = ln.y + ln.h, x2 = c.x + c.w / 2, y2 = c.y, my = (y1 + y2) / 2; lines += '<path d="M' + x1 + ',' + y1 + ' C' + x1 + ',' + my + ' ' + x2 + ',' + my + ' ' + x2 + ',' + y2 + '" fill="none" stroke="rgba(168,131,58,.45)" stroke-width="1.5"/>'; draw(c); }); })(L.root);
+    var nodes = L.laid.map(function (ln) {
+      var pos = 'left:' + Math.round(ln.x) + 'px;top:' + Math.round(ln.y) + 'px;width:' + ln.w + 'px';
+      if (ln.isRoot) return '<div class="oc-node oc-root" style="' + pos + '"><b>' + escapeHtml(ln.label || '') + '</b>' + (ln.sub ? '<em>' + escapeHtml(ln.sub) + '</em>' : '') + '</div>';
+      var active = (cfg.selectedId != null && String(ln.id) === String(cfg.selectedId)) ? ' active' : '';
+      var tog = ln.hasKids ? '<button class="oc-tog" data-editor-command="orgchart-collapse" data-oc-kind="' + kind + '" data-oc-id="' + escapeHtml(ln.id) + '" title="展开 / 收起下级">' + (ln.collapsed ? '＋' : '－') + '</button>' : '';
+      return '<div class="oc-node' + active + '" style="' + pos + '" data-editor-command="orgchart-pick" data-oc-kind="' + kind + '" data-oc-id="' + escapeHtml(ln.id) + '"><b>' + escapeHtml(ln.label || '') + '</b>' + (ln.sub ? '<em>' + escapeHtml(ln.sub) + '</em>' : '') + tog + '</div>';
+    }).join('');
+    var inner = '<div class="oc-inner" data-oc-inner="' + kind + '" style="transform:translate(' + ocs.panX + 'px,' + ocs.panY + 'px) scale(' + ocs.scale + ');width:' + L.w + 'px;height:' + L.h + 'px">' +
+      '<svg width="' + L.w + '" height="' + L.h + '" style="position:absolute;top:0;left:0;pointer-events:none">' + lines + '</svg>' + nodes + '</div>';
+    var ctrls = '<div class="oc-ctrls"><button data-editor-command="orgchart-zoom" data-oc-kind="' + kind + '" data-oc-d="0.12" title="放大">＋</button><button data-editor-command="orgchart-zoom" data-oc-kind="' + kind + '" data-oc-d="-0.12" title="缩小">－</button><button data-editor-command="orgchart-zoom" data-oc-kind="' + kind + '" data-oc-d="0" title="复位">⌂</button></div>';
+    ensureOrgPanListeners();
+    return '<div class="oc-wrap" data-oc-pan="' + kind + '">' + inner + ctrls + '<div class="oc-hint">拖拽平移 · ＋/－缩放 · 点节点编辑 · ＋/－圈展开收起</div></div>';
+  }
+  function ensureOrgPanListeners() {
+    if (state._ocPanBound) return; state._ocPanBound = true;
+    var pan = null;
+    document.addEventListener('mousedown', function (e) {
+      var wrap = e.target && e.target.closest && e.target.closest('[data-oc-pan]');
+      if (!wrap) return;
+      if (e.target.closest('.oc-node') || e.target.closest('.oc-ctrls') || e.target.closest('.oc-tog')) return;
+      var kind = wrap.getAttribute('data-oc-pan'); var ocs = orgChartState(kind);
+      pan = { kind: kind, ocs: ocs, sx: e.clientX, sy: e.clientY, px: ocs.panX, py: ocs.panY, inner: wrap.querySelector('[data-oc-inner="' + kind + '"]') };
+      wrap.classList.add('oc-panning'); e.preventDefault();
+    });
+    document.addEventListener('mousemove', function (e) {
+      if (!pan) return;
+      var nx = pan.px + (e.clientX - pan.sx), ny = pan.py + (e.clientY - pan.sy);
+      pan.ocs.panX = nx; pan.ocs.panY = ny;
+      if (pan.inner) pan.inner.style.transform = 'translate(' + nx + 'px,' + ny + 'px) scale(' + pan.ocs.scale + ')';
+    });
+    document.addEventListener('mouseup', function () { if (pan && pan.inner) { var w = pan.inner.closest('.oc-wrap'); if (w) w.classList.remove('oc-panning'); } pan = null; });
+  }
+  function officeNodeDetail(node, pathStr) {
+    if (!node) return '<div class="rwf2-empty">点左侧树节点编辑该衙门的官职</div>';
+    var posRows = (node.positions || []).map(function (pos, j) {
+      var base = pathStr + '.positions.' + j;
+      function ctl(field, val, ph, num) { return '<input ' + (num ? 'type="number" ' : '') + 'class="rwf2-ctl' + (num ? ' rwf2-num' : '') + '" data-office-path="' + base + '" data-office-field="' + field + '" value="' + escapeHtml(val == null ? '' : val) + '"' + (ph ? ' placeholder="' + ph + '"' : '') + (field === 'vacancyCount' && Number(val) > 0 ? ' style="color:#a83228"' : '') + '>'; }
+      var row1 = '<div class="oft-pos">' + ctl('name', pos.name, '官职') + ctl('rank', pos.rank, '品级') + ctl('holder', pos.holder, '现任(空缺则留白)') + ctl('establishedCount', pos.establishedCount, '员额', true) + ctl('vacancyCount', pos.vacancyCount, '缺员', true) + '</div>';
+      var hasExtra = ('salary' in pos) || ('perPersonSalary' in pos) || ('duties' in pos) || ('authority' in pos) || ('succession' in pos) || ('powers' in pos) || ('privateIncome' in pos);
+      var row2 = hasExtra ? '<div class="oft-pos2"><span class="oft-l">俸</span>' + ctl('salary', pos.salary, '俸禄', true) + ctl('perPersonSalary', pos.perPersonSalary, '俸注') + '<span class="oft-l">权</span>' + ctl('authority', pos.authority, '权限') + ctl('succession', pos.succession, '继任') + ('powers' in pos ? ctl('powers', pos.powers, '权责') : '') + ('privateIncome' in pos ? ctl('privateIncome', pos.privateIncome, '灰收') : '') + '</div>' + ('duties' in pos ? '<div class="oft-duties"><span class="oft-l">职责</span>' + ctl('duties', pos.duties, '职责') + '</div>' : '') : '';
+      return row1 + row2;
+    }).join('');
+    return '<div class="oft-node"><div class="oft-h"><b>' + escapeHtml(node.name || '') + '</b><span>' + escapeHtml(node.desc || '') + '</span></div>' +
+      (posRows ? '<div class="oft-poshead"><span>官职</span><span>品级</span><span>现任</span><span>员额</span><span>缺员</span></div>' + posRows : '<div class="rwf2-empty">本衙门暂无官职条目</div>') + '</div>';
+  }
+  function resolveOfficePath(pathStr) {
+    var parts = String(pathStr).split('.').map(function (p) { return /^\d+$/.test(p) ? Number(p) : p; });
+    var obj = state.scenario.officeTree;
+    for (var i = 0; i < parts.length; i++) { obj = obj && obj[parts[i]]; }
+    return obj || null;
+  }
   var GOV_LABELS = { name: '政体名', description: '说明', selectionSystem: '选才制度', promotionSystem: '升迁制度', historicalReference: '史实参照' };
   function renderOfficeFolio() {
     var tree = state.scenario.officeTree;
     var govSec = configSection('government', '政体 · 选才升迁', GOV_LABELS, {});
     if (!Array.isArray(tree) || !tree.length) return genFolioCss() + OFT_CSS + '<div class="rwf2-wrap"><div class="rwf2-head">官制 · 政体</div>' + govSec + '<div class="rwf2-head">本剧本暂无官职树。</div></div>';
     var count = 0, vac = 0; (function walk(ns) { (ns || []).forEach(function (n) { (n.positions || []).forEach(function (p) { count += (Number(p.establishedCount) || 0); vac += (Number(p.vacancyCount) || 0); }); walk(n.subs); }); })(tree);
+    var view = state._officeView === 'tree' ? 'tree' : 'list';
+    var tabbar = '<div class="facf-tabs">' +
+      '<button class="facf-tab' + (view === 'list' ? ' on' : '') + '" data-editor-command="office-view" data-office-view="list">清单</button>' +
+      '<button class="facf-tab' + (view === 'tree' ? ' on' : '') + '" data-editor-command="office-view" data-office-view="tree">树状图</button>' +
+    '</div>';
+    var headTxt = '官制 · ' + tree.length + ' 衙门 · 员额 ' + count + ' · 缺员 ' + vac + ' · ' + (view === 'tree' ? '拖拽平移·点节点编辑该衙门官职' : '各官职现任/员额/缺员可就地改');
+    if (view === 'tree') {
+      var sel = state._officeNodeId || '0';
+      var selNode = resolveOfficePath(sel);
+      var cfg = { childField: 'subs', getId: function (n, path) { return path.join('.'); }, getLabel: function (n) { return n.name || '衙门'; }, getSub: function (n) { var c = (n.positions || []).length; return c ? c + ' 职' : ''; }, selectedId: sel };
+      var chart = renderOrgChart('office', (state.scenario.government && state.scenario.government.name) || '政体', '官署', tree, cfg);
+      return genFolioCss() + OFT_CSS + OC_CSS + '<div class="rwf2-wrap">' + tabbar + '<div class="rwf2-head">' + headTxt + '</div>' + govSec +
+        '<div class="rwf2-cols" style="grid-template-columns:1.5fr 1fr">' + chart + '<section class="rwf2-detail">' + officeNodeDetail(selNode, sel) + '</section></div></div>';
+    }
     var body = tree.map(function (n, i) { return officeNodeHtml(n, [i]); }).join('');
-    return genFolioCss() + OFT_CSS + '<div class="rwf2-wrap"><div class="rwf2-head">官制 · 官职树 · ' + tree.length + ' 衙门 · 员额 ' + count + ' · 缺员 ' + vac + ' · 各官职现任/员额/缺员可就地改</div>' +
+    return genFolioCss() + OFT_CSS + '<div class="rwf2-wrap">' + tabbar + '<div class="rwf2-head">' + headTxt + '</div>' +
       govSec + '<div class="rwf2-detail">' + body + '</div></div>';
   }
 
   // ───────── 规则章：变量 roster + 科技/机制 config ─────────
-  var VAR_LABELS = { name: '变量名', value: '当前值', min: '最小', max: '最大', cat: '分类', desc: '说明', inversed: '反向(越高越坏)', color: '颜色', icon: '图标', visible: '玩家可见', sid: '剧本ID', id: 'ID' };
+  var VAR_LABELS = { name: '变量名', value: '当前值', min: '最小', max: '最大', cat: '分类', desc: '说明', inversed: '反向(越高越坏)', color: '颜色', icon: '图标', visible: '玩家可见', sid: '剧本ID', id: '编号', unit: '单位' };
   var VAR_GROUPS = [['概况', ['name', 'cat', 'value', 'min', 'max', 'inversed', 'visible']], ['说明', ['desc']], ['显示', ['color', 'icon']]];
   function genVarCard(v, i, sel) {
     var col = v.color || (v.inversed ? '#a83228' : '#2d5848');
@@ -14229,12 +14636,52 @@
     '.adt-node{display:flex;align-items:baseline;gap:6px;width:100%;text-align:left;cursor:pointer;background:linear-gradient(120deg,#fffdf3,#f6efda 80%);border:1px solid #e0d2ad;border-radius:7px;padding:4px 9px;margin:3px 0;font-family:inherit;color:#241d15}' +
     '.adt-node:hover{border-color:#a8833a}.adt-node.active{border-color:#a83228;box-shadow:-2px 0 0 #a83228;background:linear-gradient(120deg,#fffef7,#fbf4e0)}' +
     '.adt-node b{font-size:13px;color:#7a2018}.adt-node span{font-size:10px;color:#9c8b6b}' +
-    '.adt-children{margin-left:12px;border-left:1px dashed rgba(168,131,58,.4);padding-left:6px}' +
+    '.adt-children{margin-left:14px;border-left:1px dashed rgba(168,131,58,.4);padding-left:6px}' +
+    '.adt-row{display:flex;align-items:center;gap:3px;margin:3px 0}' +
+    '.adt-row .adt-node{flex:1;margin:0}' +
+    '.adt-tog{flex:0 0 auto;width:17px;height:17px;line-height:15px;text-align:center;font-size:9px;cursor:pointer;border:1px solid #d8c089;border-radius:4px;background:rgba(255,250,235,.85);color:#7d5e22;padding:0}' +
+    '.adt-tog:hover{border-color:#a83228;color:#a83228}' +
+    '.adt-tog-leaf{border:none;background:none;cursor:default}' +
+    '.adt-kc{font-size:9px;color:#9c8b6b;border:1px solid #e0d2ad;border-radius:7px;padding:0 5px;margin-left:auto;white-space:nowrap}' +
+    '.adt-allbtn{cursor:pointer;border:1px dashed #a8833a;background:rgba(255,250,235,.7);color:#7d5e22;border-radius:7px;padding:2px 9px;font:inherit;font-size:11px}' +
+    '.adt-allbtn:hover{border-color:#a83228}' +
+    '.adt-allbtn.adt-on{border-style:solid;border-color:#a83228;background:linear-gradient(120deg,#fff3d6,#f0dba8);color:#7a2018;font-weight:700}' +
+    '.adt-mapbtn{cursor:pointer;border:1px solid #a8833a;background:linear-gradient(120deg,#fff3d6,#f0dba8);color:#7a2018;border-radius:8px;padding:4px 12px;font:inherit;font-size:12px;font-weight:700}' +
+    '.adt-mapbtn:hover{border-color:#a83228;background:linear-gradient(120deg,#fff7e6,#f6e6bd)}' +
+    '.adt-bind{font-size:9px;color:#2d5848;border:1px solid #9ec2b0;background:rgba(220,240,230,.5);border-radius:7px;padding:0 5px;margin-left:auto;white-space:nowrap}' +
+    '.adt-nobind{font-size:9px;color:#a8742a;border:1px solid #e0c08a;background:rgba(250,238,210,.5);border-radius:7px;padding:0 5px;margin-left:auto;white-space:nowrap}' +
+    '.adt-band{margin:2px 2px 10px;padding:8px 10px;background:linear-gradient(160deg,#fbf6e8,#f4ead0);border:1px solid #dcc99c;border-radius:10px;font-size:12px;color:#574733}' +
+    '.adt-band-empty{color:#9c8b6b}' +
+    '.adt-band-sum{display:flex;align-items:center;gap:8px;flex-wrap:wrap}' +
+    '.adt-band-sum b{color:#7a2018;font-size:13px}' +
+    '.adt-band-sum>span{font-size:11px;color:#6b5836;background:rgba(168,131,58,.1);border-radius:6px;padding:1px 7px}' +
+    '.adt-band-sum>span.ok{color:#2d5848;background:rgba(120,180,150,.16)}' +
+    '.adt-band-sum>span.warn{color:#a8742a;background:rgba(224,176,80,.18)}' +
+    '.adt-band-sum>span.bad{color:#a83228;background:rgba(200,90,70,.14)}' +
+    '.adt-calbtn,.adt-toggle{cursor:pointer;border:1px solid #a8833a;background:linear-gradient(120deg,#fff3d6,#f0dba8);color:#7a2018;border-radius:8px;padding:2px 10px;font:inherit;font-size:11px;font-weight:700}' +
+    '.adt-calbtn{margin-left:auto}.adt-calbtn:hover,.adt-toggle:hover{border-color:#a83228}' +
+    '.adt-toggle{margin-top:7px;font-weight:400;color:#7d5e22;background:none;border-style:dashed}' +
+    '.adt-unbound{margin-top:6px;font-size:11px;color:#a8742a}.adt-unbound i{font-style:normal;border:1px solid #e0c08a;border-radius:7px;padding:0 6px;margin:2px 4px 0 0;display:inline-block;background:rgba(250,238,210,.5)}' +
+    '.adt-reglist{margin-top:8px;max-height:300px;overflow:auto;display:grid;grid-template-columns:1fr;gap:3px}' +
+    '.adt-regrow{display:flex;align-items:center;gap:6px;font-size:11px;padding:2px 4px;border-radius:6px;background:rgba(255,253,243,.6)}' +
+    '.adt-regrow.empty{background:rgba(250,238,210,.4)}.adt-regrow.bad{background:rgba(220,170,160,.25)}' +
+    '.adt-regnm{color:#2d5848;flex:0 0 auto;min-width:96px}.adt-arrow{color:#9c8b6b}' +
+    '.adt-regsel{flex:1;border:1px solid #e0d2ad;border-radius:5px;background:rgba(255,252,242,.85);font:inherit;font-size:11px;color:#241d15;padding:1px 4px}' +
+    '.adt-regwarn{font-style:normal;color:#a83228;font-size:10px}' +
   '</style>';
-  var ADMIN_DIV_LABELS = { name: '名称', level: '层级', regionType: '区域类型', governor: '主官', officialPosition: '设官', description: '描述', terrain: '地形', population: '人口', prosperity: '繁荣度', minxinLocal: '民心', corruptionLocal: '吏治浊度', taxLevel: '税赋', economyBase: '经济基础', strategicValue: '战略价值', specialResources: '特产', specialCulture: '特殊文化', dejureOwner: '法理归属', capitalChildId: '治所', tags: '标签', leadingGentry: '缙绅', academies: '书院', tradeRoutes: '商路', recentDisasters: '近期灾害', religiousSites: '宗教场所', threats: '威胁', populationDetail: '人口明细', byGender: '性别构成', byAge: '年龄构成', byEthnicity: '民族构成', byFaith: '信仰构成', baojia: '保甲', bySettlement: '聚落构成', fiscalDetail: '财政明细', carryingCapacity: '承载力', publicTreasuryInit: '公库初值', children: '下辖区划', id: 'ID' };
+  var ADMIN_DIV_LABELS = { name: '名称', level: '层级', regionType: '区域类型', governor: '主官', officialPosition: '设官', description: '描述', terrain: '地形', population: '人口', prosperity: '繁荣度', minxinLocal: '民心', corruptionLocal: '吏治浊度', taxLevel: '税赋', economyBase: '经济基础', strategicValue: '战略价值', specialResources: '特产', specialCulture: '特殊文化', dejureOwner: '法理归属', capitalChildId: '治所', tags: '标签', leadingGentry: '缙绅', academies: '书院', tradeRoutes: '商路', recentDisasters: '近期灾害', religiousSites: '宗教场所', threats: '威胁', populationDetail: '人口明细', byGender: '性别构成', byAge: '年龄构成', byEthnicity: '民族构成', byFaith: '信仰构成', baojia: '保甲', bySettlement: '聚落构成', fiscalDetail: '财政明细', carryingCapacity: '承载力', publicTreasuryInit: '公库初值', children: '下辖区划', disasterRecord: '灾害记录', disaster: '灾害', id: '编号' };
   var ADMIN_DIV_SUB = {
-    populationDetail: { mouths: '口', fugitives: '流亡', hiddenCount: '隐户', households: '户', ding: '丁' },
-    byGender: { male: '男', female: '女' }, baojia: { jia: '甲', bao: '保', li: '里' }
+    populationDetail: { mouths: '口', fugitives: '流亡', hiddenCount: '隐户', households: '户', ding: '丁', adult: '壮' },
+    byGender: { male: '男', female: '女', sexRatio: '性别比' },
+    byAge: { old: '老', ding: '丁', young: '幼', adult: '壮', child: '童' },
+    bySettlement: { fang: '坊', shi: '市', zhen: '镇', cun: '村', xiang: '乡' },
+    baojia: { jia: '甲', bao: '保', li: '里', baoCount: '保数', jiaCount: '甲数', paiCount: '牌数', registerAccuracy: '册籍准确' },
+    economyBase: { farmland: '田亩', commerceCoefficient: '商业系数', commerceVolume: '商贸额', maritimeTradeVolume: '海贸额', saltProduction: '盐产', mineralProduction: '矿产', horseProduction: '马产', fishingProduction: '渔产', imperialFarmland: '皇庄田', imperialAssets: '皇产', postRelays: '驿传', kejuQuota: '科举额', roadQuality: '道路', landsAnnexed: '兼并田', landsReclaimed: '垦荒', landsSurveyed: '清丈田', disasterRecord: '灾情记录' },
+    carryingCapacity: { arable: '可耕', water: '水源', climate: '气候', historicalCap: '史载上限', currentLoad: '当前负荷', carryingRegime: '承载机制' },
+    publicTreasuryInit: { money: '银', grain: '粮', cloth: '布' },
+    fiscalDetail: { claimedRevenue: '报征', actualRevenue: '实征', remittedToCenter: '起运', retainedBudget: '存留', compliance: '征收率', skimmingRate: '火耗', autonomyLevel: '自主度' },
+    tags: { hasPort: '有港', saltRegion: '盐区', mineralRegion: '矿区', horseRegion: '马区', fishingRegion: '渔区', imperialDomain: '皇畿' },
+    disaster: { active: '进行中', type: '类型', since: '起始', severity: '烈度', desc: '描述', historicalNote: '史注', willSpawnIfUnanswered: '不理则触发', subTypes: '子类', affectedSubDivisions: '波及下辖', casualties: '伤亡', mitigations: '缓解措施' }
   };
   var ADMIN_DIV_GROUPS = [
     ['概况', ['name', 'level', 'regionType', 'governor', 'officialPosition', 'dejureOwner', 'capitalChildId', 'terrain', 'description']],
@@ -14243,11 +14690,153 @@
     ['特征', ['specialResources', 'specialCulture', 'strategicValue', 'tags', 'leadingGentry', 'academies', 'tradeRoutes', 'religiousSites', 'recentDisasters', 'threats']]
   ];
   function adminWalkFind(divs, id) { for (var i = 0; i < (divs || []).length; i++) { if (divs[i].id === id) return divs[i]; var f = adminWalkFind(divs[i].children, id); if (f) return f; } return null; }
-  function adminTreeHtml(divs, curId) {
+  // ── 地图地块 ↔ 行政区划 对应（显形 + 校准）·2026-06-05 ─────────────
+  function adminMapBindIndex() {
+    var sc = state.scenario || {};
+    var map = isObject(sc.map) ? sc.map : (isObject(sc.mapData) ? sc.mapData : null);
+    var regions = (map && Array.isArray(map.regions)) ? map.regions : [];
+    var ah = (sc.adminHierarchy && typeof sc.adminHierarchy === 'object') ? sc.adminHierarchy : {};
+    var divList = [], divSet = {};
+    Object.keys(ah).forEach(function (fk) {
+      var node = ah[fk] || {};
+      (function dig(ds) {
+        (ds || []).forEach(function (d) {
+          if (d && d.name) { divList.push({ name: d.name, id: d.id, faction: node.factionName || fk }); divSet[d.name] = true; }
+          if (d) dig(d.children);
+        });
+      })(node.divisions);
+    });
+    var divToRegions = {}, misBound = [];
+    regions.forEach(function (r) {
+      var b = (r && r.adminBinding) || '';
+      var nm = (r && (r.name || r.id)) || '';
+      if (!b) return;
+      if (divSet[b]) { (divToRegions[b] = divToRegions[b] || []).push(nm); }
+      else misBound.push({ region: nm, binding: b });
+    });
+    // 顶级区划(势力直辖第一层) + 子树是否含已绑地块——府州子级由所属省覆盖，不单独报"无地块"
+    var topDivs = [], topUnbound = [], directBound = {};
+    Object.keys(divToRegions).forEach(function (n) { directBound[n] = 1; });
+    Object.keys(ah).forEach(function (fk) {
+      var node = ah[fk] || {};
+      (node.divisions || []).forEach(function (d) {
+        if (!d || !d.name) return;
+        var covered = false;
+        (function dig(x) { if (!x) return; if (directBound[x.name]) covered = true; (x.children || []).forEach(dig); })(d);
+        topDivs.push({ name: d.name, faction: node.factionName || fk, covered: covered });
+        if (!covered) topUnbound.push({ name: d.name, faction: node.factionName || fk });
+      });
+    });
+    var topUnboundSet = {}; topUnbound.forEach(function (d) { topUnboundSet[d.name] = 1; });
+    return { map: map, field: isObject(sc.map) ? 'map' : 'mapData', regions: regions, divList: divList, divSet: divSet, divToRegions: divToRegions, directBound: directBound, topDivs: topDivs, topUnbound: topUnbound, topUnboundSet: topUnboundSet, misBound: misBound };
+  }
+  function adminBindBadge(d, idx) {
+    if (!idx || !idx.map) return '';
+    var rs = idx.divToRegions[d.name];
+    if (rs && rs.length) {
+      var lbl = rs.length > 1 ? (rs[0] + ' +' + (rs.length - 1)) : rs[0];
+      return '<span class="adt-bind" title="对应地图地块：' + escapeHtml(rs.join('、')) + '">🗺 ' + escapeHtml(lbl) + '</span>';
+    }
+    if (idx.topUnboundSet && idx.topUnboundSet[d.name]) {
+      return '<span class="adt-nobind" title="此顶级区划在地图上无对应地块（流动 / 海路 / 散居型势力可不画地块）">⚠ 无地块</span>';
+    }
+    return '';
+  }
+  function adminBindDivOptions(cur, idx) {
+    var opts = '<option value="">（未绑定）</option>';
+    (idx.divList || []).forEach(function (d) {
+      opts += '<option value="' + escapeHtml(d.name) + '"' + (d.name === cur ? ' selected' : '') + '>' + escapeHtml(d.name) + ' · ' + escapeHtml(d.faction) + '</option>';
+    });
+    return opts;
+  }
+  function renderAdminBindBand(idx) {
+    if (!idx.map || !idx.regions.length) {
+      return '<div class="adt-band adt-band-empty">本剧本暂无地图地块（map.regions 为空）。可在地图编辑器画地块后回此校准绑定。</div>';
+    }
+    var nDiv = idx.divList.length, nReg = idx.regions.length;
+    var nTop = idx.topDivs.length, nTopCovered = nTop - idx.topUnbound.length;
+    var multi = Object.keys(idx.divToRegions).filter(function (k) { return idx.divToRegions[k].length > 1; });
+    var summary = '<div class="adt-band-sum"><b>地图地块对应</b>' +
+      '<span>' + nDiv + ' 区划' + (nDiv > nTop ? '（含府州子级）' : '') + '</span><span>' + nReg + ' 地块</span>' +
+      '<span class="ok">' + nTopCovered + '/' + nTop + ' 顶级有地块</span>' +
+      (idx.topUnbound.length ? '<span class="warn">' + idx.topUnbound.length + ' 无地块</span>' : '') +
+      (idx.misBound.length ? '<span class="bad">' + idx.misBound.length + ' 待校准</span>' : '') +
+      (multi.length ? '<span>' + multi.length + ' 细分多块</span>' : '') +
+      '<button class="adt-calbtn" data-editor-command="admin-calibrate-bindings" title="按区划名自动匹配，补齐 / 修正每块地图的行政绑定（不改几何）">🧭 一键校准</button></div>';
+    var unboundHtml = idx.topUnbound.length
+      ? '<div class="adt-unbound">无地图地块的顶级区划（流动 / 海路 / 散居型可不画）：' +
+        idx.topUnbound.map(function (d) { return '<i title="' + escapeHtml(d.faction) + '">' + escapeHtml(d.name) + '</i>'; }).join('') + '</div>'
+      : '';
+    var open = !!state._adminBandOpen;
+    var rosterHtml = '';
+    if (open) {
+      rosterHtml = '<div class="adt-reglist">' + idx.regions.map(function (r) {
+        var nm = (r.name || r.id) || '';
+        var cur = r.adminBinding || '';
+        var bad = cur && !idx.divSet[cur];
+        return '<div class="adt-regrow' + (bad ? ' bad' : (cur ? '' : ' empty')) + '">' +
+          '<span class="adt-regnm" title="地图地块">🗺 ' + escapeHtml(nm) + '</span><span class="adt-arrow">→</span>' +
+          '<select class="adt-regsel" data-admin-bind-region="' + escapeHtml(nm) + '">' + adminBindDivOptions(cur, idx) + '</select>' +
+          (bad ? '<i class="adt-regwarn" title="当前绑定的区划名不在行政层级中">⚠ 名不符（' + escapeHtml(cur) + '）</i>' : '') +
+        '</div>';
+      }).join('') + '</div>';
+    }
+    var toggle = '<button class="adt-toggle" data-editor-command="admin-toggle-band">' + (open ? '收起逐块清单 ▲' : '展开逐块绑定清单（' + nReg + ' 块，可改每块归属区划）▼') + '</button>';
+    return '<div class="adt-band">' + summary + unboundHtml + toggle + rosterHtml + '</div>';
+  }
+  function saveRegionAdminBinding(regionName, divisionName) {
+    var idx = adminMapBindIndex();
+    var ri = -1;
+    for (var i = 0; i < idx.regions.length; i++) { if (((idx.regions[i].name || idx.regions[i].id) || '') === regionName) { ri = i; break; } }
+    if (ri < 0) { setStatus('未找到地块：' + regionName, 'warn'); return; }
+    applyMapPatch(function (m) { if (m.regions[ri]) m.regions[ri].adminBinding = divisionName || ''; }, {
+      field: idx.field, normalize: false, skipRender: true,
+      label: '校准地图绑定', detail: regionName + ' → ' + (divisionName || '（清除）'),
+      status: '已将地块「' + regionName + '」绑定到「' + (divisionName || '（无）') + '」'
+    });
+    reRenderModulePrimary();
+  }
+  function calibrateAdminBindings() {
+    var idx = adminMapBindIndex();
+    if (!idx.map || !idx.regions.length) { setStatus('本剧本地图无地块，无需校准。', 'warn'); return; }
+    function strip(x) {
+      return String(x || '').replace(/（[^）]*）/g, '').replace(/\([^)]*\)/g, '')
+        .replace(/(布政使司|都指挥使司|都司|宣慰司|宣抚司|安抚司|长官司|八旗辖区|东蒙古牧地|漠南牧地|牧地|八道|总督区|商馆区|商路|租居地|流动区|永宁山地|余裔山寨|辖区)/g, '').trim();
+    }
+    function matchDiv(regionName) {
+      if (idx.divSet[regionName]) return regionName;
+      var core = strip(regionName);
+      if (!core) return '';
+      var i;
+      for (i = 0; i < idx.divList.length; i++) { if (idx.divList[i].name.indexOf(core) === 0) return idx.divList[i].name; }
+      for (i = 0; i < idx.divList.length; i++) { if (core.length >= 2 && idx.divList[i].name.indexOf(core) >= 0) return idx.divList[i].name; }
+      for (i = 0; i < idx.divList.length; i++) { if (strip(idx.divList[i].name) === core) return idx.divList[i].name; }
+      return '';
+    }
+    var fixed = 0, already = 0, miss = 0;
+    applyMapPatch(function (m) {
+      m.regions.forEach(function (r) {
+        var cur = r.adminBinding || '';
+        if (cur && idx.divSet[cur]) { already++; return; }
+        var hit = matchDiv((r.name || r.id) || '');
+        if (hit) { r.adminBinding = hit; fixed++; } else { miss++; }
+      });
+    }, { field: idx.field, normalize: false, skipRender: true, label: '一键校准地图绑定', detail: '修正 ' + fixed + ' · 原绑 ' + already });
+    reRenderModulePrimary();
+    setStatus('校准完成：对齐 ' + fixed + ' 块，原已绑 ' + already + ' 块' + (miss ? '，仍有 ' + miss + ' 块无法自动匹配（可手动选区划）' : '') + '。', miss ? 'warn' : 'good');
+  }
+  function adminTreeHtml(divs, curId, idx) {
+    var exp = state._adminExpanded || (state._adminExpanded = {});
     return (divs || []).map(function (d) {
       var on = d.id === curId ? ' active' : '';
-      return '<div class="adt-wrap"><button class="adt-node' + on + '" data-editor-command="admin-div-select" data-admin-div-id="' + escapeHtml(d.id || '') + '"><b>' + escapeHtml(d.name || '?') + '</b>' + (d.level ? '<span>' + escapeHtml(d.level) + '</span>' : '') + (d.governor ? '<span>· ' + escapeHtml(d.governor) + '</span>' : '') + '</button>' +
-        (d.children && d.children.length ? '<div class="adt-children">' + adminTreeHtml(d.children, curId) + '</div>' : '') + '</div>';
+      var hasKids = d.children && d.children.length;
+      var open = hasKids && exp[d.id];
+      var tog = hasKids
+        ? '<button class="adt-tog" data-editor-command="admin-toggle-node" data-admin-node-id="' + escapeHtml(d.id || '') + '" title="展开 / 收起下辖府州">' + (open ? '▾' : '▸') + '</button>'
+        : '<span class="adt-tog adt-tog-leaf"></span>';
+      return '<div class="adt-wrap"><div class="adt-row">' + tog +
+        '<button class="adt-node' + on + '" data-editor-command="admin-div-select" data-admin-div-id="' + escapeHtml(d.id || '') + '"><b>' + escapeHtml(d.name || '?') + '</b>' + (d.level ? '<span>' + escapeHtml(d.level) + '</span>' : '') + (d.governor ? '<span>· ' + escapeHtml(d.governor) + '</span>' : '') + adminBindBadge(d, idx) + (hasKids ? '<span class="adt-kc">辖' + d.children.length + '</span>' : '') + '</button></div>' +
+        (open ? '<div class="adt-children">' + adminTreeHtml(d.children, curId, idx) + '</div>' : '') + '</div>';
     }).join('');
   }
   function renderAdminFolio() {
@@ -14261,10 +14850,25 @@
     if (curDiv) curId = curDiv.id;
     state._adminCurDiv = curDiv;
     var facSel = '<select class="rwf2-ctl" data-admin-faction style="max-width:260px">' + fks.map(function (k) { return '<option value="' + escapeHtml(k) + '"' + (k === fk ? ' selected' : '') + '>' + escapeHtml(ah[k].factionName || k) + '（' + ((ah[k].divisions || []).length) + '）</option>'; }).join('') + '</select>';
-    var tree = divs.length ? adminTreeHtml(divs, curId) : '<div class="rwf2-empty">该势力无区划</div>';
+    var bindIdx = adminMapBindIndex();
+    var view = state._adminView === 'tree' ? 'tree' : 'list';
     var detail = curDiv ? genDetail('adminDiv', curDiv, 0, ADMIN_DIV_GROUPS, ADMIN_DIV_LABELS, ADMIN_DIV_SUB) : '<div class="rwf2-empty">选择一个区划</div>';
+    var viewTabs = '<button class="adt-allbtn' + (view === 'list' ? ' adt-on' : '') + '" data-editor-command="admin-view" data-admin-view="list">清单</button><button class="adt-allbtn' + (view === 'tree' ? ' adt-on' : '') + '" data-editor-command="admin-view" data-admin-view="tree">树状图</button>';
+    var toolRow = '<div style="margin:4px 2px 8px;font-size:12px;color:#574733;display:flex;align-items:center;gap:8px;flex-wrap:wrap">势力：' + facSel + viewTabs +
+      (view === 'list' ? '<button class="adt-allbtn" data-editor-command="admin-expand-all" title="展开本势力所有府州">展开全部</button><button class="adt-allbtn" data-editor-command="admin-collapse-all" title="只看顶级省道">收起全部</button>' : '') +
+      '<button class="adt-mapbtn" data-editor-command="launch-map-editor" title="打开地图编辑器：画地块几何 / 改归属 / 调省界，画完点返回写回">🗺 打开地图编辑器</button></div>';
+    if (view === 'tree') {
+      var ocs = orgChartState('admin');
+      if (ocs._initFk !== fk) { ocs.collapsed = {}; (divs || []).forEach(function (d) { if (d && d.children && d.children.length) ocs.collapsed[d.id] = 1; }); ocs._initFk = fk; }
+      var acfg = { childField: 'children', getId: function (d) { return d.id; }, getLabel: function (d) { return d.name || '区划'; }, getSub: function (d) { return (d.level || '') + (d.governor ? ' · ' + d.governor : ''); }, selectedId: curId };
+      var chart = renderOrgChart('admin', ah[fk].factionName || fk, divs.length + ' 区划', divs, acfg);
+      return genFolioCss() + ADT_CSS + OC_CSS + '<div class="rwf2-wrap"><div class="rwf2-head">行政区划 · ' + escapeHtml(ah[fk].factionName || fk) + ' · ' + divs.length + ' 顶级区划 · 树状图：拖拽平移 · ＋/－圈展开府州 · 点节点编辑</div>' +
+        toolRow + renderAdminBindBand(bindIdx) +
+        '<div class="rwf2-cols" style="grid-template-columns:1.5fr 1fr">' + chart + '<section class="rwf2-detail">' + detail + '</section></div></div>';
+    }
+    var tree = divs.length ? adminTreeHtml(divs, curId, bindIdx) : '<div class="rwf2-empty">该势力无区划</div>';
     return genFolioCss() + ADT_CSS + '<div class="rwf2-wrap"><div class="rwf2-head">行政区划 · ' + escapeHtml(ah[fk].factionName || fk) + ' · ' + divs.length + ' 顶级区划 · 左点区划，右侧逐字段编辑（地块几何/归属见地图编辑器）</div>' +
-      '<div style="margin:4px 2px 8px;font-size:12px;color:#574733">势力：' + facSel + '</div>' +
+      toolRow + renderAdminBindBand(bindIdx) +
       '<div class="rwf2-cols"><aside class="rwf2-roster">' + tree + '</aside><section class="rwf2-detail">' + detail + '</section></div></div>';
   }
 
@@ -14317,17 +14921,25 @@
       '.rwf2-pbtn .rwf2-pedit{position:absolute;left:0;right:0;bottom:0;font-size:9px;line-height:1.5;color:#fff;background:rgba(122,32,24,.72);text-align:center;opacity:0;transition:opacity .15s}' +
       '.rwf2-pbtn:hover .rwf2-pedit{opacity:1}' +
       '.rwf2-pbtn:hover .rwf2-portrait{border-color:#a83228}' +
+      ROSTER_TB_CSS +
     '</style>';
     if (!chars.length) return css + '<div class="rwf2-wrap"><div class="rwf2-head">本剧本暂无人物。可在「⚙ 高级」专业表单新增，或让国师生成。</div></div>';
     var sel = (typeof state._folioSel === 'number' && state._folioSel >= 0 && state._folioSel < chars.length) ? state._folioSel : 0;
-    var groups = {};
-    chars.forEach(function (c, i) { var f = (c && c.faction) || '（无所属）'; (groups[f] = groups[f] || []).push(i); });
-    var roster = Object.keys(groups).map(function (f) {
-      return '<div class="rwf2-fac" style="--fc:' + folioColorFor(f) + '">' + escapeHtml(f) + '<span>' + groups[f].length + '</span></div>' +
-        groups[f].map(function (i) { return rosterCard(chars[i], i, sel); }).join('');
-    }).join('');
-    return css + '<div class="rwf2-wrap"><div class="rwf2-head">人物列传 · ' + chars.length + ' 人 · 左点人入列传，右侧逐字段编辑（每字段标了正式游戏里的叫法）</div>' +
-      '<div class="rwf2-cols"><aside class="rwf2-roster">' + roster + '</aside><section class="rwf2-detail">' + detailPanel(chars[sel], sel) + '</section></div></div>';
+    var idxList = rosterIdx(chars, 'characters', CHAR_ROSTER_CFG);
+    var rosterBody;
+    if (!idxList.length) rosterBody = '<div class="rwf2-empty">无匹配人物</div>';
+    else if (rosterActive('characters')) rosterBody = idxList.map(function (i) { return rosterCard(chars[i], i, sel); }).join('');
+    else {
+      var groups = {};
+      idxList.forEach(function (i) { var f = (chars[i] && chars[i].faction) || '（无所属）'; (groups[f] = groups[f] || []).push(i); });
+      rosterBody = Object.keys(groups).map(function (f) {
+        return '<div class="rwf2-fac" style="--fc:' + folioColorFor(f) + '">' + escapeHtml(f) + '<span>' + groups[f].length + '</span></div>' +
+          groups[f].map(function (i) { return rosterCard(chars[i], i, sel); }).join('');
+      }).join('');
+    }
+    var toolbar = rosterToolbarHtml('characters', CHAR_ROSTER_CFG, idxList.length, chars.length);
+    return css + '<div class="rwf2-wrap"><div class="rwf2-head">人物列传 · ' + chars.length + ' 人 · 搜索 / 筛选 / 排序 · 左点入列传，右侧逐字段编辑</div>' +
+      '<div class="rwf2-cols"><aside class="rwf2-roster">' + toolbar + rosterBody + '</aside><section class="rwf2-detail">' + detailPanel(chars[sel], sel) + '</section></div></div>';
   }
   function saveCharFolioField(charIndex, field, raw) {
     var chars = state.scenario.characters;
@@ -14352,7 +14964,21 @@
   }
 
   // ② 国师实时刷：哪些顶层键的改动该闪对应章的主画布
-  var MODULE_PRIMARY_TOUCH_KEYS = { peopleLineages: ['characters', 'families', 'relations'], factionsSociety: ['factionRelations', 'factions'] };
+  var MODULE_PRIMARY_TOUCH_KEYS = {
+    scenarioOpening: ['name', 'intro', 'summary', 'gameSettings', 'playerInfo'],
+    peopleLineages: ['characters', 'families', 'relations'],
+    factionsSociety: ['factionRelations', 'factions', 'parties', 'classes', 'items'],
+    courtInstitutions: ['officeTree', 'government', 'officeConfig'],
+    adminMap: ['adminHierarchy', 'map'],
+    economyPopulation: ['fiscalConfig', 'corruption', 'economyConfig'],
+    militaryFrontier: ['military'],
+    eventsChronicle: ['events', 'timeline', 'rigidHistoryEvents', 'objectives'],
+    rulesAi: ['variables', 'techTree', 'civicTree', 'mechanicsConfig', 'rules']
+  };
+  function moduleHomeForField(field) {
+    for (var mid in MODULE_PRIMARY_TOUCH_KEYS) { if (MODULE_PRIMARY_TOUCH_KEYS[mid].indexOf(field) >= 0) return mid; }
+    return inferModuleForField(field);
+  }
   function ensureAgentFlashStyle() {
     if (document.getElementById('agent-flash-style')) return;
     var st = document.createElement('style');
@@ -18619,7 +19245,7 @@
     longGoal: '长远目标',
     // 物品
     category: '类别', owner: '持有者', quantity: '数量', value: '价值', effects: '效果', tags: '标签', era: '时代',
-    stressSources: '压力源', skills: '技能', dialogues: '对白', rels: '关系（简）', historicalSources: '史料出处', traitIds: '特质编号', personalGoals: '人生目标', wuchangOverride: '五常覆写'
+    stressSources: '压力源', skills: '技能', dialogues: '对白', rels: '关系（简）', historicalSources: '史料出处', traitIds: '特质编号', personalGoals: '人生目标', career: '仕途履历', familyMembers: '家族成员', aliases: '别名', formerNames: '曾用名', mentees: '门生', studentsIds: '门生编号', personalGrudges: '私怨', honors: '荣衔', achievements: '功业', titles: '封号爵位', marriages: '婚姻', feuds: '仇隙', network: '人脉', possessions: '持有物', wuchangOverride: '五常覆写'
   };
   function specialistFieldLabel(key) {
     return (key && SPECIALIST_FIELD_LABELS[key]) || key;
@@ -19942,20 +20568,35 @@
     if (!state.modules.length) state.modules = [{ id: 'scenarioOpening', title: '剧本总览', topLevelKeys: Object.keys(state.scenario || {}), topLevelCount: Object.keys(state.scenario || {}).length }];
   }
 
-  function applyImportedScenario(parsed, label) {
+  function applyImportedScenario(parsed, label, opts) {
+    opts = opts || {};
+    var prevMod = state.selectedModuleId, prevField = state.selectedField;
+    var oldSc = state.scenario || {};
+    var changed = [];
+    if (opts.preserveFocus) {
+      try { var allK = {}; Object.keys(parsed || {}).concat(Object.keys(oldSc)).forEach(function (k) { allK[k] = 1; }); Object.keys(allK).forEach(function (k) { if (JSON.stringify(parsed[k]) !== JSON.stringify(oldSc[k])) changed.push(k); }); } catch (e) {}
+    }
     state.scenario = parsed;
     state.original = clone(parsed);
     state.modules = clone((DATA.blueprint && DATA.blueprint.modules) || state.modules);
     absorbOrphanScenarioKeys();
     ensureModulesPopulated();
-    state.selectedModuleId = state.modules[0].id;
-    state.selectedField = (state.modules[0].topLevelKeys || Object.keys(parsed))[0];
+    if (opts.preserveFocus) {
+      var jumpField = changed.filter(function (k) { return k !== '_version' && k !== 'sid' && k !== 'id'; })[0];
+      var targetMod = jumpField ? moduleHomeForField(jumpField) : prevMod;
+      state.selectedModuleId = (targetMod && findModule(targetMod) && findModule(targetMod).id === targetMod) ? targetMod : (prevMod || state.modules[0].id);
+      state.selectedField = jumpField || prevField || (findModule(state.selectedModuleId).topLevelKeys || Object.keys(parsed))[0];
+    } else {
+      state.selectedModuleId = state.modules[0].id;
+      state.selectedField = (state.modules[0].topLevelKeys || Object.keys(parsed))[0];
+    }
     state.selectedEntityIndex = 0;
     state.validationRan = false;
     state.currentProjectId = null;
     state.dirty = true;
     recordHistory('导入剧本', label);
     renderAll();
+    if (opts.preserveFocus && changed.length) { try { markAgentTouched(changed); } catch (e) {} }
   }
 
   function importScenario(file, options) {
@@ -20490,6 +21131,7 @@
         '<button type="button" class="icon-btn" data-editor-command="return-to-formal-runtime" title="写回正式游戏" aria-label="把当前剧本写回正式游戏运行时">回</button>',
         '<button type="button" class="icon-btn" data-editor-command="reset" title="重置编辑器" aria-label="重置编辑器到官方基线">归</button>',
         '<button type="button" class="icon-btn" data-editor-command="copy-share-url" title="复制分享链接" aria-label="复制剧本分享链接到剪贴板">链</button>',
+        '<button type="button" class="icon-btn" data-editor-command="open-api-settings-modal" title="API 设置 · 全游戏通用主 API（国师 / 生图共用·存 tm_api）" aria-label="API 设置">⚙</button>',
         '<button type="button" class="icon-btn" data-editor-command="open-shortcut-cheatsheet" title="键盘快捷键 (Shift+?)" aria-label="查看键盘快捷键参考" aria-keyshortcuts="Shift+?">帮</button>',
         '<input id="scenario-import-input" type="file" accept=".json,application/json" hidden>',
         '<input id="project-package-import-input" type="file" accept=".json,application/json" hidden>'
@@ -20739,6 +21381,36 @@
     if (command === 'mil-tab') { state._milTab = target && target.dataset && target.dataset.milTab; reRenderModulePrimary(); }
     if (command === 'rules-tab') { state._rulesTab = target && target.dataset && target.dataset.rulesTab; reRenderModulePrimary(); }
     if (command === 'admin-div-select') { state._adminDivId = target && target.dataset && target.dataset.adminDivId; reRenderModulePrimary(); }
+    if (command === 'admin-calibrate-bindings') { calibrateAdminBindings(); return; }
+    if (command === 'admin-toggle-band') { state._adminBandOpen = !state._adminBandOpen; reRenderModulePrimary(); return; }
+    if (command === 'admin-toggle-node') { var nid = target && target.dataset && target.dataset.adminNodeId; if (nid) { if (!state._adminExpanded) state._adminExpanded = {}; if (state._adminExpanded[nid]) delete state._adminExpanded[nid]; else state._adminExpanded[nid] = 1; reRenderModulePrimary(); } return; }
+    if (command === 'admin-view') { state._adminView = (target && target.dataset && target.dataset.adminView) || 'list'; reRenderModulePrimary(); return; }
+    if (command === 'office-view') { state._officeView = (target && target.dataset && target.dataset.officeView) || 'list'; reRenderModulePrimary(); return; }
+    if (command === 'orgchart-pick') {
+      var okind = target && target.dataset && target.dataset.ocKind, oid = target && target.dataset && target.dataset.ocId;
+      if (okind === 'admin') state._adminDivId = oid; else if (okind === 'office') state._officeNodeId = oid;
+      reRenderModulePrimary(); return;
+    }
+    if (command === 'orgchart-collapse') {
+      var ckind = target && target.dataset && target.dataset.ocKind, cid = target && target.dataset && target.dataset.ocId;
+      if (ckind && cid != null) { var ocs = orgChartState(ckind); if (ocs.collapsed[cid]) delete ocs.collapsed[cid]; else ocs.collapsed[cid] = 1; reRenderModulePrimary(); }
+      return;
+    }
+    if (command === 'orgchart-zoom') {
+      var zkind = target && target.dataset && target.dataset.ocKind, zd = parseFloat(target && target.dataset && target.dataset.ocD);
+      if (zkind) { var zs = orgChartState(zkind); if (zd === 0) { zs.scale = 1; zs.panX = 14; zs.panY = 8; } else { zs.scale = Math.max(0.3, Math.min(2.2, (zs.scale || 1) + zd)); } reRenderModulePrimary(); }
+      return;
+    }
+    if (command === 'admin-expand-all' || command === 'admin-collapse-all') {
+      var expAll = command === 'admin-expand-all';
+      state._adminExpanded = {};
+      if (expAll) { var ah0 = state.scenario.adminHierarchy || {}; var fk0 = (state._adminFaction && ah0[state._adminFaction]) ? state._adminFaction : Object.keys(ah0)[0]; (function dig(ds) { (ds || []).forEach(function (d) { if (d && d.children && d.children.length) { state._adminExpanded[d.id] = 1; dig(d.children); } }); })(((ah0[fk0] || {}).divisions) || []); }
+      reRenderModulePrimary(); return;
+    }
+    if (command === 'open-api-settings-modal') openApiSettingsModal();
+    if (command === 'close-api-settings-modal') closeApiSettingsModal();
+    if (command === 'save-api-settings-modal') saveApiSettingsModal();
+    if (command === 'test-api-settings-modal') testApiSettingsModal();
     if (command === 'clear-selected-map-bindings') clearSelectedMapBindings();
     if (command === 'create-missing-field') createMissingField(state.selectedField);
     if (command === 'save-field-note') {
@@ -21145,6 +21817,16 @@
       if (gel) { saveGenField(gel.dataset.genKind, Number(gel.dataset.genI), gel.dataset.genField, gel.type === 'checkbox' ? gel.checked : gel.value); return; }
       var oel = event.target && event.target.closest && event.target.closest('[data-office-field]');
       if (oel) { saveOfficeField(oel.dataset.officePath, oel.dataset.officeField, oel.value); return; }
+      var abr = event.target && event.target.closest && event.target.closest('[data-admin-bind-region]');
+      if (abr) { saveRegionAdminBinding(abr.dataset.adminBindRegion, abr.value); return; }
+      var ppf = event.target && event.target.closest && event.target.closest('[data-player-pick-faction]');
+      if (ppf) { pickFactionForPlayer(ppf.value); return; }
+      var ppc = event.target && event.target.closest && event.target.closest('[data-player-pick-char]');
+      if (ppc) { pickCharacterForPlayer(ppc.value); return; }
+      var cfl = event.target && event.target.closest && event.target.closest('[data-roster-filter]');
+      if (cfl) { rosterTBState(cfl.getAttribute('data-roster-filter')).filter = cfl.value; reRenderModulePrimary(); return; }
+      var cso = event.target && event.target.closest && event.target.closest('[data-roster-sort]');
+      if (cso) { rosterTBState(cso.getAttribute('data-roster-sort')).sort = cso.value; reRenderModulePrimary(); return; }
       var afe = event.target && event.target.closest && event.target.closest('[data-admin-faction]');
       if (afe) { state._adminFaction = afe.value; state._adminDivId = null; reRenderModulePrimary(); }
     });
@@ -21154,6 +21836,16 @@
       saveFactionRelationField(Number(rel.dataset.frelEdit), rel.dataset.frelField, rel.value);
     });
     document.addEventListener('input', function(event) {
+      var csr = event.target && event.target.closest && event.target.closest('[data-roster-search]');
+      if (csr) {
+        var rkind = csr.getAttribute('data-roster-search');
+        rosterTBState(rkind).q = csr.value || '';
+        var caret = (typeof csr.selectionStart === 'number') ? csr.selectionStart : (csr.value || '').length;
+        reRenderModulePrimary();
+        var again = document.querySelector('[data-roster-search="' + rkind + '"]');
+        if (again) { again.focus(); try { again.setSelectionRange(caret, caret); } catch (e) {} }
+        return;
+      }
       if (event.target && event.target.id === 'entity-search') {
         state.search = event.target.value || '';
         renderDetailApp();
@@ -21294,6 +21986,7 @@
     state: state,
     revealEntity: revealEntity,
     revealField: revealField,
+    revealPath: revealPath,
     markAgentTouched: markAgentTouched,
     modulePrimaryView: modulePrimaryView,
     healthCheck: healthCheck,

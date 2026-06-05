@@ -23,6 +23,7 @@ function esc(v) {
 
 const playerSignals = [];
 const llmActions = [];
+const nodes = {};
 const classes = [
   {
     name: 'Canal Tenants',
@@ -93,7 +94,19 @@ const sandbox = {
   Array, Object, String, Number, Boolean,
   parseInt, parseFloat, isNaN, isFinite,
   setTimeout: fn => { if (typeof fn === 'function') fn(); return 1; },
-  document: { getElementById: () => null, createElement: () => ({ addEventListener(){}, remove(){}, style: {} }), body: { appendChild(){} } },
+  document: {
+    getElementById: id => nodes[id] || null,
+    createElement: () => ({
+      id: '',
+      className: '',
+      style: {},
+      addEventListener(){},
+      remove(){ if (this.id) delete nodes[this.id]; },
+      set innerHTML(v) { this._html = String(v || ''); },
+      get innerHTML() { return this._html || ''; }
+    }),
+    body: { appendChild(node){ if (node && node.id) nodes[node.id] = node; } }
+  },
   window: {
     TMPhase8FormalBridge: bridge,
     GM: null,
@@ -181,19 +194,22 @@ assert(/\.tmrp-ecology-forecast/.test(bridgeSource), 'forecast rows should have 
 assert(!/\.tmrp-ecology-actions/.test(bridgeSource), 'forecast rows should not style direct relation command buttons');
 
 let html = bridge.rightrail.renderers.ol();
-assert(/tmrp-ecology-forecast/.test(html), 'ecology relation row should render forecast text');
-assert(/预期/.test(html), 'forecast should be labeled as expected effect');
-assert(/诏书/.test(html) && /奏疏/.test(html) && /问对/.test(html) && /朝议/.test(html) && /鸿雁/.test(html), 'forecast should point players to formal operation routes');
-assert(/reduce tax and levy pressure/.test(html), 'forecast should name the class demand that formal routes can address');
-assert(/Relief League\/Canal Tenants/.test(html), 'forecast should name the party-class relation being observed');
-assert(/亲和 44/.test(html) && /信 41/.test(html) && /怨 61/.test(html), 'relation row should still show current relation state');
-assert(/民变苗头/.test(html), 'forecast should surface class risk before intervention');
-assert(/建议廷议/.test(html), 'high-risk relation should recommend court debate');
-assert(!/data-forecast=/.test(html), 'forecast should remain display-only and not become action metadata');
-assert(!/data-right-action="social-relation"/.test(html), 'forecast should not expose direct relation actions');
-assert(!/data-relation-command=/.test(html), 'forecast should not expose direct relation commands');
-assert(/data-right-action="social-action"[^>]*data-social-command="chaoyi"/.test(html), 'formal court route should remain available beside forecast');
-assert(/data-right-action="social-action"[^>]*data-social-command="edict"/.test(html), 'formal edict route should remain available beside forecast');
+assert(!/tmrp-ecology-forecast/.test(html), 'class card should not render forecast text inline');
+bridge.rightrail.handleRightPanelAction('outline-select', { type: 'class', key: 'Canal Tenants' });
+const detailHtml = nodes['tm-social-detail-flyout'] && nodes['tm-social-detail-flyout'].innerHTML || '';
+assert(/tmrp-ecology-forecast/.test(detailHtml), 'ecology relation row should render forecast text in detail flyout');
+assert(/预期/.test(detailHtml), 'forecast should be labeled as expected effect');
+assert(/诏书/.test(detailHtml) && /奏疏/.test(detailHtml) && /问对/.test(detailHtml) && /朝议/.test(detailHtml) && /鸿雁/.test(detailHtml), 'forecast should point players to formal operation routes');
+assert(/减轻税赋与征派压力/.test(detailHtml), 'forecast should name the localized class demand that formal routes can address');
+assert(/Relief League[\s\S]*Canal Tenants/.test(detailHtml), 'forecast should name the party-class relation being observed');
+assert(/亲和 44/.test(detailHtml) && /信 41/.test(detailHtml) && /怨 61/.test(detailHtml), 'relation row should still show current relation state');
+assert(/民变苗头/.test(detailHtml), 'forecast should surface class risk before intervention');
+assert(/建议廷议/.test(detailHtml), 'high-risk relation should recommend court debate');
+assert(!/data-forecast=/.test(detailHtml), 'forecast should remain display-only and not become action metadata');
+assert(!/data-right-action="social-relation"/.test(detailHtml), 'forecast should not expose direct relation actions');
+assert(!/data-relation-command=/.test(detailHtml), 'forecast should not expose direct relation commands');
+assert(/data-right-action="social-action"[^>]*data-social-command="chaoyi"/.test(detailHtml), 'formal court route should remain available beside forecast');
+assert(/data-right-action="social-action"[^>]*data-social-command="edict"/.test(detailHtml), 'formal edict route should remain available beside forecast');
 
 bridge.rightrail.handleRightPanelAction('social-action', {
   actorType: 'class',

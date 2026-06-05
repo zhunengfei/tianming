@@ -60,6 +60,16 @@
     return fallback;
   }
 
+  function _walkOfficeTree(nodes, visitor) {
+    for (var i = 0; i < (nodes || []).length; i++) {
+      var n = nodes[i];
+      if (!n) continue;
+      if (visitor(n) === false) return false;
+      if (n.subs && _walkOfficeTree(n.subs, visitor) === false) return false;
+    }
+    return true;
+  }
+
   // ============================================================
   // DA.chars — 角色访问
   // ============================================================
@@ -267,37 +277,29 @@
     findPosition: function(deptName, positionName) {
       _log('officeTree', 'findPosition', deptName + '/' + positionName);
       var tree = DA.officeTree.get();
-      function walk(nodes) {
-        for (var i = 0; i < nodes.length; i++) {
-          var n = nodes[i];
-          if (!n) continue;
-          if (n.name === deptName && Array.isArray(n.positions)) {
-            var pos = n.positions.find(function(p){ return p && p.name === positionName; });
-            if (pos) return { dept: n, position: pos };
-          }
-          if (n.subs) {
-            var r = walk(n.subs);
-            if (r) return r;
+      var found = null;
+      _walkOfficeTree(tree, function(n) {
+        if (n.name === deptName && Array.isArray(n.positions)) {
+          var pos = n.positions.find(function(p){ return p && p.name === positionName; });
+          if (pos) {
+            found = { dept: n, position: pos };
+            return false;
           }
         }
-        return null;
-      }
-      return walk(tree);
+        return true;
+      });
+      return found;
     },
     /** 某角色占据的所有官职 [{dept, position}] */
     postsOf: function(charName) {
       _log('officeTree', 'postsOf', charName);
       var out = [];
-      function walk(nodes) {
-        (nodes||[]).forEach(function(n){
-          if (!n) return;
-          (n.positions||[]).forEach(function(p){
-            if (p && p.holder === charName) out.push({ dept: n, position: p });
-          });
-          if (n.subs) walk(n.subs);
+      _walkOfficeTree(DA.officeTree.get(), function(n) {
+        (n.positions||[]).forEach(function(p){
+          if (p && p.holder === charName) out.push({ dept: n, position: p });
         });
-      }
-      walk(DA.officeTree.get());
+        return true;
+      });
       return out;
     }
   };

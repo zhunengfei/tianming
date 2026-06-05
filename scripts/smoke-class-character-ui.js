@@ -53,6 +53,7 @@ const people = [
     stress: 28
   }
 ];
+const nodes = {};
 
 const root = {
   turn: 14,
@@ -105,7 +106,19 @@ const sandbox = {
   parseInt, parseFloat, isNaN, isFinite,
   setTimeout(fn) { if (typeof fn === 'function') fn(); },
   document: {
-    getElementById() { return null; },
+    getElementById(id) { return nodes[id] || null; },
+    createElement() {
+      return {
+        id: '',
+        className: '',
+        style: {},
+        addEventListener(){},
+        remove(){ if (this.id) delete nodes[this.id]; },
+        set innerHTML(v) { this._html = String(v || ''); },
+        get innerHTML() { return this._html || ''; }
+      };
+    },
+    body: { appendChild(node){ if (node && node.id) nodes[node.id] = node; } },
     querySelector() { return null; },
     addEventListener() {}
   },
@@ -183,10 +196,13 @@ assert(bridge.rightrail && bridge.rightrail.renderers && typeof bridge.rightrail
 assert(bridge.modules && typeof bridge.modules.renderRenwuModule === 'function', 'renwu renderer should load');
 
 const outlineHtml = bridge.rightrail.renderers.ol();
-assert(outlineHtml.includes('\u9636\u5c42\u4eba\u7269'), 'class panel should show class-character section');
-assert(outlineHtml.includes('\u4ee3\u8868\u4eba\u7269'), 'class panel should group spokespersons');
-assert(outlineHtml.includes('\u94b1\u8c26\u76ca'), 'class panel should show delegate character name');
-assert(outlineHtml.includes('\u79d1\u4e3e\u5ef7\u8bae'), 'class panel should show relation evidence');
+assert(!outlineHtml.includes('\u9636\u5c42\u4eba\u7269'), 'class card should not show class-character section inline');
+bridge.rightrail.handleRightPanelAction('outline-select', { type: 'class', key: '\u58eb\u7ec5' });
+const detailHtml = nodes['tm-social-detail-flyout'] && nodes['tm-social-detail-flyout'].innerHTML || '';
+assert(detailHtml.includes('\u9636\u5c42\u4eba\u7269'), 'class detail should show class-character section');
+assert(detailHtml.includes('\u4ee3\u8868\u4eba\u7269'), 'class detail should group spokespersons');
+assert(detailHtml.includes('\u94b1\u8c26\u76ca'), 'class detail should show delegate character name');
+assert(detailHtml.includes('\u79d1\u4e3e\u5ef7\u8bae'), 'class detail should show relation evidence');
 
 const renwuHtml = bridge.modules.renderRenwuModule();
 assert(renwuHtml.includes('\u9636\u5c42\u80cc\u4e66'), 'renwu relation tab should show class backing');
