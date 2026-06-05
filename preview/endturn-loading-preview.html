@@ -1,0 +1,2141 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>天命｜过回合加载</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root {
+      --ink-950: #080604;
+      --ink-900: #100c08;
+      --ink-820: #17110c;
+      --ink-760: #241a11;
+      --paper-100: #f5ead0;
+      --paper-200: #dfcda6;
+      --paper-350: #b9a06b;
+      --gold-300: #e4c475;
+      --gold-450: #c59b42;
+      --gold-650: #7b5821;
+      --red-400: #b84a38;
+      --red-650: #6e211a;
+      --green-300: #8cb99a;
+      --blue-300: #8caac2;
+      --stage-accent-rgb: 228, 196, 117;
+      --stage-cinnabar-rgb: 184, 74, 56;
+      --shadow-hard: 0 24px 80px rgba(0, 0, 0, 0.68);
+      --serif: "Noto Serif SC", "Source Han Serif SC", "STKaiti", "KaiTi", "SimSun", serif;
+      --sans: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      min-height: 100%;
+      margin: 0;
+      background: var(--ink-950);
+      color: var(--paper-100);
+      font-family: var(--serif);
+    }
+
+    body {
+      overflow-x: hidden;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .etl-shell {
+      position: relative;
+      min-height: 100vh;
+      overflow: hidden;
+      isolation: isolate;
+      background: #0a0704;
+    }
+
+    .etl-shell[data-group-key="prep"] {
+      --stage-accent-rgb: 226, 196, 117;
+      --stage-cinnabar-rgb: 128, 84, 38;
+    }
+
+    .etl-shell[data-group-key="entry"] {
+      --stage-accent-rgb: 228, 196, 117;
+      --stage-cinnabar-rgb: 184, 74, 56;
+    }
+
+    .etl-shell[data-group-key="prefetch"] {
+      --stage-accent-rgb: 196, 176, 120;
+      --stage-cinnabar-rgb: 94, 108, 86;
+    }
+
+    .etl-shell[data-group-key="ai"] {
+      --stage-accent-rgb: 232, 210, 142;
+      --stage-cinnabar-rgb: 170, 68, 50;
+    }
+
+    .etl-shell[data-group-key="edict"] {
+      --stage-accent-rgb: 232, 184, 94;
+      --stage-cinnabar-rgb: 184, 74, 56;
+    }
+
+    .etl-shell[data-group-key="systems"] {
+      --stage-accent-rgb: 186, 205, 174;
+      --stage-cinnabar-rgb: 115, 76, 42;
+    }
+
+    .etl-shell[data-group-key="render"] {
+      --stage-accent-rgb: 225, 194, 132;
+      --stage-cinnabar-rgb: 144, 48, 38;
+    }
+
+    .etl-shell[data-group-key="final"] {
+      --stage-accent-rgb: 246, 222, 154;
+      --stage-cinnabar-rgb: 190, 72, 46;
+    }
+
+    .etl-bg,
+    .etl-bg-next {
+      position: fixed;
+      inset: 0;
+      z-index: -5;
+      background-image: var(--scene-url);
+      background-size: cover;
+      background-position: center;
+      transform: scale(1.045);
+      filter: saturate(0.9) contrast(1.02);
+      transition: opacity 620ms ease, transform 980ms ease;
+      will-change: opacity, transform;
+    }
+
+    .etl-bg-next {
+      opacity: 0;
+      background-image: var(--next-scene-url);
+    }
+
+    .etl-shell.is-swapping .etl-bg {
+      opacity: 0;
+      transform: scale(1.07);
+    }
+
+    .etl-shell.is-swapping .etl-bg-next {
+      opacity: 1;
+      transform: scale(1.045);
+    }
+
+    .etl-shell::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -4;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 68% 38%, rgba(226, 174, 79, 0.18), transparent 30%),
+        radial-gradient(circle at 20% 72%, rgba(122, 34, 22, 0.18), transparent 26%),
+        linear-gradient(90deg, rgba(5, 4, 3, 0.92) 0%, rgba(7, 5, 4, 0.58) 38%, rgba(6, 5, 4, 0.38) 60%, rgba(5, 4, 3, 0.9) 100%),
+        linear-gradient(180deg, rgba(8, 6, 4, 0.72) 0%, rgba(8, 6, 4, 0.18) 32%, rgba(8, 6, 4, 0.94) 100%);
+    }
+
+    .etl-shell::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -3;
+      pointer-events: none;
+      opacity: 0.22;
+      background-image:
+        linear-gradient(rgba(226, 196, 117, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(226, 196, 117, 0.04) 1px, transparent 1px);
+      background-size: 44px 44px, 44px 44px;
+      mask-image: linear-gradient(90deg, black, transparent 62%);
+    }
+
+    .etl-grain {
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      pointer-events: none;
+      opacity: 0.14;
+      mix-blend-mode: soft-light;
+      background:
+        repeating-radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.24) 0 1px, transparent 1px 7px),
+        repeating-radial-gradient(circle at 76% 62%, rgba(0, 0, 0, 0.35) 0 1px, transparent 1px 9px);
+      background-size: 220px 180px, 260px 220px;
+    }
+
+    .etl-stage-wash,
+    .etl-archive-drift,
+    .etl-ruling-lines {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .etl-stage-wash {
+      z-index: -3;
+      inset: -10%;
+      opacity: 0.46;
+      mix-blend-mode: screen;
+      background:
+        linear-gradient(112deg, transparent 0 18%, rgba(var(--stage-accent-rgb), 0.13) 34%, transparent 54%),
+        linear-gradient(82deg, rgba(var(--stage-cinnabar-rgb), 0.12), transparent 42%, rgba(var(--stage-accent-rgb), 0.08) 78%, transparent);
+      background-size: 150% 100%, 120% 120%;
+      filter: blur(10px);
+      transform: translate3d(-3%, 0, 0);
+      transition: opacity 360ms ease;
+      animation: etl-wash-breathe 7.2s ease-in-out infinite;
+    }
+
+    .etl-archive-drift {
+      z-index: -2;
+      inset: -18%;
+      opacity: 0.16;
+      background:
+        repeating-linear-gradient(92deg, transparent 0 74px, rgba(var(--stage-accent-rgb), 0.1) 74px 75px, transparent 75px 132px),
+        linear-gradient(90deg, transparent, rgba(255, 244, 210, 0.08), transparent);
+      mask-image: linear-gradient(90deg, black 0 42%, transparent 82%);
+      transform: translate3d(-4%, 0, 0) rotate(-1deg);
+      animation: etl-archive-drift 18s linear infinite;
+    }
+
+    .etl-ruling-lines {
+      z-index: 1;
+      opacity: 0.12;
+      mix-blend-mode: screen;
+      background:
+        repeating-linear-gradient(180deg, rgba(var(--stage-accent-rgb), 0.24) 0 1px, transparent 1px 34px),
+        linear-gradient(90deg, rgba(var(--stage-cinnabar-rgb), 0.14), transparent 32%, transparent 72%, rgba(var(--stage-accent-rgb), 0.08));
+      mask-image: linear-gradient(90deg, black 0 42%, transparent 74%);
+      transform: translate3d(0, -18px, 0);
+      animation: etl-ruling-scan 6.4s linear infinite;
+    }
+
+    .etl-frame {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(260px, 0.86fr) minmax(420px, 1.45fr) minmax(280px, 0.82fr);
+      min-height: 100vh;
+      gap: 24px;
+      padding: clamp(20px, 3.2vw, 46px);
+    }
+
+    .etl-side {
+      align-self: stretch;
+      min-height: 0;
+      padding-top: 4px;
+    }
+
+    .etl-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 44px;
+      margin-bottom: 26px;
+    }
+
+    .etl-brand-mark {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border-radius: 3px;
+      color: #fff4e2;
+      font-size: 22px;
+      font-weight: 900;
+      background:
+        linear-gradient(145deg, rgba(214, 89, 66, 0.96), rgba(105, 30, 23, 0.98)),
+        #9d3326;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 230, 190, 0.22),
+        0 8px 24px rgba(85, 20, 12, 0.45);
+      transform: rotate(-3deg);
+    }
+
+    .etl-brand-copy {
+      display: grid;
+      gap: 2px;
+    }
+
+    .etl-brand-title {
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: 0.28em;
+      text-indent: 0.28em;
+      color: var(--gold-300);
+    }
+
+    .etl-brand-sub {
+      color: rgba(223, 205, 166, 0.72);
+      font-family: var(--sans);
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    .etl-stage-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 26px;
+    }
+
+    .etl-stage {
+      position: relative;
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr);
+      gap: 12px;
+      padding: 10px 0;
+      color: rgba(245, 234, 208, 0.56);
+      transition: color 180ms ease, opacity 180ms ease;
+    }
+
+    .etl-stage::before {
+      content: "";
+      position: absolute;
+      left: 16px;
+      top: 40px;
+      bottom: -16px;
+      width: 1px;
+      background: linear-gradient(rgba(197, 155, 66, 0.55), rgba(197, 155, 66, 0.05));
+    }
+
+    .etl-stage:last-child::before {
+      display: none;
+    }
+
+    .etl-stage-index {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(197, 155, 66, 0.34);
+      border-radius: 50%;
+      color: rgba(228, 196, 117, 0.65);
+      background: rgba(12, 8, 5, 0.44);
+      font-size: 13px;
+      line-height: 1;
+      transition: background 180ms ease, color 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+    }
+
+    .etl-stage-main {
+      min-width: 0;
+      padding-top: 1px;
+    }
+
+    .etl-stage-name {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 15px;
+      letter-spacing: 0.16em;
+      line-height: 1.35;
+    }
+
+    .etl-stage-note {
+      margin-top: 4px;
+      color: rgba(223, 205, 166, 0.5);
+      font-family: var(--sans);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .etl-stage-state {
+      color: rgba(140, 185, 154, 0.75);
+      font-family: var(--sans);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+      opacity: 0;
+    }
+
+    .etl-stage.is-active {
+      color: var(--paper-100);
+    }
+
+    .etl-stage.is-active .etl-stage-index {
+      color: var(--ink-900);
+      border-color: var(--gold-300);
+      background: linear-gradient(145deg, var(--gold-300), var(--gold-650));
+      box-shadow: 0 0 22px rgba(228, 196, 117, 0.34);
+    }
+
+    .etl-stage.is-active .etl-stage-state,
+    .etl-stage.is-done .etl-stage-state {
+      opacity: 1;
+    }
+
+    .etl-stage.is-done {
+      color: rgba(140, 185, 154, 0.74);
+    }
+
+    .etl-stage.is-done .etl-stage-index {
+      color: #dff0df;
+      border-color: rgba(140, 185, 154, 0.76);
+      background: rgba(57, 88, 62, 0.62);
+    }
+
+    .etl-main {
+      display: grid;
+      align-content: center;
+      justify-items: start;
+      min-height: calc(100vh - clamp(40px, 6.4vw, 92px));
+      padding: 5vh 0 15vh;
+    }
+
+    .etl-main-inner {
+      width: min(760px, 100%);
+    }
+
+    .etl-date {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: rgba(228, 196, 117, 0.78);
+      font-family: var(--sans);
+      font-size: 12px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      min-height: 22px;
+      margin-bottom: 18px;
+    }
+
+    .etl-date::before {
+      content: "";
+      width: 38px;
+      height: 1px;
+      background: linear-gradient(90deg, var(--gold-450), transparent);
+    }
+
+    .etl-title {
+      margin: 0;
+      color: transparent;
+      font-size: clamp(54px, 8.2vw, 128px);
+      line-height: 0.95;
+      letter-spacing: 0.24em;
+      text-indent: 0.24em;
+      font-weight: 900;
+      background:
+        linear-gradient(180deg, #fff2bf 0%, #e2bd64 32%, #8d6325 74%, #f6e5a9 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      filter: drop-shadow(0 22px 42px rgba(0, 0, 0, 0.8));
+      white-space: nowrap;
+      word-break: keep-all;
+    }
+
+    .etl-current {
+      width: min(580px, 100%);
+      min-height: 92px;
+      margin-top: 28px;
+      color: rgba(245, 234, 208, 0.88);
+      font-size: clamp(18px, 2vw, 24px);
+      line-height: 1.7;
+      letter-spacing: 0.12em;
+      text-shadow: 0 2px 14px rgba(0, 0, 0, 0.82);
+    }
+
+    .etl-current strong {
+      color: var(--gold-300);
+      font-weight: 800;
+    }
+
+    .etl-progress-wrap {
+      width: min(640px, 100%);
+      margin-top: 32px;
+    }
+
+    .etl-progress-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 9px;
+      color: rgba(223, 205, 166, 0.8);
+      font-family: var(--sans);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+    }
+
+    .etl-progress {
+      position: relative;
+      height: 9px;
+      overflow: hidden;
+      border: 1px solid rgba(197, 155, 66, 0.36);
+      background: rgba(8, 6, 4, 0.72);
+      box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.75);
+    }
+
+    .etl-progress-fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: var(--progress, 8%);
+      background:
+        linear-gradient(90deg, rgba(138, 82, 29, 0.96), rgba(228, 196, 117, 0.98), rgba(173, 60, 43, 0.92));
+      box-shadow: 0 0 22px rgba(228, 196, 117, 0.28);
+      transition: width 520ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .etl-progress-fill::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255, 244, 210, 0.65), transparent);
+      transform: translateX(-80%);
+      animation: etl-shimmer 1.8s linear infinite;
+    }
+
+    .etl-flow {
+      display: grid;
+      grid-template-columns: repeat(var(--flow-count, 8), minmax(0, 1fr));
+      gap: 5px;
+      width: min(480px, 100%);
+      margin-top: 9px;
+    }
+
+    .etl-flow-step {
+      position: relative;
+      height: 18px;
+      border-top: 1px solid rgba(197, 155, 66, 0.16);
+      color: rgba(223, 205, 166, 0.42);
+      font-family: var(--sans);
+      font-size: 10px;
+      line-height: 18px;
+      letter-spacing: 0.05em;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: clip;
+      transition: color 180ms ease, border-color 180ms ease;
+    }
+
+    .etl-flow-step::before {
+      content: "";
+      position: absolute;
+      top: -3px;
+      left: 0;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: rgba(197, 155, 66, 0.28);
+      box-shadow: 0 0 0 1px rgba(8, 6, 4, 0.7);
+    }
+
+    .etl-flow-step.is-done {
+      color: rgba(228, 196, 117, 0.56);
+      border-color: rgba(228, 196, 117, 0.32);
+    }
+
+    .etl-flow-step.is-active {
+      color: rgba(245, 234, 208, 0.88);
+      border-color: rgba(228, 196, 117, 0.82);
+    }
+
+    .etl-flow-step.is-active::before {
+      background: var(--gold-300);
+      box-shadow: 0 0 12px rgba(228, 196, 117, 0.62);
+    }
+
+    .etl-edict-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      width: min(720px, 100%);
+      margin-top: 28px;
+    }
+
+    .etl-chip {
+      border: 1px solid rgba(197, 155, 66, 0.28);
+      border-left: 3px solid rgba(228, 196, 117, 0.72);
+      background: rgba(16, 12, 8, 0.46);
+      color: rgba(245, 234, 208, 0.82);
+      padding: 6px 10px;
+      font-size: 13px;
+      line-height: 1.25;
+      letter-spacing: 0.08em;
+      backdrop-filter: blur(6px);
+    }
+
+    .etl-chip.warn {
+      border-left-color: var(--red-400);
+    }
+
+    .etl-chip.good {
+      border-left-color: var(--green-300);
+    }
+
+    .etl-right {
+      display: grid;
+      align-content: space-between;
+      min-height: calc(100vh - clamp(40px, 6.4vw, 92px));
+      gap: 20px;
+    }
+
+    .etl-dispatch {
+      position: relative;
+      align-self: start;
+      padding: 18px 18px 20px;
+      border: 1px solid rgba(197, 155, 66, 0.28);
+      background:
+        repeating-linear-gradient(90deg, transparent 0, transparent 42px, rgba(228, 196, 117, 0.028) 42px, rgba(228, 196, 117, 0.028) 43px),
+        linear-gradient(180deg, rgba(31, 22, 13, 0.7), rgba(10, 7, 4, 0.56));
+      box-shadow: var(--shadow-hard);
+      backdrop-filter: blur(8px);
+    }
+
+    .etl-dispatch::before {
+      content: "";
+      position: absolute;
+      left: 18%;
+      right: 18%;
+      top: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(228, 196, 117, 0.75), transparent);
+    }
+
+    .etl-panel-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 0 16px;
+      color: var(--gold-300);
+      font-size: 15px;
+      letter-spacing: 0.22em;
+      line-height: 1.35;
+    }
+
+    .etl-seal-mini {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: #fff4e2;
+      background: radial-gradient(circle at 34% 30%, #ce5d49, #7e241b 74%);
+      font-size: 13px;
+      letter-spacing: 0;
+      transform: rotate(-8deg);
+      box-shadow: 0 4px 14px rgba(111, 33, 26, 0.42);
+    }
+
+    .etl-stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+      margin-bottom: 16px;
+    }
+
+    .etl-stat {
+      min-height: 74px;
+      padding: 10px 11px;
+      border: 1px solid rgba(197, 155, 66, 0.16);
+      background: rgba(8, 6, 4, 0.42);
+    }
+
+    .etl-stat b {
+      display: block;
+      color: rgba(245, 234, 208, 0.9);
+      font-size: 22px;
+      line-height: 1.15;
+      letter-spacing: 0.04em;
+    }
+
+    .etl-stat span {
+      display: block;
+      margin-top: 5px;
+      color: rgba(223, 205, 166, 0.58);
+      font-family: var(--sans);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+    }
+
+    .etl-report-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .etl-report {
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 10px;
+      border: 1px solid rgba(197, 155, 66, 0.16);
+      background: rgba(8, 6, 4, 0.36);
+    }
+
+    .etl-report-glyph {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 2px;
+      color: #1b1008;
+      background: rgba(228, 196, 117, 0.76);
+      font-weight: 900;
+    }
+
+    .etl-report-name {
+      color: rgba(245, 234, 208, 0.86);
+      font-size: 13.5px;
+      letter-spacing: 0.1em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .etl-report-note {
+      color: rgba(223, 205, 166, 0.54);
+      font-family: var(--sans);
+      font-size: 11px;
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .etl-report-delta {
+      color: var(--green-300);
+      font-family: var(--sans);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .etl-report-delta.danger {
+      color: #e08a74;
+    }
+
+    .etl-controls {
+      align-self: end;
+      display: grid;
+      gap: 13px;
+    }
+
+    .etl-scenes {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+      gap: 8px;
+      max-height: min(35vh, 312px);
+      min-height: 92px;
+      overflow: auto;
+      padding: 2px 2px 4px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(197, 155, 66, 0.45) rgba(10, 7, 4, 0.45);
+    }
+
+    .etl-scene-btn {
+      position: relative;
+      min-height: 68px;
+      padding: 0;
+      overflow: hidden;
+      border: 1px solid rgba(197, 155, 66, 0.28);
+      background: rgba(10, 7, 4, 0.72);
+      color: var(--paper-100);
+      cursor: pointer;
+      box-shadow: 0 12px 26px rgba(0, 0, 0, 0.34);
+      transition: transform 160ms ease, border-color 160ms ease;
+    }
+
+    .etl-scene-btn:hover,
+    .etl-scene-btn[aria-pressed="true"] {
+      border-color: rgba(228, 196, 117, 0.84);
+      transform: translateY(-2px);
+    }
+
+    .etl-scene-btn::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: var(--thumb-url);
+      background-size: cover;
+      background-position: center;
+      filter: saturate(0.88) contrast(1.04);
+      transform: scale(1.04);
+    }
+
+    .etl-scene-btn::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, transparent 24%, rgba(5, 4, 3, 0.82));
+    }
+
+    .etl-scene-btn span {
+      position: absolute;
+      left: 7px;
+      right: 7px;
+      bottom: 7px;
+      z-index: 1;
+      color: rgba(245, 234, 208, 0.88);
+      font-size: 11.5px;
+      letter-spacing: 0.08em;
+      text-align: left;
+    }
+
+    .etl-action-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .etl-btn {
+      min-height: 38px;
+      padding: 8px 13px;
+      border: 1px solid rgba(197, 155, 66, 0.34);
+      border-radius: 3px;
+      color: rgba(245, 234, 208, 0.9);
+      background: rgba(10, 7, 4, 0.62);
+      cursor: pointer;
+      font-size: 13px;
+      letter-spacing: 0.12em;
+      transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+    }
+
+    .etl-btn:hover {
+      color: var(--gold-300);
+      border-color: rgba(228, 196, 117, 0.72);
+      background: rgba(31, 22, 13, 0.74);
+    }
+
+    .etl-btn.primary {
+      color: #160d08;
+      border-color: rgba(228, 196, 117, 0.9);
+      background: linear-gradient(145deg, var(--gold-300), var(--gold-650));
+      font-weight: 800;
+    }
+
+    .etl-seal-burst {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      z-index: 10;
+      width: 132px;
+      height: 132px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      opacity: 0;
+      pointer-events: none;
+      color: #fff0e2;
+      font-size: 30px;
+      font-weight: 900;
+      letter-spacing: 0.22em;
+      text-indent: 0.22em;
+      background:
+        linear-gradient(145deg, rgba(205, 79, 58, 0.98), rgba(111, 33, 26, 0.98)),
+        #9d3326;
+      border: 2px solid rgba(57, 12, 8, 0.95);
+      box-shadow:
+        inset 0 1px 3px rgba(255, 225, 184, 0.35),
+        inset 0 -8px 16px rgba(42, 7, 4, 0.26),
+        0 18px 70px rgba(79, 14, 8, 0.65);
+      transform: translate(-50%, -50%) scale(0.38) rotate(-8deg);
+    }
+
+    .etl-shell.is-sealed .etl-seal-burst {
+      animation: etl-seal 940ms cubic-bezier(0.3, 0.8, 0.2, 1) forwards;
+    }
+
+    .etl-seal-burst::after {
+      content: "";
+      position: absolute;
+      inset: 8px;
+      border: 1px solid rgba(255, 226, 184, 0.34);
+      border-radius: 4px;
+    }
+
+    .etl-ink-lines {
+      position: fixed;
+      inset: 0;
+      z-index: 9;
+      pointer-events: none;
+      opacity: 0;
+      background:
+        radial-gradient(circle at 50% 50%, rgba(162, 42, 28, 0.22), transparent 24%),
+        linear-gradient(90deg, transparent, rgba(228, 196, 117, 0.13), transparent);
+    }
+
+    .etl-shell.is-sealed .etl-ink-lines {
+      animation: etl-flash 940ms ease-out forwards;
+    }
+
+    @keyframes etl-shimmer {
+      to {
+        transform: translateX(120%);
+      }
+    }
+
+    @keyframes etl-seal {
+      0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.25) rotate(-9deg);
+      }
+      30% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.18) rotate(-7deg);
+      }
+      56% {
+        opacity: 0.96;
+        transform: translate(-50%, -50%) scale(0.86) rotate(-5deg);
+      }
+      78% {
+        opacity: 0.96;
+        transform: translate(-50%, -50%) scale(1.03) rotate(-4deg);
+      }
+      100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1) rotate(-3deg);
+      }
+    }
+
+    @keyframes etl-flash {
+      0%,
+      100% {
+        opacity: 0;
+      }
+      26%,
+      62% {
+        opacity: 1;
+      }
+    }
+
+    @media (max-width: 1180px) {
+      .etl-frame {
+        grid-template-columns: minmax(0, 1fr);
+        align-content: start;
+      }
+
+      .etl-side {
+        display: none;
+      }
+
+      .etl-main {
+        min-height: auto;
+        padding: 8vh 0 2vh;
+      }
+
+      .etl-right {
+        min-height: 0;
+      }
+
+      .etl-dispatch {
+        width: min(760px, 100%);
+      }
+
+      .etl-controls {
+        width: min(760px, 100%);
+      }
+    }
+
+    @media (max-width: 720px) {
+      .etl-frame {
+        gap: 18px;
+        padding: 18px 14px 22px;
+      }
+
+      .etl-title {
+        font-size: 48px;
+        letter-spacing: 0.16em;
+        text-indent: 0.16em;
+      }
+
+      .etl-current {
+        min-height: 122px;
+        font-size: 18px;
+      }
+
+      .etl-stat-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .etl-scenes {
+        grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+        max-height: 260px;
+      }
+
+      .etl-report {
+        grid-template-columns: 30px minmax(0, 1fr);
+      }
+
+      .etl-report-delta {
+        grid-column: 2;
+        justify-self: start;
+      }
+
+      .etl-action-row {
+        justify-content: stretch;
+      }
+
+      .etl-btn {
+        flex: 1;
+      }
+    }
+
+    /* Minimal cinematic pass: loading should set mood, not duplicate the result modal. */
+    .etl-frame {
+      display: block;
+      min-height: 100vh;
+      padding: clamp(18px, 3vw, 42px);
+    }
+
+    .etl-side,
+    .etl-dispatch,
+    .etl-edict-strip {
+      display: none !important;
+    }
+
+    .etl-main {
+      min-height: calc(100vh - clamp(36px, 6vw, 84px));
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 0 0 10vh;
+    }
+
+    .etl-main-inner {
+      width: min(660px, calc(100vw - 36px));
+      margin-left: clamp(0px, 7vw, 112px);
+      transform: translateY(-3vh);
+    }
+
+    .etl-date {
+      margin-bottom: 14px;
+      color: rgba(228, 196, 117, 0.72);
+      font-size: 11px;
+      letter-spacing: 0.2em;
+    }
+
+    .etl-title {
+      font-size: clamp(56px, 9vw, 112px);
+      line-height: 0.92;
+      letter-spacing: 0.2em;
+      text-indent: 0.2em;
+    }
+
+    .etl-current {
+      width: min(520px, 100%);
+      min-height: 0;
+      margin-top: 22px;
+      font-size: clamp(18px, 1.7vw, 22px);
+      line-height: 1.75;
+      letter-spacing: 0.1em;
+    }
+
+    .etl-progress-wrap {
+      width: min(480px, 100%);
+      margin-top: 26px;
+    }
+
+    .etl-progress-meta {
+      margin-bottom: 8px;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+    }
+
+    .etl-progress {
+      height: 7px;
+      border-color: rgba(228, 196, 117, 0.28);
+    }
+
+    .etl-right {
+      position: fixed;
+      left: clamp(14px, 4vw, 52px);
+      right: clamp(14px, 4vw, 52px);
+      bottom: clamp(14px, 3vw, 30px);
+      z-index: 4;
+      min-height: 0;
+      display: block;
+      pointer-events: none;
+    }
+
+    .etl-controls {
+      width: 100%;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: end;
+      gap: 12px;
+      pointer-events: auto;
+    }
+
+    .etl-scenes {
+      display: flex;
+      grid-template-columns: none;
+      gap: 1px;
+      max-height: none;
+      min-height: 14px;
+      height: 14px;
+      overflow: hidden;
+      padding: 0;
+      opacity: 0.38;
+      mask-image: linear-gradient(90deg, transparent, black 30px, black calc(100% - 30px), transparent);
+    }
+
+    .etl-scene-btn {
+      flex: 1 1 0;
+      width: auto;
+      min-width: 0;
+      min-height: 14px;
+      height: 14px;
+      border: 0;
+      border-radius: 0;
+      opacity: 0.58;
+      box-shadow: none;
+      filter: grayscale(0.18) contrast(1.03);
+      transform: none;
+    }
+
+    .etl-scene-btn:hover,
+    .etl-scene-btn[aria-pressed="true"] {
+      opacity: 0.92;
+      transform: none;
+    }
+
+    .etl-scene-btn span {
+      display: none;
+    }
+
+    .etl-action-row {
+      flex-wrap: nowrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+
+    .etl-btn {
+      min-height: 34px;
+      padding: 7px 12px;
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      background: rgba(8, 6, 4, 0.54);
+      backdrop-filter: blur(6px);
+    }
+
+    .etl-btn.primary {
+      min-width: 74px;
+    }
+
+    /* Real loading pass: no preview controls, only the in-game loading surface. */
+    .etl-bg,
+    .etl-bg-next {
+      filter: saturate(0.86) contrast(1.08) brightness(0.72);
+      transform: scale(1.055);
+      transform-origin: 58% 46%;
+      transition: opacity 860ms ease, transform 1600ms ease, filter 860ms ease;
+      animation: etl-scene-drift 16s ease-in-out infinite alternate;
+    }
+
+    .etl-shell.is-swapping .etl-bg {
+      opacity: 0;
+      transform: scale(1.075) translate3d(-0.35%, 0.15%, 0);
+    }
+
+    .etl-shell.is-swapping .etl-bg-next {
+      opacity: 1;
+      transform: scale(1.055) translate3d(0.2%, -0.12%, 0);
+    }
+
+    .etl-shell::before {
+      background:
+        linear-gradient(90deg, rgba(5, 4, 3, 0.95) 0%, rgba(8, 6, 4, 0.68) 34%, rgba(8, 6, 4, 0.22) 62%, rgba(5, 4, 3, 0.82) 100%),
+        linear-gradient(180deg, rgba(8, 6, 4, 0.86) 0%, rgba(8, 6, 4, 0.12) 34%, rgba(8, 6, 4, 0.94) 100%);
+    }
+
+    .etl-shell::after {
+      opacity: 0.2;
+      background-image:
+        linear-gradient(90deg, rgba(228, 196, 117, 0.18), transparent 20%, transparent 80%, rgba(228, 196, 117, 0.08)),
+        repeating-linear-gradient(180deg, rgba(255, 244, 210, 0.028) 0 1px, transparent 1px 9px);
+      background-size: 100% 100%, 100% 18px;
+      mask-image: none;
+      animation: etl-veil-scan 5.6s linear infinite;
+    }
+
+    .etl-grain {
+      opacity: 0.12;
+    }
+
+    .etl-stage-wash {
+      opacity: 0.52;
+      transition: opacity 360ms ease, filter 360ms ease;
+    }
+
+    .etl-shell.is-stage-change .etl-stage-wash {
+      animation: etl-stage-wash-pop 460ms ease both, etl-wash-breathe 7.2s ease-in-out infinite;
+    }
+
+    .etl-archive-drift {
+      opacity: 0.2;
+    }
+
+    .etl-ruling-lines {
+      opacity: 0.13;
+    }
+
+    .etl-frame {
+      padding: 0;
+      z-index: 3;
+    }
+
+    .etl-side,
+    .etl-right,
+    .etl-dispatch,
+    .etl-edict-strip {
+      display: none !important;
+    }
+
+    .etl-main {
+      min-height: 100vh;
+      padding: 0;
+      align-items: center;
+    }
+
+    .etl-main-inner {
+      position: relative;
+      width: min(650px, calc(100vw - 36px));
+      margin-left: clamp(22px, 10vw, 148px);
+      padding-left: clamp(0px, 1.4vw, 20px);
+      transform: translateY(-5vh);
+      animation: etl-panel-arrive 780ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .etl-main-inner::before,
+    .etl-main-inner::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      pointer-events: none;
+    }
+
+    .etl-main-inner::before {
+      top: 10px;
+      bottom: 8px;
+      width: 1px;
+      background:
+        linear-gradient(180deg, transparent, rgba(var(--stage-accent-rgb), 0.62) 16%, rgba(var(--stage-cinnabar-rgb), 0.36) 58%, transparent);
+      box-shadow: 0 0 24px rgba(var(--stage-accent-rgb), 0.2);
+      opacity: 0.7;
+      transform-origin: top;
+      animation: etl-rule-grow 980ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .etl-main-inner::after {
+      top: 10px;
+      width: min(260px, 44vw);
+      height: 1px;
+      background: linear-gradient(90deg, rgba(var(--stage-accent-rgb), 0.56), transparent);
+      opacity: 0.44;
+    }
+
+    .etl-date {
+      margin-bottom: 13px;
+      color: rgba(var(--stage-accent-rgb), 0.7);
+      font-family: var(--sans);
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      transition: color 360ms ease;
+    }
+
+    .etl-title {
+      font-size: clamp(62px, 8.6vw, 116px);
+      line-height: 0.92;
+      letter-spacing: 0.18em;
+      text-indent: 0.18em;
+      background:
+        linear-gradient(180deg, #fff3c8 0%, rgba(var(--stage-accent-rgb), 0.96) 34%, rgba(117, 77, 34, 0.98) 74%, #f8e7ad 100%);
+      background-size: 100% 180%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      animation: etl-title-breathe 4.8s ease-in-out infinite, etl-gold-shift 8.4s ease-in-out infinite;
+    }
+
+    .etl-current {
+      width: min(520px, 100%);
+      margin-top: 24px;
+      color: rgba(245, 234, 208, 0.9);
+      font-size: clamp(18px, 1.55vw, 21px);
+      line-height: 1.72;
+      letter-spacing: 0.1em;
+      transition: color 360ms ease, text-shadow 360ms ease;
+    }
+
+    .etl-live-detail {
+      width: min(520px, 100%);
+      min-height: 20px;
+      margin-top: 10px;
+      color: rgba(223, 205, 166, 0.56);
+      font-family: var(--sans);
+      font-size: 12px;
+      line-height: 1.5;
+      letter-spacing: 0.12em;
+      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.76);
+      transition: opacity 220ms ease, transform 220ms ease;
+    }
+
+    .etl-shell.is-stage-change .etl-live-detail {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+
+    .etl-progress-wrap {
+      position: relative;
+      width: min(540px, 100%);
+      margin-top: 26px;
+      padding-top: 10px;
+    }
+
+    .etl-progress-wrap::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 1px;
+      opacity: 0.38;
+      background:
+        linear-gradient(90deg, rgba(var(--stage-accent-rgb), 0.72), rgba(var(--stage-cinnabar-rgb), 0.28), transparent 76%);
+      transform-origin: left;
+      animation: etl-rail-prime 1.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .etl-progress-meta {
+      margin-bottom: 8px;
+      color: rgba(var(--stage-accent-rgb), 0.78);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      transition: color 260ms ease;
+    }
+
+    .etl-progress {
+      height: 10px;
+      border: 0;
+      background:
+        repeating-linear-gradient(90deg, transparent 0 calc((100% / var(--micro-count, 30)) - 1px), rgba(var(--stage-accent-rgb), 0.2) calc((100% / var(--micro-count, 30)) - 1px) calc(100% / var(--micro-count, 30))),
+        linear-gradient(90deg, rgba(8, 6, 4, 0.88), rgba(18, 13, 8, 0.84));
+      box-shadow:
+        inset 0 0 0 1px rgba(var(--stage-accent-rgb), 0.2),
+        inset 0 0 18px rgba(0, 0, 0, 0.9),
+        0 12px 28px rgba(0, 0, 0, 0.42);
+    }
+
+    .etl-progress::after {
+      content: "";
+      position: absolute;
+      inset: -18px 0;
+      opacity: 0.18;
+      background:
+        linear-gradient(90deg, transparent, rgba(var(--stage-accent-rgb), 0.42), transparent);
+      transform: translateX(-70%);
+      animation: etl-progress-sweep 2.8s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    .etl-progress-fill {
+      background:
+        linear-gradient(90deg, rgba(var(--stage-cinnabar-rgb), 0.72), rgba(var(--stage-accent-rgb), 0.98) 62%, rgba(var(--stage-cinnabar-rgb), 0.9));
+      box-shadow:
+        0 0 18px rgba(var(--stage-accent-rgb), 0.3),
+        0 0 1px rgba(255, 244, 210, 0.9);
+      transition: width 900ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .etl-progress-fill::before {
+      content: "";
+      position: absolute;
+      top: -4px;
+      right: -1px;
+      width: 1px;
+      height: 18px;
+      background: rgba(245, 234, 208, 0.72);
+      box-shadow: 0 0 14px rgba(var(--stage-accent-rgb), 0.74);
+    }
+
+    .etl-progress-fill::after {
+      animation-duration: 2.2s;
+      opacity: 0.74;
+    }
+
+    .etl-micro-rail {
+      display: grid;
+      grid-template-columns: repeat(var(--micro-count, 30), minmax(0, 1fr));
+      gap: 2px;
+      width: min(540px, 100%);
+      height: 18px;
+      margin-top: 8px;
+    }
+
+    .etl-micro-cell {
+      position: relative;
+      min-width: 0;
+      overflow: hidden;
+      border-top: 1px solid rgba(var(--stage-accent-rgb), 0.16);
+      opacity: 0.5;
+    }
+
+    .etl-micro-cell::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 5px;
+      height: 3px;
+      background: rgba(223, 205, 166, 0.16);
+      transform-origin: left center;
+      transform: scaleX(0.28);
+      transition: transform 320ms ease, background 240ms ease, box-shadow 240ms ease;
+    }
+
+    .etl-micro-cell.is-done::before {
+      transform: scaleX(1);
+      background: rgba(var(--stage-accent-rgb), 0.56);
+    }
+
+    .etl-micro-cell.is-active {
+      opacity: 1;
+    }
+
+    .etl-micro-cell.is-active::before {
+      transform: scaleX(1);
+      background: rgba(245, 234, 208, 0.92);
+      box-shadow: 0 0 13px rgba(var(--stage-accent-rgb), 0.64);
+      animation: etl-cell-pulse 820ms ease-in-out infinite alternate;
+    }
+
+    .etl-subqueue {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+      width: min(540px, 100%);
+      margin-top: 4px;
+      color: rgba(223, 205, 166, 0.48);
+      font-family: var(--sans);
+      font-size: 10px;
+      line-height: 1.4;
+      letter-spacing: 0.08em;
+    }
+
+    .etl-subqueue span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .etl-subqueue .now {
+      color: rgba(var(--stage-accent-rgb), 0.82);
+    }
+
+    .etl-flow {
+      width: min(540px, 100%);
+      margin-top: 11px;
+      gap: 2px;
+    }
+
+    .etl-flow-step {
+      height: 24px;
+      padding-top: 7px;
+      border-top-color: rgba(var(--stage-accent-rgb), 0.13);
+      color: rgba(223, 205, 166, 0.36);
+      font-size: 10px;
+      line-height: 1;
+    }
+
+    .etl-flow-step::before {
+      top: -4px;
+      width: 6px;
+      height: 6px;
+      background: rgba(var(--stage-accent-rgb), 0.22);
+    }
+
+    .etl-flow-step::after {
+      content: "";
+      position: absolute;
+      top: -1px;
+      left: 0;
+      width: 0;
+      height: 1px;
+      background: rgba(var(--stage-accent-rgb), 0.76);
+      transition: width 260ms ease;
+    }
+
+    .etl-flow-step.is-done {
+      color: rgba(var(--stage-accent-rgb), 0.5);
+      border-color: rgba(var(--stage-accent-rgb), 0.3);
+    }
+
+    .etl-flow-step.is-active {
+      color: rgba(245, 234, 208, 0.9);
+      border-color: rgba(245, 234, 208, 0.64);
+    }
+
+    .etl-flow-step.is-active::after {
+      width: 72%;
+    }
+
+    .etl-flow-step.is-active::before {
+      background: rgba(var(--stage-accent-rgb), 0.98);
+      box-shadow: 0 0 14px rgba(var(--stage-accent-rgb), 0.7);
+    }
+
+    .etl-shell.is-stage-change .etl-progress {
+      animation: etl-progress-knock 340ms ease;
+    }
+
+    .etl-shell.is-stage-change .etl-current,
+    .etl-shell.is-stage-change .etl-progress-meta,
+    .etl-shell.is-stage-change .etl-subqueue {
+      animation: etl-text-step 360ms ease;
+    }
+
+    @keyframes etl-scene-drift {
+      from {
+        transform: scale(1.055) translate3d(-0.4%, -0.2%, 0);
+      }
+      to {
+        transform: scale(1.075) translate3d(0.45%, 0.25%, 0);
+      }
+    }
+
+    @keyframes etl-title-breathe {
+      0%,
+      100% {
+        filter: drop-shadow(0 22px 42px rgba(0, 0, 0, 0.8));
+      }
+      50% {
+        filter: drop-shadow(0 26px 52px rgba(0, 0, 0, 0.86)) drop-shadow(0 0 16px rgba(var(--stage-accent-rgb), 0.22));
+      }
+    }
+
+    @keyframes etl-gold-shift {
+      0%,
+      100% {
+        background-position: 0 0;
+      }
+      50% {
+        background-position: 0 44%;
+      }
+    }
+
+    @keyframes etl-panel-arrive {
+      from {
+        opacity: 0;
+        transform: translateY(-3vh) translateX(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(-5vh) translateX(0);
+      }
+    }
+
+    @keyframes etl-rule-grow {
+      from {
+        opacity: 0;
+        transform: scaleY(0.14);
+      }
+      to {
+        opacity: 0.7;
+        transform: scaleY(1);
+      }
+    }
+
+    @keyframes etl-rail-prime {
+      from {
+        opacity: 0;
+        transform: scaleX(0.18);
+      }
+      to {
+        opacity: 0.38;
+        transform: scaleX(1);
+      }
+    }
+
+    @keyframes etl-veil-scan {
+      from {
+        background-position: 0 0, 0 0;
+      }
+      to {
+        background-position: 0 0, 0 36px;
+      }
+    }
+
+    @keyframes etl-wash-breathe {
+      0%,
+      100% {
+        background-position: 0 0, 0 0;
+        transform: translate3d(-3%, 0, 0);
+      }
+      50% {
+        background-position: 22% 0, 16% 8%;
+        transform: translate3d(1.2%, -0.5%, 0);
+      }
+    }
+
+    @keyframes etl-stage-wash-pop {
+      0% {
+        opacity: 0.34;
+        filter: blur(14px) brightness(0.92);
+      }
+      45% {
+        opacity: 0.68;
+        filter: blur(7px) brightness(1.24);
+      }
+      100% {
+        opacity: 0.52;
+        filter: blur(10px) brightness(1);
+      }
+    }
+
+    @keyframes etl-archive-drift {
+      from {
+        background-position: 0 0, 0 0;
+        transform: translate3d(-4%, 0, 0) rotate(-1deg);
+      }
+      to {
+        background-position: 260px 0, 80px 0;
+        transform: translate3d(3%, 0, 0) rotate(-1deg);
+      }
+    }
+
+    @keyframes etl-ruling-scan {
+      from {
+        background-position: 0 -34px, 0 0;
+      }
+      to {
+        background-position: 0 34px, 0 0;
+      }
+    }
+
+    @keyframes etl-progress-sweep {
+      0% {
+        transform: translateX(-80%);
+      }
+      52% {
+        transform: translateX(46%);
+      }
+      100% {
+        transform: translateX(110%);
+      }
+    }
+
+    @keyframes etl-cell-pulse {
+      from {
+        opacity: 0.62;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+
+    @keyframes etl-progress-knock {
+      0% {
+        filter: brightness(1);
+      }
+      45% {
+        filter: brightness(1.35);
+      }
+      100% {
+        filter: brightness(1);
+      }
+    }
+
+    @keyframes etl-text-step {
+      from {
+        opacity: 0.55;
+        transform: translateY(4px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 720px) {
+      .etl-frame {
+        padding: 18px 14px;
+      }
+
+      .etl-main {
+        align-items: flex-start;
+        min-height: 100vh;
+        padding: 74px 0 150px;
+      }
+
+      .etl-main-inner {
+        width: 100%;
+        margin-left: 0;
+        transform: none;
+      }
+
+      .etl-title {
+        font-size: clamp(44px, 13vw, 58px);
+        letter-spacing: 0.14em;
+        text-indent: 0.14em;
+      }
+
+      .etl-current {
+        margin-top: 18px;
+        font-size: 17px;
+        line-height: 1.7;
+      }
+
+      .etl-right {
+        left: 14px;
+        right: 14px;
+        bottom: 12px;
+      }
+
+      .etl-controls {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+
+      .etl-action-row {
+        justify-content: stretch;
+      }
+
+      .etl-btn {
+        min-width: 0;
+      }
+
+      .etl-flow {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .etl-main {
+        align-items: center;
+        padding: 0;
+      }
+
+      .etl-main-inner {
+        animation: none;
+        transform: translateY(-5vh);
+      }
+
+      .etl-live-detail {
+        font-size: 11px;
+        letter-spacing: 0.08em;
+      }
+
+      .etl-progress-wrap,
+      .etl-flow {
+        width: 100%;
+      }
+
+      .etl-micro-rail {
+        width: 100%;
+        gap: 1px;
+      }
+
+      .etl-subqueue {
+        grid-template-columns: 1fr 1fr;
+        gap: 4px 8px;
+        width: 100%;
+        font-size: 9.5px;
+      }
+
+      .etl-subqueue span:first-child {
+        grid-column: 1 / -1;
+      }
+
+      .etl-flow-step {
+        height: 22px;
+        font-size: 10px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="etl-shell" id="previewShell" style="--scene-url:url('file:///C:/Users/37814/.codex/generated_images/019e8631-1223-7fd2-861b-8c4b471a0755/ig_0d4ac6045e539eec016a1e491b4400819487cf10fd98f5ce60.png');">
+    <div class="etl-bg" aria-hidden="true"></div>
+    <div class="etl-bg-next" aria-hidden="true"></div>
+    <div class="etl-grain" aria-hidden="true"></div>
+    <div class="etl-stage-wash" aria-hidden="true"></div>
+    <div class="etl-archive-drift" aria-hidden="true"></div>
+    <div class="etl-ruling-lines" aria-hidden="true"></div>
+    <div class="etl-ink-lines" aria-hidden="true"></div>
+    <div class="etl-seal-burst" aria-hidden="true">御览</div>
+
+    <section class="etl-frame" aria-label="过回合加载画面">
+      <aside class="etl-side">
+        <div class="etl-brand">
+          <div class="etl-brand-mark">命</div>
+          <div class="etl-brand-copy">
+            <div class="etl-brand-title">天命</div>
+            <div class="etl-brand-sub">Turn Chronicle</div>
+          </div>
+        </div>
+
+        <div class="etl-stage-list" id="stageList"></div>
+      </aside>
+
+      <section class="etl-main">
+        <div class="etl-main-inner">
+          <div class="etl-date" id="dateLine">天启七年 九月 朔后</div>
+          <h1 class="etl-title">时移事去</h1>
+          <div class="etl-current" id="currentLine">风雨入阁，诸司回奏。</div>
+          <div class="etl-live-detail" id="detailLine">建立回合推演遮罩。</div>
+
+          <div class="etl-progress-wrap" aria-label="推演进度">
+            <div class="etl-progress-meta">
+              <span id="phaseText">时移事去</span>
+              <span id="progressText">08%</span>
+            </div>
+            <div class="etl-progress">
+              <div class="etl-progress-fill" id="progressFill"></div>
+            </div>
+            <div class="etl-micro-rail" id="microRail" aria-label="过回合细项进度"></div>
+            <div class="etl-subqueue" aria-label="当前推演细项">
+              <span id="queueIndex">推演项 1/31</span>
+              <span class="now" id="queueNow">正在建立回合推演遮罩</span>
+              <span id="queueNext">候：整理本回合操作</span>
+            </div>
+            <div class="etl-flow" id="flowTrack" aria-label="真实过回合管线"></div>
+          </div>
+
+          <div class="etl-edict-strip" aria-label="本回合摘要">
+            <span class="etl-chip good">赈济江淮 · 民心待核</span>
+            <span class="etl-chip">清丈田亩 · 户部覆算</span>
+            <span class="etl-chip warn">辽东军饷 · 国库承压</span>
+            <span class="etl-chip">朝中党派 · 反应生成</span>
+          </div>
+        </div>
+      </section>
+
+      <aside class="etl-right">
+        <section class="etl-dispatch" aria-label="回合结果概要">
+          <h2 class="etl-panel-title">本回合入史 <span class="etl-seal-mini">史</span></h2>
+          <div class="etl-stat-grid">
+            <div class="etl-stat"><b id="statEvents">12</b><span>事件候选</span></div>
+            <div class="etl-stat"><b id="statChanges">38</b><span>数值变更</span></div>
+            <div class="etl-stat"><b id="statReports">9</b><span>奏疏回报</span></div>
+            <div class="etl-stat"><b id="statRecords">4</b><span>史料写入</span></div>
+          </div>
+
+          <div class="etl-report-list">
+            <div class="etl-report">
+              <span class="etl-report-glyph">户</span>
+              <span>
+                <span class="etl-report-name">户口 · 逃户与隐户重算</span>
+                <span class="etl-report-note">清丈、赈济、赋役压力合并入账</span>
+              </span>
+              <span class="etl-report-delta">+5 项</span>
+            </div>
+            <div class="etl-report">
+              <span class="etl-report-glyph">帑</span>
+              <span>
+                <span class="etl-report-name">中央国库 · 岁入岁出结算</span>
+                <span class="etl-report-note">俸禄、军饷、宫廷支出同步扣除</span>
+              </span>
+              <span class="etl-report-delta danger">-3 项</span>
+            </div>
+            <div class="etl-report">
+              <span class="etl-report-glyph">党</span>
+              <span>
+                <span class="etl-report-name">朝中党派 · 折叠归组</span>
+                <span class="etl-report-note">影响力、满意度、凝聚力同组显示</span>
+              </span>
+              <span class="etl-report-delta">+6 项</span>
+            </div>
+            <div class="etl-report">
+              <span class="etl-report-glyph">军</span>
+              <span>
+                <span class="etl-report-name">军务 · 各军士气与补给</span>
+                <span class="etl-report-note">统帅状态、粮道与战报一并校正</span>
+              </span>
+              <span class="etl-report-delta danger">-4 项</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="etl-controls" aria-label="过回合影像池" aria-hidden="true">
+          <div class="etl-scenes" id="sceneControls"></div>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    (function() {
+      var fileBase = 'file:///C:/Users/37814/.codex/generated_images/019e8631-1223-7fd2-861b-8c4b471a0755/';
+      var httpBase = '/__endturn_generated__/';
+      var base = window.location.protocol === 'file:' ? fileBase : httpBase;
+      function fileUrl(name) {
+        return base + encodeURIComponent(name);
+      }
+      var scenes = [
+        { name: '01 御苑夜宴', file: 'ChatGPT Image 2026年6月2日 23_50_31.png', tone: '内苑传闻' },
+        { name: '02 夜议舆图', file: 'ChatGPT Image 2026年6月2日 23_52_32.png', tone: '阁臣夜议' },
+        { name: '03 水阁朝议', file: 'ChatGPT Image 2026年6月3日 14_12_39 (1).png', tone: '朝议成案' },
+        { name: '04 雪城边关', file: 'ChatGPT Image 2026年6月3日 14_13_52 (2).png', tone: '边关急牍' },
+        { name: '05 水阁复议', file: 'ChatGPT Image 2026年6月3日 14_14_22 (1).png', tone: '廷议复核' },
+        { name: '06 风雪城堞', file: 'ChatGPT Image 2026年6月3日 14_14_22 (2).png', tone: '守城来报' },
+        { name: '07 江船晨报', file: 'ChatGPT Image 2026年6月3日 14_14_22 (3).png', tone: '漕路回传' },
+        { name: '08 山路驿递', file: 'ChatGPT Image 2026年6月3日 14_14_22 (4).png', tone: '驿路入京' },
+        { name: '09 水乡户册', file: 'ChatGPT Image 2026年6月3日 14_14_23 (5).png', tone: '户部清册' },
+        { name: '10 亭下廷臣', file: 'ChatGPT Image 2026年6月3日 14_14_23 (6).png', tone: '廷臣聚议' },
+        { name: '11 火急军情', file: 'ChatGPT Image 2026年6月3日 14_14_23 (7).png', tone: '军情火急' },
+        { name: '12 关外落日', file: 'ChatGPT Image 2026年6月3日 14_14_23 (8).png', tone: '边镇日暮' },
+        { name: '13 江埠邸报', file: 'ChatGPT Image 2026年6月3日 14_14_24 (9).png', tone: '水驿邸报' },
+        { name: '14 帐中封奏', file: 'ChatGPT Image 2026年6月3日 14_14_25 (10).png', tone: '案牍封奏' },
+        { name: '15 月下边野', file: 'ig_0d4ac6045e539eec016a1e42752390819484fa698d77c05d09.png', tone: '边野侦骑' },
+        { name: '16 暮色营门', file: 'ig_0d4ac6045e539eec016a1e42b788948194bb2942ef5af24afa.png', tone: '营门传令' },
+        { name: '17 内殿会审', file: 'ig_0d4ac6045e539eec016a1e42e885848194874ad8c039607a64.png', tone: '内殿会审' },
+        { name: '18 殿中奏对', file: 'ig_0d4ac6045e539eec016a1e43eca41c8194a1bf4a19ce6164f5.png', tone: '殿中奏对' },
+        { name: '19 夜雨宫池', file: 'ig_0d4ac6045e539eec016a1e4422683881949e97296ae77cb020.png', tone: '禁中夜雨' },
+        { name: '20 大朝入史', file: 'ig_0d4ac6045e539eec016a1e445a7dd481949b44ecfe4f46514e.png', tone: '百官朝参' },
+        { name: '21 军帐推演', file: 'ig_0d4ac6045e539eec016a1e449713d88194a2c6e8bd767b8642.png', tone: '兵部急报' },
+        { name: '22 烽火山城', file: 'ig_0d4ac6045e539eec016a1e44d285508194a4482b1ca0b67743.png', tone: '烽火边警' },
+        { name: '23 河港关津', file: 'ig_0d4ac6045e539eec016a1e450de5848194a05726e48ce01bcb.png', tone: '关津税报' },
+        { name: '24 夜城传檄', file: 'ig_0d4ac6045e539eec016a1e454ace808194a6197afa1cea69df.png', tone: '驿路星驰' },
+        { name: '25 乡野灾情', file: 'ig_0d4ac6045e539eec016a1e474e94c08194827b0a91d21315a8.png', tone: '地方灾报' },
+        { name: '26 山道队伍', file: 'ig_0d4ac6045e539eec016a1e478bf078819491142416e8e0f047.png', tone: '民夫调运' },
+        { name: '27 城下军阵', file: 'ig_0d4ac6045e539eec016a1e47c92f1c8194b024299f209f38b8.png', tone: '城下军报' },
+        { name: '28 村堡点验', file: 'ig_0d4ac6045e539eec016a1e484a6fc081948ca8a68b5d303e8a.png', tone: '乡堡点验' },
+        { name: '29 市井征收', file: 'ig_0d4ac6045e539eec016a1e48901bfc81949f80405afde2ce65.png', tone: '市井征收' },
+        { name: '30 雨夜御案', file: 'ig_0d4ac6045e539eec016a1e491b4400819487cf10fd98f5ce60.png', tone: '内廷收束' },
+        { name: '31 阶前百官', file: 'ig_0d4ac6045e539eec016a1e495bc1e081949b20e22c23f35551.png', tone: '百官候旨' },
+        { name: '32 夜殿密奏', file: 'ig_0d4ac6045e539eec016a1e499a4ad48194afeb153b9c6523b5.png', tone: '夜殿密奏' },
+        { name: '33 史馆校书', file: 'ig_0d4ac6045e539eec016a1e49dc9f088194b6618dfd922537e3.png', tone: '史馆校书' },
+        { name: '34 帘内议政', file: 'ig_0d4ac6045e539eec016a1e4aeac3b48194be4cd51326077494.png', tone: '帘内议政' }
+      ].map(function(scene) {
+        scene.url = fileUrl(scene.file);
+        return scene;
+      });
+
+      var stages = [
+        { name: '时移事去', short: '起', group: '起', note: 'showLoading("时移事去", 10)', line: '风雨入阁，诸司回奏。', detail: '建立回合推演遮罩。', pct: 10, duration: 760 },
+        { name: '预提交校准', short: '校', group: '整理', note: 'pre-submit party/class hooks', line: '朝局余波，先入暗账。', detail: '刷新党派、阶层、关系与民心前置校准。', pct: 12, duration: 680 },
+        { name: '情节弧与官缺清扫', short: '弧', group: '整理', note: 'prep 0-A / 0-0a / 0-0b', line: '案头诸事，先清旧牍。', detail: '确保人物情节弧，清待诏标记与幽灵持官。', pct: 14, duration: 620 },
+        { name: 'NPC 补官与奏疏落账', short: '官', group: '整理', note: 'prep 0-0c / 0-0commit', line: '缺员补署，奏牍入册。', detail: 'NPC 自动补任空缺，并提交奏疏决议。', pct: 16, duration: 620 },
+        { name: '采集本回合输入', short: '采', group: '整理', note: 'prep 0-1', line: '诏令、刑录、旧数并案。', detail: '收集诏令、刑录、旧变量、旧国库与户口快照。', pct: 18, duration: 720 },
+        { name: '三系统状态更新', short: '三', group: '整理', note: 'prep 1.7', line: '三司旧账，先行校准。', detail: '更新三系统基础状态，写入本回合上下文。', pct: 21, duration: 760 },
+        { name: '预取三系统 AI', short: '三AI', group: '预取', note: 'plan-prefetch 1.75', line: '旁证先行，静候主推。', detail: '后台启动三系统 AI 资料预取。', pct: 24, duration: 720 },
+        { name: '长期行动摘要', short: '长', group: '预取', note: 'plan-prefetch 1.8', line: '远策旧债，摘为一卷。', detail: '生成长期行动摘要，补入本回合提示材料。', pct: 27, duration: 780 },
+        { name: '推演上下文封卷', short: '封', group: '预取', note: 'ctx.subcalls ready', line: '史料封卷，待主机推演。', detail: '缓存预取 promise 与确定性兜底资料。', pct: 30, duration: 650 },
+        { name: '构造朝野上下文', short: '文', group: 'AI', note: '_endTurn_aiInfer prompt', line: '朝野脉络，归入一问。', detail: '拼接人物、势力、官职、记忆、诏令与近回合史记。', pct: 34, duration: 820 },
+        { name: 'AI 主推演', short: '推', group: 'AI', note: '_endTurn_aiInfer', line: '朝野应答，正在成局。', detail: '等待主推演返回时政记、正文、建议与结构化变更。', pct: 42, duration: 1800 },
+        { name: '推演结果校验', short: '验', group: 'AI', note: 'validateBeforeCommit', line: '新局既成，先验其骨。', detail: '校验 AI 结果是否可提交，失败则阻止推进回合。', pct: 48, duration: 820 },
+        { name: '应用任免赏罚军令', short: '令', group: '诏效', note: 'applyEdictActions', line: '诏令落地，官军随动。', detail: '应用任免、赐死、军建、赏赐与补发欠饷。', pct: 52, duration: 820 },
+        { name: '科举诏效扫描', short: '科', group: '诏效', note: 'G2/G3/G5 edict scan', line: '恩科武举，逐字检核。', detail: '扫描恩科、武举、童子试与时政记隐含触发。', pct: 56, duration: 780 },
+        { name: '帝王私行附效', short: '私', group: '诏效', note: 'TyrantActivitySystem.applyEffects', line: '宫中私行，亦入国势。', detail: '结算帝王私行附效与暴虐、声望、资源变化。', pct: 60, duration: 760 },
+        { name: '战斗围城行军结算', short: '战', group: '系统', note: 'BattleEngine.resolveAllBattles', line: '军报先至，烽烟定胜负。', detail: '结算战斗、围城、行军等确定性军事系统。', pct: 66, duration: 820 },
+        { name: '更新数据与子回合调度', short: '调', group: '系统', note: 'showLoading("更新数据", 92)', line: '日月折算，诸司分层推进。', detail: '运行 SubTickRunner，按 daily/monthly/perturn 分层调度。', pct: 92, duration: 820 },
+        { name: 'NPC Engine 与编年推进', short: 'NPC', group: '系统', note: 'showLoading("运行 NPC Engine", 94.5)', line: '群臣各行其志，暗流自生。', detail: '运行 NPC 行为推演，推进编年与回合数。', pct: 92.2, duration: 740 },
+        { name: '腐败与户口前移', short: '户', group: '系统', note: 'Corruption / Huji early tick', line: '黄册翻检，隐户逃丁入账。', detail: '结算腐败、户口、黄册治理与户口运行桥。', pct: 92.35, duration: 760 },
+        { name: '国库内帑与俸饷流', short: '库', group: '系统', note: 'Guoku / Neitang / CharEcon', line: '钱粮出入，俸饷归簿。', detail: '结算国库、内帑、人物经济、功名迁转与俸禄流。', pct: 92.55, duration: 780 },
+        { name: '央地财政与币政土地', short: '财', group: '系统', note: 'EconomyLinkage / Currency / CentralLocal', line: '央地转输，币粮同衡。', detail: '运行经济联动、货币、央地财政、土地兼并与借贷补完。', pct: 92.8, duration: 780 },
+        { name: '环境灾异与诏令补完', short: '灾', group: '系统', note: 'EnvCapacity / EdictParser / EdictComplete', line: '灾异民瘼，入本回合。', detail: '结算环境承载、灾异、诏令解析、项目与黄册周期。', pct: 93, duration: 780 },
+        { name: '皇权皇威民心联动', short: '权', group: '系统', note: 'AuthorityEngines / 42 linkage', line: '君心民望，互为牵引。', detail: '运行皇权、皇威、民心与 42 项变量联动。', pct: 93.2, duration: 820 },
+        { name: '阶段补丁与科举推进', short: '补', group: '系统', note: 'Phase C/D/B/A/E/F/G/H', line: '诸阶段补完，旧债清算。', detail: '运行 Phase C/D/B/A/E、F1-F6、G1-G4 与 H 阶段原生调用。', pct: 93.45, duration: 820 },
+        { name: 'NPC 献策与省经济', short: '省', group: '系统', note: 'NpcMemorials / province economy', line: '地方账簿，并入中枢。', detail: '触发 NPC 献策、行政区桥接、阈值、省经济与状态耦合。', pct: 93.7, duration: 760 },
+        { name: '应用决策变动队列', short: '队', group: '系统', note: 'showLoading("应用决策变动", 93)', line: '变动排队，逐项落库。', detail: '执行 ChangeQueue，登记财政收支、变量变化与改革触发。', pct: 94, duration: 820 },
+        { name: '历史事件与刚性触发', short: '史', group: '系统', note: 'showLoading("检查历史事件", 93.4)', line: '史事将临，先验其期。', detail: '检查历史事件、刚性触发、科举筹办完成与职位寿数。', pct: 94.3, duration: 780 },
+        { name: '监听队列与关系衰减', short: '听', group: '系统', note: 'showLoading("处理监听队列", 94)', line: '监听余波，关系自衰。', detail: '处理监听队列、关系冲突衰减、血仇继承与查询缓存。', pct: 94.6, duration: 760 },
+        { name: '变更归组与社会信号', short: '组', group: '史记', note: 'render-and-finalize signal bridge', line: '诸项变更，归并成卷。', detail: '标准化 turnChanges，记录社会政治信号并应用党派/阶层桥。', pct: 96, duration: 820 },
+        { name: '生成史记与一致性校验', short: '卷', group: '史记', note: 'showLoading("生成史记弹窗", 97)', line: '史官缀词，卷轴将开。', detail: '生成史记、起居注、数值变化分组与 9 域一致性附录。', pct: 97, duration: 1050 },
+        { name: '呈现回合结果', short: '呈', group: '呈览', note: 'hideLoading + showTurnResult', line: '御览成卷，待君一阅。', detail: '隐藏加载层，交付回合结果与史记卷轴。', pct: 97, duration: 1300 }
+      ];
+
+      var shell = document.getElementById('previewShell');
+      var stageList = document.getElementById('stageList');
+      var sceneControls = document.getElementById('sceneControls');
+      var flowTrack = document.getElementById('flowTrack');
+      var microRail = document.getElementById('microRail');
+      var queueIndex = document.getElementById('queueIndex');
+      var queueNow = document.getElementById('queueNow');
+      var queueNext = document.getElementById('queueNext');
+      var dateLine = document.getElementById('dateLine');
+      var currentLine = document.getElementById('currentLine');
+      var detailLine = document.getElementById('detailLine');
+      var phaseText = document.getElementById('phaseText');
+      var progressText = document.getElementById('progressText');
+      var progressFill = document.getElementById('progressFill');
+      var stageTimer = 0;
+      var sceneTimer = 0;
+      var step = 0;
+      var sceneIndex = 29;
+
+      function padPct(value) {
+        return String(value).padStart(2, '0') + '%';
+      }
+
+      function renderStages() {
+        stageList.innerHTML = stages.map(function(stage, index) {
+          return [
+            '<div class="etl-stage" data-stage="', index, '">',
+            '<div class="etl-stage-index">', index + 1, '</div>',
+            '<div class="etl-stage-main">',
+            '<div class="etl-stage-name"><span>', stage.name, '</span><span class="etl-stage-state">', index === stages.length - 1 ? '待呈' : '待办', '</span></div>',
+            '<div class="etl-stage-note">', stage.note, '</div>',
+            '</div>',
+            '</div>'
+          ].join('');
+        }).join('');
+      }
+
+      function renderScenes() {
+        sceneControls.innerHTML = scenes.map(function(scene, index) {
+          return [
+            '<button class="etl-scene-btn" type="button" aria-pressed="', index === sceneIndex ? 'true' : 'false', '" data-scene="', index, '" style="--thumb-url:url(&quot;', scene.url, '&quot;)">',
+            '<span>', scene.name, '</span>',
+            '</button>'
+          ].join('');
+        }).join('');
+      }
+
+      function renderFlow() {
+        var groups = [];
+        var seen = {};
+        stages.forEach(function(stage) {
+          var group = stage.group || stage.short || stage.name;
+          if (seen[group]) return;
+          seen[group] = true;
+          groups.push(group);
+        });
+        flowTrack._groups = groups;
+        flowTrack.style.setProperty('--flow-count', groups.length);
+        flowTrack.innerHTML = groups.map(function(group, index) {
+          return '<span class="etl-flow-step" data-flow-group="' + index + '">' + group + '</span>';
+        }).join('');
+      }
+
+      function renderMicroRail() {
+        var progressWrap = document.querySelector('.etl-progress-wrap');
+        if (progressWrap) progressWrap.style.setProperty('--micro-count', stages.length);
+        microRail.style.setProperty('--micro-count', stages.length);
+        microRail.innerHTML = stages.map(function(stage, index) {
+          return '<span class="etl-micro-cell" data-micro="' + index + '" title="' + stage.name + '"></span>';
+        }).join('');
+      }
+
+      function preloadScenes() {
+        scenes.forEach(function(scene) {
+          var img = new Image();
+          img.decoding = 'async';
+          img.src = scene.url;
+        });
+      }
+
+      function groupKeyOf(group) {
+        var value = String(group || '');
+        if (value === '\u8d77') return 'entry';
+        if (value === '\u6574\u7406') return 'prep';
+        if (value === '\u9884\u53d6') return 'prefetch';
+        if (value === 'AI') return 'ai';
+        if (value === '\u8bcf\u6548') return 'edict';
+        if (value === '\u7cfb\u7edf') return 'systems';
+        if (value === '\u53f2\u8bb0') return 'render';
+        if (value === '\u5448\u89c8') return 'final';
+        return 'entry';
+      }
+
+      function setStage(index, sealed) {
+        step = (index + stages.length) % stages.length;
+        var stage = stages[step];
+        shell.classList.remove('is-stage-change');
+        shell.setAttribute('data-group-key', groupKeyOf(stage.group || stage.short || stage.name));
+        void shell.offsetWidth;
+        shell.classList.add('is-stage-change');
+        currentLine.innerHTML = stage.line;
+        detailLine.textContent = stage.detail || stage.note;
+        queueIndex.textContent = '推演项 ' + (step + 1) + '/' + stages.length;
+        queueNow.textContent = '正：' + stage.name;
+        queueNext.textContent = step < stages.length - 1 ? '候：' + stages[step + 1].name : '候：打开回合结果';
+        window.setTimeout(function() {
+          shell.classList.remove('is-stage-change');
+        }, 220);
+        phaseText.textContent = stage.name;
+        progressText.textContent = padPct(stage.pct);
+        progressFill.style.setProperty('--progress', stage.pct + '%');
+        Array.prototype.forEach.call(stageList.querySelectorAll('.etl-stage'), function(el, idx) {
+          el.classList.toggle('is-active', idx === step);
+          el.classList.toggle('is-done', idx < step || (sealed && idx === step));
+          var state = el.querySelector('.etl-stage-state');
+          if (!state) return;
+          state.textContent = idx < step ? '已毕' : (idx === step ? '进行' : '待办');
+        });
+        var groups = flowTrack._groups || [];
+        var groupIndex = Math.max(0, groups.indexOf(stage.group || stage.short || stage.name));
+        Array.prototype.forEach.call(flowTrack.querySelectorAll('.etl-flow-step'), function(el, idx) {
+          el.classList.toggle('is-active', idx === groupIndex);
+          el.classList.toggle('is-done', idx < groupIndex);
+        });
+        Array.prototype.forEach.call(microRail.querySelectorAll('.etl-micro-cell'), function(el, idx) {
+          el.classList.toggle('is-active', idx === step);
+          el.classList.toggle('is-done', idx < step);
+        });
+        if (step === stages.length - 1) {
+          triggerSeal();
+        }
+      }
+
+      function setScene(index) {
+        if (index === sceneIndex) return;
+        sceneIndex = index;
+        var scene = scenes[sceneIndex];
+        dateLine.textContent = scene.tone + ' · 天启七年 九月 朔后';
+        renderScenes();
+        shell.style.setProperty('--next-scene-url', "url('" + scene.url + "')");
+        shell.classList.add('is-swapping');
+        window.setTimeout(function() {
+          shell.style.setProperty('--scene-url', "url('" + scene.url + "')");
+          shell.classList.remove('is-swapping');
+        }, 650);
+      }
+
+      function advanceScene() {
+        setScene((sceneIndex + 1) % scenes.length);
+      }
+
+      function triggerSeal() {
+        shell.classList.remove('is-sealed');
+        void shell.offsetWidth;
+        shell.classList.add('is-sealed');
+        window.setTimeout(function() {
+          shell.classList.remove('is-sealed');
+        }, 1000);
+      }
+
+      function schedule() {
+        window.clearTimeout(stageTimer);
+        window.clearInterval(sceneTimer);
+        sceneTimer = window.setInterval(function() {
+          advanceScene();
+        }, 1180);
+        queueNextStage();
+      }
+
+      function queueNextStage() {
+        window.clearTimeout(stageTimer);
+        stageTimer = window.setTimeout(function() {
+          setStage(step + 1, false);
+          queueNextStage();
+        }, stages[step].duration || 1600);
+      }
+
+      renderStages();
+      renderScenes();
+      renderFlow();
+      renderMicroRail();
+      preloadScenes();
+      shell.style.setProperty('--scene-url', "url('" + scenes[sceneIndex].url + "')");
+      dateLine.textContent = scenes[sceneIndex].tone + ' · 天启七年 九月 朔后';
+      setStage(0, false);
+      schedule();
+    })();
+  </script>
+</body>
+</html>

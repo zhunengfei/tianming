@@ -1241,6 +1241,127 @@
     return String(row && (row.name || row.label || row.id || row.className || row.partyName) || '').trim();
   }
 
+  function rightSocialLocalizeText(value){
+    if (value == null) return '';
+    if (Array.isArray(value)) return value.map(rightSocialLocalizeText).filter(Boolean).join(' / ');
+    if (typeof value === 'object') {
+      value = value.display || value.text || value.name || value.topic || value.title || value.goalText || value.demandText ||
+        value.goal || value.agenda || value.demand || value.reason || value.id || '';
+    }
+    var out = String(value || '').trim();
+    if (!out) return '';
+    [
+      [/relieve tax and arrear pressure/gi, '缓解税负与积欠'],
+      [/pay arrears and stabilize garrisons/gi, '清偿欠饷并安定驻军'],
+      [/pay military wage arrears/gi, '清偿军饷拖欠'],
+      [/reduce tax and levy pressure/gi, '减轻税赋与征派压力'],
+      [/reduce tax and arrear pressure/gi, '缓解税负与积欠'],
+      [/reduce emergency levy/gi, '减轻紧急征派'],
+      [/force emergency levy review/gi, '推动复核紧急征派'],
+      [/keep levy review moving/gi, '维持征派复核推进'],
+      [/claim credit for levy review/gi, '借征派复核争取声望'],
+      [/carry rural relief through court debate/gi, '经廷议推动乡里纾困'],
+      [/carry rural relief/gi, '推动乡里纾困'],
+      [/carry tenant relief/gi, '推动佃户纾困'],
+      [/defend arrear collection/gi, '维护追征积欠'],
+      [/farmer levy relief/gi, '农户征派纾困'],
+      [/emergency grain levy/gi, '急征粮役'],
+      [/emergency levy review/gi, '紧急征派复核'],
+      [/rural relief promise/gi, '乡里纾困承诺'],
+      [/responded to rural burden/gi, '回应乡里负担'],
+      [/rural burden became party agenda/gi, '乡里负担转为党派议程'],
+      [/high rural burden/gi, '乡里负担沉重'],
+      [/memorial approval reassured tenants/gi, '奏疏准行安定佃户'],
+      [/memorial approval gives party leverage/gi, '奏疏准行给予党派筹码'],
+      [/approved memorial to investigate/gi, '批准奏疏查核'],
+      [/party outcome changed class mood/gi, '党派结果牵动阶层情绪'],
+      [/ecology signal tax linked class pressure to party agenda/gi, '税负生态信号把阶层压力牵入党派议程'],
+      [/ecology signal tax linked class pressure/gi, '税负生态信号牵动阶层压力'],
+      [/ecology matched/gi, '制度生态匹配'],
+      [/ecology signal/gi, '生态信号'],
+      [/class-minxin bridge/gi, '阶层民心桥'],
+      [/social-political-signal/gi, '社会政治信号'],
+      [/runtime-pressure/gi, '运行压力'],
+      [/runtime-affinity/gi, '运行亲和'],
+      [/runtime-estranged/gi, '运行疏离'],
+      [/player-action/gi, '玩家操作'],
+      [/memorial-decision-desk/gi, '奏疏批复'],
+      [/petition/gi, '请愿'],
+      [/memorial/gi, '上书'],
+      [/propaganda/gi, '宣传'],
+      [/obstruction/gi, '阻挠'],
+      [/obstruct/gi, '阻挠'],
+      [/funding/gi, '资助'],
+      [/alliance/gi, '联盟'],
+      [/split/gi, '分裂'],
+      [/strike/gi, '罢工'],
+      [/uprising/gi, '民变'],
+      [/association/gi, '结社'],
+      [/turn-result-class-evidence/gi, '回合推演·阶层证据'],
+      [/turn-result-party-evidence/gi, '回合推演·党派证据'],
+      [/turn-result-corruption-pressure/gi, '回合推演·贪腐压力'],
+      [/turn-result-military-arrears/gi, '回合推演·军饷拖欠'],
+      [/turn-result-tax-pressure/gi, '回合推演·税负压力'],
+      [/turn-result-keju-pressure/gi, '回合推演·科举压力'],
+      [/turn-result-local-unrest/gi, '回合推演·地方不稳'],
+      [/turn-result-land-pressure/gi, '回合推演·土地压力'],
+      [/turn-result/gi, '回合推演'],
+      [/fiscal-peasant-burden/gi, '财政民负'],
+      [/tax-pressure/gi, '税负压力'],
+      [/corruption-pressure/gi, '贪腐压力'],
+      [/military-arrears/gi, '军饷拖欠'],
+      [/keju-pressure/gi, '科举压力'],
+      [/land-pressure/gi, '土地压力'],
+      [/local-unrest/gi, '地方不稳'],
+      [/arrear-pressure/gi, '积欠压力'],
+      [/tax pressure/gi, '税负压力'],
+      [/corruption pressure/gi, '贪腐压力'],
+      [/military arrears/gi, '军饷拖欠'],
+      [/wage arrears/gi, '欠饷'],
+      [/tenant households carrying rent arrears/gi, '承担租佃积欠的佃户'],
+      [/smoke-ecology-apply-(\d+)/gi, '生态关系更新T$1'],
+      [/smoke-ecology-tax-(\d+)/gi, '税负生态信号T$1'],
+      [/smoke-cause-chain-turn/gi, '因果链回合证据'],
+      [/smoke-cause-chain-apply/gi, '因果链应用'],
+      [/smoke-turn-result-apply/gi, '回合推演应用'],
+      [/smoke-turn-result/gi, '回合推演测试'],
+      [/smoke-llm-calibration/gi, 'LLM校准'],
+      [/confidence\s+/gi, '置信 '],
+      [/affinity=(\d+)/gi, '亲和=$1'],
+      [/unfulfilled/gi, '未兑现'],
+      [/fulfilled/gi, '已兑现'],
+      [/blocked/gi, '受阻'],
+      [/issued/gi, '已明发'],
+      [/reissued/gi, '再议'],
+      [/resolved/gi, '已解决'],
+      [/expired/gi, '已过期'],
+      [/planned/gi, '筹划中'],
+      [/active/gi, '活跃'],
+      [/aligned/gi, '趋同'],
+      [/estranged/gi, '疏离'],
+      [/wavering/gi, '摇摆'],
+      [/latent/gi, '潜伏'],
+      [/calm/gi, '平稳'],
+      [/signal/gi, '信号'],
+      [/action/gi, '行动']
+    ].forEach(function(pair){ out = out.replace(pair[0], pair[1]); });
+    var tags = {
+      fiscal: '财政', tax: '税负', land: '土地', keju: '科举', office: '官制', local: '地方',
+      military: '军务', commerce: '商贸', corvee: '徭役', levy: '征派', tenant: '佃户',
+      peasant: '民户', relief: '纾困', memorial: '奏疏', court: '廷议', party: '党派',
+      class: '阶层', minxin: '民心', wage: '军饷', arrears: '积欠', source: '来源'
+    };
+    out = out.replace(/\b([a-z][a-z0-9_-]*)\b/gi, function(token){
+      var key = String(token || '').toLowerCase();
+      return Object.prototype.hasOwnProperty.call(tags, key) ? tags[key] : token;
+    });
+    return out;
+  }
+
+  function rightSocialBriefText(value){
+    return rightSocialLocalizeText(rightSocialFirstText(value));
+  }
+
   function rightSocialSameName(a, b){
     a = String(a || '').replace(/\s+/g, '').toLowerCase();
     b = String(b || '').replace(/\s+/g, '').toLowerCase();
@@ -1256,12 +1377,12 @@
 
   function rightSocialCauseTextFromChange(ch){
     if (!ch) return '';
-    var field = ch.field ? String(ch.field) + ' ' : '';
+    var field = ch.field ? rightSocialLocalizeText(ch.field) + ' ' : '';
     var delta = '';
     var oldN = Number(ch.oldValue);
     var newN = Number(ch.newValue);
     if (isFinite(oldN) && isFinite(newN) && oldN !== newN) delta = ' ' + (newN > oldN ? '+' : '') + Math.round((newN - oldN) * 100) / 100;
-    return [field + delta, ch.reason].filter(Boolean).join(' · ');
+    return [field + delta, rightSocialLocalizeText(ch.reason)].filter(Boolean).join(' · ');
   }
 
   function rightSocialTurnChanges(actorType, name, out){
@@ -1280,8 +1401,8 @@
     (Array.isArray(row._socialPoliticalHistory) ? row._socialPoliticalHistory : []).slice(-3).forEach(function(h){
       rightSocialPushCause(out, {
         turn: h.turn,
-        source: h.sourceSystem || h.source || '系统信号',
-        text: [h.kind, h.reason].filter(Boolean).join(' · ')
+        source: rightSocialLocalizeText(h.sourceSystem || h.source || '系统信号'),
+        text: [h.kind, h.reason].map(rightSocialLocalizeText).filter(Boolean).join(' · ')
       });
     });
     (Array.isArray(row.partyOutcomeHistory) ? row.partyOutcomeHistory : []).slice(-3).forEach(function(h){
@@ -1289,7 +1410,7 @@
       rightSocialPushCause(out, {
         turn: h.turn,
         source: '廷议回响',
-        text: [(refs ? refs : ''), h.outcome || h.status, h.satisfactionDelta != null ? ('满意 ' + h.satisfactionDelta) : ''].filter(Boolean).join(' · ')
+        text: [(refs ? refs : ''), rightSocialLocalizeText(h.outcome || h.status), h.satisfactionDelta != null ? ('满意 ' + h.satisfactionDelta) : ''].filter(Boolean).join(' · ')
       });
     });
     var gm = window.GM || {};
@@ -1298,7 +1419,7 @@
       rightSocialPushCause(out, {
         turn: x.turn,
         source: '议题牵连',
-        text: [(x.party || ''), x.topic || '', x.goalText || ''].filter(Boolean).join(' · ')
+        text: [(x.party || ''), rightSocialLocalizeText(x.topic || ''), rightSocialLocalizeText(x.goalText || '')].filter(Boolean).join(' · ')
       });
     });
   }
@@ -1307,15 +1428,15 @@
     (Array.isArray(row._socialPoliticalHistory) ? row._socialPoliticalHistory : []).slice(-3).forEach(function(h){
       rightSocialPushCause(out, {
         turn: h.turn,
-        source: h.sourceSystem || h.source || '系统信号',
-        text: [h.kind, h.reason].filter(Boolean).join(' · ')
+        source: rightSocialLocalizeText(h.sourceSystem || h.source || '系统信号'),
+        text: [h.kind, h.reason].map(rightSocialLocalizeText).filter(Boolean).join(' · ')
       });
     });
     (Array.isArray(row.agenda_history) ? row.agenda_history : []).slice(-3).forEach(function(h){
       rightSocialPushCause(out, {
         turn: h.turn,
-        source: h.source || '议程变动',
-        text: [h.reason, h.currentAgenda, h.shortGoal, h.text].filter(Boolean).join(' · ')
+        source: rightSocialLocalizeText(h.source || '议程变动'),
+        text: [h.reason, h.currentAgenda, h.shortGoal, h.text].map(rightSocialLocalizeText).filter(Boolean).join(' · ')
       });
     });
     var gm = window.GM || {};
@@ -1324,7 +1445,7 @@
       rightSocialPushCause(out, {
         turn: x.turn,
         source: '议题牵连',
-        text: [(x.className || ''), x.topic || '', x.goalText || ''].filter(Boolean).join(' · ')
+        text: [(x.className || ''), rightSocialLocalizeText(x.topic || ''), rightSocialLocalizeText(x.goalText || '')].filter(Boolean).join(' · ')
       });
     });
   }
@@ -1354,6 +1475,8 @@
     return '<div class="tmrp-social-cause tmrp-signal-cause"><b>近因</b>' + causes.map(function(c){
       var head = [(c.turn ? ('T' + c.turn) : ''), c.sourceLabel || c.sourceSystem || '信号', c.kind || ''].filter(Boolean).join(' · ');
       var detail = [c.summary || '', c.linkedIssue ? ('议题 ' + c.linkedIssue) : '', c.reason || ''].filter(Boolean).join(' · ');
+      head = rightSocialLocalizeText(head);
+      detail = rightSocialLocalizeText(detail);
       var title = [head, detail].filter(Boolean).join(' · ');
       return '<span class="tmrp-cause-row" title="' + attr(title) + '"><em class="tmrp-cause-source">' + esc(head) + '</em><small>' + esc(detail || '暂无细节') + '</small></span>';
     }).join('') + '</div>';
@@ -1364,7 +1487,9 @@
     var causes = rightSocialNearCauses(actorType, row);
     if (!causes.length) return signalHtml || '<div class="tmrp-social-cause empty"><b>近因</b><span>暂无可追溯变化</span></div>';
     return signalHtml + '<div class="tmrp-social-cause"><b>近因</b>' + causes.map(function(c){
-      return '<span title="' + attr(c.text || '') + '">' + esc((c.turn ? ('T' + c.turn + ' · ') : '') + (c.source || '来源') + ' · ' + c.text) + '</span>';
+      var text = rightSocialLocalizeText(c.text || '');
+      var source = rightSocialLocalizeText(c.source || '来源');
+      return '<span title="' + attr(text) + '">' + esc((c.turn ? ('T' + c.turn + ' · ') : '') + source + ' · ' + text) + '</span>';
     }).join('') + '</div>';
   }
 
@@ -1375,7 +1500,7 @@
       if (x == null) continue;
       if (typeof x === 'object') x = x.text || x.name || x.party || x.class || x.goal || x.agenda || x.demand || '';
       x = String(x || '').trim();
-      if (x) return x;
+      if (x) return rightSocialLocalizeText(x);
     }
     return '';
   }
@@ -1467,7 +1592,7 @@
     edge = edge || {};
     var className = edge.className || '';
     var partyName = edge.partyName || '';
-    var demand = rightClassDemandByName(className) || '阶层诉求';
+    var demand = rightSocialLocalizeText(rightClassDemandByName(className) || '阶层诉求');
     var risk = rightRelationClassRisk(className);
     var grievance = Number(edge.grievance);
     if (!isFinite(grievance)) grievance = 45;
@@ -1487,24 +1612,28 @@
       var peer = actorType === 'party' ? edge.className : edge.partyName;
       if (!peer) return '';
       var status = edge.status || 'latent';
+      var statusLabel = rightSocialLocalizeText(status);
       var aff = edge.affinity != null && isFinite(Number(edge.affinity)) ? Math.round(Number(edge.affinity)) : '—';
       var trust = edge.trust != null && isFinite(Number(edge.trust)) ? Math.round(Number(edge.trust)) : '—';
       var grievance = edge.grievance != null && isFinite(Number(edge.grievance)) ? Math.round(Number(edge.grievance)) : '—';
       var source = edge.lastSource || edge.source || '';
       var reason = edge.lastReason || edge.reason || '';
       var chainKind = actorType === 'party' ? 'demand' : 'party';
-      var routeForecast = rightRelationRouteForecast(edge);
+      var routeForecast = rightSocialLocalizeText(rightRelationRouteForecast(edge));
+      var sourceReason = rightSocialLocalizeText([source, reason].filter(Boolean).join(' · '));
       return '<div class="tmrp-ecology-edge ' + attr(String(status).toLowerCase()) + '">' +
         '<button type="button" class="tmrp-ecology-link" data-right-action="social-chain" data-chain-kind="' + attr(chainKind) + '" data-actor-type="' + attr(actorType) + '" data-name="' + attr(rightSocialName(row)) + '" data-target="' + attr(peer) + '" data-topic="' + attr(reason || peer) + '">' + esc(peer) + '</button>' +
-        '<span>' + esc(status) + '</span>' +
+        '<span>' + esc(statusLabel) + '</span>' +
         '<small>亲和 ' + esc(aff) + ' · 信 ' + esc(trust) + ' · 怨 ' + esc(grievance) + '</small>' +
-        (source || reason ? '<em title="' + attr([source, reason].filter(Boolean).join(' · ')) + '">' + esc([source, reason].filter(Boolean).join(' · ')) + '</em>' : '') +
+        (sourceReason ? '<em title="' + attr(sourceReason) + '">' + esc(sourceReason) + '</em>' : '') +
         '<div class="tmrp-ecology-forecast" title="' + attr(routeForecast) + '">' + esc(routeForecast) + '</div>' +
         '</div>';
     }
     function signalRow(s){
       var cats = Array.isArray(s.categories) ? s.categories.join('/') : '';
-      return '<div class="tmrp-ecology-signal"><b>T' + esc(s.turn || '') + ' ' + esc(s.kind || 'signal') + '</b><span>' + esc([s.source || '', cats].filter(Boolean).join(' · ')) + '</span></div>';
+      var kind = rightSocialLocalizeText(s.kind || 'signal');
+      var sourceText = rightSocialLocalizeText([s.source || '', cats].filter(Boolean).join(' · '));
+      return '<div class="tmrp-ecology-signal"><b>T' + esc(s.turn || '') + ' ' + esc(kind) + '</b><span>' + esc(sourceText) + '</span></div>';
     }
     return '<div class="tmrp-ecology"><div class="tmrp-ecology-head"><b>生态关系</b><small>' + esc(edges.length ? '动态亲和' : '信号来源') + '</small></div>' +
       (edges.length ? '<div class="tmrp-ecology-list">' + edges.map(edgeRow).filter(Boolean).join('') + '</div>' : '') +
@@ -1564,7 +1693,7 @@
   function renderRightClassCharacterRow(edge){
     edge = edge || {};
     var name = edge.characterName || edge.characterId || '未名人物';
-    var reason = rightPcArray(edge.evidence).slice(-2).join(' · ') || edge.reason || edge.source || '';
+    var reason = rightSocialLocalizeText(rightPcArray(edge.evidence).slice(-2).join(' · ') || edge.reason || edge.source || '');
     return '<button type="button" class="tmrp-ecology-edge tmrp-class-character-edge" data-right-action="wendui-select" data-id="' + attr(edge.characterId || edge.characterName || '') + '">' +
       '<span>' + esc(name) + '</span>' +
       '<small>' + esc(rightClassCharacterRoleLabel(edge.role)) + ' · 亲 ' + esc(rightClassCharacterPct(edge.affinity)) + ' · 信 ' + esc(rightClassCharacterPct(edge.trust)) + ' · 怨 ' + esc(rightClassCharacterPct(edge.grievance)) + '</small>' +
@@ -1640,19 +1769,21 @@
     if (mx) {
       var trueIdx = Number(mx.true != null ? mx.true : mx.index);
       var perceived = Number(mx.perceived != null ? mx.perceived : trueIdx);
+      var phaseLabel = rightSocialLocalizeText(mx.unrestPhase || 'calm');
+      var pressureReason = rightSocialLocalizeText(mx.lastPressure && mx.lastPressure.reason || '');
       rows += '<div class="tmrp-ecology-edge ' + attr(String(mx.unrestPhase || 'calm').toLowerCase()) + '">' +
         '<span>民心</span>' +
-        '<small>真实 ' + esc(isFinite(trueIdx) ? Math.round(trueIdx) : '—') + ' · 感知 ' + esc(isFinite(perceived) ? Math.round(perceived) : '—') + ' · ' + esc(mx.unrestPhase || 'calm') + '</small>' +
-        (mx.lastPressure && mx.lastPressure.reason ? '<em title="' + attr(mx.lastPressure.reason) + '">' + esc(rightPcText(mx.lastPressure.reason, 90)) + '</em>' : '') +
+        '<small>真实 ' + esc(isFinite(trueIdx) ? Math.round(trueIdx) : '—') + ' · 感知 ' + esc(isFinite(perceived) ? Math.round(perceived) : '—') + ' · ' + esc(phaseLabel) + '</small>' +
+        (pressureReason ? '<em title="' + attr(pressureReason) + '">' + esc(rightPcText(pressureReason, 90)) + '</em>' : '') +
         '</div>';
     }
     ledger.forEach(function(x){
       var regs = rightPcArray(x.appliedRegions).map(function(r){ return r && (r.region || r.name || r.id || r); }).filter(Boolean).slice(0, 3).join(' / ');
-      rows += '<div class="tmrp-ecology-signal"><b>T' + esc(x.turn || '') + ' ' + esc(x.sourceSystem || 'class-minxin') + '</b><span>' +
-        esc([x.linkedIssue || '', regs || '', x.reason || ''].filter(Boolean).join(' · ')).slice(0, 160) +
+      rows += '<div class="tmrp-ecology-signal"><b>T' + esc(x.turn || '') + ' ' + esc(rightSocialLocalizeText(x.sourceSystem || 'class-minxin')) + '</b><span>' +
+        esc(rightSocialLocalizeText([x.linkedIssue || '', regs || '', x.reason || ''].filter(Boolean).join(' · '))).slice(0, 160) +
         '</span></div>';
     });
-    return '<div class="tmrp-ecology"><div class="tmrp-ecology-head"><b>阶层民心</b><small>class-minxin bridge</small></div><div class="tmrp-ecology-list">' + rows + '</div></div>';
+    return '<div class="tmrp-ecology"><div class="tmrp-ecology-head"><b>阶层民心</b><small>民心联动</small></div><div class="tmrp-ecology-list">' + rows + '</div></div>';
   }
 
   function rightSocialIssueLinks(actorType, row){
@@ -1666,7 +1797,7 @@
       var id = raw.issueId || raw.id || raw.topicId || raw.chaoyiTrackId || topic;
       var sig = String(id || topic);
       if (out.some(function(x){ return String(x.id || x.topic) === sig; })) return;
-      out.push({ id: id, topic: topic, source: source || raw.source || '', party: raw.party || raw.sourceParty || '', className: raw.className || raw.sourceClass || '' });
+      out.push({ id: id, topic: rightSocialLocalizeText(topic), source: rightSocialLocalizeText(source || raw.source || ''), party: raw.party || raw.sourceParty || '', className: raw.className || raw.sourceClass || '' });
     }
     (Array.isArray(gm._partyClassCourtIssueLinks) ? gm._partyClassCourtIssueLinks : []).forEach(function(x){
       if (!x) return;
@@ -1720,7 +1851,9 @@
 
   function rightSocialChainButton(kind, label, target, topic, actorType, row){
     if (!label) return '';
-    return '<button type="button" class="tmrp-chain-step" data-right-action="social-chain" data-chain-kind="' + attr(kind) + '" data-actor-type="' + attr(actorType) + '" data-name="' + attr(rightSocialName(row)) + '" data-target="' + attr(target || '') + '" data-topic="' + attr(topic || label) + '">' + esc(label) + '</button>';
+    var displayLabel = rightSocialLocalizeText(label);
+    var displayTopic = rightSocialLocalizeText(topic || label);
+    return '<button type="button" class="tmrp-chain-step" data-right-action="social-chain" data-chain-kind="' + attr(kind) + '" data-actor-type="' + attr(actorType) + '" data-name="' + attr(rightSocialName(row)) + '" data-target="' + attr(target || '') + '" data-topic="' + attr(displayTopic) + '">' + esc(displayLabel) + '</button>';
   }
 
   function rightClassActionDelegate(row){
@@ -1811,17 +1944,17 @@
     if (!actions.length) return '';
     return '<div class="tmrp-actor-action"><b>正在行动</b>' + actions.map(function(a){
       var tinyi = rightActorTinyiForAction(a);
-      var head = ['T' + (a.turn || ''), a.actionType || 'action', a.status || 'planned'].filter(Boolean).join(' · ');
+      var head = rightSocialLocalizeText(['T' + (a.turn || ''), a.actionType || 'action', a.status || 'planned'].filter(Boolean).join(' · '));
       var delegate = a.delegateCharacter ? ('代理人物：' + a.delegateCharacter + (a.delegateRole ? '（' + rightClassCharacterRoleLabel(a.delegateRole) + '）' : '')) : '';
-      var delegateEvidence = a.delegateEvidence ? ('近因：' + a.delegateEvidence) : '';
-      var body = [
+      var delegateEvidence = a.delegateEvidence ? ('近因：' + rightSocialLocalizeText(a.delegateEvidence)) : '';
+      var body = rightSocialLocalizeText([
         a.agenda || a.grievance || '',
         delegate,
         delegateEvidence,
         tinyi && tinyi.topic ? ('廷议 ' + tinyi.topic) : (a.linkedIssue ? ('议题 ' + a.linkedIssue) : ''),
         a.source || ''
-      ].filter(Boolean).join(' · ');
-      return '<span title="' + attr([head, body].filter(Boolean).join(' · ')) + '"><em>' + esc(head) + '</em><small>' + esc(body || 'autonomous pressure') + '</small></span>';
+      ].filter(Boolean).join(' · '));
+      return '<span title="' + attr([head, body].filter(Boolean).join(' · ')) + '"><em>' + esc(head) + '</em><small>' + esc(body || '自主压力') + '</small></span>';
     }).join('') + '</div>';
   }
 
@@ -2641,10 +2774,9 @@
       '</div>';
   }
 
-  // 调试闸：观测账本/诊断仅 dev 可见（玩家界面不出·保留给开发）
+  // Outline keeps the observability entry visible so closed-loop evidence is easy to inspect.
   function rightIsDebug(){
-    try { if (window.TM_DEBUG) return true; if (window.localStorage && localStorage.getItem('tm_debug') === '1') return true; } catch (_) {}
-    return false;
+    return true;
   }
   function renderGangRich(){
     var tab = state.rightOutlineTab || 'classes';
@@ -2668,7 +2800,8 @@
     return '<section class="tmrp-card tmrp-social-head ' + (sat < 45 ? 'hot' : (sat > 62 ? 'ok' : '')) + '" data-right-action="outline-select" data-type="class" data-key="' + attr(rightSocialName(c)) + '">' +
       '<div class="tmrp-card-title"><span>' + esc(c.name || c.label || c.id || '未名阶层') + '</span><small>满意 ' + esc(Math.round(sat)) + ' · 影响 ' + esc(Math.round(inf)) + ' ›</small></div>' +
       rightArmyBar('满意', sat) + rightArmyBar('影响', inf) +
-      rightArmyRows([['诉求', c.demands || c.currentDemand]]) +
+      rightArmyRows([['诉求', rightSocialBriefText(c.demands || c.currentDemand)]]) +
+      '<div class="tmrp-detail-hint">点击展开近因、民心、生态关系与行动链</div>' +
       '</section>';
   }
 
@@ -2678,7 +2811,7 @@
     var inf = rightSocNum(c, ['influence','power','weight'], 0);
     return '<section class="tmrp-card ' + (sat < 45 ? 'hot' : (sat > 62 ? 'ok' : '')) + '"><div class="tmrp-card-title"><span>' + esc(c.name || c.label || c.id || '未名阶层') + '</span><small>满意 ' + esc(Math.round(sat)) + ' · 影响 ' + esc(Math.round(inf)) + '</small></div>' +
       rightArmyBar('满意', sat) + rightArmyBar('影响', inf) +
-      rightArmyRows([['规模', c.size || c.population || c.scale], ['经济角色', c.economicRole || c.role], ['法律地位', c.status], ['流动性', c.mobility], ['特权', c.privileges], ['义务', c.obligations], ['诉求', c.demands || c.currentDemand]]) +
+      rightArmyRows([['规模', rightSocialLocalizeText(c.size || c.population || c.scale)], ['经济角色', rightSocialLocalizeText(c.economicRole || c.role)], ['法律地位', rightSocialLocalizeText(c.status)], ['流动性', rightSocialLocalizeText(c.mobility)], ['特权', rightSocialLocalizeText(c.privileges)], ['义务', rightSocialLocalizeText(c.obligations)], ['诉求', rightSocialBriefText(c.demands || c.currentDemand)]]) +
       renderRightSocialCauses('class', c) +
       rightClassMinxinBridgeRows(c) +
       renderRightSocialEcology('class', c) +
@@ -2686,7 +2819,7 @@
       renderRightSocialChain('class', c) +
       renderRightActorActions('class', c) +
       renderRightSocialActions('class', c) +
-      '<div class="tmrp-meta">' + esc(c.description || c.desc || '') + '</div></section>';
+      '<div class="tmrp-meta">' + esc(rightSocialLocalizeText(c.description || c.desc || '')) + '</div></section>';
   }
 
   function renderRightClassPanel(){
@@ -2702,9 +2835,10 @@
     var inf = rightSocNum(p, ['influence','power','weight'], 0);
     var status = p.status || p.state || '未录';
     return '<section class="tmrp-card tmrp-social-head ' + (/活跃|active/i.test(String(status)) ? 'hot' : '') + '" data-right-action="outline-select" data-type="party" data-key="' + attr(rightSocialName(p)) + '">' +
-      '<div class="tmrp-card-title"><span>' + esc(p.name || p.label || p.id || '未名党派') + '</span><small>' + esc(status) + ' · 影响 ' + esc(Math.round(inf)) + ' ›</small></div>' +
+      '<div class="tmrp-card-title"><span>' + esc(p.name || p.label || p.id || '未名党派') + '</span><small>' + esc(rightSocialLocalizeText(status)) + ' · 影响 ' + esc(Math.round(inf)) + ' ›</small></div>' +
       rightArmyBar('影响', inf) +
-      rightArmyRows([['立场', p.ideology || p.stance], ['当前议程', p.currentAgenda || p.agenda || p.shortGoal]]) +
+      rightArmyRows([['立场', rightSocialLocalizeText(p.ideology || p.stance)], ['当前议程', rightSocialBriefText(p.currentAgenda || p.agenda || p.shortGoal)]]) +
+      '<div class="tmrp-detail-hint">点击展开近因、生态关系与行动链</div>' +
       '</section>';
   }
 
@@ -2712,10 +2846,10 @@
     var inf = rightSocNum(p, ['influence','power','weight'], 0);
     var status = p.status || p.state || '未录';
     var stance = p.policyStance || p.stances || p.agenda;
-    var stanceHtml = (Array.isArray(stance) ? stance : [stance]).filter(Boolean).map(function(x){ return '<span class="tmrp-pill">' + esc(x) + '</span>'; }).join('');
-    return '<section class="tmrp-card ' + (/活跃|active/i.test(String(status)) ? 'hot' : '') + '"><div class="tmrp-card-title"><span>' + esc(p.name || p.label || p.id || '未名党派') + '</span><small>' + esc(status) + ' · 影响 ' + esc(Math.round(inf)) + '</small></div>' +
+    var stanceHtml = (Array.isArray(stance) ? stance : [stance]).filter(Boolean).map(function(x){ return '<span class="tmrp-pill">' + esc(rightSocialLocalizeText(x)) + '</span>'; }).join('');
+    return '<section class="tmrp-card ' + (/活跃|active/i.test(String(status)) ? 'hot' : '') + '"><div class="tmrp-card-title"><span>' + esc(p.name || p.label || p.id || '未名党派') + '</span><small>' + esc(rightSocialLocalizeText(status)) + ' · 影响 ' + esc(Math.round(inf)) + '</small></div>' +
       rightArmyBar('影响', inf) +
-      rightArmyRows([['首领', p.leader || p.head], ['立场', p.ideology || p.stance], ['支持群体', p.base || p.supportBase], ['核心成员', p.members], ['当前议程', p.currentAgenda || p.agenda], ['短期目标', p.shortGoal], ['长期追求', p.longGoal]]) +
+      rightArmyRows([['首领', p.leader || p.head], ['立场', rightSocialLocalizeText(p.ideology || p.stance)], ['支持群体', rightSocialLocalizeText(p.base || p.supportBase)], ['核心成员', rightSocialLocalizeText(p.members)], ['当前议程', rightSocialBriefText(p.currentAgenda || p.agenda)], ['短期目标', rightSocialBriefText(p.shortGoal)], ['长期追求', rightSocialBriefText(p.longGoal)]]) +
       renderRightSocialCauses('party', p) +
       renderRightSocialEcology('party', p) +
       renderRightSocialChain('party', p) +
@@ -3378,7 +3512,7 @@
     state.rightOutlineSel = { type: actorType, key: rightSocialName(row) };
     var fly = document.createElement('aside');
     fly.id = 'tm-social-detail-flyout';
-    fly.className = 'tm-army-detail-flyout';
+    fly.className = 'tm-army-detail-flyout tm-social-detail-flyout';
     fly.innerHTML = rightSocialFlyoutInner(actorType, row);
     fly.addEventListener('click', function(e){
       var close = e.target && e.target.closest ? e.target.closest('[data-social-close]') : null;
@@ -3442,16 +3576,16 @@
 
   function rightClassDemandByName(className){
     var cls = rightFindSocialActor('class', className);
-    return cls && (cls.currentDemand || cls.demands || cls.shortGoal || cls.currentAgenda) || '';
+    return rightSocialBriefText(cls && (cls.currentDemand || cls.demands || cls.shortGoal || cls.currentAgenda) || '');
   }
 
   function rightSocialSummary(actorType, actor){
     var causes = rightSocialNearCauses(actorType, actor || {});
     var cause = causes.length ? causes[0].text : '';
     if (actorType === 'party') {
-      return [actor && (actor.shortGoal || actor.currentAgenda || actor.agenda), cause].filter(Boolean).join('；');
+      return [rightSocialBriefText(actor && (actor.shortGoal || actor.currentAgenda || actor.agenda)), rightSocialLocalizeText(cause)].filter(Boolean).join('；');
     }
-    return [actor && (actor.currentDemand || actor.demands), cause].filter(Boolean).join('；');
+    return [rightSocialBriefText(actor && (actor.currentDemand || actor.demands)), rightSocialLocalizeText(cause)].filter(Boolean).join('；');
   }
 
   function rightPushSocialCourtTopic(actorType, actor){
@@ -3459,12 +3593,14 @@
     if (!Array.isArray(GM._pendingTinyiTopics)) GM._pendingTinyiTopics = [];
     var name = rightSocialName(actor);
     var summary = rightSocialSummary(actorType, actor);
+    var goalText = rightSocialBriefText(actor.shortGoal || actor.currentAgenda || actor.agenda || '');
+    var demandText = rightSocialBriefText(actor.currentDemand || actor.demands || '');
     var delegateId = actorType === 'class' ? rightClassCharacterDelegateName(actor) : (actor.leader || actor.head || '');
     var delegate = delegateId ? findPerson(delegateId) : null;
     var delegateName = delegate ? (delegate.name || personKey(delegate)) : delegateId;
     var topic = actorType === 'party'
-      ? ('党议·' + name + '·' + (actor.shortGoal || actor.currentAgenda || actor.agenda || '近期目标') + '·请付廷议')
-      : ('民情·' + name + '·' + (actor.currentDemand || actor.demands || '阶层诉求') + '·请付廷议');
+      ? ('党议·' + name + '·' + (goalText || '近期目标') + '·请付廷议')
+      : ('民情·' + name + '·' + (demandText || '阶层诉求') + '·请付廷议');
     var item = {
       topic: topic,
       from: 'phase8-social-action',
@@ -3472,7 +3608,7 @@
       turn: GM.turn || 1,
       status: 'pending',
       priority: actorType === 'party' ? 74 : 78,
-      reason: summary || topic,
+      reason: rightSocialLocalizeText(summary || topic),
       delegateCharacter: delegateName || '',
       delegateCharacterId: delegate ? personKey(delegate) : delegateId || '',
       linkedCharacters: delegateName ? [delegateName] : []
@@ -3480,12 +3616,12 @@
     if (actorType === 'party') {
       item.party = name;
       item.sourceParty = name;
-      item.goalText = actor.shortGoal || actor.currentAgenda || actor.agenda || '';
+      item.goalText = goalText;
       item.linkedParties = [name];
     } else {
       item.className = name;
       item.sourceClass = name;
-      item.demandText = actor.currentDemand || actor.demands || '';
+      item.demandText = demandText;
       item.linkedClasses = [name];
     }
     GM._pendingTinyiTopics.unshift(item);

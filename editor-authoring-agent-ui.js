@@ -189,12 +189,23 @@
     if (ui._entNavBound) return;
     ui._entNavBound = true;
     document.addEventListener('click', function(ev) {
+      var jpath = ev.target && ev.target.closest ? ev.target.closest('.tm-aa-diff-jump[data-reveal-path]') : null;
+      if (jpath) {
+        ev.preventDefault();
+        var pp = jpath.getAttribute('data-reveal-path');
+        var appP = global.TM_SCENARIO_EDITOR_RESET_APP;
+        if (appP && typeof appP.revealPath === 'function') { appP.revealPath(pp); setStatus('已在折子精确定位'); }
+        else if (appP && typeof appP.revealField === 'function') { appP.revealField(String(pp).split('.')[0]); }
+        return;
+      }
       var jmp = ev.target && ev.target.closest ? ev.target.closest('.tm-aa-diff-jump[data-reveal-field]') : null;
       if (jmp) {
         ev.preventDefault();
         var jf = jmp.getAttribute('data-reveal-field');
         var app0 = global.TM_SCENARIO_EDITOR_RESET_APP;
-        if (app0 && typeof app0.revealField === 'function') { app0.revealField(jf); setStatus('已在折子定位「' + jf + '」'); }
+        var firstPath = jmp.getAttribute('data-first-path');
+        if (app0 && firstPath && typeof app0.revealPath === 'function') { app0.revealPath(firstPath); setStatus('已在折子定位「' + jf + '」'); }
+        else if (app0 && typeof app0.revealField === 'function') { app0.revealField(jf); setStatus('已在折子定位「' + jf + '」'); }
         return;
       }
       var a = ev.target && ev.target.closest ? ev.target.closest('.je-entity-ref') : null;
@@ -261,6 +272,33 @@
   function _liveEditorContext() {
     try { return (ui.adapter && typeof ui.adapter.getContext === 'function') ? (ui.adapter.getContext() || '') : ''; }
     catch (e) { return ''; }
+  }
+  // 治「生成质量低·大量空内容」：把剧本里已有的丰满实体当 few-shot 范例喂 agent（之前 ui.exemplars 从未赋值→无参照）。
+  //   按当前剧本算（每势力/人物/事件取 2 个最丰满的），缓存到 ui._exemplarsCache 避免每轮重算。
+  function _exemplars() {
+    try {
+      if (!AA || typeof AA.buildExemplars !== 'function' || !ui.adapter || typeof ui.adapter.getScenario !== 'function') return ui.exemplars || null;
+      var sc = ui.adapter.getScenario();
+      if (ui._exemplarsCache && ui._exemplarsSc === sc) return ui._exemplarsCache;
+      var ex = AA.buildExemplars(sc, { perColl: 2, capEach: 1100, collections: ['characters', 'factions', 'events'] }) || '';
+      ui._exemplarsCache = ex || null; ui._exemplarsSc = sc;
+      return ui._exemplarsCache;
+    } catch (e) { return ui.exemplars || null; }
+  }
+  // 跨会话记忆（治「会话一次性·无跨对话记忆」）：把近期运行记录(需求→做了什么·是否应用)拼成记忆串喂 agent，
+  //   让新对话延续上下文、不重复已做、与之前改动保持一致。基于已持久化的 _loadHistory(cap50·跨刷新存活)。
+  function _buildMemory() {
+    try {
+      var h = (typeof listHistory === 'function') ? listHistory() : [];   // 新→旧
+      if (!h || !h.length) return '';
+      var lines = [];
+      h.slice(0, 6).forEach(function (r) {
+        var req = String(r.request || '').trim(), did = String(r.summary || '').replace('（无说明）', '').trim();
+        if (!req && !did) return;
+        lines.push('· ' + (r.applied ? '[已应用] ' : '[未应用] ') + (r.when ? r.when.slice(5, 16) + ' · ' : '') + (req ? '「' + req.slice(0, 46) + '」' : '') + (did ? ' → ' + did.slice(0, 76) : ''));
+      });
+      return lines.join('\n');
+    } catch (e) { return ''; }
   }
   // N1 · 焦点上下文：默认跟随编辑器选中；固定后冻结为固定值（喂 agent 也用固定值）。
   function _editorContext() {
@@ -512,7 +550,7 @@
     panel.innerHTML = [
       '<div class="tm-aa-resize" id="tm-aa-resize" title="拖动调整宽度"></div>',   // UI·AI · 左缘拖拽调宽
       '<div id="tm-aa-hd"><span><b>AI 剧本助手</b><span class="sub">' + esc(ui.adapter.label || '') + '</span></span>',
-      '<button id="tm-aa-fs" title="全屏 / 还原">⛶</button><button id="tm-aa-x" title="关闭">×</button></div>',
+      '<button id="tm-aa-newchat" title="开始新对话（清空当前会话线程与消息·上一会话已入历史/记忆）">✎</button><button id="tm-aa-fs" title="全屏 / 还原">⛶</button><button id="tm-aa-x" title="关闭">×</button></div>',
       '<div id="tm-aa-body">',
       '<div class="tm-aa-search" id="tm-aa-search" hidden><input type="text" id="tm-aa-search-in" placeholder="在结果里查找…"><span class="tm-aa-search-n" id="tm-aa-search-n">0/0</span><button type="button" id="tm-aa-search-prev" title="上一个">↑</button><button type="button" id="tm-aa-search-next" title="下一个">↓</button><button type="button" id="tm-aa-search-x" title="关闭 (Esc)">×</button></div>',
       '<div id="tm-aa-composer">',   // UI iteration2 · 输入区聚成一块（docked 下 sticky 钉底）
@@ -569,6 +607,7 @@
       searchCount: panel.querySelector('#tm-aa-search-n')
     };
     panel.querySelector('#tm-aa-x').addEventListener('click', function() { if (panel._fs) _toggleFullscreen(); panel.classList.remove('open'); });
+    var _nc = panel.querySelector('#tm-aa-newchat'); if (_nc) _nc.addEventListener('click', newConversation);   // 真·连续会话：另起新对话
     if (ui.els.fs) ui.els.fs.addEventListener('click', _toggleFullscreen);   // UI·AI · 全屏切换
     _ensurePanelResize();   // UI·AI · 左缘拖拽调宽 + 载入持久宽度
     _ensureSearch();   // UI·AJ · 过程区内搜索（⌘F）
@@ -999,23 +1038,32 @@
 
   // UI·Z · 思考过程折叠块（Claude.ai「Thought for Ns」招牌）：把本轮 agent 的多段推理（onText·原来平铺 💭 行）
   //   收拢进一个默认收起的 <details>，标题显「💭 推理 N 步」并实时计数；点开看完整推理叙事。每轮(run)一个块。
-  function appendText(text, iter) {
-    if (!ui.els || !text) return;
-    ui.els.logSec.style.display = ''; ui.els.logWrap.style.display = '';
+  // UI·Z2 · 统一「执行过程」折叠块：本轮的推理 + 工具调用全收进同一个默认收起的 <details>
+  //   （对齐 Claude 网页端折叠思考/工具调用）。点开看完整推理叙事 + 逐个工具卡。每轮(run)一个块。
+  function _ensureExecBlock() {
     var blk = ui._thinkEl;
-    if (!blk || !blk.isConnected) {   // 本轮首条推理 → 建折叠块
+    if (!blk || !blk.isConnected) {
+      if (ui.els) { ui.els.logSec.style.display = ''; ui.els.logWrap.style.display = ''; }
       blk = document.createElement('details');
       blk.className = 'tm-aa-think';
-      blk.innerHTML = '<summary class="tm-aa-think-sum">💭 <span class="tk-label">推理中…</span></summary><div class="tm-aa-think-body"></div>';
-      ui.els.log.appendChild(blk);
+      blk.innerHTML = '<summary class="tm-aa-think-sum">⚙ <span class="tk-label">执行中…</span></summary><div class="tm-aa-think-body"></div>';
+      if (ui.els) ui.els.log.appendChild(blk);
       ui._thinkEl = blk; ui._thinkCount = 0;
     }
+    return blk;
+  }
+  function _bumpExecLabel(blk) {
     ui._thinkCount = (ui._thinkCount || 0) + 1;
+    var lbl = blk.querySelector('.tk-label'); if (lbl) lbl.textContent = '执行过程 · ' + ui._thinkCount + ' 步';
+  }
+  function appendText(text, iter) {
+    if (!ui.els || !text) return;
+    var blk = _ensureExecBlock();
     var line = document.createElement('div');
     line.className = 'tk-line';
-    line.textContent = '#' + iter + ' ' + String(text).slice(0, 400);
+    line.textContent = '💭 ' + String(text).slice(0, 400);
     blk.querySelector('.tm-aa-think-body').appendChild(line);
-    var lbl = blk.querySelector('.tk-label'); if (lbl) lbl.textContent = '推理 ' + ui._thinkCount + ' 步';
+    _bumpExecLabel(blk);
     _logScrollMaybe();
   }
 
@@ -1062,7 +1110,7 @@
     if (!ui.els) return;
     if (step && step.tokensUsed != null) ui._lastTokens = step.tokensUsed;   // 方向I · 实时计量
     if (step && step.iteration != null) ui._lastIter = step.iteration;
-    ui.els.logSec.style.display = ''; ui.els.logWrap.style.display = '';
+    var execBlk = _ensureExecBlock();   // UI·Z2 · 工具卡收进同一个「执行过程」折叠块
     var r = step.result || {};
     var cls = (step.name === 'finish' && r.ok) ? 'fin' : (r.ok ? 'ln' : 'bad');
     var detail = r.ok ? '' : (' — ' + esc(r.reason || ''));
@@ -1077,19 +1125,21 @@
       + (inputStr && inputStr !== '{}' ? '<div class="sb-row"><span class="sb-k">输入</span><pre>' + esc(inputStr.slice(0, 600)) + (inputStr.length > 600 ? '…' : '') + '</pre></div>' : '')
       + (resultStr && resultStr !== '{}' ? '<div class="sb-row"><span class="sb-k">结果</span><pre>' + esc(resultStr.slice(0, 600)) + (resultStr.length > 600 ? '…' : '') + '</pre></div>' : '')
       + '</div>';
-    ui.els.log.appendChild(card);
+    var body = execBlk.querySelector('.tm-aa-think-body'); if (body) body.appendChild(card); else ui.els.log.appendChild(card);
+    _bumpExecLabel(execBlk);
     _logScrollMaybe();
   }
 
   // UI·X · 每条改动渲染成可【接受/拒绝】的 hunk（idx=在 diffs 数组里的稳定下标·拒绝集 ui._diffRejected）
   function _diffEntryHtml(d, uncReason, idx) {
     var p = _friendlyPath(d.path);
+    var pj = '<span class="tm-aa-diff-jump" data-reveal-path="' + esc(d.path || '') + '" title="在折子里精确定位此处">' + esc(p) + '</span>';
     var warn = uncReason ? '<span class="tm-aa-unc">⚠ 待核：' + esc(uncReason) + '</span>' : '';
     var cls = uncReason ? ' uncertain' : '';
     var body;
-    if (d.type === 'added') body = '<span class="hunk-body add' + cls + '">＋ 新增 ' + esc(p) + '：' + esc(_shortVal(d.after)) + warn + '</span>';
-    else if (d.type === 'removed') body = '<span class="hunk-body rm' + cls + '">－ 删除 ' + esc(p) + warn + '</span>';
-    else body = '<span class="hunk-body ch' + cls + '">✎ 改 ' + esc(p) + '：' + esc(_shortVal(d.before)) + ' → ' + esc(_shortVal(d.after)) + warn + '</span>';
+    if (d.type === 'added') body = '<span class="hunk-body add' + cls + '">＋ 新增 ' + pj + '：' + esc(_shortVal(d.after)) + warn + '</span>';
+    else if (d.type === 'removed') body = '<span class="hunk-body rm' + cls + '">－ 删除 ' + pj + warn + '</span>';
+    else body = '<span class="hunk-body ch' + cls + '">✎ 改 ' + pj + '：' + esc(_shortVal(d.before)) + ' → ' + esc(_shortVal(d.after)) + warn + '</span>';
     var rejected = ui._diffRejected && ui._diffRejected.has(idx);
     return '<div class="tm-aa-hunk' + (rejected ? ' rejected' : '') + '" data-diff-idx="' + idx + '">'
       + '<button type="button" class="hunk-tog" data-diff-idx="' + idx + '" title="' + (rejected ? '已拒绝·点击接受' : '已接受·点击拒绝') + '">' + (rejected ? '✗' : '✓') + '</button>'
@@ -1143,7 +1193,8 @@
       var gUnc = es.filter(function(d) { return _uncReasonFor(d.path, unc); }).length;
       var idxs = es.slice(0, 40).map(function(d) { return d.__idx; });
       var allRej = idxs.every(function(i) { return ui._diffRejected.has(i); });
-      return '<div class="tm-aa-diff-group" data-group="' + esc(field) + '"><div class="tm-aa-diff-head"><b class="tm-aa-diff-jump" data-reveal-field="' + esc(field) + '" title="在折子里定位此字段">' + esc(_COLL_CN[field] || field) + ' \u2197</b> <span style="color:#8b90a8">(' + es.length + ' 处' + (gUnc ? ' · ⚠' + gUnc : '') + ')</span><button type="button" class="grp-tog" data-group-idxs="' + idxs.join(',') + '">' + (allRej ? '全收' : '全拒') + '</button></div>' + inner + '</div>';
+      var firstPath = (es[0] && es[0].path) || field;
+      return '<div class="tm-aa-diff-group" data-group="' + esc(field) + '"><div class="tm-aa-diff-head"><b class="tm-aa-diff-jump" data-reveal-field="' + esc(field) + '" data-first-path="' + esc(firstPath) + '" title="在折子里定位此字段（跳首处改动）">' + esc(_COLL_CN[field] || field) + ' \u2197</b> <span style="color:#8b90a8">(' + es.length + ' 处' + (gUnc ? ' · ⚠' + gUnc : '') + ')</span><button type="button" class="grp-tog" data-group-idxs="' + idxs.join(',') + '">' + (allRej ? '全收' : '全拒') + '</button></div>' + inner + '</div>';
     }).join('');
   }
   function _toggleHunk(idx) {
@@ -1229,7 +1280,7 @@
       editorContext: _editorContext(),
       allowedCollections: ui.allowedCollections || null,
       allowDestructive: ui.allowDestructive !== false,
-      exemplars: ui.exemplars || null,                     // 方向J · 从官方剧本学习
+      exemplars: _exemplars(),                              // 方向J · 从剧本已有实体学丰满度（治空内容）
       onStep: function(step) { appendLog(step); setStatus('第 ' + step.iteration + ' 轮…'); },
       onText: function(text, iter) { appendText(text, iter); }
     }).then(function(res) {
@@ -1486,6 +1537,8 @@
       editorContext: _editorContext(),
       allowedCollections: ui.allowedCollections || null,
       allowDestructive: ui.allowDestructive !== false,
+      exemplars: _exemplars(),                              // 方向J · 从剧本已有实体学丰满度（治空内容）
+      memory: _buildMemory(),                               // 跨会话记忆：注入近期已做的事
       onStep: function(step) { appendLog(step); },
       onText: function(text, iter) { appendText(text, iter); },
       onSubtask: function(p) {
@@ -1532,26 +1585,38 @@
     if (!request) { setStatus('请先输入需求'); return; }
     if (!AA || typeof AA.runAuthoringLoop !== 'function') { setStatus('agent 核心未加载'); return; }
     var planOnly = !!ui.planMode;   // 计划模式：先出计划，批准再执行
-    // 维度1 · 对话式追问：上一轮草稿/线程还在(没应用也没放弃)→接着改；计划模式总从当前剧本起新计划
-    var continuing = !planOnly && !!(ui.draft && ui.conversation && ui.conversation.length && !ui._pendingPlan);
-    resetResults(continuing);   // UI·B · 会话流：续接保留线程、新对话清空
+    // 真·连续会话：只要对话线程还在就续接（哪怕上一轮已应用·draft 已清）。计划模式总从当前剧本起新计划。
+    //   ——治「每发一条指令都是新对话」：之前续接还要求 ui.draft，应用后 draft 没了就被迫重置；现在线程贯穿整个会话。
+    var continuing = !planOnly && !!(ui.conversation && ui.conversation.length && !ui._pendingPlan);
+    resetResults(continuing);   // UI·B · 会话流：续接保留线程+消息流、新对话清空
     _appendUserMsg(request);    // 回显用户消息气泡
     setRunning(true);
     setStatus(planOnly ? '正在规划…（agent 先只读、出计划）' : '正在生成…（agent 多轮编辑+自校验，可能需要数十秒）');
     if (!continuing) { ui.draft = AA.makeDraft(ui.adapter.getScenario()); if (!planOnly) ui.conversation = null; }
+    else if (!ui.draft) { ui.draft = AA.makeDraft(ui.adapter.getScenario()); }   // 续接但上轮已应用 → 从当前(已更新)剧本新建 draft，对话线程保留
 
     AA.runAuthoringLoop(ui.draft, request, {
       planOnly: planOnly,
       priorConversation: continuing ? ui.conversation : null,
+      memory: continuing ? '' : _buildMemory(),             // 跨会话记忆：新对话才注入历史；续接已在线程里
       editorContext: _editorContext(),
       allowedCollections: ui.allowedCollections || null,   // 方向F · 范围沙箱
       allowDestructive: ui.allowDestructive !== false,      // 方向F · 危险操作开关
-      exemplars: ui.exemplars || null,                     // 方向J · 从官方剧本学习（开关式）
+      exemplars: _exemplars(),                              // 方向J · 从剧本已有实体学丰满度（治空内容）（开关式）
       onStep: function(step) { appendLog(step); setStatus('第 ' + step.iteration + ' 轮…'); },
       onText: function(text, iter) { appendText(text, iter); }
     }).then(function(res) {
       setRunning(false);
       ui.conversation = res.conversation;   // 维度1 · 存住线程
+      // 自动续接：未完成且因轮次/token 上限停 → 自动发「继续」续接（复用连续会话线程·持续调用直到完整·安全上限 3 次）。
+      if (!planOnly && !res.finished && (res.stopReason === 'maxIterations' || res.stopReason === 'tokenBudget') && (ui._autoCont || 0) < 3) {
+        ui._autoCont = (ui._autoCont || 0) + 1;
+        setStatus('未完成（' + (res.stopReason === 'tokenBudget' ? '达 token 上限' : '达迭代上限') + '）· 自动继续 ' + ui._autoCont + '/3…（持续到完整结果）');
+        ui.els.req.value = '继续完成上面尚未完成的改动，全部完成后再调用 finish，不要重复已做的。';
+        setTimeout(onGenerate, 60);   // 续接：ui.conversation 在 → onGenerate 走 continuing
+        return;
+      }
+      ui._autoCont = 0;
       _logRun(res.clarification ? '澄清' : (res.plan ? '计划' : '编辑'), request, res);   // 方向M · 记一条历史
       ui.els.req.value = ''; _autoGrowReq();
       var stopMap = { finish: '完成', maxIterations: '达迭代上限', tokenBudget: '达 token 上限', finishBlocked: '校验未过·已停', noToolCalls: 'agent 未再操作', aborted: '已停止', planned: '已出计划', needsClarification: '需澄清' };
@@ -1615,16 +1680,18 @@
       ui.adapter.commit(_applyScenario());
       var partial = rej.size > 0;
       markLastApplied();   // 方向M · 把最近一条历史标记为已应用
-      try {   // N4 · 通知编辑器：在折子里高亮国师刚改的字段
-        var _touched = {}, _rejN = ui._diffRejected || new Set();
-        (ui._lastDiffs || []).forEach(function (d) { if (_rejN.has(d.__idx)) return; var top = String(d.path || '').split(/[.[]/)[0]; if (top) _touched[top] = 1; });
+      try {   // N4 · 通知编辑器：在折子里高亮国师刚改的字段 + 精确跳到首处改动
+        var _touched = {}, _rejN = ui._diffRejected || new Set(), _firstPath = null;
+        (ui._lastDiffs || []).forEach(function (d) { if (_rejN.has(d.__idx)) return; var top = String(d.path || '').split(/[.[]/)[0]; if (top) _touched[top] = 1; if (!_firstPath && d.path) _firstPath = d.path; });
         var _app = global.TM_SCENARIO_EDITOR_RESET_APP;
         if (_app && typeof _app.markAgentTouched === 'function') _app.markAgentTouched(Object.keys(_touched));
+        if (_firstPath && _app && typeof _app.revealPath === 'function') _app.revealPath(_firstPath);
       } catch (e) {}
-      setStatus('已应用到剧本 ✓' + (partial ? '（仅接受的改动·拒绝了 ' + rej.size + ' 处）' : '') + '（可撤销）');
+      setStatus('已应用到剧本 ✓' + (partial ? '（仅接受的改动·拒绝了 ' + rej.size + ' 处）' : '') + '（可继续追问·同一会话）');
       ui.els.actions.style.display = 'none';
       ui.draft = null;
-      ui.conversation = null;   // 维度1 · 应用后结束会话，下次从新剧本起
+      // 真·连续会话：应用后【保留】对话线程，下条指令在同一会话里续接（draft 已清·续接时从当前剧本新建）。
+      //   想另起新对话用「＋ 新对话」或「放弃」。线程上限交 runAuthoringLoop 的 token 预算自然收口。
     } catch (e) {
       setStatus('应用失败：' + (e && e.message || e));
     }
@@ -1639,6 +1706,14 @@
     resetResults();
     setStatus('已放弃本次改动');
     _syncEmpty();   // UI·AD · 回到干净状态则重现欢迎态
+  }
+  // 真·连续会话：另起新对话（清空当前线程+消息流；上一会话已存入历史·下次新对话会注入记忆延续）。
+  function newConversation() {
+    if (ui.running) { setStatus('运行中，请先停止再新开对话'); return; }
+    ui.draft = null; ui.conversation = null; ui._pendingPlan = false; ui._pendingClarify = false;
+    resetResults(false);
+    _syncEmpty();
+    setStatus('已开始新对话（上一会话已入历史/记忆，可被延续）');
   }
 
   // 方向G · 检查点栈：把"应用前快照"升级为可命名、多级回溯的检查点（session 内存态·不持久，避免大剧本撑爆 localStorage）。

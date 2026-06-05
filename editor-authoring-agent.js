@@ -58,6 +58,10 @@
     return { parent: parent, key: lastKey, exists: parent[lastKey] !== undefined, value: parent[lastKey] };
   }
 
+  function _agentClone(x) {
+    try { return JSON.parse(JSON.stringify(x)); } catch (e) { return x; }
+  }
+
   // ═══════════════════════════════════════════════════════════════════
   //  scope 沙箱
   // ═══════════════════════════════════════════════════════════════════
@@ -225,29 +229,27 @@
       if (!r) return false;
       return (r.from && charNames[r.from]) || (r.to && charNames[r.to]) || (r.a && charNames[r.a]) || (r.b && charNames[r.b]);
     });
-    function clone(x) { try { return JSON.parse(JSON.stringify(x)); } catch (e) { return x; } }
-    return { type: 'tm-entity-bundle', version: 1, faction: fname, factionData: faction ? clone(faction) : null, characters: clone(characters), relations: clone(relations) };
+    return { type: 'tm-entity-bundle', version: 1, faction: fname, factionData: faction ? _agentClone(faction) : null, characters: _agentClone(characters), relations: _agentClone(relations) };
   }
   // 把捆绑包合并进目标剧本（返回新剧本·势力去重·人物重名自动改名·关系按改名重映射）。
   function mergeEntityBundle(targetScenario, bundle) {
-    function clone(x) { try { return JSON.parse(JSON.stringify(x)); } catch (e) { return x; } }
-    var sc = clone(targetScenario || {});
+    var sc = _agentClone(targetScenario || {});
     if (!bundle || bundle.type !== 'tm-entity-bundle') return { scenario: sc, added: { factions: 0, characters: 0, relations: 0 }, error: '不是有效的实体捆绑包' };
     sc.factions = sc.factions || []; sc.characters = sc.characters || []; sc.relations = sc.relations || [];
     var added = { factions: 0, characters: 0, relations: 0 }, rename = {};
     if (bundle.factionData && bundle.factionData.name) {
-      if (!sc.factions.some(function(f) { return f && f.name === bundle.factionData.name; })) { sc.factions.push(clone(bundle.factionData)); added.factions++; }
+      if (!sc.factions.some(function(f) { return f && f.name === bundle.factionData.name; })) { sc.factions.push(_agentClone(bundle.factionData)); added.factions++; }
     }
     var existing = {}; sc.characters.forEach(function(c) { if (c && c.name) existing[c.name] = true; });
     (bundle.characters || []).forEach(function(c) {
       if (!c || !c.name) return;
-      var nc = clone(c), name = nc.name;
+      var nc = _agentClone(c), name = nc.name;
       if (existing[name]) { var n = 2; while (existing[name + '（' + n + '）']) n++; nc.name = name + '（' + n + '）'; rename[name] = nc.name; }
       existing[nc.name] = true; sc.characters.push(nc); added.characters++;
     });
     (bundle.relations || []).forEach(function(r) {
       if (!r) return;
-      var nr = clone(r);
+      var nr = _agentClone(r);
       ['from', 'to', 'a', 'b'].forEach(function(k) { if (nr[k] && rename[nr[k]]) nr[k] = rename[nr[k]]; });
       sc.relations.push(nr); added.relations++;
     });
@@ -560,17 +562,26 @@
   // ═══════════════════════════════════════════════════════════════════
 
   /** 读编辑器 BYOK 配置（与 callAIEditor 同源：localStorage.tm_api）。 */
+  // 与正式游戏同步：游戏把主 API 存在 P.ai（落 localStorage 的 tm_P 全量 / tm_P_lite 精简），
+  // 编辑器/agent 历史上读独立的 tm_api → 不同步。此处优先读游戏 P.ai（用户在游戏里配的一份），
+  // 游戏无配置时回退编辑器 tm_api。保存侧（编辑器）会同时写回游戏 P.ai，达成双向同步。
+  function _readGameAi() {
+    function readJson(k) { try { var r = global.localStorage && global.localStorage.getItem(k); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
+    var pl = readJson('tm_P_lite'); if (pl && pl.ai && (pl.ai.key || pl.ai.url)) return pl.ai;
+    var pf = readJson('tm_P'); if (pf && pf.ai && (pf.ai.key || pf.ai.url)) return pf.ai;
+    return null;
+  }
   function loadEditorApiConfig() {
-    var cfg = {};
-    try {
-      var raw = (global.localStorage && global.localStorage.getItem('tm_api')) || '{}';
-      cfg = JSON.parse(raw);
-    } catch (e) { cfg = {}; }
+    var tm = {};
+    try { tm = JSON.parse((global.localStorage && global.localStorage.getItem('tm_api')) || '{}') || {}; } catch (e) { tm = {}; }
+    var g = _readGameAi() || {};
+    // 游戏 P.ai 有 key → 以游戏为准（全游戏通用主 API）；否则用编辑器 tm_api
+    var src = g.key ? g : tm;
     return {
-      key: cfg.key || '',
-      url: (cfg.url || '').replace(/\/+$/, ''),
-      model: cfg.model || 'gpt-4o',
-      temp: (cfg.temp != null) ? cfg.temp : 0.7
+      key: src.key || '',
+      url: (src.url || '').replace(/\/+$/, ''),
+      model: src.model || 'gpt-4o',
+      temp: (src.temp != null) ? src.temp : 0.7
     };
   }
 
@@ -1549,16 +1560,21 @@
       '规则：① 只用工具修改/查询，不要直接输出 JSON 剧本正文。② 中文显示名（人物/势力/地名）保持中文，禁止英译。',
       '③ 先用 getField/searchEntities/listGaps 查看现状与规格缺口再改；不确定东西在哪个集合时用 globalSearch 全局检索定位。想确认正式游戏怎么读某字段、读不读它，用 fieldContract 查契约（按需查，别凭印象）。想看游戏 UI/逻辑的源码实现，用 listSource 找文件、readSource 读、grepSource 全局搜——可直接读整个代码库。生成或大改某部分(人物/势力/经济/官制/封臣…)前，先 genReference 看老编辑器对该部分的生成范式(设定深度/字段形状/朝代逻辑/参数区间)，借鉴后再动手。改地图归属（把某地块划给某势力、调整疆域归属）时，先 mapOverview 看清现有地块/归属/势力，再 mapAssignOwner 按地块名+势力名改（自动上色、同步 map/mapData）。与用户需求相关的必需缺口顺手补齐，让剧本完整可玩。④ 每改完一批用 validateDraft 自查，有违规继续修。⑤ 改好后用 preflight 跑运行时体检（确保游戏能正常加载），有 blockers 继续修到 bootable，再调用 finish——summary 要向玩家说清「改了什么、为什么这么改」（具体到关键实体/字段，2-4 句中文），不要只写"完成"。',
       '⑥ 若发现该玩家/剧本有值得长期沿用的约定（命名规律、文风、设定惯例），可调 recordConvention 记一条（仅在确有发现时，别凑数）。⑦ 改名优先用 renameEntity（联动所有引用、不留死链）；删除实体前先 findReferences 查谁引用了它。⑧ 对没把握的改动（史实存疑、靠推测填充）调 flagUncertain 标一下路径，提醒玩家重点复核（只标真没把握的）。',
+      '⑨【填实·禁空内容·铁律】新增或改写实体必须填到可直接用的质量，绝不留空：先用 listCollection / searchEntities 看一两个剧本里已有的同类实体（或 genReference 看生成范式），照着它们的字段集与丰满度，把新实体的所有相关字段都填上有意义的中文内容——身份/官衔/数值(能力/人口/兵力等)/背景小传/性格/目标/关系/履历等该有的都要有，数值要符合设定区间、彼此自洽。禁止留空字符串、0 占位（除非数值确为 0）、"待补/TODO/未知/暂无"之类占位词，也禁止只填 name 就交差。createEntity 模板只是最小骨架，拿到后必须逐字段补全。宁可少加一个实体，也要把加的每个都填实、达到与官方实体同等的完整度。',
+      '⑩【高权限·可写任意字段】你对剧本草稿有完全的写入权限：applyEdit/applyPush 可以创建任意新字段、新嵌套结构，包括剧本编辑器当前没有专门面板/不在结构速查/fieldContract 查不到的"非标准/自定义"字段——编辑器会自动吸收并展示这些字段，不会丢。fieldContract 返回"不在游戏字段契约中"只表示它是扩展/自定义字段（正式游戏不直接读），并不代表禁止写；只要对实现用户需求有用就大胆写。唯一不可改的是：剧本唯一 id、下划线开头的内部字段、ai/conf/meta 等配置（改这些会损坏剧本）。其余一切随需求自由创建与修改。',
       _conventionsBlock(conventions),
       '',
       buildSchemaGuide()
     ].join('\n');
   }
 
-  function _buildInitialUser(draft, userRequest, surfaces, editorContext, exemplars) {
+  function _buildInitialUser(draft, userRequest, surfaces, editorContext, exemplars, memory) {
     var lines = [
       '【用户需求】\n' + (userRequest || '')
     ];
+    if (memory) {   // 跨会话记忆：你在与该玩家之前的对话里做过什么（延续上下文·避免重复/冲突）
+      lines.push('\n【跨会话记忆·你在之前的对话里对本剧本做过这些】（供延续，不要重复已做的，注意与之前改动保持一致；这是历史记录非当前需求）\n' + String(memory).slice(0, 2200));
+    }
     if (exemplars) {   // 方向J · few-shot 范例：参考其笔法与字段丰满度（编辑官方剧本时即官方范例）
       lines.push('\n【参考范例·新增/改写内容请贴近这些范例的笔法、字段完整度与设定风格】\n' + String(exemplars).slice(0, 6000));
     }
@@ -1721,8 +1737,8 @@
   function runAuthoringLoop(draft, userRequest, opts) {
     opts = opts || {};
     var caller = opts.caller || callWithTools;
-    var maxIterations = opts.maxIterations || 24;     // 刀D · 自主度：长任务多跑几轮
-    var maxTokens = opts.maxTokens || 120000;         // 刀D · 自主度：放宽 token 预算
+    var maxIterations = opts.maxIterations || 48;     // 刀D · 自主度：放宽到 48 轮·持续调用直到完成（UI 还会自动续接）
+    var maxTokens = opts.maxTokens || 260000;         // 刀D · 自主度：token 预算放宽·覆盖长任务一次跑完
     var maxFinishAttempts = opts.maxFinishAttempts || 3;
     var blockingChecks = opts.blockingChecks || ['admin-population', 'faction-refs'];
     var perms = { allowedCollections: opts.allowedCollections || null, allowDestructive: opts.allowDestructive !== false };   // 方向F · 权限（默认无限制·全放行）
@@ -1742,7 +1758,7 @@
       conversation.push({ role: 'user', text: _buildFollowUpUser(draft, userRequest, surfaces, editorContext) });
       try { _priorTokens = _estimateTokens(JSON.stringify(opts.priorConversation)); } catch (e) {}
     } else {
-      conversation = [{ role: 'user', text: explainOnly ? _buildExplainUser(draft, userRequest, surfaces, editorContext) : (qaOnly ? _buildQaUser(draft, userRequest, surfaces, editorContext) : (reviewOnly ? _buildReviewUser(draft, userRequest, surfaces, editorContext) : _buildInitialUser(draft, userRequest, surfaces, editorContext, exemplars))) }];
+      conversation = [{ role: 'user', text: explainOnly ? _buildExplainUser(draft, userRequest, surfaces, editorContext) : (qaOnly ? _buildQaUser(draft, userRequest, surfaces, editorContext) : (reviewOnly ? _buildReviewUser(draft, userRequest, surfaces, editorContext) : _buildInitialUser(draft, userRequest, surfaces, editorContext, exemplars, opts.memory || ''))) }];
     }
     var transcript = [];
     var iterations = 0, finishAttempts = 0;
@@ -1955,7 +1971,6 @@
   // 受影响的数组最后 compact 去 undefined 洞。比"按顶层字段整块替换"细一档，且对独立标量编辑完全安全。
   // isAccepted(d) 默认接受（拒绝是 opt-out）。current=当前剧本·draft=agent 改完的草稿·diffs=computeDiff(current,draft)。
   function applySelectedDiffs(current, draft, diffs, isAccepted) {
-    function clone(x) { try { return JSON.parse(JSON.stringify(x)); } catch (e) { return x; } }
     function segs(path) { return String(path || '').split('.').filter(function(s) { return s !== ''; }); }
     function getAt(root, path) {
       var ss = segs(path), o = root;
@@ -1987,15 +2002,15 @@
       return ss.slice(0, ss.length - 1).join('.');
     }
     var accept = (typeof isAccepted === 'function') ? isAccepted : function() { return true; };
-    var result = clone(draft);
+    var result = _agentClone(draft);
     var touched = {};
     (diffs || []).forEach(function(d) {
       if (accept(d)) return;   // 接受 → 保留 draft 的值，不动
       var path = String(d.path || ''), pa = parentArrayPath(path);
       if (pa) touched[pa] = 1;
-      if (d.type === 'changed') setAt(result, path, clone(d.before));
+      if (d.type === 'changed') setAt(result, path, _agentClone(d.before));
       else if (d.type === 'added') delAt(result, path);                 // 拒绝新增 → 删
-      else if (d.type === 'removed') setAt(result, path, clone(d.before));   // 拒绝删除 → 放回
+      else if (d.type === 'removed') setAt(result, path, _agentClone(d.before));   // 拒绝删除 → 放回
     });
     Object.keys(touched).forEach(function(pp) {
       var arr = getAt(result, pp);
@@ -2056,7 +2071,7 @@
         } catch (e) { return ''; }
       },
       commit: function(draft) {
-        app().applyImportedScenario(draft, 'AI 助手生成');
+        app().applyImportedScenario(draft, 'AI 助手生成', { preserveFocus: true });
         return { ok: true };
       }
     };
