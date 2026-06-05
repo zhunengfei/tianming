@@ -76,57 +76,7 @@ async function recognizeMapRegions(image, options) {
     });
 }
 
-/**
- * 构建颜色映射表
- */
-function buildColorMap(pixels, width, height, tolerance) {
-    const colorMap = new Map();
-    const visited = new Set();
 
-    for (let i = 0; i < pixels.length; i += 4) {
-        const r = pixels[i];
-        const g = pixels[i + 1];
-        const b = pixels[i + 2];
-        const a = pixels[i + 3];
-
-        // 跳过透明像素
-        if (a < 128) continue;
-
-        const colorKey = `${r},${g},${b}`;
-
-        // 查找相似颜色
-        let found = false;
-        for (const [key, value] of colorMap) {
-            const [kr, kg, kb] = key.split(',').map(Number);
-            const distance = Math.sqrt(
-                (r - kr) ** 2 + (g - kg) ** 2 + (b - kb) ** 2
-            );
-
-            if (distance <= tolerance) {
-                value.count++;
-                found = true;
-                break;
-            }
-        }
-
-        if (!found) {
-            colorMap.set(colorKey, {
-                r, g, b,
-                count: 1
-            });
-        }
-    }
-
-    // 过滤掉出现次数太少的颜色（可能是噪点）
-    const filtered = new Map();
-    for (const [key, value] of colorMap) {
-        if (value.count > 50) { // 至少50个像素
-            filtered.set(key, value);
-        }
-    }
-
-    return filtered;
-}
 
 /**
  * 洪水填充算法 - 分割区域
@@ -269,77 +219,11 @@ function traceBoundary(pixels, width, height) {
     return boundary;
 }
 
-/**
- * 简化边界（Douglas-Peucker算法）
- */
-function simplifyBoundary(points, tolerance) {
-    if (points.length <= 2) return points;
 
-    // 找到距离起点和终点连线最远的点
-    let maxDistance = 0;
-    let maxIndex = 0;
 
-    const start = points[0];
-    const end = points[points.length - 1];
 
-    for (let i = 1; i < points.length - 1; i++) {
-        const distance = pointToLineDistance(points[i], start, end);
-        if (distance > maxDistance) {
-            maxDistance = distance;
-            maxIndex = i;
-        }
-    }
 
-    // 如果最大距离大于容差，递归简化
-    if (maxDistance > tolerance) {
-        const left = simplifyBoundary(points.slice(0, maxIndex + 1), tolerance);
-        const right = simplifyBoundary(points.slice(maxIndex), tolerance);
-        return left.slice(0, -1).concat(right);
-    } else {
-        return [start, end];
-    }
-}
 
-/**
- * 点到线段的距离
- */
-function pointToLineDistance(point, lineStart, lineEnd) {
-    const [px, py] = point;
-    const [x1, y1] = lineStart;
-    const [x2, y2] = lineEnd;
-
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    const lenSq = dx * dx + dy * dy;
-
-    if (lenSq === 0) {
-        return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
-    }
-
-    const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / lenSq));
-    const nearestX = x1 + t * dx;
-    const nearestY = y1 + t * dy;
-
-    return Math.sqrt((px - nearestX) ** 2 + (py - nearestY) ** 2);
-}
-
-/**
- * 计算区域中心点
- */
-function calculateCenter(pixels) {
-    if (pixels.length === 0) return [0, 0];
-
-    let sumX = 0, sumY = 0;
-    for (const [x, y] of pixels) {
-        sumX += x;
-        sumY += y;
-    }
-
-    return [
-        Math.round(sumX / pixels.length),
-        Math.round(sumY / pixels.length)
-    ];
-}
 
 // ============================================================
 // 地图识别 UI 集成
@@ -679,45 +563,7 @@ function floodFillRegion(startX, startY, width, height, borderMap, visited) {
     return regionPixels;
 }
 
-/**
- * 提取区域边界
- */
-function extractRegionBoundary(pixels, width, height) {
-    if (pixels.length === 0) return [];
 
-    // 创建像素集合
-    const pixelSet = new Set(pixels.map(p => `${p[0]},${p[1]}`));
-
-    // 找到边界点（至少有一个邻居不在区域内）
-    const boundaryPoints = [];
-
-    for (const [x, y] of pixels) {
-        let isBoundary = false;
-
-        // 检查8个方向的邻居
-        for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
-                if (dx === 0 && dy === 0) continue;
-
-                const nx = x + dx;
-                const ny = y + dy;
-
-                if (!pixelSet.has(`${nx},${ny}`)) {
-                    isBoundary = true;
-                    break;
-                }
-            }
-            if (isBoundary) break;
-        }
-
-        if (isBoundary) {
-            boundaryPoints.push([x, y]);
-        }
-    }
-
-    // 对边界点排序（顺时针）
-    return sortBoundaryPoints(boundaryPoints);
-}
 
 /**
  * 对边界点排序（顺时针）
@@ -744,53 +590,9 @@ function sortBoundaryPoints(points) {
     return points;
 }
 
-/**
- * 提取区域颜色（取区域内像素的平均颜色）
- */
-function extractRegionColor(pixels, regionPixels, width) {
-    if (regionPixels.length === 0) return '#666666';
 
-    let r = 0, g = 0, b = 0;
-    let count = 0;
 
-    // 采样部分像素（提高性能）
-    const sampleSize = Math.min(100, regionPixels.length);
-    const step = Math.max(1, Math.floor(regionPixels.length / sampleSize));
 
-    for (let i = 0; i < regionPixels.length; i += step) {
-        const [x, y] = regionPixels[i];
-        const idx = (y * width + x) * 4;
-
-        r += pixels[idx];
-        g += pixels[idx + 1];
-        b += pixels[idx + 2];
-        count++;
-    }
-
-    r = Math.round(r / count);
-    g = Math.round(g / count);
-    b = Math.round(b / count);
-
-    return `rgb(${r},${g},${b})`;
-}
-
-/**
- * 计算区域中心点
- */
-function calculateCenter(pixels) {
-    if (pixels.length === 0) return [0, 0];
-
-    let sumX = 0, sumY = 0;
-    for (const [x, y] of pixels) {
-        sumX += x;
-        sumY += y;
-    }
-
-    return [
-        Math.round(sumX / pixels.length),
-        Math.round(sumY / pixels.length)
-    ];
-}
 
 // ============================================================
 // 增强的识别函数（自动选择算法）
@@ -1146,23 +948,7 @@ function extractRegionColorFast(pixels, regionPixels, width) {
     return `rgb(${r},${g},${b})`;
 }
 
-/**
- * 计算中心点
- */
-function calculateCenter(pixels) {
-    if (pixels.length === 0) return [0, 0];
 
-    let sumX = 0, sumY = 0;
-    for (const [x, y] of pixels) {
-        sumX += x;
-        sumY += y;
-    }
-
-    return [
-        Math.round(sumX / pixels.length),
-        Math.round(sumY / pixels.length)
-    ];
-}
 
 /**
  * 快速加载并识别地图

@@ -45,6 +45,12 @@
   var issueIsResolved = bridge._issueIsResolved;
   var tmfRenwuPortrait = bridge._tmfRenwuPortrait;
   var toast = bridge._toast;
+  var RIGHT_ARMY_INITIAL_ROWS = 36;
+  var RIGHT_ADMIN_INITIAL_ROWS = 24;
+  var RIGHT_OFFICE_INITIAL_NODES = 8;
+  var _rightArmyRenderSeq = 0;
+  var _rightAdminRenderSeq = 0;
+  var _rightOfficeRenderSeq = 0;
 
   // ── late-bound wrappers for orchestration calls (bridge.X / window.X) ─
   function openPanel(slot){ return bridge.openPanel(slot); }
@@ -159,6 +165,25 @@
     return out;
   }
 
+  function rightArmyContext(){
+    return {
+      playerFactions: rightCollectPlayerFactionNames(),
+      knownFactions: rightKnownFactionNames()
+    };
+  }
+
+  function rightIssueContext(){
+    var pinned = {};
+    (state.pinnedPeople || []).forEach(function(key){
+      if (key) pinned[key] = true;
+    });
+    return {
+      playerFactions: rightCollectPlayerFactionNames(),
+      knownFactions: rightKnownFactionNames(),
+      pinnedPeople: pinned
+    };
+  }
+
   function rightFactionMatch(value, names){
     var clean = rightCleanFactionName(value);
     if (!clean) return false;
@@ -179,10 +204,10 @@
     return !!(p && p.spouse === true);
   }
 
-  function rightIssueIsPlayerFactionPerson(p){
+  function rightIssueIsPlayerFactionPerson(p, ctx){
     if (!p || p.alive === false || p.dead || rightIssueIsPlayer(p)) return false;
     if (rightIssueIsPlayerConsort(p)) return true;
-    var playerFactions = rightCollectPlayerFactionNames();
+    var playerFactions = ctx && Array.isArray(ctx.playerFactions) ? ctx.playerFactions : rightCollectPlayerFactionNames();
     if (typeof window._isPlayerFactionChar === 'function') {
       try { if (window._isPlayerFactionChar(p)) return true; } catch(_) {}
     }
@@ -196,7 +221,7 @@
     if (explicit.length === 0) return true;
     if (explicit.some(rightIsGenericCourtFaction)) return true;
     if (playerFactions.length && explicit.some(function(x){ return rightFactionMatch(x, playerFactions); })) return true;
-    var knownFactions = rightKnownFactionNames();
+    var knownFactions = ctx && Array.isArray(ctx.knownFactions) ? ctx.knownFactions : rightKnownFactionNames();
     if (knownFactions.length && explicit.some(function(x){ return rightFactionMatch(x, knownFactions); })) return false;
     return true;
   }
@@ -231,14 +256,15 @@
   }
 
   function rightIssuePeople(){
+    var ctx = rightIssueContext();
     return getPeople().filter(function(p){
-      return p && rightIssueIsPlayerFactionPerson(p);
+      return p && rightIssueIsPlayerFactionPerson(p, ctx);
     }).sort(function(a, b){
       var ac = rightIssueAtCourt(a) ? 1 : 0;
       var bc = rightIssueAtCourt(b) ? 1 : 0;
       if (bc !== ac) return bc - ac;
-      var ap = (state.pinnedPeople || []).indexOf(personKey(a)) >= 0 ? 1 : 0;
-      var bp = (state.pinnedPeople || []).indexOf(personKey(b)) >= 0 ? 1 : 0;
+      var ap = ctx.pinnedPeople[personKey(a)] ? 1 : 0;
+      var bp = ctx.pinnedPeople[personKey(b)] ? 1 : 0;
       if (bp !== ap) return bp - ap;
       var aa = rightIssueNum(a, ['stress','ambition','influence'], 0);
       var bb = rightIssueNum(b, ['stress','ambition','influence'], 0);
@@ -465,14 +491,20 @@
     var queueBody = pendingAudiences.length ? '<div class="tmrp-wd-list">' + pendingAudiences.map(rightWenduiQueueItem).join('') + '</div>' : '';
     var seekerBody = seekers.length ? '<div class="tmrp-wd-list">' + seekers.slice(0, 12).map(rightWenduiRequestItem).join('') + '</div>' : '';
     return '<div class="tmrp-issue-shell tmrp-wendui">' +
-      '<section class="tmrp-card tmrp-wd-rules"><div class="tmrp-card-title"><span>问对条件</span><small>旧流程原样承接</small></div>' +
-      '<div><b>玩家召见</b><span>点击「百官候旨」人物，先选朝堂问对或私下叙谈。</span></div>' +
-      '<div><b>臣下求见</b><span>点击「阶下待见 / 有臣求见」接见，人物先主动陈事。</span></div>' +
-      '<div><b>不可召见</b><span>远方、在途、下狱、流放、病重、丁忧、逃亡、失踪等不走问对。</span></div>' +
-      '</section>' +
-      rightWenduiGroupNew('阶下待见', '使节、外藩、AI 推送求见 · 接见后对方先开口', queueBody, '暂无阶下待见。') +
-      rightWenduiGroupNew('有臣求见', '压力高、忠诚极高、野心高或未回信者 · 接见后对方先开口', seekerBody, '暂无臣下主动求见。') +
-      rightWenduiGroupNew('百官候旨', '在京在朝，可由玩家主动召见', waitingBody, '暂无在京可召人物。') +
+      '<div class="tmrp-summary cols4">' +
+        '<div class="tmrp-stat"><b>' + esc(pendingAudiences.length) + '</b><span>候见</span></div>' +
+        '<div class="tmrp-stat"><b>' + esc(seekers.length) + '</b><span>求见</span></div>' +
+        '<div class="tmrp-stat"><b>' + esc(waiting.length) + '</b><span>在京</span></div>' +
+        '<div class="tmrp-stat"><b>' + esc(away.length) + '</b><span>远方</span></div>' +
+      '</div>' +
+      '<details class="tmrp-card tmrp-wd-rules"><summary><span>问对须知</span><small>召见之规 · 点开</small></summary>' +
+      '<div><b>主动召见</b><span>点「百官候旨」人物，择朝堂问对或私下叙谈，由陛下先发问。</span></div>' +
+      '<div><b>臣下求见</b><span>点「阶下待见 / 有臣求见」接见，对方先开口陈事。</span></div>' +
+      '<div><b>不可召见</b><span>远方、在途、下狱、流放、病重、丁忧、逃亡、失踪者不走问对，改走鸿雁传书。</span></div>' +
+      '</details>' +
+      rightWenduiGroupNew('阶下待见', '使节、外藩、求见者 · 接见后对方先开口', queueBody, '暂无阶下待见。') +
+      rightWenduiGroupNew('有臣求见', '心怀积郁、忠悃过切或久候回音者 · 接见后对方先开口', seekerBody, '暂无臣下主动求见。') +
+      rightWenduiGroupNew('百官候旨', '在京在朝，可由陛下主动召见', waitingBody, '暂无在京可召人物。') +
       rightWenduiGroupNew('远方臣子', '不在陛下所在地，点击改走鸿雁传书', awayBody, '暂无远方臣子。') +
       '</div>';
   }
@@ -493,10 +525,7 @@
           '</button>';
       }).join('') + '</div>' +
       '</section>' +
-      '<section class="tmrp-card">' +
-      '<div class="tmrp-card-title"><span>流程承接</span><small>跳过旧版三选一中间页</small></div>' +
-      '<div class="tmrp-meta">选择常朝、廷议或御前会议后，直接进入对应的筹备或朝会流程；议题、人员、奏对、记录与裁断仍由原业务逻辑处理。</div>' +
-      '</section>';
+      '<div class="tmrp-meta tmrp-issue-foot">朝议各有精力之耗，量力择要而行；议题、奏对与裁断，临朝自见分晓。</div>';
   }
 
   function renderZheng(){
@@ -549,33 +578,112 @@
     return rightArmyFirst(a, ['faction','factionName','owner','camp','force','realm','country','polity'], '');
   }
 
-  function rightArmyBelongsToPlayer(a){
+  function rightArmyBelongsToPlayer(a, ctx){
     if (!a || a.destroyed || a.disbanded || a.active === false) return false;
     var explicit = [
       a.faction, a.factionName, a.owner, a.camp, a.force, a.realm, a.country, a.polity
     ].filter(function(x){ return x != null && String(x).trim(); });
     if (explicit.length === 0) return true;
     if (explicit.some(rightIsGenericCourtFaction)) return true;
-    var playerFactions = rightCollectPlayerFactionNames();
+    ctx = ctx || rightArmyContext();
+    var playerFactions = ctx.playerFactions || [];
     if (!playerFactions.length) return true;
     if (explicit.some(function(x){ return rightFactionMatch(x, playerFactions); })) return true;
-    var knownFactions = rightKnownFactionNames();
+    var knownFactions = ctx.knownFactions || [];
     if (knownFactions.length && explicit.some(function(x){ return rightFactionMatch(x, knownFactions); })) return false;
     return true;
   }
 
   function rightArmyList(){
     var raw = getArmies().filter(function(a){ return a && !a.destroyed && !a.disbanded && a.active !== false; });
-    var mine = raw.filter(rightArmyBelongsToPlayer);
+    var ctx = rightArmyContext();
+    var mine = raw.filter(function(a){ return rightArmyBelongsToPlayer(a, ctx); });
     return mine.length || !raw.length ? mine : raw;
   }
 
   function rightFindArmy(key){
+    var row = rightFindArmyRecord(key, false);
+    return row ? row.army : null;
+  }
+
+  function rightArmyRowsForRender(armies){
+    return (Array.isArray(armies) ? armies : []).map(function(a, idx){
+      return {
+        army: a,
+        idx: idx,
+        key: rightArmyKey(a, idx),
+        type: rightArmyType(a),
+        soldiers: rightArmySoldiers(a)
+      };
+    });
+  }
+
+  function rightFindArmyRow(rows, key){
     key = String(key || '');
-    var list = rightArmyList();
-    return list.find(function(a, idx){
-      return rightArmyKey(a, idx) === key || rightArmyName(a) === key || String(a.id || '') === key;
-    }) || null;
+    if (!key) return null;
+    for (var i = 0; i < rows.length; i += 1) {
+      var row = rows[i];
+      var a = row.army;
+      if (row.key === key || rightArmyName(a) === key || String((a && a.id) || '') === key) return row;
+    }
+    return null;
+  }
+
+  function rightFindArmyRecord(key, fallbackFirst){
+    var rows = rightArmyRowsForRender(rightArmyList());
+    return rightFindArmyRow(rows, key) || (fallbackFirst ? rows[0] || null : null);
+  }
+
+  function rightBuildArmyGroups(rows){
+    var order = [];
+    var byType = {};
+    (Array.isArray(rows) ? rows : []).forEach(function(row){
+      var type = row.type || '其他';
+      if (!byType[type]) {
+        byType[type] = [];
+        order.push(type);
+      }
+      byType[type].push(row);
+    });
+    return order.map(function(type){ return { type: type, rows: byType[type] }; });
+  }
+
+  function rightSliceArmyGroups(groups, maxRows){
+    var remaining = Math.max(0, Number(maxRows) || 0);
+    var out = [];
+    (Array.isArray(groups) ? groups : []).forEach(function(group){
+      if (remaining <= 0) return;
+      var rows = (group.rows || []).slice(0, remaining);
+      if (!rows.length) return;
+      out.push({ type: group.type, rows: rows });
+      remaining -= rows.length;
+    });
+    return out;
+  }
+
+  function rightArmyGroupsHtml(groups, selectedKey){
+    return (Array.isArray(groups) ? groups : []).map(function(group){
+      var list = group.rows || [];
+      var subtotal = list.reduce(function(s, row){ return s + row.soldiers; }, 0);
+      return '<div class="tmrp-ledger-head"><span>' + esc(group.type) + '</span><small>' + esc(list.length) + ' 支 · ' + esc(rightArmyFmtNum(subtotal)) + ' 兵</small></div>' +
+        list.map(function(row){
+          var a = row.army;
+          var key = row.key;
+          var active = key === selectedKey;
+          var commander = rightArmyFirst(a, ['commander','commanderName','commanderDisplayName','commander_name','general','generalName','leader','leaderName','commandingOfficer','chiefCommander','chiefGeneral','mainGeneral'], '未置统帅');
+          var location = rightArmyFirst(a, ['location','garrison','station','theater','region'], '未置驻地');
+          return '<button type="button" class="tmrp-person ' + (active ? 'active' : '') + '" data-right-action="army-select" data-id="' + attr(key) + '">' +
+            '<span class="tmrp-avatar">军</span><span><b>' + esc(rightArmyName(a)) + '</b><span>' + esc(commander) + ' · ' + esc(location) + '</span></span><small>' + esc(rightArmyFmtNum(row.soldiers)) + '</small></button>';
+        }).join('');
+    }).join('');
+  }
+
+  function rightScheduleArmyListHydration(token, groups, selectedKey){
+    setTimeout(function(){
+      var mount = document.querySelector('[data-army-list-token="' + token + '"]');
+      if (!mount || String(mount.getAttribute('data-army-list-token') || '') !== String(token)) return;
+      mount.innerHTML = rightArmyGroupsHtml(groups, selectedKey);
+    }, 0);
   }
 
   function rightArmyCompositionText(value){
@@ -652,9 +760,9 @@
     return '<div class="tmrp-bar"><span>' + esc(label) + '</span><i><b style="width:' + n + '%"></b></i><em>' + Math.round(n) + '</em></div>';
   }
 
-  function renderRightArmyDetailCard(a){
+  function renderRightArmyDetailCard(a, idx){
     if (!a) return '';
-    var armyKey = rightArmyKey(a, rightArmyList().indexOf(a));
+    var armyKey = rightArmyKey(a, idx == null ? 0 : idx);
     var soldiers = rightArmySoldiers(a);
     var morale = rightArmyPercent(a, ['morale','moraleValue'], 50);
     var training = rightArmyPercent(a, ['training','trainingValue'], 50);
@@ -694,33 +802,41 @@
 
   function renderArmy(){
     var armies = rightArmyList();
-    var total = armies.reduce(function(s, a){ return s + rightArmySoldiers(a); }, 0);
-    var avgMorale = armies.length ? Math.round(armies.reduce(function(s, a){ return s + rightArmyPercent(a, ['morale'], 50); }, 0) / armies.length) : 0;
-    var avgTraining = armies.length ? Math.round(armies.reduce(function(s, a){ return s + rightArmyPercent(a, ['training'], 50); }, 0) / armies.length) : 0;
-    var selected = rightFindArmy(state.selectedArmy) || armies[0] || null;
-    if (selected) state.selectedArmy = rightArmyKey(selected, armies.indexOf(selected));
-    var groups = [];
-    armies.forEach(function(a){
-      var t = rightArmyType(a);
-      if (groups.indexOf(t) < 0) groups.push(t);
-    });
+    var rows = rightArmyRowsForRender(armies);
+    var total = rows.reduce(function(s, row){ return s + row.soldiers; }, 0);
+    var avgMorale = rows.length ? Math.round(rows.reduce(function(s, row){ return s + rightArmyPercent(row.army, ['morale'], 50); }, 0) / rows.length) : 0;
+    var avgTraining = rows.length ? Math.round(rows.reduce(function(s, row){ return s + rightArmyPercent(row.army, ['training'], 50); }, 0) / rows.length) : 0;
+    var selectedRow = rightFindArmyRow(rows, state.selectedArmy) || rows[0] || null;
+    if (selectedRow) state.selectedArmy = selectedRow.key;
+    var selectedKey = selectedRow ? selectedRow.key : '';
+    var groups = rightBuildArmyGroups(rows);
+    var listToken = 'army-' + (++_rightArmyRenderSeq);
+    var deferredList = rows.length > RIGHT_ARMY_INITIAL_ROWS;
+    var syncGroups = deferredList ? rightSliceArmyGroups(groups, RIGHT_ARMY_INITIAL_ROWS) : groups;
+    if (deferredList) rightScheduleArmyListHydration(listToken, groups, selectedKey);
+    var armyAlerts = rows.map(function(row){
+      var a = row.army;
+      var morale = rightArmyPercent(a, ['morale','moraleValue'], 50);
+      var supply = rightArmyPercent(a, ['supply','supplies'], 70);
+      var mutiny = rightArmyPercent(a, ['mutinyRisk','rebellionRisk'], 0);
+      var loyalty = rightArmyPercent(a, ['loyalty','cohesion'], 50);
+      var reasons = [];
+      if (morale < 45) reasons.push('士气 ' + Math.round(morale));
+      if (supply < 35) reasons.push('粮饷 ' + Math.round(supply));
+      if (mutiny >= 55) reasons.push('兵变险 ' + Math.round(mutiny));
+      if (loyalty < 40) reasons.push('忠诚 ' + Math.round(loyalty));
+      return reasons.length ? { name: rightArmyName(a), reasons: reasons } : null;
+    }).filter(Boolean);
+    var armyOverviewCard = armyAlerts.length
+      ? '<section class="tmrp-card hot"><div class="tmrp-card-title"><span>军情预警</span><small>士气 / 粮饷 / 兵变须留意</small></div>' +
+        armyAlerts.slice(0, 5).map(function(al){ return '<div class="tmrp-step"><b>' + esc(al.name) + '</b>' + esc(al.reasons.join(' · ')) + '</div>'; }).join('') +
+        (armyAlerts.length > 5 ? '<div class="tmrp-meta">另有 ' + esc(armyAlerts.length - 5) + ' 部待察。</div>' : '') + '</section>'
+      : '<section class="tmrp-card"><div class="tmrp-card-title"><span>军情概览</span><small>诸军态势</small></div><div class="tmrp-meta">诸军暂无士气、粮饷或兵变之虞，边防大体安稳。点名册中部队，可于左侧展开军情明细。</div></section>';
     return '<div class="tmrp-army-shell">' +
       '<div class="tmrp-summary"><div class="tmrp-stat"><b>' + esc(armies.length) + '</b><span>军队</span></div><div class="tmrp-stat"><b>' + esc(rightArmyFmtNum(total)) + '</b><span>总兵力</span></div><div class="tmrp-stat"><b>' + esc(avgMorale + '/' + avgTraining) + '</b><span>士气/训练</span></div></div>' +
-      '<section class="tmrp-card"><div class="tmrp-card-title"><span>军务总览</span><small>承接旧军务边防数据，不另造死数据</small></div><div class="tmrp-meta">这里读取正式存档里的 GM.armies / P.armies。点击部队会按预览页方式在左侧展开详情；兵力、统帅、驻地、军质、装备、士气、训练、忠诚、控制、编制和岁饷都来自真实军队对象。</div></section>' +
-      '<section class="tmrp-card"><div class="tmrp-card-title"><span>部队名册</span><small>点击左展明细</small></div>' +
-      (armies.length ? '<div class="tmrp-scroll compact tmrp-army-list">' + groups.map(function(g){
-        var list = armies.filter(function(a){ return rightArmyType(a) === g; });
-        var subtotal = list.reduce(function(s, a){ return s + rightArmySoldiers(a); }, 0);
-        return '<div class="tmrp-ledger-head"><span>' + esc(g) + '</span><small>' + esc(list.length) + ' 支 · ' + esc(rightArmyFmtNum(subtotal)) + ' 兵</small></div>' +
-          list.map(function(a){
-            var key = rightArmyKey(a, armies.indexOf(a));
-            var active = selected && key === state.selectedArmy;
-          var commander = rightArmyFirst(a, ['commander','commanderName','commanderDisplayName','commander_name','general','generalName','leader','leaderName','commandingOfficer','chiefCommander','chiefGeneral','mainGeneral'], '未置统帅');
-            var location = rightArmyFirst(a, ['location','garrison','station','theater','region'], '未置驻地');
-            return '<button type="button" class="tmrp-person ' + (active ? 'active' : '') + '" data-right-action="army-select" data-id="' + attr(key) + '">' +
-              '<span class="tmrp-avatar">军</span><span><b>' + esc(rightArmyName(a)) + '</b><span>' + esc(commander) + ' · ' + esc(location) + '</span></span><small>' + esc(rightArmyFmtNum(rightArmySoldiers(a))) + '</small></button>';
-          }).join('');
-      }).join('') + '</div>' : '<div class="tmrp-empty">暂无可读取的军队数据。</div>') +
+      armyOverviewCard +
+      '<section class="tmrp-card"><div class="tmrp-card-title"><span>部队名册</span><small>点部队·左侧展开军情</small></div>' +
+      (rows.length ? '<div class="tmrp-scroll compact tmrp-army-list" data-army-list-token="' + attr(listToken) + '">' + rightArmyGroupsHtml(syncGroups, selectedKey) + (deferredList ? '<div class="tmrp-meta">余下部队正在载入...</div>' : '') + '</div>' : '<div class="tmrp-empty">麾下暂无军队。</div>') +
       '</section>' +
       '</div>';
   }
@@ -737,14 +853,59 @@
     return n >= 10000 ? (Math.round(n / 1000) / 10) + '万' : rightArmyFmtNum(n);
   }
 
+  // 势力 id → 中文显示名（剧本里 faction 常以拼音 id 存·UI 不该露 id）
+  function rightFactionDisplay(raw){
+    raw = raw == null ? '' : String(raw).trim();
+    if (!raw) return '';
+    var lc = raw.toLowerCase();
+    try {
+      if (typeof findFaction === 'function') {
+        var f = findFaction(raw, raw);
+        var nm = f && (f.label || f.name || f.scenarioFactionName);
+        if (nm && String(nm).trim()) return String(nm).trim();
+      }
+    } catch (_) {}
+    try {
+      var gm = window.GM || {}, p = window.P || {};
+      var lists = [gm.facs, p.factions, p.facs];
+      for (var li = 0; li < lists.length; li += 1) {
+        var list = lists[li];
+        if (!Array.isArray(list)) continue;
+        for (var i = 0; i < list.length; i += 1) {
+          var ff = list[i]; if (!ff) continue;
+          var ids = [ff.id, ff.key, ff.factionId, ff.scenarioFactionId, ff.mapFactionId];
+          for (var j = 0; j < ids.length; j += 1) {
+            if (ids[j] != null && String(ids[j]).toLowerCase() === lc) {
+              var n2 = ff.name || ff.label || ff.scenarioFactionName;
+              if (n2 && String(n2).trim()) return String(n2).trim();
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    return raw;
+  }
+
+  // 行政层级 英文键 → 中文（跨朝代通用单位·未知保留原值）
+  function rightAdminLevelLabel(v){
+    var raw = String(v == null ? '' : v).trim();
+    if (!raw) return '行政区';
+    var map = {
+      province: '省', prefecture: '府', subprefecture: '州', department: '州',
+      county: '县', district: '县', circuit: '道', region: '政区',
+      capital: '京畿', frontier: '边镇'
+    };
+    return map[raw.toLowerCase()] || raw;
+  }
+
   function rightAdminFromDivision(d, faction){
     d = d || {};
     var popObj = (d.population && typeof d.population === 'object') ? d.population : null;
     var detail = d.populationDetail || d.population_detail || {};
     return {
       name: d.name || d.title || d.officialName || d.id || '未名区划',
-      level: d.level || d.adminLevel || d.regionType || d.type || '行政区',
-      faction: faction || d.dejureOwner || d.owner || d.factionName || d.faction || '',
+      level: rightAdminLevelLabel(d.level || d.adminLevel || d.regionType || d.type || ''),
+      faction: rightFactionDisplay(faction || d.dejureOwner || d.owner || d.factionName || d.faction || ''),
       governor: d.governor || d.chief || d.holder || d.official || '',
       position: d.officialPosition || d.office || d.position || '',
       pop: (popObj && (popObj.mouths || popObj.population)) || d.population || detail.mouths || d.pop || 0,
@@ -774,8 +935,8 @@
       Object.keys(ah).forEach(function(k){
         var root = ah[k] || {};
         var list = root.divisions || root.children || root.subs || [];
-        if (Array.isArray(list) && list.length) list.forEach(function(d){ addDivision(d, root.name || k); });
-        else addDivision(root, root.name || k);
+        if (Array.isArray(list) && list.length) list.forEach(function(d){ addDivision(d, root.factionName || root.name || k); });
+        else addDivision(root, root.factionName || root.name || k);
       });
     }
     if (!out.length) {
@@ -794,27 +955,43 @@
     return out.filter(function(x){ return x && x.name; });
   }
 
+  function rightAdminCardsHtml(items){
+    return (Array.isArray(items) ? items : []).map(function(x, i){
+      var hot = rightAdminNum(x.minxin, 60) < 45 || rightAdminNum(x.corruption, 0) > 55;
+      return '<section class="tmrp-card tmrp-admin-card ' + (hot ? 'hot' : '') + '" style="--admin-c:' + ['#c9a84c','#70b097','#8e6aa8','#c95340','#5e8fb3'][i % 5] + '">' +
+        '<div class="tmrp-admin-title"><b>' + esc(x.name) + '</b><small>' + esc(x.level) + '<br>' + esc(x.faction || '未录') + '</small></div>' +
+        '<div class="tmrp-mini-grid"><div><span>主官</span><b>' + esc(x.governor || '未置') + '</b></div><div><span>官职</span><b>' + esc(x.position || '未录') + '</b></div><div><span>人口</span><b>' + esc(rightAdminWan(x.pop)) + '</b></div><div><span>户数</span><b>' + esc(rightAdminWan(x.households)) + '</b></div></div>' +
+        rightArmyBar('民心', rightAdminNum(x.minxin, 50)) + rightArmyBar('繁荣', rightAdminNum(x.prosperity, 50)) + rightArmyBar('腐败', rightAdminNum(x.corruption, 0)) +
+        rightArmyRows([['地形', x.terrain], ['特产', x.resources], ['税负', x.tax], ['下辖', Array.isArray(x.children) ? x.children.length + ' 处' : '未录']]) +
+        '<div class="tmrp-action-row"><button type="button" class="tmrp-btn" data-right-action="admin-edict" data-kind="安民" data-name="' + attr(x.name) + '">安民</button><button type="button" class="tmrp-btn" data-right-action="admin-edict" data-kind="巡按" data-name="' + attr(x.name) + '">巡按</button><button type="button" class="tmrp-btn" data-right-action="admin-edict" data-kind="调粮" data-name="' + attr(x.name) + '">调粮</button><button type="button" class="tmrp-btn primary" data-right-action="admin-edict" data-kind="拟诏" data-name="' + attr(x.name) + '">拟诏</button></div>' +
+        '</section>';
+    }).join('');
+  }
+
+  function rightScheduleAdminListHydration(token, items){
+    setTimeout(function(){
+      var mount = document.querySelector('[data-admin-list-token="' + token + '"]');
+      if (!mount || String(mount.getAttribute('data-admin-list-token') || '') !== String(token)) return;
+      mount.innerHTML = rightAdminCardsHtml(items);
+    }, 0);
+  }
+
   function renderMapPanelRich(){
     var items = rightAdminItems();
     var totalPop = items.reduce(function(s, x){ return s + rightAdminNum(x.pop, 0); }, 0);
     var crisis = items.filter(function(x){ return rightAdminNum(x.minxin, 60) < 45 || rightAdminNum(x.corruption, 0) > 55; });
     var factions = [];
     items.forEach(function(x){ if (x.faction && factions.indexOf(x.faction) < 0) factions.push(x.faction); });
+    var listToken = 'admin-' + (++_rightAdminRenderSeq);
+    var deferredList = items.length > RIGHT_ADMIN_INITIAL_ROWS;
+    var syncItems = deferredList ? items.slice(0, RIGHT_ADMIN_INITIAL_ROWS) : items;
+    if (deferredList) rightScheduleAdminListHydration(listToken, items);
     return '<div class="tmrp-admin-shell">' +
       '<div class="tmrp-summary"><div class="tmrp-stat"><b>' + esc(items.length) + '</b><span>行政区</span></div><div class="tmrp-stat"><b>' + esc(rightAdminWan(totalPop)) + '</b><span>总人口</span></div><div class="tmrp-stat"><b>' + esc(crisis.length) + '</b><span>危机</span></div></div>' +
-      '<section class="tmrp-card"><div class="tmrp-card-title"><span>行政区划</span><small>承接地图与行政层级真实数据</small></div>' +
-      '<div class="tmrp-chip-list">' + factions.slice(0, 8).map(function(f){ return '<span class="tmrp-pill">' + esc(f) + '</span>'; }).join('') + '</div></section>' +
+      '<section class="tmrp-card"><div class="tmrp-card-title"><span>各方据地</span><small>据有州县的诸方</small></div>' +
+      (factions.length ? '<div class="tmrp-chip-list">' + factions.slice(0, 8).map(function(f){ return '<span class="tmrp-pill">' + esc(f) + '</span>'; }).join('') + (factions.length > 8 ? '<span class="tmrp-pill">…</span>' : '') + '</div>' : '<div class="tmrp-meta">疆域归属未录。</div>') + '</section>' +
       (crisis.length ? '<section class="tmrp-card hot"><div class="tmrp-card-title"><span>区划预警</span><small>民心低 / 腐败高</small></div>' + crisis.slice(0, 4).map(function(x){ return '<div class="tmrp-step"><b>' + esc(x.name) + '</b> 民心 ' + esc(Math.round(rightAdminNum(x.minxin, 0))) + ' · 腐败 ' + esc(Math.round(rightAdminNum(x.corruption, 0))) + ' · ' + esc(x.governor || '主官未录') + '</div>'; }).join('') + '</section>' : '') +
-      (items.length ? '<div class="tmrp-scroll tall">' + items.map(function(x, i){
-        var hot = rightAdminNum(x.minxin, 60) < 45 || rightAdminNum(x.corruption, 0) > 55;
-        return '<section class="tmrp-card tmrp-admin-card ' + (hot ? 'hot' : '') + '" style="--admin-c:' + ['#c9a84c','#70b097','#8e6aa8','#c95340','#5e8fb3'][i % 5] + '">' +
-          '<div class="tmrp-admin-title"><b>' + esc(x.name) + '</b><small>' + esc(x.level) + '<br>' + esc(x.faction || '未录') + '</small></div>' +
-          '<div class="tmrp-mini-grid"><div><span>主官</span><b>' + esc(x.governor || '未置') + '</b></div><div><span>官职</span><b>' + esc(x.position || '未录') + '</b></div><div><span>人口</span><b>' + esc(rightAdminWan(x.pop)) + '</b></div><div><span>户数</span><b>' + esc(rightAdminWan(x.households)) + '</b></div></div>' +
-          rightArmyBar('民心', rightAdminNum(x.minxin, 50)) + rightArmyBar('繁荣', rightAdminNum(x.prosperity, 50)) + rightArmyBar('腐败', rightAdminNum(x.corruption, 0)) +
-          rightArmyRows([['地形', x.terrain], ['特产', x.resources], ['税负', x.tax], ['下辖', Array.isArray(x.children) ? x.children.length + ' 处' : '未录']]) +
-          '<div class="tmrp-action-row"><button type="button" class="tmrp-btn" data-right-action="admin-edict" data-kind="安民" data-name="' + attr(x.name) + '">安民</button><button type="button" class="tmrp-btn" data-right-action="admin-edict" data-kind="巡按" data-name="' + attr(x.name) + '">巡按</button><button type="button" class="tmrp-btn" data-right-action="admin-edict" data-kind="调粮" data-name="' + attr(x.name) + '">调粮</button><button type="button" class="tmrp-btn primary" data-right-action="admin-edict" data-kind="拟诏" data-name="' + attr(x.name) + '">拟诏</button></div>' +
-          '</section>';
-      }).join('') + '</div>' : '<section class="tmrp-card empty"><div class="tmrp-empty">行政区划数据尚未载入。</div></section>') +
+      (items.length ? '<div class="tmrp-scroll tall" data-admin-list-token="' + attr(listToken) + '">' + rightAdminCardsHtml(syncItems) + (deferredList ? '<div class="tmrp-meta">余下政区正在载入...</div>' : '') + '</div>' : '<section class="tmrp-card empty"><div class="tmrp-empty">天下州县尚未录入舆图。</div></section>') +
       '</div>';
   }
 
@@ -870,7 +1047,7 @@
     if (!items.length) return '<div class="tmrp-empty">' + esc(empty || '暂无明细') + '</div>';
     return items.slice(0, 8).map(function(x){
       return '<div class="tmrp-fin-line"><b>' + esc(x.name || '项目') + '</b><span>' + esc(rightFinanceMoney(x.amount)) + '</span><small>' + esc(compactText(x.note || '', 46)) + '</small></div>';
-    }).join('');
+    }).join('') + (items.length > 8 ? '<div class="tmrp-meta">余 ' + esc(items.length - 8) + ' 项未列。</div>' : '');
   }
 
   function renderFinanceRich(){
@@ -894,8 +1071,8 @@
       '<section class="tmrp-card ' + (net < 0 ? 'hot' : '') + '"><div class="tmrp-card-title"><span>本期收支</span><small>' + esc(getTurnText(window.GM && GM.turn)) + '</small></div>' +
       rightArmyRows([['本期收入', rightFinanceMoney(income)], ['本期支出', rightFinanceMoney(expense)], ['军饷', rightFinanceMoney(rightFinanceFirst(g, ['armyExpense','militaryExpense'], '待核'))], ['宗禄', rightFinanceMoney(rightFinanceFirst(g, ['royalExpense','clanExpense'], '待核'))]]) +
       '<div class="tmrp-action-row"><button type="button" class="tmrp-btn primary" data-right-action="finance-module">帑廪详情</button><button type="button" class="tmrp-btn" data-right-action="finance-old" data-method="extraTax">加派</button><button type="button" class="tmrp-btn" data-right-action="finance-old" data-method="openGranary">开仓</button><button type="button" class="tmrp-btn" data-right-action="finance-old" data-method="loan">借贷</button><button type="button" class="tmrp-btn" data-right-action="finance-old" data-method="advisor">户部参议</button><button type="button" class="tmrp-btn" data-right-action="finance-edict" data-kind="拨内帑">拨内帑</button><button type="button" class="tmrp-btn" data-right-action="finance-edict" data-kind="核饷">核饷</button><button type="button" class="tmrp-btn" data-right-action="finance-edict" data-kind="清查税粮">清查税粮</button></div></section>' +
-      '<section class="tmrp-card"><div class="tmrp-card-title"><span>长期收入</span><small>AI 和玩家操作可增删这些项</small></div>' + rightFinanceItemList(incomeItems, '暂无长期收入明细') + '</section>' +
-      '<section class="tmrp-card"><div class="tmrp-card-title"><span>长期支出</span><small>军饷、宗禄、工程、赈济等</small></div>' + rightFinanceItemList(expenseItems, '暂无长期支出明细') + '</section>' +
+      '<section class="tmrp-card"><div class="tmrp-card-title"><span>常年岁入</span><small>' + (incomeItems.length ? esc(incomeItems.length) + ' 项 · 盐课关税田赋等' : '盐课、关税、田赋等') + '</small></div>' + rightFinanceItemList(incomeItems, '暂无常年岁入。') + '</section>' +
+      '<section class="tmrp-card"><div class="tmrp-card-title"><span>常年支出</span><small>' + (expenseItems.length ? esc(expenseItems.length) + ' 项 · 军饷宗禄工程赈济' : '军饷、宗禄、工程、赈济等') + '</small></div>' + rightFinanceItemList(expenseItems, '暂无常年支出。') + '</section>' +
       '</div>';
   }
 
@@ -947,8 +1124,25 @@
     return works;
   }
 
+  function rightWenFilterDefs(){
+    return [
+      { k:'all', label:'全部' }, { k:'诗', label:'诗' }, { k:'词', label:'词' }, { k:'赋', label:'赋' },
+      { k:'散文', label:'散文' }, { k:'应用文', label:'应用文' }, { k:'preserved', label:'仅传世' }, { k:'hideban', label:'隐藏查禁' }
+    ];
+  }
+  function rightWenWorkPreserved(w){ return !!(w && (w.isPreserved || w.preserved || w.status === '传世')); }
+  function rightWenFilterPass(w, f){
+    if (!f || f === 'all') return true;
+    if (f === 'preserved') return rightWenWorkPreserved(w);
+    if (f === 'hideban') return !(w && w.isForbidden);
+    return rightWorkGenreLabel(w && (w.genre || w.type)) === f;
+  }
+
   function renderWenRich(){
     var works = rightWorks();
+    var curFilter = (state && state.rightWenFilter) || 'all';
+    var indexedWorks = works.map(function(w, i){ return { w: w, i: i }; });
+    var filteredWorks = indexedWorks.filter(function(o){ return rightWenFilterPass(o.w, curFilter); });
     var preserved = works.filter(function(w){ return w.isPreserved || w.preserved || w.status === '传世'; }).length;
     var risky = works.filter(function(w){ return /high|medium|高|中/.test(String(w.politicalRisk || w.risk || '')); }).length;
     var pk = (typeof P !== 'undefined' && P && P.keju) || {};
@@ -956,16 +1150,19 @@
     var jinshiCount = (pk.history && pk.history.length) || 0;
     var kejuBadge = pk.currentExam ? '科举进行中' : (kejuEnabled ? ('进士 ' + jinshiCount + ' 名') : '未开科');
     return '<div class="tmrp-wenshi-shell">' +
-      '<section class="tmrp-card" style="background:linear-gradient(135deg,rgba(206,169,87,.18),rgba(80,40,20,.12));border-color:rgba(206,169,87,.45);">' +
-        '<div class="tmrp-card-title"><span>📜 科举</span><small>开科取士·贡士·殿试·授官</small></div>' +
+      '<section class="tmrp-card tmrp-keju-hero">' +
+        '<div class="tmrp-card-title"><span>科举</span><small>开科取士·贡士·殿试·授官</small></div>' +
         '<div class="tmrp-meta">' + esc(kejuBadge) + (pk.examSubjects ? ' · ' + esc(pk.examSubjects) : '') + '</div>' +
-        '<div class="tmrp-action-row"><button type="button" class="tmrp-btn primary" onclick="if(typeof window.openKejuPanel===&#39;function&#39;)window.openKejuPanel();else if(typeof window.showKejuModal===&#39;function&#39;)window.showKejuModal();else if(typeof toast===&#39;function&#39;)toast(&#39;科举系统未加载&#39;);">入科举主面板</button></div>' +
+        '<div class="tmrp-action-row"><button type="button" class="tmrp-btn primary" data-right-action="keju-open">入科举主面板</button></div>' +
       '</section>' +
       '<div class="tmrp-summary"><div class="tmrp-stat"><b>' + esc(works.length) + '</b><span>总录</span></div><div class="tmrp-stat"><b>' + esc(preserved) + '</b><span>传世</span></div><div class="tmrp-stat"><b>' + esc(risky) + '</b><span>政险</span></div></div>' +
-      '<section class="tmrp-card"><div class="tmrp-card-title"><span>文苑披览</span><small>作品、品评、查禁、入诏</small></div><div class="tmrp-chip-list">' +
-      ['全部触发','诗','词','赋','散文','应用文','仅传世','隐藏查禁'].map(function(x){ return '<span class="tmrp-pill">' + esc(x) + '</span>'; }).join('') +
+      '<section class="tmrp-card"><div class="tmrp-card-title"><span>文苑披览</span><small>作品、品评、查禁、入诏</small></div><div class="tmrp-chip-list tmrp-wen-filters">' +
+      rightWenFilterDefs().map(function(ff){ return '<button type="button" class="tmrp-pill' + (curFilter === ff.k ? ' active' : '') + '" data-right-action="wen-filter" data-filter="' + attr(ff.k) + '">' + esc(ff.label) + '</button>'; }).join('') +
       '</div></section>' +
-      (works.length ? '<div class="tmrp-scroll tall">' + works.slice(0, 24).map(function(w, i){
+      (!works.length ? '<section class="tmrp-empty-hero"><div class="tmrp-empty-seal">文</div><div class="tmrp-empty-t">暂无文事作品</div><div class="tmrp-empty-d">人物著述、回合文事生成后，<br>诗词、奏议、著作会在此陈列，可品评、查禁、入诏。</div></section>'
+        : (!filteredWorks.length ? '<section class="tmrp-card empty"><div class="tmrp-empty">此类暂无作品，换个筛选再看。</div></section>'
+        : '<div class="tmrp-scroll tall">' + filteredWorks.slice(0, 24).map(function(o){
+        var w = o.w, i = o.i;
         var title = w.title || w.name || '无题';
         var author = w.author || w.creator || '无名';
         var excerpt = compactText(w.preview || w.content || w.text || w.narrativeContext || w.description || '', 150);
@@ -980,7 +1177,7 @@
           rightArmyRows([['创作背景', w.narrativeContext || w.background], ['政治暗线', w.politicalImplication || w.implication]]) +
           '<div class="tmrp-action-row"><button type="button" class="tmrp-btn" data-right-action="work-detail" data-index="' + attr(i) + '">详情</button><button type="button" class="tmrp-btn" data-right-action="work-action" data-index="' + attr(i) + '" data-work-action="appreciate">赏析</button><button type="button" class="tmrp-btn" data-right-action="work-action" data-index="' + attr(i) + '" data-work-action="inscribe">题序</button><button type="button" class="tmrp-btn" data-right-action="work-action" data-index="' + attr(i) + '" data-work-action="echo">追和</button><button type="button" class="tmrp-btn" data-right-action="work-action" data-index="' + attr(i) + '" data-work-action="circulate">传抄</button>' + (w.isForbidden ? '<button type="button" class="tmrp-btn primary" data-right-action="work-action" data-index="' + attr(i) + '" data-work-action="unban">解禁</button>' : '<button type="button" class="tmrp-btn ' + (hot ? 'primary' : '') + '" data-right-action="work-action" data-index="' + attr(i) + '" data-work-action="ban">查禁</button>') + '</div>' +
           '</div></section>';
-      }).join('') + '</div>' : '<section class="tmrp-card empty"><div class="tmrp-empty">暂无文事作品；人物著述或回合文事生成后会显示在这里。</div></section>') +
+      }).join('') + '</div>')) +
       '</div>';
   }
 
@@ -1315,6 +1512,96 @@
       '</div>';
   }
 
+  function rightClassCharacterAllEdges(){
+    var gm = window.GM || {};
+    var store = gm.classCharacterRelations || {};
+    var raw = store.edges || {};
+    var rows = [];
+    if (Array.isArray(raw)) rows = raw.slice();
+    else Object.keys(raw).forEach(function(k){ if (raw[k]) rows.push(raw[k]); });
+    return rows.filter(Boolean);
+  }
+
+  function rightClassCharacterScore(edge){
+    edge = edge || {};
+    return (Number(edge.affinity) || 0) + (Number(edge.legitimacy) || 0) + (Number(edge.trust) || 0) + (Number(edge.mobilization) || 0) * 0.4 - (Number(edge.grievance) || 0) * 0.7;
+  }
+
+  function rightClassCharacterEdgesForClass(row){
+    var name = rightSocialName(row);
+    var seen = {};
+    var out = [];
+    function add(edge){
+      if (!edge || !rightSocialSameName(edge.className, name)) return;
+      var key = String(edge.characterId || edge.characterName || '') + '|' + String(edge.role || '');
+      if (!key || seen[key]) return;
+      seen[key] = true;
+      out.push(edge);
+    }
+    rightPcArray(row && row.classCharacterRelations).forEach(add);
+    rightClassCharacterAllEdges().forEach(add);
+    return out.sort(function(a, b){ return rightClassCharacterScore(b) - rightClassCharacterScore(a); }).slice(0, 8);
+  }
+
+  function rightClassCharacterRoleLabel(role){
+    role = String(role || '').toLowerCase();
+    if (role === 'patron') return '庇护';
+    if (role === 'broker') return '调停';
+    if (role === 'suppressor') return '压制';
+    if (role === 'symbol') return '象征';
+    if (role === 'debtor') return '亏欠';
+    if (role === 'enemy') return '仇怨';
+    return '代表';
+  }
+
+  function rightClassCharacterPct(v){
+    var n = Number(v);
+    if (!isFinite(n)) return '—';
+    if (Math.abs(n) <= 1) n *= 100;
+    return String(Math.round(Math.max(0, Math.min(100, n))));
+  }
+
+  function renderRightClassCharacterRow(edge){
+    edge = edge || {};
+    var name = edge.characterName || edge.characterId || '未名人物';
+    var reason = rightPcArray(edge.evidence).slice(-2).join(' · ') || edge.reason || edge.source || '';
+    return '<button type="button" class="tmrp-ecology-edge tmrp-class-character-edge" data-right-action="wendui-select" data-id="' + attr(edge.characterId || edge.characterName || '') + '">' +
+      '<span>' + esc(name) + '</span>' +
+      '<small>' + esc(rightClassCharacterRoleLabel(edge.role)) + ' · 亲 ' + esc(rightClassCharacterPct(edge.affinity)) + ' · 信 ' + esc(rightClassCharacterPct(edge.trust)) + ' · 怨 ' + esc(rightClassCharacterPct(edge.grievance)) + '</small>' +
+      (reason ? '<em title="' + attr(reason) + '">近因：' + esc(rightPcText(reason, 88)) + '</em>' : '') +
+      '</button>';
+  }
+
+  function renderRightClassCharacterGroup(title, rows){
+    rows = rightPcArray(rows).filter(Boolean);
+    if (!rows.length) return '';
+    return '<details class="tmrp-class-character-group" open><summary>' + esc(title) + ' · ' + esc(rows.length) + '</summary>' + rows.map(renderRightClassCharacterRow).join('') + '</details>';
+  }
+
+  function renderRightClassCharacterLinks(row){
+    var edges = rightClassCharacterEdgesForClass(row);
+    if (!edges.length) return '';
+    var reps = edges.filter(function(e){ return !/suppressor|enemy/i.test(String(e.role || '')) && (Number(e.grievance) || 0) < 0.45; }).slice(0, 3);
+    var beneficiaries = edges.filter(function(e){ return reps.indexOf(e) < 0 && (Number(e.affinity) || 0) >= 0.45; }).slice(0, 3);
+    var grudges = edges.filter(function(e){ return /suppressor|enemy/i.test(String(e.role || '')) || (Number(e.grievance) || 0) >= 0.45; }).slice(0, 3);
+    return '<div class="tmrp-ecology tmrp-class-character"><div class="tmrp-ecology-head"><b>阶层人物</b><small>谁代表谁，谁欠谁</small></div><div class="tmrp-ecology-list">' +
+      renderRightClassCharacterGroup('代表人物', reps) +
+      renderRightClassCharacterGroup('受益人物', beneficiaries) +
+      renderRightClassCharacterGroup('怨恨人物', grudges) +
+      '</div></div>';
+  }
+
+  function rightClassCharacterDelegateName(row){
+    var edges = rightClassCharacterEdgesForClass(row);
+    for (var i = 0; i < edges.length; i += 1) {
+      var e = edges[i] || {};
+      if (/suppressor|enemy/i.test(String(e.role || ''))) continue;
+      if ((Number(e.grievance) || 0) >= 0.55) continue;
+      return e.characterId || e.characterName || '';
+    }
+    return '';
+  }
+
   function rightClassMinxinKey(row){
     try {
       if (window.TM && TM.ClassMinxinBridge && typeof TM.ClassMinxinBridge._classKeyOf === 'function') {
@@ -1436,6 +1723,36 @@
     return '<button type="button" class="tmrp-chain-step" data-right-action="social-chain" data-chain-kind="' + attr(kind) + '" data-actor-type="' + attr(actorType) + '" data-name="' + attr(rightSocialName(row)) + '" data-target="' + attr(target || '') + '" data-topic="' + attr(topic || label) + '">' + esc(label) + '</button>';
   }
 
+  function rightClassActionDelegate(row){
+    var actions = rightActorActionRows('class', row);
+    for (var i = 0; i < actions.length; i += 1) {
+      var a = actions[i] || {};
+      if (a.delegateCharacter || a.delegateCharacterId) {
+        return {
+          label: a.delegateCharacter || a.delegateCharacterId,
+          target: a.delegateCharacterId || a.delegateCharacter,
+          role: a.delegateRole || '',
+          evidence: a.delegateEvidence || ''
+        };
+      }
+    }
+    var edges = rightClassCharacterEdgesForClass(row);
+    for (var j = 0; j < edges.length; j += 1) {
+      var e = edges[j] || {};
+      if (/suppressor|enemy/i.test(String(e.role || ''))) continue;
+      if ((Number(e.grievance) || 0) >= 0.5) continue;
+      if (e.characterName || e.characterId) {
+        return {
+          label: e.characterName || e.characterId,
+          target: e.characterId || e.characterName,
+          role: e.role || '',
+          evidence: rightPcArray(e.evidence).join(' / ')
+        };
+      }
+    }
+    return null;
+  }
+
   function renderRightSocialChain(actorType, row){
     var name = rightSocialName(row);
     var issues = rightSocialIssueLinks(actorType, row);
@@ -1448,6 +1765,10 @@
     var risk = rightSocialRisk(actorType, row);
     var html = '';
     html += rightSocialChainButton('demand', demand || (actorType === 'party' ? '近期目标' : '阶层诉求'), demand, issue && issue.topic, actorType, row);
+    if (actorType !== 'party') {
+      var delegate = rightClassActionDelegate(row);
+      html += rightSocialChainButton('delegate', delegate ? delegate.label : '待定代理人物', delegate && (delegate.target || delegate.label), issue && issue.topic || demand, actorType, row);
+    }
     html += rightSocialChainButton('party', parties[0] || (actorType === 'party' ? name : '待形成支持党派'), parties[0] || '', issue && issue.topic, actorType, row);
     html += rightSocialChainButton('issue', issue ? issue.topic : '待付廷议', issue && issue.id, issue && issue.topic || demand, actorType, row);
     html += rightSocialChainButton('ruling', ruling ? ((ruling.status || '裁决') + (ruling.grade ? ' ' + ruling.grade : '')) : '暂无裁决', ruling && ruling.topic, ruling && ruling.topic || demand, actorType, row);
@@ -1491,7 +1812,15 @@
     return '<div class="tmrp-actor-action"><b>正在行动</b>' + actions.map(function(a){
       var tinyi = rightActorTinyiForAction(a);
       var head = ['T' + (a.turn || ''), a.actionType || 'action', a.status || 'planned'].filter(Boolean).join(' · ');
-      var body = [a.agenda || a.grievance || '', tinyi && tinyi.topic ? ('廷议 ' + tinyi.topic) : (a.linkedIssue ? ('issue ' + a.linkedIssue) : ''), a.source || ''].filter(Boolean).join(' · ');
+      var delegate = a.delegateCharacter ? ('代理人物：' + a.delegateCharacter + (a.delegateRole ? '（' + rightClassCharacterRoleLabel(a.delegateRole) + '）' : '')) : '';
+      var delegateEvidence = a.delegateEvidence ? ('近因：' + a.delegateEvidence) : '';
+      var body = [
+        a.agenda || a.grievance || '',
+        delegate,
+        delegateEvidence,
+        tinyi && tinyi.topic ? ('廷议 ' + tinyi.topic) : (a.linkedIssue ? ('议题 ' + a.linkedIssue) : ''),
+        a.source || ''
+      ].filter(Boolean).join(' · ');
       return '<span title="' + attr([head, body].filter(Boolean).join(' · ')) + '"><em>' + esc(head) + '</em><small>' + esc(body || 'autonomous pressure') + '</small></span>';
     }).join('') + '</div>';
   }
@@ -1592,6 +1921,31 @@
     return partyRows.concat(classRows);
   }
 
+  function rightPcClassCharacterRows(gm){
+    gm = gm || window.GM || {};
+    var store = gm.classCharacterRelations || {};
+    var history = rightPcArray(store.history).slice(-6).reverse().map(function(h){
+      return rightPcRow(
+        'class-character history ' + (h.className || '') + '/' + (h.characterName || ''),
+        rightPcText(rightPcArray(h.evidence).join(' / ') || h.reason || h.source || h.type || '', 160),
+        [h.role || '', h.source || '', 'T' + (h.turn || '')]
+      );
+    });
+    var edgeRows = rightClassCharacterAllEdges().slice(0, 8).map(function(e){
+      return rightPcRow(
+        'class-character edge ' + (e.className || '') + '/' + (e.characterName || ''),
+        rightPcText(rightPcArray(e.evidence).join(' / ') || e.source || '', 160),
+        [
+          e.role || '',
+          'trust ' + rightClassCharacterPct(e.trust),
+          'grievance ' + rightClassCharacterPct(e.grievance),
+          'T' + (e.lastTurn || '')
+        ]
+      );
+    });
+    return edgeRows.concat(history);
+  }
+
   function rightPcTinyiRows(gm){
     var pendingRows = rightPcArray(gm && gm._pendingTinyiTopics).slice(-7).reverse().map(function(t){
       return rightPcRow('Tinyi Queue ' + (t.topic || t.title || ''), rightPcText((t.goalText || t.demandText || t.reason || ''), 150), [t.sourceType || t.source || '', t.party || t.sourceParty || '', t.sourceClass || t.className || '', t.issueId || t.linkedIssue || '']);
@@ -1604,6 +1958,57 @@
       return rightPcRow('Court Records ' + (r.topic || r.title || ''), rightPcText(r.demandText || r.body || r.reason || '', 150), [status, r.sourceParty || r.party || '', r.sourceClass || r.className || '', r.issueId || r.chaoyiTrackId || '']);
     });
     return pendingRows.concat(linkRows).concat(courtRows);
+  }
+
+  function rightPcInstitutionLifecycleRows(gm){
+    gm = gm || window.GM || {};
+    var parser = window.EdictParser || null;
+    var rows = [];
+    rightPcArray(gm.dynamicInstitutions).slice(-8).reverse().forEach(function(inst){
+      if (!inst) return;
+      var view = null;
+      try {
+        if (parser && typeof parser.getInstitutionLifecycleView === 'function') view = parser.getInstitutionLifecycleView(inst.id);
+      } catch (_) {}
+      view = view || {
+        id: inst.id || '',
+        name: inst.name || '',
+        stage: inst.stage || '',
+        currentStage: inst.stage || '',
+        visibleSteps: [],
+        timeline: rightPcArray(inst.history),
+        feedback: rightPcArray(inst.lifecycle && inst.lifecycle.feedback),
+        historicalReferences: rightPcArray(inst.lifecycle && inst.lifecycle.historicalReferences)
+      };
+      var steps = rightPcArray(view.visibleSteps).map(function(s){
+        return (s.status === 'done' ? 'done ' : 'todo ') + (s.key || s.label || '');
+      }).join(' / ');
+      var feedback = rightPcArray(view.feedback).slice(-2).map(function(f){
+        return f.summary || f.text || f.reason || f.note || '';
+      }).filter(Boolean).join(' / ');
+      var refs = rightPcArray(view.historicalReferences).slice(-2).map(function(r){
+        return r.note || r.text || r.citedBy || '';
+      }).filter(Boolean).join(' / ');
+      var body = [
+        'current ' + (view.currentStage || view.stage || inst.stage || ''),
+        steps,
+        feedback ? ('feedback ' + feedback) : '',
+        refs ? ('history ' + refs) : ''
+      ].filter(Boolean).join(' | ');
+      rows.push(rightPcRow(
+        'Institution Lifecycle ' + (view.name || inst.name || inst.id || ''),
+        rightPcText(body, 260),
+        [view.currentStage || inst.stage || '', inst.rank ? ('rank ' + inst.rank) : '', inst.createdTurn != null ? ('T' + inst.createdTurn) : '']
+      ));
+    });
+    rightPcArray(gm._institutionLifecycleEvents).slice(-5).reverse().forEach(function(e){
+      rows.push(rightPcRow(
+        'Lifecycle Event ' + (e.name || e.id || ''),
+        rightPcText([(e.phaseKey || e.action || ''), e.text || ''].filter(Boolean).join(' / '), 200),
+        ['T' + (e.turn || ''), e.phaseKey || '', e.action || '']
+      ));
+    });
+    return rows;
   }
 
   function rightPcClassMinxinBridge(){
@@ -2213,9 +2618,10 @@
     var memCount = rightPcArray(gm._partyClassActorMemory && gm._partyClassActorMemory.items).length;
     var actionCount = rightPcArray(gm.party_actions).length + rightPcArray(gm.class_actions).length;
     var tinyiCount = rightPcArray(gm._pendingTinyiTopics).length;
+    var ccCount = rightClassCharacterAllEdges().length;
     return '<div class="tmrp-pcdebug">' +
       '<section class="tmrp-card tmrp-pcdebug-copy"><div class="tmrp-card-title"><span>Class Minxin Bridge</span><small>copy current diagnostics snapshot</small></div><div class="tmrp-action-row"><button type="button" class="tmrp-btn" data-right-action="pcdebug-copy">Copy Diagnostics</button></div></section>' +
-      '<div class="tmrp-summary"><div class="tmrp-stat"><b>' + esc(signalCount) + '</b><span>signals</span></div><div class="tmrp-stat"><b>' + esc(memCount) + '</b><span>memory</span></div><div class="tmrp-stat"><b>' + esc(actionCount) + '</b><span>actions</span></div><div class="tmrp-stat"><b>' + esc(tinyiCount) + '</b><span>tinyi</span></div></div>' +
+      '<div class="tmrp-summary"><div class="tmrp-stat"><b>' + esc(signalCount) + '</b><span>signals</span></div><div class="tmrp-stat"><b>' + esc(memCount) + '</b><span>memory</span></div><div class="tmrp-stat"><b>' + esc(actionCount) + '</b><span>actions</span></div><div class="tmrp-stat"><b>' + esc(tinyiCount) + '</b><span>tinyi</span></div><div class="tmrp-stat"><b>' + esc(ccCount) + '</b><span>class-char</span></div></div>' +
       rightPcSection('Minxin Ledger', 'truth / perception / matrix / uprising', rightPcMinxinLedgerRows(gm), 'No minxin ledger records') +
       rightPcSection('Minxin Pressure Actions', 'memorial / tinyi / wendui / hongyan', rightPcMinxinPressureRows(gm), 'No minxin pressure actions') +
       rightPcSection('Minxin Commitments', 'execution / cost / backlash', rightPcMinxinCommitmentRows(gm), 'No minxin commitments') +
@@ -2224,82 +2630,143 @@
       rightPcSection('Minxin Hard Link Consumers', 'effective income / recruits / taxbase / edict cap', rightPcMinxinHardLinkConsumerRows(gm), 'No minxin consumer records') +
       rightPcSection('Huji Runtime Bridge', 'hukou / corvee / service pool / player operations', rightPcHujiRuntimeBridgeRows(gm), 'No huji bridge records') +
       rightPcSection('Huji Governance Loop', 'formal operations / commitments / execution', rightPcHujiGovernanceRows(gm), 'No huji governance commitments') +
+      rightPcSection('Institution Lifecycle', 'proposal / debate / trial / archive', rightPcInstitutionLifecycleRows(gm), 'No institution lifecycle records') +
       rightPcSection('Class Minxin Bridge', 'audit / ledger / court / uprising', rightPcClassMinxinRows(gm), 'No class-minxin bridge records') +
       rightPcSection('Social Political Signals', 'recent deterministic evidence', rightPcSignalRows(gm), 'No signals') +
       rightPcSection('Maintenance / Escalation', 'decay, resolve, unresolved pressure', rightPcMaintenanceRows(gm), 'No maintenance records') +
       rightPcSection('Actor Memory', 'agenda / grievance / belief ledger', rightPcActorMemoryRows(gm), 'No actor memory') +
       rightPcSection('Actor Actions', 'party_actions / class_actions', rightPcActionRows(gm), 'No actor actions') +
+      rightPcSection('Class Character Relations', 'backing / resentment / evidence', rightPcClassCharacterRows(gm), 'No class-character records') +
       rightPcSection('Tinyi Queue / Court Records', 'issue links and rulings', rightPcTinyiRows(gm), 'No tinyi/court records') +
       '</div>';
   }
 
+  // 调试闸：观测账本/诊断仅 dev 可见（玩家界面不出·保留给开发）
+  function rightIsDebug(){
+    try { if (window.TM_DEBUG) return true; if (window.localStorage && localStorage.getItem('tm_debug') === '1') return true; } catch (_) {}
+    return false;
+  }
   function renderGangRich(){
     var tab = state.rightOutlineTab || 'classes';
     return '<div class="tmrp-outline-shell">' +
       '<div class="tmrp-tabs"><button type="button" class="' + (tab === 'classes' ? 'active' : '') + '" data-right-action="outline-tab" data-tab="classes">阶层</button><button type="button" class="' + (tab === 'parties' ? 'active' : '') + '" data-right-action="outline-tab" data-tab="parties">党派</button></div>' +
-      '<section class="tmrp-card tmrp-pcdebug-entry"><div class="tmrp-action-row"><button type="button" class="tmrp-btn" data-right-action="pcdebug-open">观测账本</button></div></section>' +
+      (rightIsDebug() ? '<section class="tmrp-card tmrp-pcdebug-entry"><div class="tmrp-action-row"><button type="button" class="tmrp-btn" data-right-action="pcdebug-open">观测账本</button></div></section>' : '') +
       (tab === 'parties' ? renderRightPartyPanel() : renderRightClassPanel()) +
       '</div>';
+  }
+
+  function rightFindSocialRow(rows, key){
+    key = String(key || '');
+    for (var i = 0; i < (rows || []).length; i += 1) { if (rightSocialName(rows[i]) === key) return rows[i]; }
+    return null;
+  }
+
+  // 列表态·瘦卡(名+满意/影响+诉求·整卡可点进详情)
+  function rightSocialClassHead(c){
+    var sat = rightSocNum(c, ['satisfaction','support','mood','loyalty'], 50);
+    var inf = rightSocNum(c, ['influence','power','weight'], 0);
+    return '<section class="tmrp-card tmrp-social-head ' + (sat < 45 ? 'hot' : (sat > 62 ? 'ok' : '')) + '" data-right-action="outline-select" data-type="class" data-key="' + attr(rightSocialName(c)) + '">' +
+      '<div class="tmrp-card-title"><span>' + esc(c.name || c.label || c.id || '未名阶层') + '</span><small>满意 ' + esc(Math.round(sat)) + ' · 影响 ' + esc(Math.round(inf)) + ' ›</small></div>' +
+      rightArmyBar('满意', sat) + rightArmyBar('影响', inf) +
+      rightArmyRows([['诉求', c.demands || c.currentDemand]]) +
+      '</section>';
+  }
+
+  // 详情态·全 11 层深析(置入左展 flyout·壳自带头部×与滚动)
+  function rightSocialClassDetail(c){
+    var sat = rightSocNum(c, ['satisfaction','support','mood','loyalty'], 50);
+    var inf = rightSocNum(c, ['influence','power','weight'], 0);
+    return '<section class="tmrp-card ' + (sat < 45 ? 'hot' : (sat > 62 ? 'ok' : '')) + '"><div class="tmrp-card-title"><span>' + esc(c.name || c.label || c.id || '未名阶层') + '</span><small>满意 ' + esc(Math.round(sat)) + ' · 影响 ' + esc(Math.round(inf)) + '</small></div>' +
+      rightArmyBar('满意', sat) + rightArmyBar('影响', inf) +
+      rightArmyRows([['规模', c.size || c.population || c.scale], ['经济角色', c.economicRole || c.role], ['法律地位', c.status], ['流动性', c.mobility], ['特权', c.privileges], ['义务', c.obligations], ['诉求', c.demands || c.currentDemand]]) +
+      renderRightSocialCauses('class', c) +
+      rightClassMinxinBridgeRows(c) +
+      renderRightSocialEcology('class', c) +
+      renderRightClassCharacterLinks(c) +
+      renderRightSocialChain('class', c) +
+      renderRightActorActions('class', c) +
+      renderRightSocialActions('class', c) +
+      '<div class="tmrp-meta">' + esc(c.description || c.desc || '') + '</div></section>';
   }
 
   function renderRightClassPanel(){
     var rows = getClasses();
     var avg = rows.length ? Math.round(rows.reduce(function(s, c){ return s + rightSocNum(c, ['satisfaction','support','mood','loyalty'], 50); }, 0) / rows.length) : 0;
     var maxInf = rows.reduce(function(m, c){ return Math.max(m, rightSocNum(c, ['influence','power','weight'], 0)); }, 0);
-    return '<div class="tmrp-summary"><div class="tmrp-stat"><b>' + esc(rows.length) + '</b><span>阶层</span></div><div class="tmrp-stat"><b>' + esc(avg) + '</b><span>平均满意</span></div><div class="tmrp-stat"><b>' + esc(maxInf) + '</b><span>最高影响</span></div></div>' +
-      (rows.length ? '<div class="tmrp-scroll tall">' + rows.map(function(c){
-        var sat = rightSocNum(c, ['satisfaction','support','mood','loyalty'], 50);
-        var inf = rightSocNum(c, ['influence','power','weight'], 0);
-        return '<section class="tmrp-card ' + (sat < 45 ? 'hot' : (sat > 62 ? 'ok' : '')) + '"><div class="tmrp-card-title"><span>' + esc(c.name || c.label || c.id || '未名阶层') + '</span><small>满意 ' + esc(Math.round(sat)) + ' · 影响 ' + esc(Math.round(inf)) + '</small></div>' +
-          rightArmyBar('满意', sat) + rightArmyBar('影响', inf) +
-          rightArmyRows([['规模', c.size || c.population || c.scale], ['经济角色', c.economicRole || c.role], ['法律地位', c.status], ['流动性', c.mobility], ['特权', c.privileges], ['义务', c.obligations], ['诉求', c.demands || c.currentDemand]]) +
-          renderRightSocialCauses('class', c) +
-          rightClassMinxinBridgeRows(c) +
-          renderRightSocialEcology('class', c) +
-          renderRightSocialChain('class', c) +
-          renderRightActorActions('class', c) +
-          renderRightSocialActions('class', c) +
-          '<div class="tmrp-meta">' + esc(c.description || c.desc || '') + '</div></section>';
-      }).join('') + '</div>' : '<section class="tmrp-card empty"><div class="tmrp-empty">暂无阶层数据。</div></section>');
+    var summary = '<div class="tmrp-summary"><div class="tmrp-stat"><b>' + esc(rows.length) + '</b><span>阶层</span></div><div class="tmrp-stat"><b>' + esc(avg) + '</b><span>平均满意</span></div><div class="tmrp-stat"><b>' + esc(maxInf) + '</b><span>最高影响</span></div></div>';
+    if (!rows.length) return summary + '<section class="tmrp-card empty"><div class="tmrp-empty">暂无阶层数据。</div></section>';
+    return summary + '<div class="tmrp-scroll tall">' + rows.map(rightSocialClassHead).join('') + '</div>';
+  }
+
+  function rightSocialPartyHead(p){
+    var inf = rightSocNum(p, ['influence','power','weight'], 0);
+    var status = p.status || p.state || '未录';
+    return '<section class="tmrp-card tmrp-social-head ' + (/活跃|active/i.test(String(status)) ? 'hot' : '') + '" data-right-action="outline-select" data-type="party" data-key="' + attr(rightSocialName(p)) + '">' +
+      '<div class="tmrp-card-title"><span>' + esc(p.name || p.label || p.id || '未名党派') + '</span><small>' + esc(status) + ' · 影响 ' + esc(Math.round(inf)) + ' ›</small></div>' +
+      rightArmyBar('影响', inf) +
+      rightArmyRows([['立场', p.ideology || p.stance], ['当前议程', p.currentAgenda || p.agenda || p.shortGoal]]) +
+      '</section>';
+  }
+
+  function rightSocialPartyDetail(p){
+    var inf = rightSocNum(p, ['influence','power','weight'], 0);
+    var status = p.status || p.state || '未录';
+    var stance = p.policyStance || p.stances || p.agenda;
+    var stanceHtml = (Array.isArray(stance) ? stance : [stance]).filter(Boolean).map(function(x){ return '<span class="tmrp-pill">' + esc(x) + '</span>'; }).join('');
+    return '<section class="tmrp-card ' + (/活跃|active/i.test(String(status)) ? 'hot' : '') + '"><div class="tmrp-card-title"><span>' + esc(p.name || p.label || p.id || '未名党派') + '</span><small>' + esc(status) + ' · 影响 ' + esc(Math.round(inf)) + '</small></div>' +
+      rightArmyBar('影响', inf) +
+      rightArmyRows([['首领', p.leader || p.head], ['立场', p.ideology || p.stance], ['支持群体', p.base || p.supportBase], ['核心成员', p.members], ['当前议程', p.currentAgenda || p.agenda], ['短期目标', p.shortGoal], ['长期追求', p.longGoal]]) +
+      renderRightSocialCauses('party', p) +
+      renderRightSocialEcology('party', p) +
+      renderRightSocialChain('party', p) +
+      renderRightActorActions('party', p) +
+      renderRightSocialActions('party', p) +
+      '<div class="tmrp-chip-list">' + stanceHtml + '</div></section>';
   }
 
   function renderRightPartyPanel(){
     var rows = getParties();
     var active = rows.filter(function(p){ return /活跃|active/i.test(String(p.status || p.state || '')); }).length;
     var maxInf = rows.reduce(function(m, p){ return Math.max(m, rightSocNum(p, ['influence','power','weight'], 0)); }, 0);
-    return '<div class="tmrp-summary"><div class="tmrp-stat"><b>' + esc(rows.length) + '</b><span>党派</span></div><div class="tmrp-stat"><b>' + esc(active) + '</b><span>活跃</span></div><div class="tmrp-stat"><b>' + esc(maxInf) + '</b><span>最高影响</span></div></div>' +
-      (rows.length ? '<div class="tmrp-scroll tall">' + rows.map(function(p){
-        var inf = rightSocNum(p, ['influence','power','weight'], 0);
-        var status = p.status || p.state || '未录';
-        var stance = p.policyStance || p.stances || p.agenda;
-        var stanceHtml = (Array.isArray(stance) ? stance : [stance]).filter(Boolean).map(function(x){ return '<span class="tmrp-pill">' + esc(x) + '</span>'; }).join('');
-        return '<section class="tmrp-card ' + (/活跃|active/i.test(String(status)) ? 'hot' : '') + '"><div class="tmrp-card-title"><span>' + esc(p.name || p.label || p.id || '未名党派') + '</span><small>' + esc(status) + ' · 影响 ' + esc(Math.round(inf)) + '</small></div>' +
-          rightArmyBar('影响', inf) +
-          rightArmyRows([['首领', p.leader || p.head], ['立场', p.ideology || p.stance], ['支持群体', p.base || p.supportBase], ['核心成员', p.members], ['当前议程', p.currentAgenda || p.agenda], ['短期目标', p.shortGoal], ['长期追求', p.longGoal]]) +
-          renderRightSocialCauses('party', p) +
-          renderRightSocialEcology('party', p) +
-          renderRightSocialChain('party', p) +
-          renderRightActorActions('party', p) +
-          renderRightSocialActions('party', p) +
-          '<div class="tmrp-chip-list">' + stanceHtml + '</div></section>';
-      }).join('') + '</div>' : '<section class="tmrp-card empty"><div class="tmrp-empty">暂无党派数据。</div></section>');
+    var summary = '<div class="tmrp-summary"><div class="tmrp-stat"><b>' + esc(rows.length) + '</b><span>党派</span></div><div class="tmrp-stat"><b>' + esc(active) + '</b><span>活跃</span></div><div class="tmrp-stat"><b>' + esc(maxInf) + '</b><span>最高影响</span></div></div>';
+    if (!rows.length) return summary + '<section class="tmrp-card empty"><div class="tmrp-empty">暂无党派数据。</div></section>';
+    return summary + '<div class="tmrp-scroll tall">' + rows.map(rightSocialPartyHead).join('') + '</div>';
   }
 
+  // 百官空态·幽灵预览：取数名真实臣僚灰显作示例（让玩家看懂钉选后长什么样·非死白）
+  function rightPinnedGhostPreview(){
+    var people = (typeof getPeople === 'function' ? getPeople() : []) || [];
+    var sample = people.filter(function(p){ return p && p.name; }).slice(0, 3);
+    if (!sample.length) return '';
+    var cards = sample.map(function(p){
+      var loy = rightIssueNum(p, ['loyalty','loyal'], 50);
+      var loyClass = loy < 45 ? 'lo' : (loy >= 75 ? 'hi' : 'mid');
+      var tag = '<i class="tmrp-loy-tag ' + loyClass + '">' + (loy < 45 ? '险' : (loy >= 75 ? '忠' : '稳')) + '</i>';
+      return '<section class="tmrp-card tmrp-minister-card"><div class="tmrp-minister-face">' + rightIssuePortrait(p) + '</div><div class="tmrp-minister-main">' +
+        '<div class="tmrp-card-title"><span>' + esc(p.name) + '</span><small>' + tag + ' · 忠 ' + esc(loy) + '</small></div>' +
+        '<div class="tmrp-mini-grid"><div><span>职</span><b>' + esc(p.title || p.office || p.role || '在朝') + '</b></div><div><span>派</span><b>' + esc(p.faction || '—') + '</b></div></div></div></section>';
+    }).join('');
+    return '<div class="tmrp-ghost-label">— 钉选后这里将呈现 · 示例 —</div><div class="tmrp-ghost">' + cards + '</div>';
+  }
   function renderPinnedPeopleRich(){
     var ids = state.pinnedPeople || [];
     var people = ids.map(findPerson).filter(Boolean);
     var atCourt = people.filter(rightIssueAtCourt).length;
     var lowLoyal = people.filter(function(p){ return rightIssueNum(p, ['loyalty','loyal'], 50) < 45; }).length;
     if (!people.length) {
-      return '<div class="tmrp-minister-shell"><div class="tmrp-summary"><div class="tmrp-stat"><b>0</b><span>钉选</span></div><div class="tmrp-stat"><b>0</b><span>在京</span></div><div class="tmrp-stat"><b>0</b><span>风险</span></div></div>' +
-        '<section class="tmrp-card empty"><div class="tmrp-card-title"><span>百官人事</span><small>钉选后在此集中处置</small></div><div class="tmrp-empty">暂无钉选臣僚。可从人物图志或人物卡片钉选。</div>' +
-        '<div class="tmrp-action-row"><button type="button" class="tmrp-btn primary" onclick="TMPhase8FormalBridge.openRenwu()">打开人物图志</button></div></section></div>';
+      return '<div class="tmrp-minister-shell"><div class="tmrp-summary"><div class="tmrp-stat"><b>0</b><span>钉选</span></div><div class="tmrp-stat"><b>0</b><span>在京</span></div><div class="tmrp-stat"><b>0</b><span>低忠</span></div></div>' +
+        '<section class="tmrp-empty-hero"><div class="tmrp-empty-seal">钉</div><div class="tmrp-empty-t">尚未钉选臣僚</div><div class="tmrp-empty-d">从人物图志或人物卡片「钉选」要员，<br>即可在此集中查看忠诚、派系与处置。</div><div class="tmrp-action-row"><button type="button" class="tmrp-btn primary" onclick="TMPhase8FormalBridge.openRenwu()">打开人物图志</button></div></section>' +
+        rightPinnedGhostPreview() +
+        '</div>';
     }
     return '<div class="tmrp-minister-shell"><div class="tmrp-summary"><div class="tmrp-stat"><b>' + esc(people.length) + '</b><span>钉选</span></div><div class="tmrp-stat"><b>' + esc(atCourt) + '</b><span>在京</span></div><div class="tmrp-stat"><b>' + esc(lowLoyal) + '</b><span>低忠</span></div></div>' +
       '<div class="tmrp-scroll tall">' + people.map(function(p){
         var key = personKey(p);
-        return '<section class="tmrp-card tmrp-minister-card"><div class="tmrp-minister-face">' + rightIssuePortrait(p) + '</div><div class="tmrp-minister-main">' +
-          '<div class="tmrp-card-title"><span>' + esc(p.name || key) + '</span><small>' + esc(p.title || p.office || p.role || p.faction || '未仕') + '</small></div>' +
+        var loy = rightIssueNum(p, ['loyalty','loyal'], 50);
+        var loyClass = loy < 45 ? 'lo' : (loy >= 75 ? 'hi' : 'mid');
+        var loyTag = loy < 45 ? '险' : (loy >= 75 ? '忠' : '稳');
+        return '<section class="tmrp-card tmrp-minister-card' + (loy < 45 ? ' hot' : '') + '"><div class="tmrp-minister-face">' + rightIssuePortrait(p) + '</div><div class="tmrp-minister-main">' +
+          '<div class="tmrp-card-title"><span>' + esc(p.name || key) + '</span><small><i class="tmrp-loy-tag ' + loyClass + '">' + loyTag + '</i> · ' + esc(p.title || p.office || p.role || p.faction || '未仕') + '</small></div>' +
           '<div class="tmrp-mini-grid"><div><span>忠</span><b>' + esc(p.loyalty || p.loyal || '未录') + '</b></div><div><span>智</span><b>' + esc(p.intelligence || p.wisdom || '未录') + '</b></div><div><span>政</span><b>' + esc(p.administration || p.politics || '未录') + '</b></div><div><span>军</span><b>' + esc(p.military || '未录') + '</b></div></div>' +
           '<div class="tmrp-action-row"><button type="button" class="tmrp-btn primary" onclick="TMPhase8FormalBridge.personAction(\'' + attr(key) + '\',\'detail\')">详阅</button><button type="button" class="tmrp-btn" onclick="TMPhase8FormalBridge.personAction(\'' + attr(key) + '\',\'wendui\')">问对</button><button type="button" class="tmrp-btn" onclick="TMPhase8FormalBridge.personAction(\'' + attr(key) + '\',\'letter\')">传书</button><button type="button" class="tmrp-btn" onclick="TMPhase8FormalBridge.personAction(\'' + attr(key) + '\',\'office\')">官制</button><button type="button" class="tmrp-btn" onclick="TMPhase8FormalBridge.unpin(\'' + attr(key) + '\')">移除</button></div>' +
           '</div></section>';
@@ -2399,14 +2866,45 @@
       '</details>';
   }
 
+  function renderRightOfficeNodeShell(n, depth){
+    if (!n) return '';
+    depth = depth || 0;
+    var positions = Array.isArray(n.positions) ? n.positions : [];
+    var children = rightOfficeChildren(n);
+    return '<details class="tmrp-office-node" ' + (depth < 1 ? 'open' : '') + '>' +
+      '<summary>' + esc(n.name || n.title || '未名衙门') + '<small>职位 ' + esc(positions.length) + ' · 下辖 ' + esc(children.length) + '</small></summary>' +
+      '<div class="tmrp-meta">官制细目正在载入...</div>' +
+      '</details>';
+  }
+
+  function rightOfficeTreeHtml(tree){
+    return (Array.isArray(tree) ? tree : []).map(function(n){ return renderRightOfficeNode(n, 0); }).join('');
+  }
+
+  function rightOfficeTreeShellHtml(tree){
+    return (Array.isArray(tree) ? tree : []).slice(0, RIGHT_OFFICE_INITIAL_NODES).map(function(n){ return renderRightOfficeNodeShell(n, 0); }).join('');
+  }
+
+  function rightScheduleOfficeTreeHydration(token, tree){
+    setTimeout(function(){
+      var mount = document.querySelector('[data-office-tree-token="' + token + '"]');
+      if (!mount || String(mount.getAttribute('data-office-tree-token') || '') !== String(token)) return;
+      mount.innerHTML = rightOfficeTreeHtml(tree);
+    }, 0);
+  }
+
   function renderZhiRich(){
     var tree = rightOfficeTree();
     var s = rightOfficeStats(tree);
+    var treeToken = 'office-' + (++_rightOfficeRenderSeq);
+    var deferredTree = s.depts > RIGHT_OFFICE_INITIAL_NODES;
+    var treeHtml = deferredTree ? rightOfficeTreeShellHtml(tree) : rightOfficeTreeHtml(tree);
+    if (deferredTree) rightScheduleOfficeTreeHydration(treeToken, tree);
     return '<div class="tmrp-office-shell">' +
       '<div class="tmrp-summary"><div class="tmrp-stat"><b>' + esc(s.depts) + '</b><span>衙门</span></div><div class="tmrp-stat"><b>' + esc(s.filled + '/' + s.pos) + '</b><span>在任/职位</span></div><div class="tmrp-stat"><b>' + esc(s.vacant) + '</b><span>空缺</span></div></div>' +
       '<section class="tmrp-card"><div class="tmrp-card-title"><span>官制总览</span><small>衙门、层级、职位、任职、权限、公库</small></div>' +
       '<div class="tmrp-action-row"><button type="button" class="tmrp-btn primary" data-right-action="office-standalone">进入官制衙门</button><button type="button" class="tmrp-btn" data-right-action="office-people">荐贤廷推</button><button type="button" class="tmrp-btn" data-right-action="office-edict">拟任免诏</button></div></section>' +
-      (tree.length ? '<div class="tmrp-scroll tall tmrp-office-tree">' + tree.map(function(n){ return renderRightOfficeNode(n, 0); }).join('') + '</div>' : '<section class="tmrp-card empty"><div class="tmrp-empty">当前剧本尚未载入官制树。</div></section>') +
+      (tree.length ? '<div class="tmrp-scroll tall tmrp-office-tree" data-office-tree-token="' + attr(treeToken) + '">' + treeHtml + (deferredTree ? '<div class="tmrp-meta">完整官制树正在载入...</div>' : '') + '</div>' : '<section class="tmrp-card empty"><div class="tmrp-empty">当前剧本尚未载入官制树。</div></section>') +
       '</div>';
   }
 
@@ -2488,6 +2986,13 @@
         });
       }
     } catch (_) {}
+    recordRightCrisisSurfaceResponse({
+      channel: 'wendui',
+      text: text,
+      target: name,
+      targetName: name,
+      actor: name
+    }, 'phase8-wendui');
   }
 
   function rightWenduiCeremonyLabel(kind){
@@ -2557,6 +3062,19 @@
       };
       emitRightPlayerActionSignal(payload);
     } catch (_) {}
+  }
+
+  function recordRightCrisisSurfaceResponse(payload, source){
+    try {
+      if (!window.GM || !window.AuthorityComplete || typeof window.AuthorityComplete.handleCrisisSurfaceResponse !== 'function') return null;
+      payload = payload || {};
+      return window.AuthorityComplete.handleCrisisSurfaceResponse(payload, {
+        turn: GM.turn || 1,
+        source: source || 'phase8-right-rail'
+      });
+    } catch (_) {
+      return null;
+    }
   }
 
   function rightAddEdictSuggestion(source, from, topic, content){
@@ -2729,6 +3247,13 @@
     if (typeof window.addEB === 'function') {
       try { window.addEB('朝议', rightChaoyiModeLabel(mode) + '·' + topic + (decision ? '·' + decision : '')); } catch(_) {}
     }
+    recordRightCrisisSurfaceResponse({
+      channel: 'chaoyi',
+      text: [rightChaoyiModeLabel(mode), topic, decision, text].filter(Boolean).join(' '),
+      decision: decision || '',
+      topic: topic,
+      mode: mode
+    }, 'phase8-chaoyi');
     return row;
   }
 
@@ -2782,14 +3307,15 @@
   }
 
   function rightOpenArmyFlyout(key){
-    var army = rightFindArmy(key) || rightArmyList()[0];
+    var row = rightFindArmyRecord(key, true);
+    var army = row && row.army;
     if (!army) { toast('暂无可查看部队'); return; }
-    state.selectedArmy = rightArmyKey(army, rightArmyList().indexOf(army));
+    state.selectedArmy = row.key;
     rightCloseArmyFlyout();
     var fly = document.createElement('aside');
     fly.id = 'tm-army-detail-flyout';
     fly.className = 'tm-army-detail-flyout';
-    fly.innerHTML = '<div class="tm-army-detail-head"><b>部队详情</b><button type="button" data-army-close="1">×</button></div>' + renderRightArmyDetailCard(army);
+    fly.innerHTML = '<div class="tm-army-detail-head"><b>部队详情</b><button type="button" data-army-close="1">×</button></div>' + renderRightArmyDetailCard(army, row.idx);
     fly.addEventListener('click', function(e){
       var close = e.target && e.target.closest ? e.target.closest('[data-army-close]') : null;
       if (close) {
@@ -2809,35 +3335,85 @@
   function refreshArmyFlyout(){
     var fly = document.getElementById('tm-army-detail-flyout');
     if (!fly) return false;
-    var army = rightFindArmy(state.selectedArmy) || rightArmyList()[0];
+    var row = rightFindArmyRecord(state.selectedArmy, true);
+    var army = row && row.army;
     if (!army) {
       rightCloseArmyFlyout();
       return false;
     }
-    state.selectedArmy = rightArmyKey(army, rightArmyList().indexOf(army));
-    fly.innerHTML = '<div class="tm-army-detail-head"><b>部队详情</b><button type="button" data-army-close="1">×</button></div>' + renderRightArmyDetailCard(army);
+    state.selectedArmy = row.key;
+    fly.innerHTML = '<div class="tm-army-detail-head"><b>部队详情</b><button type="button" data-army-close="1">×</button></div>' + renderRightArmyDetailCard(army, row.idx);
     return true;
   }
 
   function rightSelectArmy(data){
     var key = data && data.id;
-    var army = rightFindArmy(key);
-    if (!army) { toast('未找到该部队'); return; }
-    state.selectedArmy = rightArmyKey(army, rightArmyList().indexOf(army));
+    var row = rightFindArmyRecord(key, false);
+    if (!row || !row.army) { toast('未找到该部队'); return; }
+    state.selectedArmy = row.key;
     openPanel('army');
     rightOpenArmyFlyout(state.selectedArmy);
   }
 
+  // 纲纪总览·阶层/党派详情左展 flyout（镜像军队 flyout·复用 .tm-army-detail-flyout 壳）
+  function rightCloseSocialFlyout(){
+    var old = document.getElementById('tm-social-detail-flyout');
+    if (old) old.remove();
+    state.rightOutlineSel = null;
+  }
+
+  function rightSocialFlyoutInner(actorType, row){
+    var headTitle = actorType === 'party' ? '党派详情' : '阶层详情';
+    var body = actorType === 'party' ? rightSocialPartyDetail(row) : rightSocialClassDetail(row);
+    return '<div class="tm-army-detail-head"><b>' + headTitle + '</b><button type="button" data-social-close="1">×</button></div>' + body;
+  }
+
+  function rightOpenSocialFlyout(actorType, key){
+    actorType = actorType === 'party' ? 'party' : 'class';
+    var rows = actorType === 'party' ? getParties() : getClasses();
+    var row = rightFindSocialRow(rows, key);
+    if (!row) { toast('暂无可查看对象'); return; }
+    var old = document.getElementById('tm-social-detail-flyout');
+    if (old) old.remove();
+    state.rightOutlineSel = { type: actorType, key: rightSocialName(row) };
+    var fly = document.createElement('aside');
+    fly.id = 'tm-social-detail-flyout';
+    fly.className = 'tm-army-detail-flyout';
+    fly.innerHTML = rightSocialFlyoutInner(actorType, row);
+    fly.addEventListener('click', function(e){
+      var close = e.target && e.target.closest ? e.target.closest('[data-social-close]') : null;
+      if (close) { e.preventDefault(); rightCloseSocialFlyout(); return; }
+      var btn = e.target && e.target.closest ? e.target.closest('[data-right-action]') : null;
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      handleRightPanelAction(btn.dataset.rightAction, rightActionData(btn));
+    });
+    document.body.appendChild(fly);
+  }
+
+  function refreshSocialFlyout(){
+    var fly = document.getElementById('tm-social-detail-flyout');
+    if (!fly || !state.rightOutlineSel) return false;
+    var actorType = state.rightOutlineSel.type === 'party' ? 'party' : 'class';
+    var rows = actorType === 'party' ? getParties() : getClasses();
+    var row = rightFindSocialRow(rows, state.rightOutlineSel.key);
+    if (!row) { rightCloseSocialFlyout(); return false; }
+    fly.innerHTML = rightSocialFlyoutInner(actorType, row);
+    return true;
+  }
+
   function rightArmyCommand(data){
-    var army = rightFindArmy(data && data.id) || rightFindArmy(state.selectedArmy);
+    var row = rightFindArmyRecord((data && data.id) || state.selectedArmy, false) || rightFindArmyRecord(state.selectedArmy, false);
+    var army = row && row.army;
     if (!army) { toast('暂无可处置部队'); return; }
     var name = rightArmyName(army);
     var cmd = data && data.command;
     if (cmd === 'orders') {
-      rightOpenArmyFlyout(rightArmyKey(army, rightArmyList().indexOf(army)));
+      rightOpenArmyFlyout(row.key);
       toast('已展开 ' + name + ' 军令详情');
     } else if (cmd === 'pay') {
-      state.selectedArmy = rightArmyKey(army, rightArmyList().indexOf(army));
+      state.selectedArmy = row.key;
       openPanel('finance');
       toast('已转入户部财计，可核查 ' + name + ' 岁饷');
     } else if (cmd === 'train') {
@@ -2883,6 +3459,9 @@
     if (!Array.isArray(GM._pendingTinyiTopics)) GM._pendingTinyiTopics = [];
     var name = rightSocialName(actor);
     var summary = rightSocialSummary(actorType, actor);
+    var delegateId = actorType === 'class' ? rightClassCharacterDelegateName(actor) : (actor.leader || actor.head || '');
+    var delegate = delegateId ? findPerson(delegateId) : null;
+    var delegateName = delegate ? (delegate.name || personKey(delegate)) : delegateId;
     var topic = actorType === 'party'
       ? ('党议·' + name + '·' + (actor.shortGoal || actor.currentAgenda || actor.agenda || '近期目标') + '·请付廷议')
       : ('民情·' + name + '·' + (actor.currentDemand || actor.demands || '阶层诉求') + '·请付廷议');
@@ -2893,7 +3472,10 @@
       turn: GM.turn || 1,
       status: 'pending',
       priority: actorType === 'party' ? 74 : 78,
-      reason: summary || topic
+      reason: summary || topic,
+      delegateCharacter: delegateName || '',
+      delegateCharacterId: delegate ? personKey(delegate) : delegateId || '',
+      linkedCharacters: delegateName ? [delegateName] : []
     };
     if (actorType === 'party') {
       item.party = name;
@@ -2930,6 +3512,7 @@
     if (!window.GM || !actor) return false;
     var name = rightSocialName(actor);
     var target = actorType === 'party' ? (actor.leader || actor.head || '') : '';
+    if (!target && actorType === 'class') target = rightClassCharacterDelegateName(actor);
     if (!target && actorType === 'party') {
       var people = getPeople();
       var hit = (Array.isArray(people) ? people : []).find(function(p){
@@ -3007,7 +3590,10 @@
       openPanel('issue');
     } else if (action === 'outline-tab') {
       state.rightOutlineTab = data.tab || 'classes';
+      rightCloseSocialFlyout();
       openPanel('ol');
+    } else if (action === 'outline-select') {
+      rightOpenSocialFlyout(data.type || 'class', data.key || '');
     } else if (action === 'social-action') {
       rightHandleSocialAction(data);
     } else if (action === 'social-chain') {
@@ -3117,6 +3703,13 @@
       rightHandleWorkAction(data);
     } else if (action === 'work-detail') {
       rightOpenWorkDetail(data);
+    } else if (action === 'wen-filter') {
+      state.rightWenFilter = data.filter || 'all';
+      openPanel('policy');
+    } else if (action === 'keju-open') {
+      if (typeof window.openKejuPanel === 'function') window.openKejuPanel();
+      else if (typeof window.showKejuModal === 'function') window.showKejuModal();
+      else toast('科举系统未加载');
     } else if (action === 'rumor-records') {
       openShiluPreviewPanel();
     }
@@ -3143,4 +3736,7 @@
   bridge.rightrail.rightCloseArmyFlyout = rightCloseArmyFlyout;
   bridge.rightrail.rightOpenArmyFlyout = rightOpenArmyFlyout;
   bridge.rightrail.refreshArmyFlyout = typeof refreshArmyFlyout === "function" ? refreshArmyFlyout : null;
+  bridge.rightrail.rightCloseSocialFlyout = rightCloseSocialFlyout;
+  bridge.rightrail.rightOpenSocialFlyout = rightOpenSocialFlyout;
+  bridge.rightrail.refreshSocialFlyout = typeof refreshSocialFlyout === "function" ? refreshSocialFlyout : null;
 })();

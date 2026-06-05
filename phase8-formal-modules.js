@@ -601,6 +601,66 @@
     return rows.slice(0, 10);
   }
 
+  function tmfRenwuClassRelationEdges(p){
+    var gm = window.GM || {};
+    var key = personKey(p || {});
+    var name = p && p.name || key;
+    var seen = {};
+    var out = [];
+    function same(a, b){
+      return String(a || '').replace(/[\s\u3000'"`.,;:!?()[\]{}<>\/\\|_-]+/g, '').toLowerCase() ===
+        String(b || '').replace(/[\s\u3000'"`.,;:!?()[\]{}<>\/\\|_-]+/g, '').toLowerCase();
+    }
+    function add(edge){
+      if (!edge) return;
+      if (!same(edge.characterId || edge.characterName, key || name) && !same(edge.characterName, name)) return;
+      var sig = String(edge.className || '') + '|' + String(edge.role || '');
+      if (!sig || seen[sig]) return;
+      seen[sig] = true;
+      out.push(edge);
+    }
+    tmfRenwuArray(p && p.classBackings).forEach(add);
+    var raw = gm.classCharacterRelations && gm.classCharacterRelations.edges || {};
+    if (Array.isArray(raw)) raw.forEach(add);
+    else Object.keys(raw).forEach(function(k){ add(raw[k]); });
+    return out.sort(function(a, b){
+      function score(e){
+        return (Number(e && e.affinity) || 0) + (Number(e && e.legitimacy) || 0) + (Number(e && e.trust) || 0) - (Number(e && e.grievance) || 0) * 0.75;
+      }
+      return score(b) - score(a);
+    }).slice(0, 8);
+  }
+
+  function tmfRenwuClassRole(role){
+    role = String(role || '').toLowerCase();
+    if (role === 'patron') return '庇护';
+    if (role === 'broker') return '调停';
+    if (role === 'suppressor') return '压制';
+    if (role === 'symbol') return '象征';
+    if (role === 'debtor') return '亏欠';
+    if (role === 'enemy') return '仇怨';
+    return '代表';
+  }
+
+  function tmfRenwuClassPct(v){
+    var n = Number(v);
+    if (!Number.isFinite(n)) return '—';
+    if (Math.abs(n) <= 1) n *= 100;
+    return Math.round(Math.max(0, Math.min(100, n)));
+  }
+
+  function tmfRenwuClassRelationList(edges, emptyText){
+    edges = tmfRenwuArray(edges).filter(Boolean);
+    if (!edges.length) return '<div class="renwu-prose">' + esc(emptyText || '暂无阶层关系。') + '</div>';
+    return '<div class="renwu-list renwu-class-relations">' + edges.map(function(e){
+      var reason = tmfRenwuArray(e.evidence).slice(-2).map(function(x){ return tmfRenwuText(x, ''); }).filter(Boolean).join(' · ') || e.reason || e.source || '';
+      return '<div class="renwu-list-row renwu-class-relation-row"><span>' + esc(e.className || '未名阶层') + '</span><b>' +
+        esc(tmfRenwuClassRole(e.role)) + ' · 亲' + esc(tmfRenwuClassPct(e.affinity)) + ' 信' + esc(tmfRenwuClassPct(e.trust)) + ' 怨' + esc(tmfRenwuClassPct(e.grievance)) +
+        (reason ? '<small title="' + attr(reason) + '">近因：' + esc(tmfRenwuShort(reason, 68)) + '</small>' : '') +
+      '</b></div>';
+    }).join('') + '</div>';
+  }
+
   function tmfRenwuMemories(p){
     var out = [];
     function add(x){
@@ -994,6 +1054,9 @@
         '<section class="renwu-sec"><div class="renwu-sec-title">史料/旁注</div><div class="renwu-source-list">' + (notesMind.length ? notesMind.slice(0, 8).map(function(x){ return '<p>' + esc(x) + '</p>'; }).join('') : '<p>暂无史料旁注。</p>') + '</div></section></div>';
     }
     if (tab === 'relations') {
+      var classEdges = tmfRenwuClassRelationEdges(p);
+      var classBackings = classEdges.filter(function(e){ return !/suppressor|enemy/i.test(String(e.role || '')) && (Number(e.grievance) || 0) < 0.45; });
+      var classGrudges = classEdges.filter(function(e){ return /suppressor|enemy/i.test(String(e.role || '')) || (Number(e.grievance) || 0) >= 0.45; });
       return '<div class="renwu-panel active"><div class="renwu-grid-2"><section class="renwu-sec"><div class="renwu-sec-title">对玩家态度</div>' + tmfRenwuListRows([
         ['忠诚', tmfRenwuNum(p, ['loyalty','loyal','忠'], '—')],
         ['怨望', Math.max(0, 100 - Number(tmfRenwuNum(p, ['loyalty','loyal','忠'], 50)))],
@@ -1004,6 +1067,8 @@
       '<section class="renwu-sec"><div class="renwu-sec-title">关系网络</div><div class="renwu-rel-list">' + (relations.length ? relations.map(function(r){
         return '<button type="button" data-module-action="select-person" data-id="' + attr(r.id) + '"><span>' + esc(r.label) + '</span><b>' + esc(r.name) + '</b><i>' + esc(r.score) + '</i></button>';
       }).join('') : '<p class="renwu-prose">暂无显性关系。</p>') + '</div></section>' +
+      '<div class="renwu-grid-2"><section class="renwu-sec"><div class="renwu-sec-title">阶层背书</div>' + tmfRenwuClassRelationList(classBackings, '暂无明确阶层背书。') + '</section>' +
+      '<section class="renwu-sec"><div class="renwu-sec-title">阶层怨望</div>' + tmfRenwuClassRelationList(classGrudges, '暂无明显阶层怨望。') + '</section></div>' +
       '<section class="renwu-sec"><div class="renwu-sec-title">血亲与旧属</div><div class="renwu-list">' + (tmfRenwuArray(p.familyMembers || p.relatives || p.oldFollowers).length ? tmfRenwuArray(p.familyMembers || p.relatives || p.oldFollowers).map(function(m){
         return '<div class="renwu-list-row"><span>' + esc(tmfRenwuText(m.relation || m.type, '关系')) + '</span><b>' + esc(tmfRenwuText(m.name || m, '未名')) + '</b></div>';
       }).join('') : '<div class="renwu-prose">暂无血亲旧属。</div>') + '</div></section></div>';

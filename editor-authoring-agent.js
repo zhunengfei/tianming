@@ -904,6 +904,20 @@
 
   var AGENT_TOOLS = [
     {
+      name: 'mapOverview',
+      description: '查看当前剧本地图：返回各地块的 名称/当前归属势力/行政绑定 + 可用势力列表。改地图归属、回答"某地归谁"前先用它看清有哪些地块、现在归谁、有哪些势力。',
+      parameters: { type: 'object', properties: { limit: { type: 'number', description: '最多返回多少地块（默认80）' } } }
+    },
+    {
+      name: 'mapAssignOwner',
+      description: '把某地块划归某势力（改地图归属，预览会按新势力上色）。region 传地块名/id（如"青州"/"ming-03"，模糊匹配名称与行政绑定）；owner 传势力名或键（如"朝廷"/"明朝廷"/"fac-ming"，自动解析为 ownerKey）；可选 adminBinding 改行政绑定。会同步 map/mapData。先用 mapOverview 确认地块与势力名。',
+      parameters: { type: 'object', properties: {
+        region: { type: 'string', description: '地块名或 id（模糊匹配 name/adminBinding）' },
+        owner: { type: 'string', description: '势力名或键（自动解析为 ownerKey）' },
+        adminBinding: { type: 'string', description: '可选·行政绑定名' }
+      }, required: ['region', 'owner'] }
+    },
+    {
       name: 'applyEdit',
       description: '在剧本草稿上按 path 设值。path 形如 "name" / "factions.明.leader" / "playerInfo.factionName"。',
       parameters: { type: 'object', properties: {
@@ -976,6 +990,31 @@
       parameters: { type: 'object', properties: {
         includeOptional: { type: 'boolean', description: '是否一并列出可选缺口（默认只列必需缺口）' }
       } }
+    },
+    {
+      name: 'fieldContract',
+      description: '\u67e5\u201c\u6b63\u5f0f\u6e38\u620f\u8fd0\u884c\u65f6\u600e\u4e48\u8bfb\u67d0\u5b57\u6bb5\u201d\u7684\u5951\u7ea6\uff1a\u4f20 field \u8fd4\u56de\u8be5\u5b57\u6bb5\u4e2d\u6587\u540d/\u662f\u5426\u5fc5\u9700/\u6240\u5c5e\u6a21\u5757/\u6e38\u620f\u600e\u4e48\u7528\u5b83(detail)/\u54ea\u4e9b\u5b98\u65b9\u5267\u672c\u7528\uff1b\u4e0d\u4f20 field \u8fd4\u56de\u5168\u90e8\u6e38\u620f\u4f1a\u8bfb\u5b57\u6bb5\u7684\u7d22\u5f15\u3002\u5199\u6216\u6539\u5185\u5bb9\u524d\u60f3\u786e\u8ba4\u201c\u6e38\u620f\u771f\u8bfb\u4e0d\u8bfb\u8fd9\u4e2a\u5b57\u6bb5\u3001\u600e\u4e48\u8bfb\u201d\u65f6\u7528\u5b83\uff0c\u907f\u514d\u5199\u6e38\u620f\u8bfb\u4e0d\u5230\u7684\u5b57\u6bb5\u3002',
+      parameters: { type: 'object', properties: { field: { type: 'string', description: '\u5b57\u6bb5\u540d\uff08\u53ef\u9009\uff0c\u4e0d\u586b\u8fd4\u56de\u5168\u5b57\u6bb5\u7d22\u5f15\uff09' } } }
+    },
+    {
+      name: 'genReference',
+      description: '\u67e5\u8001\u5267\u672c\u7f16\u8f91\u5668\u5bf9\u67d0\u90e8\u5206\u7684 AI \u751f\u6210\u8303\u5f0f\uff08\u53c2\u8003"\u8be5\u90e8\u5206\u597d\u5185\u5bb9\u5e94\u6709\u4ec0\u4e48"\uff1a\u8981\u6c42/\u5b57\u6bb5\u5f62\u72b6/\u671d\u4ee3\u7279\u5b9a\u903b\u8f91/\u53c2\u6570\u533a\u95f4\uff09\u3002part \u4f20 key(characters/factions/military/economyConfig/worldSettings/officeTree/vassalSystem...) \u6216\u4e2d\u6587\u6807\u7b7e(\u4eba\u7269/\u52bf\u529b/\u519b\u4e8b/\u7ecf\u6d4e...)\uff1b\u4e0d\u4f20\u8fd4\u56de\u6240\u6709\u53ef\u53c2\u8003\u90e8\u5206\u5217\u8868\u3002\u751f\u6210\u6216\u5927\u6539\u67d0\u90e8\u5206\u524d\u5148 genReference \u770b\u4e00\u773c\u8001\u8303\u5f0f\uff0c\u501f\u9274\u5176\u8bbe\u5b9a\u6df1\u5ea6\uff08\u4f60\u662f\u5de5\u5177\u6d41\uff0c\u522b\u7167\u6284"\u53ea\u8f93\u51faJSON"\u683c\u5f0f\uff09\u3002',
+      parameters: { type: 'object', properties: { part: { type: 'string', description: '\u90e8\u5206 key \u6216\u4e2d\u6587\u6807\u7b7e\uff08\u53ef\u9009\uff0c\u4e0d\u586b\u8fd4\u56de\u90e8\u5206\u5217\u8868\uff09' } } }
+    },
+    {
+      name: 'readSource',
+      description: '\u8bfb\u53d6\u6b63\u5f0f\u6e38\u620f/\u7f16\u8f91\u5668\u7684\u6e90\u7801\u6587\u4ef6\uff08\u6309 path\uff0c\u8fd4\u56de\u5e26\u884c\u53f7\u7247\u6bb5\uff09\u3002\u60f3\u786e\u8ba4\u6e38\u620f UI/\u903b\u8f91\u600e\u4e48\u7528\u67d0\u5b57\u6bb5\u3001\u67d0\u673a\u5236\u600e\u4e48\u5b9e\u73b0\u65f6\u76f4\u63a5\u8bfb\u6e90\u7801\u3002path \u5982 "tm-endturn.js" / "phase8-formal-modules.js"\u3002\u6587\u4ef6\u5927\u65f6\u7528 offset/limit \u7ffb\u9875\u3002',
+      parameters: { type: 'object', properties: { path: { type: 'string', description: '\u6587\u4ef6\u76f8\u5bf9\u8def\u5f84' }, offset: { type: 'number', description: '\u8d77\u59cb\u884c(\u4ece0,\u9ed8\u8ba40)' }, limit: { type: 'number', description: '\u8bfb\u591a\u5c11\u884c(\u9ed8\u8ba4250,\u4e0a\u9650400)' } }, required: ['path'] }
+    },
+    {
+      name: 'listSource',
+      description: '\u5217\u51fa\u4ee3\u7801\u5e93\u91cc\u7684\u6e90\u7801\u6587\u4ef6\u6e05\u5355\uff08\u53ef\u7528 filter \u5b50\u4e32\u8fc7\u6ee4\uff0c\u5982 "tm-" / "phase8" / ".html"\uff09\u3002\u4e0d\u77e5\u9053\u67d0\u529f\u80fd\u5728\u54ea\u4e2a\u6587\u4ef6\u65f6\u5148 listSource \u627e\uff0c\u518d readSource \u8bfb\u3002',
+      parameters: { type: 'object', properties: { filter: { type: 'string', description: '\u6587\u4ef6\u540d\u5b50\u4e32\u8fc7\u6ee4(\u53ef\u9009)' } } }
+    },
+    {
+      name: 'grepSource',
+      description: '\u5728\u6e90\u7801\u91cc\u5168\u5c40\u641c\u5b57\u7b26\u4e32\uff08\u8de8\u6587\u4ef6 grep\uff09\uff0c\u8fd4\u56de\u547d\u4e2d\u7684 \u6587\u4ef6+\u884c\u53f7+\u8be5\u884c\u5185\u5bb9\u3002\u627e"\u67d0\u5b57\u6bb5\u5728\u54ea\u88ab\u8bfb\u3001\u67d0\u51fd\u6570\u5728\u54ea\u5b9a\u4e49"\u65f6\u7528\u3002\u53ef\u7528 glob \u9650\u5b9a\u6587\u4ef6\u5b50\u4e32\u3001maxFiles \u9650\u626b\u63cf\u6570\u3002',
+      parameters: { type: 'object', properties: { query: { type: 'string', description: '\u8981\u641c\u7684\u5b57\u7b26\u4e32' }, glob: { type: 'string', description: '\u53ea\u641c\u6587\u4ef6\u540d\u542b\u6b64\u5b50\u4e32\u7684\u6587\u4ef6(\u53ef\u9009)' }, maxFiles: { type: 'number', description: '\u6700\u591a\u626b\u51e0\u4e2a\u6587\u4ef6(\u9ed8\u8ba440,\u4e0a\u965080)' } }, required: ['query'] }
     },
     {
       name: 'listCollection',
@@ -1097,6 +1136,118 @@
   }
 
   /** 派发单个工具调用到 S1 工具，返回喂回模型的结果对象。 */
+  // C2 \u00b7 \u6e90\u7801\u8bfb\u53d6\uff08\u6d4f\u89c8\u5668 fetch\uff1bnode/\u65e0 fetch \u4f18\u96c5\u964d\u7ea7\uff09\u3002\u8ba9\u56fd\u5e08\u80fd\u8bfb\u6574\u4e2a\u4ee3\u7801\u5e93\u3002
+  function _safeSrcPath(p) {
+    // 拆 path 段、丢掉 '..'/'.'/空段再重组：堵路径穿越 + 前导 '//' 协议相对 URL 逃逸，保留合法文件名。
+    return String(p || '').replace(/\\/g, '/').split('/').filter(function (x) { return x && x !== '..' && x !== '.'; }).join('/');
+  }
+  function _readSourceTool(p, offset, limit) {
+    if (typeof fetch !== 'function') return Promise.resolve({ ok: false, reason: '\u5f53\u524d\u73af\u5883\u4e0d\u652f\u6301\u8bfb\u6e90\u7801\uff08\u4ec5\u7f16\u8f91\u5668\u6d4f\u89c8\u5668\u5185\u53ef\u7528\uff09' });
+    var safe = _safeSrcPath(p);
+    if (!safe) return Promise.resolve({ ok: false, reason: '\u9700\u8981 path' });
+    return fetch('/' + safe).then(function (r) {
+      if (!r.ok) return { ok: false, reason: '\u8bfb\u53d6\u5931\u8d25 HTTP ' + r.status + '\uff1a' + safe };
+      return r.text().then(function (txt) {
+        var lines = txt.split('\n');
+        var off = Math.max(0, Number(offset) || 0);
+        var lim = Math.min(400, Math.max(1, Number(limit) || 250));
+        var slice = lines.slice(off, off + lim);
+        return { ok: true, path: safe, totalLines: lines.length, from: off + 1, to: Math.min(lines.length, off + lim), content: slice.map(function (l, i) { return (off + i + 1) + '\t' + l; }).join('\n'), truncated: lines.length > off + lim };
+      });
+    }).catch(function (e) { return { ok: false, reason: '\u8bfb\u53d6\u51fa\u9519\uff1a' + ((e && e.message) || e) }; });
+  }
+  function _listSourceTool(filter) {
+    if (typeof fetch !== 'function') return Promise.resolve({ ok: false, reason: '\u4ec5\u6d4f\u89c8\u5668\u5185\u53ef\u7528' });
+    return fetch('/source-manifest.json').then(function (r) {
+      if (!r.ok) return { ok: false, reason: '\u65e0\u6e90\u7801\u6e05\u5355\uff08source-manifest.json \u7f3a\u5931\uff09' };
+      return r.json().then(function (m) {
+        var files = (m && m.files) || [];
+        if (filter) { var lf = String(filter).toLowerCase(); files = files.filter(function (f) { return f.toLowerCase().indexOf(lf) >= 0; }); }
+        return { ok: true, total: ((m && m.files) || []).length, matched: files.length, files: files.slice(0, 300) };
+      });
+    }).catch(function (e) { return { ok: false, reason: '\u6e05\u5355\u8bfb\u53d6\u51fa\u9519\uff1a' + ((e && e.message) || e) }; });
+  }
+  function _grepSourceTool(query, opts) {
+    opts = opts || {};
+    if (typeof fetch !== 'function') return Promise.resolve({ ok: false, reason: '\u4ec5\u6d4f\u89c8\u5668\u5185\u53ef\u7528' });
+    if (!query) return Promise.resolve({ ok: false, reason: '\u9700\u8981 query' });
+    var maxFiles = Math.min(80, Math.max(1, Number(opts.maxFiles) || 40));
+    var glob = opts.glob ? String(opts.glob).toLowerCase() : '';
+    var q = String(query);
+    return fetch('/source-manifest.json').then(function (r) { return r.ok ? r.json() : { files: [] }; }).then(function (m) {
+      var files = ((m && m.files) || []);
+      if (glob) files = files.filter(function (f) { return f.toLowerCase().indexOf(glob) >= 0; });
+      var scan = files.slice(0, maxFiles), hits = [];
+      return scan.reduce(function (chain, f) {
+        return chain.then(function () {
+          if (hits.length >= 50) return;
+          return fetch('/' + f).then(function (rr) { return rr.ok ? rr.text() : ''; }).then(function (txt) {
+            var ls = txt.split('\n');
+            for (var i = 0; i < ls.length && hits.length < 50; i++) { if (ls[i].indexOf(q) >= 0) hits.push({ file: f, line: i + 1, text: ls[i].trim().slice(0, 180) }); }
+          }).catch(function () {});
+        });
+      }, Promise.resolve()).then(function () { return { ok: true, query: q, scannedFiles: scan.length, matchedTotal: files.length, hits: hits }; });
+    }).catch(function (e) { return { ok: false, reason: 'grep \u51fa\u9519\uff1a' + ((e && e.message) || e) }; });
+  }
+
+  // D1 \u00b7 \u8001\u7f16\u8f91\u5668\u5404\u90e8\u5206 AI \u751f\u6210\u8303\u5f0f\uff08\u5b9e\u65f6\u8bfb editor-fullgen.js \u7684 33 \u4e2a\u751f\u6210\u6b65\uff0c\u96f6\u590d\u5236\u96f6\u6f02\u79fb\uff09\u3002
+  function _genReferenceTool(part) {
+    if (typeof fetch !== 'function') return Promise.resolve({ ok: false, reason: '\u4ec5\u6d4f\u89c8\u5668\u5185\u53ef\u7528' });
+    function deU(x) { return String(x == null ? '' : x).replace(/\\u([0-9a-fA-F]{4})/g, function (_, h) { return String.fromCharCode(parseInt(h, 16)); }); }
+    return fetch('/editor-fullgen.js').then(function (r) { return r.ok ? r.text() : ''; }).then(function (text) {
+      if (!text) return { ok: false, reason: '\u8bfb\u4e0d\u5230 editor-fullgen.js' };
+      var re = /\{\s*key\s*:\s*['"]([^'"]+)['"]\s*,\s*label\s*:\s*['"]([^'"]+)['"]/g, m, steps = [];
+      while ((m = re.exec(text))) steps.push({ key: m[1], label: deU(m[2]), idx: m.index });
+      if (!steps.length) return { ok: false, reason: 'editor-fullgen.js \u7ed3\u6784\u5df2\u53d8\uff0c\u672a\u627e\u5230\u751f\u6210\u6b65' };
+      if (!part) return { ok: true, note: '\u8001\u7f16\u8f91\u5668\u5168\u91cf\u751f\u6210\u7684\u5404\u90e8\u5206\u8303\u5f0f\uff08\u4f20 part=key \u6216\u4e2d\u6587\u6807\u7b7e\u53d6\u8be5\u90e8\u5206\u63d0\u793a\u8bcd\u53c2\u8003\uff09', parts: steps.map(function (x) { return x.key + '\uff08' + x.label + '\uff09'; }) };
+      var lp = String(part).toLowerCase();
+      var hit = steps.filter(function (x) { return x.key.toLowerCase() === lp || x.label === part; })[0]
+        || steps.filter(function (x) { return x.key.toLowerCase().indexOf(lp) >= 0 || x.label.indexOf(part) >= 0; })[0]
+        || steps.filter(function (x) { return lp.indexOf(x.key.toLowerCase()) >= 0; })[0];
+      if (!hit) return { ok: true, found: false, note: '\u6ca1\u627e\u5230\u300c' + part + '\u300d\uff0c\u53ef\u9009\u90e8\u5206\u89c1 parts', parts: steps.map(function (x) { return x.key + '(' + x.label + ')'; }) };
+      var nextIdx = steps.filter(function (x) { return x.idx > hit.idx; }).map(function (x) { return x.idx; }).sort(function (a, b) { return a - b; })[0];
+      var end = nextIdx || Math.min(text.length, hit.idx + 3500);
+      var block = text.slice(hit.idx, Math.min(end, hit.idx + 3500));
+      return { ok: true, found: true, part: hit.key, label: hit.label, file: 'editor-fullgen.js', guide: '\u8001\u7f16\u8f91\u5668\u751f\u6210\u300c' + hit.label + '\u300d\u7684\u63d0\u793a\u8bcd+\u6821\u9a8c\u53c2\u8003\u2014\u2014\u501f\u9274\u5176\u8bbe\u5b9a\u6df1\u5ea6/\u5b57\u6bb5\u5f62\u72b6/\u671d\u4ee3\u903b\u8f91/\u53c2\u6570\u533a\u95f4\uff1b\u4f60\u662f\u5de5\u5177\u6d41\uff0c\u522b\u7167\u6284"\u53ea\u8f93\u51faJSON"\u3002', reference: deU(block) };
+    }).catch(function (e) { return { ok: false, reason: '\u8bfb\u53d6\u51fa\u9519\uff1a' + ((e && e.message) || e) }; });
+  }
+
+  // 地图 op 辅助（刀5）：解析势力名→键、模糊定位地块、镜像同步
+  function _mapResolveFaction(draft, q) {
+    var key = String(q == null ? '' : q).trim();
+    if (!key) return { key: '', label: '' };
+    var map = (draft && draft.map) || {};
+    var facs = map.factions;
+    if (facs && typeof facs === 'object' && !Array.isArray(facs)) {
+      if (facs[key]) return { key: key, label: (facs[key] && facs[key].name) || key };
+      for (var k in facs) { if (facs[k] && facs[k].name === key) return { key: k, label: key }; }
+    }
+    var arr = Array.isArray(draft && draft.factions) ? draft.factions : [];
+    for (var i = 0; i < arr.length; i++) {
+      var f = arr[i]; if (!f) continue;
+      if (f.id === key || f.key === key || f.sid === key || f.stableId === key || f.name === key) {
+        return { key: f.stableId || f.key || f.id || f.sid || f.name, label: f.name || key };
+      }
+    }
+    return { key: key, label: key };
+  }
+  function _mapFindRegionIndex(regions, q) {
+    q = String(q == null ? '' : q).trim();
+    if (!q) return -1;
+    var i, r;
+    for (i = 0; i < regions.length; i++) { r = regions[i]; if (r && (r.id === q || r.name === q || r.adminBinding === q || r.mapRegionId === q)) return i; }
+    for (i = 0; i < regions.length; i++) {
+      r = regions[i]; if (!r) continue;
+      var nm = String(r.name || ''), ab = String(r.adminBinding || '');
+      if (nm && (nm.indexOf(q) >= 0 || q.indexOf(nm) >= 0)) return i;
+      if (ab && (ab.indexOf(q) >= 0 || q.indexOf(ab) >= 0)) return i;
+    }
+    return -1;
+  }
+  function _mapSyncMirror(draft) {
+    try { if (draft && draft.map && typeof draft.map === 'object' && draft.mapData && typeof draft.mapData === 'object') draft.mapData = JSON.parse(JSON.stringify(draft.map)); } catch (e) {}
+  }
+
   function dispatchTool(draft, name, input, surfaces) {
     input = input || {};
     switch (name) {
@@ -1123,6 +1274,53 @@
         if (input.includeOptional) out.optionalMissing = gaps.optionalMissing;
         return out;
       }
+      case 'fieldContract': {
+        var sv = surfaces || _getFieldSurfaces();
+        if (!sv.length) return { ok: false, reason: '\u5f53\u524d\u73af\u5883\u65e0\u6e38\u620f\u5b57\u6bb5\u5951\u7ea6\uff08RUNTIME_FIELD_SURFACES \u672a\u66b4\u9732\uff09' };
+        if (input.field) {
+          var hit = sv.filter(function (s) { return s && s.field === input.field; });
+          if (!hit.length) return { ok: true, field: input.field, inContract: false, note: '\u5b57\u6bb5\u300c' + input.field + '\u300d\u4e0d\u5728\u6e38\u620f\u5b57\u6bb5\u5951\u7ea6\u4e2d\u2014\u2014\u53ef\u80fd\u662f\u81ea\u5b9a\u4e49/\u6269\u5c55\u5b57\u6bb5\uff0c\u6b63\u5f0f\u6e38\u620f\u4e0d\u76f4\u63a5\u8bfb\u53d6\u3002' };
+          return { ok: true, field: input.field, inContract: true, contracts: hit.map(function (s) { return { name: s.title, required: !!s.required, module: s.moduleId, gameUse: s.detail || '', usedByScenarios: s.sources || [] }; }) };
+        }
+        return { ok: true, count: sv.length, fields: sv.map(function (s) { return s.field + (s.title ? '(' + s.title + ')' : '') + (s.required ? '\u00b7\u5fc5\u9700' : ''); }) };
+      }
+      case 'readSource': return _readSourceTool(input.path, input.offset, input.limit);
+      case 'genReference': return _genReferenceTool(input.part);
+      case 'mapOverview': {
+        var _m = (draft && draft.map) || (draft && draft.mapData) || {};
+        var _rg = Array.isArray(_m.regions) ? _m.regions : [];
+        if (!_rg.length) return { ok: true, regions: [], note: '当前剧本没有 map.regions（可先去地图编辑器或新建地图）' };
+        var _facList = [];
+        if (_m.factions && typeof _m.factions === 'object' && !Array.isArray(_m.factions)) {
+          _facList = Object.keys(_m.factions).map(function(k) { return k + (_m.factions[k] && _m.factions[k].name ? '(' + _m.factions[k].name + ')' : ''); });
+        } else if (Array.isArray(draft.factions)) {
+          _facList = draft.factions.slice(0, 40).map(function(f) { return (f.stableId || f.key || f.id || f.name) + (f.name ? '(' + f.name + ')' : ''); });
+        }
+        var _lim = Math.min(120, Number(input.limit) || 80);
+        var _rows = _rg.slice(0, _lim).map(function(r, i) {
+          return { i: i, id: r.id || '', name: r.name || '', owner: r.ownerKey || r.currentOwnerKey || r.controllerKey || '', adminBinding: r.adminBinding || '' };
+        });
+        return { ok: true, count: _rg.length, shown: _rows.length, factions: _facList.slice(0, 40), regions: _rows };
+      }
+      case 'mapAssignOwner': {
+        var _mp = draft && draft.map;
+        if (!_mp || !Array.isArray(_mp.regions) || !_mp.regions.length) return { ok: false, reason: '当前剧本没有 map.regions，无法改归属' };
+        var _idx = _mapFindRegionIndex(_mp.regions, input.region);
+        if (_idx < 0) return { ok: false, reason: '没找到地块「' + (input.region || '') + '」（用 mapOverview 看可用地块名）' };
+        var _fac = _mapResolveFaction(draft, input.owner);
+        var _region = _mp.regions[_idx];
+        var _before = _region.ownerKey || _region.currentOwnerKey || '';
+        _region.ownerKey = _fac.key;
+        _region.currentOwnerKey = _fac.key;
+        _region.controllerKey = _fac.key;
+        _region.stableFactionId = _fac.key;
+        if (_fac.label) { _region.factionName = _fac.label; _region.ownerName = _fac.label; }
+        if (input.adminBinding != null && String(input.adminBinding).trim()) _region.adminBinding = String(input.adminBinding).trim();
+        _mapSyncMirror(draft);
+        return { ok: true, region: _region.name || _region.id || ('#' + _idx), from: _before, to: _fac.key + (_fac.label && _fac.label !== _fac.key ? '(' + _fac.label + ')' : ''), note: '已改归属（地图预览会按新势力上色）' };
+      }
+      case 'listSource': return _listSourceTool(input.filter);
+      case 'grepSource': return _grepSourceTool(input.query, { maxFiles: input.maxFiles, glob: input.glob });
       case 'listCollection': {
         var rrc = _resolvePath(draft, input.collection);
         var arr = rrc && rrc.value;
@@ -1235,7 +1433,7 @@
     }, required: ['steps'] }
   };
   function _planTools() {
-    var readNames = { getField: 1, searchEntities: 1, globalSearch: 1, findReferences: 1, listGaps: 1, listCollection: 1, describeSchema: 1, validateDraft: 1, preflight: 1 };
+    var readNames = { getField: 1, fieldContract: 1, genReference: 1, readSource: 1, listSource: 1, grepSource: 1, searchEntities: 1, globalSearch: 1, findReferences: 1, listGaps: 1, listCollection: 1, describeSchema: 1, mapOverview: 1, validateDraft: 1, preflight: 1 };
     return AGENT_TOOLS.filter(function(t) { return readNames[t.name]; }).concat([PROPOSE_PLAN_TOOL]);
   }
   // 方向D · 审阅模式：只读工具 + submitReview（产出结构化体检报告，不动剧本）
@@ -1254,7 +1452,7 @@
     }, required: ['findings'] }
   };
   function _reviewTools() {
-    var readNames = { getField: 1, searchEntities: 1, globalSearch: 1, findReferences: 1, listGaps: 1, listCollection: 1, describeSchema: 1, validateDraft: 1, preflight: 1 };
+    var readNames = { getField: 1, fieldContract: 1, genReference: 1, readSource: 1, listSource: 1, grepSource: 1, searchEntities: 1, globalSearch: 1, findReferences: 1, listGaps: 1, listCollection: 1, describeSchema: 1, mapOverview: 1, validateDraft: 1, preflight: 1 };
     return AGENT_TOOLS.filter(function(t) { return readNames[t.name]; }).concat([SUBMIT_REVIEW_TOOL]);
   }
   // 方向L · 剧本问答：只读工具 + submitAnswer（查清后直接回答，不动剧本）
@@ -1266,7 +1464,7 @@
     }, required: ['answer'] }
   };
   function _qaTools() {
-    var readNames = { getField: 1, searchEntities: 1, globalSearch: 1, findReferences: 1, listGaps: 1, listCollection: 1, describeSchema: 1 };
+    var readNames = { getField: 1, fieldContract: 1, genReference: 1, readSource: 1, listSource: 1, grepSource: 1, searchEntities: 1, globalSearch: 1, findReferences: 1, listGaps: 1, listCollection: 1, describeSchema: 1, mapOverview: 1 };
     return AGENT_TOOLS.filter(function(t) { return readNames[t.name]; }).concat([SUBMIT_ANSWER_TOOL]);
   }
   // 方向N · 解释/教学：只读工具 + submitExplanation（讲解剧本设计意图与机制脉络，不动剧本）
@@ -1282,7 +1480,7 @@
     }, required: ['points'] }
   };
   function _explainTools() {
-    var readNames = { getField: 1, searchEntities: 1, globalSearch: 1, findReferences: 1, listGaps: 1, listCollection: 1, describeSchema: 1 };
+    var readNames = { getField: 1, fieldContract: 1, genReference: 1, readSource: 1, listSource: 1, grepSource: 1, searchEntities: 1, globalSearch: 1, findReferences: 1, listGaps: 1, listCollection: 1, describeSchema: 1, mapOverview: 1 };
     return AGENT_TOOLS.filter(function(t) { return readNames[t.name]; }).concat([SUBMIT_EXPLANATION_TOOL]);
   }
   // 方向B · 把玩家的「剧本约定」拼成系统提示词里的一段（空则不注入）
@@ -1349,7 +1547,7 @@
       '你是历史策略游戏「天命」的剧本编辑助手。通过调用工具编辑剧本草稿，满足用户需求。',
       '⓪ 多步/复杂任务先用 note 记一句计划（1. 2. 3.）再动手；用 listCollection/describeSchema 看清现状与字段、bulkAdd/multiEdit 一次多改提效。若需求含糊到无法动手（缺关键信息），先用 askClarification 问 1-3 个具体问题再继续；需求清楚就直接做。',
       '规则：① 只用工具修改/查询，不要直接输出 JSON 剧本正文。② 中文显示名（人物/势力/地名）保持中文，禁止英译。',
-      '③ 先用 getField/searchEntities/listGaps 查看现状与规格缺口再改；不确定东西在哪个集合时用 globalSearch 全局检索定位。与用户需求相关的必需缺口顺手补齐，让剧本完整可玩。④ 每改完一批用 validateDraft 自查，有违规继续修。⑤ 改好后用 preflight 跑运行时体检（确保游戏能正常加载），有 blockers 继续修到 bootable，再调用 finish——summary 要向玩家说清「改了什么、为什么这么改」（具体到关键实体/字段，2-4 句中文），不要只写"完成"。',
+      '③ 先用 getField/searchEntities/listGaps 查看现状与规格缺口再改；不确定东西在哪个集合时用 globalSearch 全局检索定位。想确认正式游戏怎么读某字段、读不读它，用 fieldContract 查契约（按需查，别凭印象）。想看游戏 UI/逻辑的源码实现，用 listSource 找文件、readSource 读、grepSource 全局搜——可直接读整个代码库。生成或大改某部分(人物/势力/经济/官制/封臣…)前，先 genReference 看老编辑器对该部分的生成范式(设定深度/字段形状/朝代逻辑/参数区间)，借鉴后再动手。改地图归属（把某地块划给某势力、调整疆域归属）时，先 mapOverview 看清现有地块/归属/势力，再 mapAssignOwner 按地块名+势力名改（自动上色、同步 map/mapData）。与用户需求相关的必需缺口顺手补齐，让剧本完整可玩。④ 每改完一批用 validateDraft 自查，有违规继续修。⑤ 改好后用 preflight 跑运行时体检（确保游戏能正常加载），有 blockers 继续修到 bootable，再调用 finish——summary 要向玩家说清「改了什么、为什么这么改」（具体到关键实体/字段，2-4 句中文），不要只写"完成"。',
       '⑥ 若发现该玩家/剧本有值得长期沿用的约定（命名规律、文风、设定惯例），可调 recordConvention 记一条（仅在确有发现时，别凑数）。⑦ 改名优先用 renameEntity（联动所有引用、不留死链）；删除实体前先 findReferences 查谁引用了它。⑧ 对没把握的改动（史实存疑、靠推测填充）调 flagUncertain 标一下路径，提醒玩家重点复核（只标真没把握的）。',
       _conventionsBlock(conventions),
       '',
@@ -1597,40 +1795,38 @@
           }
           var toolResults = [];
           var finishAccepted = false;
-          for (var i = 0; i < calls.length; i++) {
-            var c = calls[i];
-            var result;
-            if (c.name === 'finish') {
-              var blocking = _blockingViolations(validateDraft(draft), blockingChecks);
-              if (!blocking.length) { _finishSummary = (c.input && c.input.summary) || ''; result = { ok: true, finish: true, summary: _finishSummary }; finishAccepted = true; }
-              else { finishAttempts++; result = { ok: false, finish: false, reason: '草稿仍有 ' + blocking.length + ' 项必修违规，禁止结束，请先修复', violations: blocking }; }
-            } else {
-              var deny = _permCheck(c.name, c.input, perms);   // 方向F · 权限闸（范围沙箱/危险操作）
-              if (deny) {
-                result = { ok: false, reason: deny };   // 拦截·喂回让 agent 换法（不执行）
-              } else {
-                try {
-                  result = dispatchTool(draft, c.name, c.input, surfaces);   // 韧性：单工具抛错不拖垮整轮
-                } catch (te) {
-                  result = { ok: false, reason: '工具执行出错：' + ((te && te.message) || te) + '（请检查参数后重试，或换个工具/方式）' };
-                }
+          var _ci = 0;
+          function _procCall() {
+            if (_ci >= calls.length || finishAccepted) return Promise.resolve();
+            var c = calls[_ci++];
+            return Promise.resolve().then(function () {
+              if (c.name === 'finish') {
+                var blocking = _blockingViolations(validateDraft(draft), blockingChecks);
+                if (!blocking.length) { _finishSummary = (c.input && c.input.summary) || ''; finishAccepted = true; return { ok: true, finish: true, summary: _finishSummary }; }
+                finishAttempts++; return { ok: false, finish: false, reason: '\u8349\u7a3f\u4ecd\u6709 ' + blocking.length + ' \u9879\u5fc5\u4fee\u8fdd\u89c4\uff0c\u7981\u6b62\u7ed3\u675f\uff0c\u8bf7\u5148\u4fee\u590d', violations: blocking };
               }
+              var deny = _permCheck(c.name, c.input, perms);
+              if (deny) return { ok: false, reason: deny };
+              return Promise.resolve().then(function () { return dispatchTool(draft, c.name, c.input, surfaces); }).catch(function (te) { return { ok: false, reason: '\u5de5\u5177\u6267\u884c\u51fa\u9519\uff1a' + ((te && te.message) || te) + '\uff08\u8bf7\u68c0\u67e5\u53c2\u6570\u540e\u91cd\u8bd5\uff0c\u6216\u6362\u4e2a\u5de5\u5177/\u65b9\u5f0f\uff09' }; });
+            }).then(function (result) {
               if (c.name === 'proposePlan' && result && result.plan) { _planResult = { steps: result.steps, summary: result.summary }; finishAccepted = true; }
               if (c.name === 'submitReview' && result && result.review) { _reviewResult = { findings: result.findings, summary: result.summary }; finishAccepted = true; }
               if (c.name === 'submitAnswer' && result && result.answered) { _qaResult = { answer: result.answer }; finishAccepted = true; }
               if (c.name === 'submitExplanation' && result && result.explained) { _explainResult = { summary: result.summary, points: result.points }; finishAccepted = true; }
               if (c.name === 'askClarification' && result && result.clarify) { _clarifyResult = { questions: result.questions }; finishAccepted = true; }
-            }
-            record(c.name, c.input, result);
-            toolResults.push({ id: c.id, name: c.name, content: _resultToText(result) });
-            if (finishAccepted) break;
+              record(c.name, c.input, result);
+              toolResults.push({ id: c.id, name: c.name, content: _resultToText(result) });
+              return _procCall();
+            });
           }
-          conversation.push({ role: 'assistant', text: text, toolCalls: calls });
-          conversation.push({ role: 'tool', toolResults: toolResults });
-          tokensUsed += _estimateTokens(JSON.stringify(toolResults));
-          if (finishAccepted) { finished = true; stopReason = _clarifyResult ? 'needsClarification' : (_explainResult ? 'explained' : (_qaResult ? 'answered' : (_reviewResult ? 'reviewed' : (_planResult ? 'planned' : 'finish')))); return; }
-          if (finishAttempts >= maxFinishAttempts) { stopReason = 'finishBlocked'; return; }
-          return step();
+          return _procCall().then(function () {
+            conversation.push({ role: 'assistant', text: text, toolCalls: calls });
+            conversation.push({ role: 'tool', toolResults: toolResults });
+            tokensUsed += _estimateTokens(JSON.stringify(toolResults));
+            if (finishAccepted) { finished = true; stopReason = _clarifyResult ? 'needsClarification' : (_explainResult ? 'explained' : (_qaResult ? 'answered' : (_reviewResult ? 'reviewed' : (_planResult ? 'planned' : 'finish')))); return; }
+            if (finishAttempts >= maxFinishAttempts) { stopReason = 'finishBlocked'; return; }
+            return step();
+          });
         })
         .catch(function(e) {
           if (control.aborted) { stopReason = 'aborted'; return; }

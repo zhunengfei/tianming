@@ -264,8 +264,67 @@
   }
   // N1 · 焦点上下文：默认跟随编辑器选中；固定后冻结为固定值（喂 agent 也用固定值）。
   function _editorContext() {
-    if (ui._ctx && ui._ctx.pinned) return ui._ctx.value || '';
-    return _liveEditorContext();
+    var base = (ui._ctx && ui._ctx.pinned) ? (ui._ctx.value || '') : _liveEditorContext();
+    if (ui._mentions && ui._mentions.length) base += (base ? '\uFF1B' : '') + '\u3010\u7528\u6237\u5708\u5b9a\u3011' + ui._mentions.join('\u3001');
+    return base;
+  }
+  // N3 · @\u63d0\u53ca\u4f5c\u7528\u57df\u4e0a\u4e0b\u6587\uFF1A@\u5b9e\u4f53/@\u5b57\u6bb5\u8bfb\u5f53\u524d\u5267\u672c\u5019\u9009\uFF0C\u9009\u4e2d\u63d2\u5165\u540d\u5b57+\u8bb0 chip\uFF0C\u663e\u5f0f\u5708\u5b9a AI \u64cd\u4f5c\u8303\u56f4\u3002
+  function _mentionCandidates(q) {
+    var out = [];
+    try {
+      var sc = (ui.adapter && ui.adapter.getScenario) ? ui.adapter.getScenario() : null;
+      if (sc) {
+        ['characters', 'factions', 'events', 'rigidHistoryEvents', 'families', 'parties', 'items'].forEach(function (coll) {
+          var arr = sc[coll];
+          if (Array.isArray(arr)) arr.forEach(function (e) { var nm = e && (e.name || e.id || e.title); if (nm) out.push({ kind: '\u5b9e\u4f53', label: String(nm) }); });
+        });
+        Object.keys(sc).forEach(function (k) { out.push({ kind: '\u5b57\u6bb5', label: k }); });
+      }
+    } catch (e) {}
+    var seen = {}, uniq = [];
+    out.forEach(function (c) { if (!seen[c.label]) { seen[c.label] = 1; uniq.push(c); } });
+    if (q) { var lq = q.toLowerCase(); uniq = uniq.filter(function (c) { return c.label.toLowerCase().indexOf(lq) >= 0; }); }
+    return uniq.slice(0, 24);
+  }
+  function _renderMentionChips() {
+    if (!ui.els || !ui.els.mentions) return;
+    var m = ui._mentions || [];
+    if (!m.length) { ui.els.mentions.hidden = true; ui.els.mentions.innerHTML = ''; return; }
+    ui.els.mentions.hidden = false;
+    ui.els.mentions.innerHTML = m.map(function (nm) { return '<span class="tm-aa-mchip">@' + esc(nm) + '<button type="button" class="tm-aa-mx" data-m="' + esc(nm) + '" title="\u79fb\u9664">\u00d7</button></span>'; }).join('');
+  }
+  function _addMention(nm) { if (!nm) return; if (!ui._mentions) ui._mentions = []; if (ui._mentions.indexOf(nm) < 0) ui._mentions.push(nm); _renderMentionChips(); if (ui._ctx) ui._ctx._sig = null; _refreshCtxChip(); }
+  function _hideAtPop() { if (ui.els && ui.els.atpop) { ui.els.atpop.hidden = true; ui.els.atpop.innerHTML = ''; } ui._atActive = false; }
+  function _atQueryAtCursor() {
+    var ta = ui.els && ui.els.req; if (!ta) return null;
+    var pos = ta.selectionStart, before = ta.value.slice(0, pos);
+    var mm = before.match(/@([^\s@\u3000]*)$/);
+    return mm ? { q: mm[1], start: pos - mm[0].length, end: pos } : null;
+  }
+  function _showAtPop() {
+    var at = _atQueryAtCursor();
+    if (!at) { _hideAtPop(); return; }
+    var cands = _mentionCandidates(at.q);
+    if (!cands.length) { _hideAtPop(); return; }
+    ui._atActive = true; ui._atRange = at;
+    ui.els.atpop.hidden = false;
+    ui.els.atpop.innerHTML = cands.map(function (c) { return '<button type="button" class="tm-aa-atitem" data-label="' + esc(c.label) + '"><span class="tm-aa-atkind">' + esc(c.kind) + '</span>' + esc(c.label) + '</button>'; }).join('');
+  }
+  function _selectMention(label) {
+    var ta = ui.els && ui.els.req; var at = ui._atRange; if (!ta || !at) { _hideAtPop(); return; }
+    var v = ta.value; ta.value = v.slice(0, at.start) + '@' + label + ' ' + v.slice(at.end);
+    var np = at.start + label.length + 2; try { ta.focus(); ta.setSelectionRange(np, np); } catch (e) {}
+    _addMention(label); _hideAtPop();
+    try { ta.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
+  }
+  function _ensureAtMention() {
+    if (ui._atWired) return; ui._atWired = true; ui._mentions = ui._mentions || [];
+    var ta = ui.els && ui.els.req; if (!ta) return;
+    ta.addEventListener('input', _showAtPop);
+    ta.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && ui._atActive) { ev.stopPropagation(); _hideAtPop(); } });
+    if (ui.els.atpop) ui.els.atpop.addEventListener('mousedown', function (ev) { var b = ev.target && ev.target.closest ? ev.target.closest('.tm-aa-atitem') : null; if (b) { ev.preventDefault(); _selectMention(b.getAttribute('data-label')); } });
+    if (ui.els.mentions) ui.els.mentions.addEventListener('click', function (ev) { var x = ev.target && ev.target.closest ? ev.target.closest('.tm-aa-mx') : null; if (x) { var nm = x.getAttribute('data-m'); ui._mentions = (ui._mentions || []).filter(function (k) { return k !== nm; }); _renderMentionChips(); if (ui._ctx) ui._ctx._sig = null; _refreshCtxChip(); } });
+    document.addEventListener('click', function (ev) { if (ui._atActive && ui.els.atpop && !ui.els.atpop.contains(ev.target) && ev.target !== ta) _hideAtPop(); });
   }
   function _refreshCtxChip() {
     if (!ui.els || !ui.els.ctx) return;
@@ -335,6 +394,15 @@
       '.tm-aa-ctx-ico{flex:0 0 auto;opacity:.85}',
       '.tm-aa-ctx-pin{flex:0 0 auto;background:none;border:none;cursor:pointer;font-size:12px;opacity:.6;padding:0 2px;line-height:1}',
       '.tm-aa-ctx-pin:hover,.tm-aa-ctx-pin.on{opacity:1}',
+      '#tm-aa-mentions{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:2px}',
+      '#tm-aa-mentions[hidden]{display:none}',
+      '.tm-aa-mchip{display:inline-flex;align-items:center;gap:3px;font-size:11px;color:#cfe6dd;background:rgba(126,184,167,.14);border:1px solid rgba(126,184,167,.4);border-radius:10px;padding:1px 4px 1px 7px}',
+      '.tm-aa-mx{background:none;border:none;color:#cfe6dd;cursor:pointer;font-size:13px;line-height:1;padding:0 2px;opacity:.7}.tm-aa-mx:hover{opacity:1}',
+      '#tm-aa-atpop{position:absolute;left:12px;right:12px;bottom:calc(100% + 4px);z-index:9;max-height:210px;overflow:auto;background:#13151f;border:1px solid #3a3f55;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);padding:4px}',
+      '#tm-aa-atpop[hidden]{display:none}',
+      '.tm-aa-atitem{display:flex;align-items:center;gap:7px;width:100%;text-align:left;background:none;border:none;color:#e8e8f0;cursor:pointer;font-size:12px;padding:5px 8px;border-radius:6px;font-family:inherit}',
+      '.tm-aa-atitem:hover{background:rgba(122,92,255,.18)}',
+      '.tm-aa-atkind{flex:0 0 auto;font-size:10px;color:#9aa0bd;background:rgba(255,255,255,.06);border-radius:4px;padding:1px 5px}',
       '.tm-aa-diff-jump{cursor:pointer;border-bottom:1px dashed rgba(126,184,167,.5)}',
       '.tm-aa-diff-jump:hover{color:#a7e0cf}',
       '#tm-aa-meter{font-size:11px;color:#bfa9ff;font-variant-numeric:tabular-nums;padding:2px 0}',
@@ -449,6 +517,8 @@
       '<div class="tm-aa-search" id="tm-aa-search" hidden><input type="text" id="tm-aa-search-in" placeholder="在结果里查找…"><span class="tm-aa-search-n" id="tm-aa-search-n">0/0</span><button type="button" id="tm-aa-search-prev" title="上一个">↑</button><button type="button" id="tm-aa-search-next" title="下一个">↓</button><button type="button" id="tm-aa-search-x" title="关闭 (Esc)">×</button></div>',
       '<div id="tm-aa-composer">',   // UI iteration2 · 输入区聚成一块（docked 下 sticky 钉底）
       '<div id="tm-aa-ctx" hidden></div>',
+      '<div id="tm-aa-mentions" hidden></div>',
+      '<div id="tm-aa-atpop" hidden></div>',
       '<div id="tm-aa-status"></div>',
       '<textarea id="tm-aa-req" placeholder="描述你想要的修改，例如：把主角势力改名为「西凉军」并补两个文官"></textarea>',
       '<span class="tm-aa-charcount" id="tm-aa-charcount" hidden></span>',
@@ -475,6 +545,8 @@
       go: panel.querySelector('#tm-aa-go'),
       status: panel.querySelector('#tm-aa-status'),
       ctx: panel.querySelector('#tm-aa-ctx'),
+      mentions: panel.querySelector('#tm-aa-mentions'),
+      atpop: panel.querySelector('#tm-aa-atpop'),
       meter: panel.querySelector('#tm-aa-meter'),
       empty: panel.querySelector('#tm-aa-empty'),
       logSec: panel.querySelector('[data-sec="log"]'),
@@ -501,6 +573,7 @@
     _ensurePanelResize();   // UI·AI · 左缘拖拽调宽 + 载入持久宽度
     _ensureSearch();   // UI·AJ · 过程区内搜索（⌘F）
     _ensureCtxChip();   // N1 焦点上下文 chip
+    _ensureAtMention();   // N3 @提及作用域上下文
     ui.els.go.addEventListener('click', onGoClick);   // UI·Q · 运行中此键=停止
     ui.els.apply.addEventListener('click', onApply);
     ui.els.discard.addEventListener('click', onDiscard);
@@ -1542,6 +1615,12 @@
       ui.adapter.commit(_applyScenario());
       var partial = rej.size > 0;
       markLastApplied();   // 方向M · 把最近一条历史标记为已应用
+      try {   // N4 · 通知编辑器：在折子里高亮国师刚改的字段
+        var _touched = {}, _rejN = ui._diffRejected || new Set();
+        (ui._lastDiffs || []).forEach(function (d) { if (_rejN.has(d.__idx)) return; var top = String(d.path || '').split(/[.[]/)[0]; if (top) _touched[top] = 1; });
+        var _app = global.TM_SCENARIO_EDITOR_RESET_APP;
+        if (_app && typeof _app.markAgentTouched === 'function') _app.markAgentTouched(Object.keys(_touched));
+      } catch (e) {}
       setStatus('已应用到剧本 ✓' + (partial ? '（仅接受的改动·拒绝了 ' + rej.size + ' 处）' : '') + '（可撤销）');
       ui.els.actions.style.display = 'none';
       ui.draft = null;

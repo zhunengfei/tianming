@@ -1,0 +1,36 @@
+const PW = process.env.PW_PATH || 'playwright';
+const { chromium } = require(PW);
+const URL = 'http://127.0.0.1:8080/preview/scenario-editor-reset-preview.html';
+(async () => {
+  const b = await chromium.launch({ channel: 'msedge' });
+  const ctx = await b.newContext({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 2 });
+  const p = await ctx.newPage();
+  await p.goto(URL, { waitUntil: 'domcontentloaded' });
+  await p.waitForFunction(() => document.body && document.body.dataset.scenarioEditorResetApp === 'ready', { timeout: 20000 });
+  await p.evaluate(() => window.TM_SCENARIO_EDITOR_RESET_APP.loadOfficialScenario('tianqi7'));
+  await p.waitForTimeout(500);
+  const r = await p.evaluate(async () => {
+    const app = window.TM_SCENARIO_EDITOR_RESET_APP; const out = []; const ok = (n, c, i) => out.push((c ? 'PASS ' : 'RED  ') + n + (i ? ' [' + i + ']' : ''));
+    app.state.selectedModuleId = 'factionsSociety'; app.setWorkbenchPanel('structured-workbench'); await new Promise(r => setTimeout(r, 250));
+    var H = document.getElementById('module-primary-view');
+    ok('名册卡', H.querySelectorAll('.rwf2-rc').length >= 20, H.querySelectorAll('.rwf2-rc').length + '卡');
+    var sts = [].slice.call(H.querySelectorAll('.rwf2-st')).map(e => e.textContent);
+    ok('分组节', sts.length >= 6, sts.join('/'));
+    ok('嵌套子网格', H.querySelectorAll('.facf-sub').length >= 3, H.querySelectorAll('.facf-sub').length + '个');
+    ok('对象数组只读视图', H.querySelectorAll('.facf-objarr').length >= 1, H.querySelectorAll('.facf-objarr').length + '个');
+    ok('中文标签', /领导层/.test(H.innerHTML) && /府库/.test(H.innerHTML) && /凝聚力/.test(H.innerHTML));
+    var sc = H.querySelector('[data-fac-field="strength"]'); sc.value = '66'; sc.dispatchEvent(new Event('change', { bubbles: true })); await new Promise(r => setTimeout(r, 150));
+    var sel = app.state._facFolioSel || 0; ok('标量编辑落库', app.state.scenario.factions[sel].strength === 66, 'strength=' + app.state.scenario.factions[sel].strength);
+    var nf = document.getElementById('module-primary-view').querySelector('[data-fac-field="treasury.money"]');
+    if (nf) { nf.value = '999'; nf.dispatchEvent(new Event('change', { bubbles: true })); await new Promise(r => setTimeout(r, 150)); ok('嵌套编辑落库', app.state.scenario.factions[sel].treasury.money === 999, 'money=' + app.state.scenario.factions[sel].treasury.money); } else ok('嵌套编辑落库', false, 'no ctl');
+    var gt = document.getElementById('module-primary-view').querySelector('[data-fac-tab="graph"]'); gt.dispatchEvent(new MouseEvent('click', { bubbles: true })); await new Promise(r => setTimeout(r, 200));
+    ok('切关系图谱', !!document.getElementById('module-primary-view').querySelector('.frel-svg'));
+    var rt = document.getElementById('module-primary-view').querySelector('[data-fac-tab="roster"]'); if (rt) rt.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    return out;
+  });
+  r.forEach(x => console.log(x));
+  await p.waitForTimeout(250);
+  const host = await p.$('#module-primary-view');
+  if (host) await host.screenshot({ path: 'dev-tools/shot-faction-folio.png' });
+  await b.close(); process.exit(0);
+})().catch(e => { console.error('ERR', e); process.exit(2); });

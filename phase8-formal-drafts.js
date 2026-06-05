@@ -410,6 +410,19 @@
     }
   }
 
+  function recordDeskCrisisSurfaceResponse(payload, source){
+    try {
+      if (!window.GM || !window.AuthorityComplete || typeof window.AuthorityComplete.handleCrisisSurfaceResponse !== 'function') return null;
+      payload = payload || {};
+      return window.AuthorityComplete.handleCrisisSurfaceResponse(payload, {
+        turn: GM.turn || 1,
+        source: source || 'phase8-desk'
+      });
+    } catch (_) {
+      return null;
+    }
+  }
+
   function deskRecord(type, title, text, tags){
     var gm = deskGM();
     var turn = Number(gm.turn || 1);
@@ -512,6 +525,12 @@
       intensity: 0.72,
       policyTags: ['xinglu', 'player-action']
     });
+    recordDeskCrisisSurfaceResponse({
+      channel: 'player_action',
+      text: actionText,
+      topic: 'player action',
+      targetId: 'xinglu-' + (gm.turn || 1)
+    }, 'phase8-player-action');
     state.playerAction = '';
     clearFormalDraftStore(['playerAction']);
     deskRefreshLegacy();
@@ -624,6 +643,12 @@
         intensity: 0.72,
         policyTags: ['xinglu', 'player-action']
       });
+      recordDeskCrisisSurfaceResponse({
+        channel: 'player_action',
+        text: state.playerAction,
+        topic: 'player action',
+        targetId: 'xinglu-' + entry.id
+      }, 'phase8-edict-player-action');
     }
     deskDecision('edict', body, '已进入诏令追踪，后续过回合推演会读取执行与阻力');
     recordDeskActionSignal('publish-edict-desk', {
@@ -639,6 +664,13 @@
       intensity: 0.78,
       policyTags: ['edict']
     });
+    recordDeskCrisisSurfaceResponse({
+      channel: 'edict',
+      text: [typeText, edictType, receiver, body, state.playerAction].filter(Boolean).join(' '),
+      topic: title,
+      target: receiver,
+      targetId: entry.id
+    }, 'phase8-publish-edict');
     state.edictDraft = [];
     state.edictDrafts = {};
     state.playerAction = '';
@@ -745,6 +777,18 @@
         });
       }
     } catch (_) {}
+    recordDeskCrisisSurfaceResponse({
+      channel: 'memorial',
+      text: [reply, m.title, m.topic, m.content, m.text, m.body].filter(Boolean).join(' '),
+      decision: decision || '',
+      memoId: m.id || id || '',
+      target: m.from || m.sender || '',
+      targetName: m.targetName || m.target || '',
+      caseId: m.caseId || '',
+      revoltId: m.revoltId || '',
+      troops: m.troops || m.strength || 0,
+      crisisAction: m.crisisAction || m.authorityCrisisAction || null
+    }, 'phase8-memorial-decision');
     if (replyId && state.memorialReplies) delete state.memorialReplies[replyId];
     saveFormalDraftsToGM(false);
     openYueZouPreviewPanel();
@@ -932,6 +976,19 @@
           });
         }
       } catch (_) {}
+      recordDeskCrisisSurfaceResponse({
+        channel: 'hongyan',
+        text: [toNames, typeLabel, letterUrgencyLabelFormal(urgency), letterCipherLabelFormal(cipher), letterSendModeLabelFormal(sendMode), body].filter(Boolean).join(' '),
+        target: toNames,
+        to: toNames,
+        letterType: letterType,
+        urgency: urgency,
+        sendMode: sendMode,
+        cipher: cipher,
+        revoltId: letterDraft.revoltId || '',
+        troops: letterDraft.troops || letterDraft.strength || 0,
+        crisisAction: letterDraft.crisisAction || letterDraft.authorityCrisisAction || null
+      }, 'phase8-letter-send');
     }
     if (!draftOnly && Array.isArray(gm.qijuHistory)) {
       gm.qijuHistory.unshift({ turn: gm.turn || 1, date: deskDateText(gm.turn || 1), content: '【鸿雁传书】遣' + letterUrgencyLabelFormal(urgency) + '致' + toNames + '（' + typeLabel + (cipher !== 'none' ? '·' + letterCipherLabelFormal(cipher) : '') + (multiCount ? '·群发' + multiCount + '函' : '') + '）。内容：' + body });

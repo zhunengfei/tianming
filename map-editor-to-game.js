@@ -372,7 +372,115 @@
 
   // ─── expose ─────────────────────────────────────────────
 
+  // ─── ⁹ 反向桥·剧本/游戏格式 → map-editor 原生 divisions (刀２) ──────
+  //
+  // 输入·scenario { map:{regions[],factions}, adminHierarchy:{[fac]:{divisions[]}} }
+  // 输出·{ dynasty, era, title, bitmapWidth, bitmapHeight, divisions[], factions[] }·可直馈 ME.loadMap
+  // 几何取 map.regions·gameplay 取 adminHierarchy.divisions(最全)·按 id 合。loadMap 会走 createDivision 补全默认。
+  function convertScenarioToMapEditor(scenario){
+    scenario = scenario || {};
+    var map = scenario.map || scenario.mapData || {};
+    var regions = Array.isArray(map.regions) ? map.regions : [];
+    var ah = scenario.adminHierarchy;
+
+    // 几何索引·多键登记·官方剧本 div↔region 是松链接(div.name 常等于 region.adminBinding)
+    var geomById = {};
+    function regKey(k, poly){ if (k != null && k !== '' && geomById[k] == null && poly && poly.length >= 3) geomById[k] = poly; }
+    regions.forEach(function(r){
+      if (!r) return;
+      var poly = regionToPolygon(r);
+      if (!poly || poly.length < 3) return;
+      regKey(r.id, poly); regKey(r.mapRegionId, poly); regKey(r.name, poly); regKey(r.adminBinding, poly); regKey(r.sourceId, poly);
+    });
+
+    var divisions = [];
+    var factions = [];
+    var facSeen = {};
+    function pushFaction(id, name, color){
+      if (!id || facSeen[id]) return;
+      facSeen[id] = 1;
+      factions.push({ id: id, name: name || id, color: color || '' });
+    }
+    function attachGeom(nd){
+      var g = geomById[nd.mapRegionId] || geomById[nd.id] || geomById[nd.name] || geomById[nd.adminBinding];
+      if (g && g.length >= 3) nd.polygon = g;
+    }
+    function walkDivs(divs, facId){
+      (divs || []).forEach(function(d){
+        if (!d || typeof d !== 'object') return;
+        var nd = {};
+        for (var k in d){ if (k === 'children') continue; nd[k] = d[k]; }
+        attachGeom(nd);
+        if (facId && nd.factionId == null) nd.factionId = facId;
+        divisions.push(nd);
+        if (d.children && d.children.length) walkDivs(d.children, facId);
+      });
+    }
+
+    if (ah && typeof ah === 'object' && !Array.isArray(ah)){
+      Object.keys(ah).forEach(function(facKey){
+        var node = ah[facKey] || {};
+        var facId = node.factionId || facKey;
+        pushFaction(facId, node.factionName || node.name || facKey, node.color);
+        walkDivs(node.divisions || [], facId);
+      });
+    } else if (Array.isArray(ah) && ah.length){
+      walkDivs(ah, null);
+    } else {
+      regions.forEach(function(r){
+        var fid = r.factionId || r.ownerKey || r.currentOwnerKey || r.controllerKey || null;
+        pushFaction(fid, r.factionName || r.ownerName || fid, r.color || r.factionColor);
+        divisions.push({
+          id: r.id || r.mapRegionId, name: r.name || '', level: r.level || 'province',
+          polygon: regionToPolygon(r), terrain: r.terrain, neighbors: (r.neighbors || []).slice(),
+          prosperity: typeof r.prosperity === 'number' ? r.prosperity : (typeof r.development === 'number' ? r.development : undefined),
+          minxinLocal: r.minxinLocal, corruptionLocal: r.corruptionLocal, factionId: fid
+        });
+      });
+    }
+
+    enrichFactionColors(factions, map.factions);
+    return {
+      dynasty: map.dynasty || scenario.dynasty || '',
+      era: map.era || scenario.era || '',
+      title: map.name || map.title || scenario.name || scenario.title || '剧本地图',
+      bitmapWidth: map.width || map.bitmapWidth || 1280,
+      bitmapHeight: map.height || map.bitmapHeight || 800,
+      divisions: divisions,
+      factions: factions
+    };
+  }
+
+  function enrichFactionColors(factions, mapFactions){
+    if (!mapFactions) return;
+    var byId = {};
+    if (Array.isArray(mapFactions)) mapFactions.forEach(function(f){ if (f && f.id) byId[f.id] = f; });
+    else if (typeof mapFactions === 'object') Object.keys(mapFactions).forEach(function(k){ byId[k] = mapFactions[k]; });
+    factions.forEach(function(f){
+      var src = byId[f.id];
+      if (src && !f.color && src.color) f.color = src.color;
+      if (src && (!f.name || f.name === f.id) && src.name) f.name = src.name;
+    });
+  }
+
+  // 几何提取·优先 polygon[[x,y]]·次 points·次 coords(flat)·最后解 SVG path/d (scaffold 的 M/L)
+  function regionToPolygon(r){
+    if (!r) return [];
+    if (Array.isArray(r.polygon) && r.polygon.length >= 3 && Array.isArray(r.polygon[0])) return r.polygon.map(function(p){ return [p[0], p[1]]; });
+    if (Array.isArray(r.points) && r.points.length >= 3 && Array.isArray(r.points[0])) return r.points.map(function(p){ return [p[0], p[1]]; });
+    if (Array.isArray(r.coords) && r.coords.length >= 6){
+      var out = []; for (var i = 0; i + 1 < r.coords.length; i += 2) out.push([r.coords[i], r.coords[i + 1]]); return out;
+    }
+    var d = r.path || r.d;
+    if (typeof d === 'string'){
+      var nums = (d.match(/-?\d+(\.\d+)?/g) || []).map(Number);
+      var pts = []; for (var j = 0; j + 1 < nums.length; j += 2) pts.push([nums[j], nums[j + 1]]); return pts;
+    }
+    return [];
+  }
+
   global.convertMapEditorToGame = convertMapEditorToGame;
+  global.convertScenarioToMapEditor = convertScenarioToMapEditor;
   global.convertMapEditorToAdminHierarchy = convertMapEditorToAdminHierarchy;
   global.loadMapEditorJSON = loadMapEditorJSON;
   global.loadMapEditorFile = loadMapEditorFile;
@@ -382,6 +490,7 @@
   // 命名空间汇集
   global.MapEditorBridge = {
     convertMapEditorToGame: convertMapEditorToGame,
+    convertScenarioToMapEditor: convertScenarioToMapEditor,
     convertMapEditorToAdminHierarchy: convertMapEditorToAdminHierarchy,
     loadMapEditorJSON: loadMapEditorJSON,
     loadMapEditorFile: loadMapEditorFile,

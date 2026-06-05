@@ -55,6 +55,69 @@ function getCurrentAdminHierarchy() {
   return scriptData.adminHierarchy[_currentAdminFactionId];
 }
 
+function _adminBuildOfficialPositionOptions(selectedTitle) {
+  var options = '<option value="">无</option>';
+  var tree = scriptData.government && scriptData.government.officeTree;
+  if (!tree) return options;
+
+  var stack = [tree];
+  while (stack.length) {
+    var node = stack.pop();
+    if (!node) continue;
+    if (node.positions) {
+      for (var i = 0; i < node.positions.length; i++) {
+        var pos = node.positions[i];
+        var title = pos && pos.title;
+        var selected = (selectedTitle && selectedTitle === title) ? ' selected' : '';
+        options += '<option value="' + title + '"' + selected + '>' + title + '</option>';
+      }
+    }
+    if (node.departments) {
+      for (var j = node.departments.length - 1; j >= 0; j--) {
+        stack.push(node.departments[j]);
+      }
+    }
+  }
+  return options;
+}
+
+function _adminCollectLeafDivisionEntries(divs, parentPath) {
+  var out = [];
+  var stack = [];
+  divs = divs || [];
+  for (var i = divs.length - 1; i >= 0; i--) {
+    stack.push({ division: divs[i], path: parentPath ? parentPath + ' > ' + divs[i].name : divs[i].name });
+  }
+  while (stack.length) {
+    var item = stack.pop();
+    var d = item.division;
+    if (!d.children || d.children.length === 0) {
+      out.push(item);
+    } else {
+      for (var j = d.children.length - 1; j >= 0; j--) {
+        var child = d.children[j];
+        stack.push({ division: child, path: item.path ? item.path + ' > ' + child.name : child.name });
+      }
+    }
+  }
+  return out;
+}
+
+function _adminFindDivisionIn(divs, divId) {
+  var stack = (divs || []).slice().reverse();
+  while (stack.length) {
+    var d = stack.pop();
+    if (!d) continue;
+    if (d.id === divId) return d;
+    if (d.children) {
+      for (var i = d.children.length - 1; i >= 0; i--) {
+        stack.push(d.children[i]);
+      }
+    }
+  }
+  return null;
+}
+
 // 切换势力
 function switchAdminFaction(factionId) {
   _currentAdminFactionId = factionId;
@@ -262,23 +325,7 @@ function addAdminDivision(parentNode) {
   }
 
   // 生成官职选项（从官制系统中获取）
-  var officialOptions = '<option value="">无</option>';
-  if (scriptData.government && scriptData.government.officeTree) {
-    function collectOfficials(node) {
-      if (node.positions) {
-        for (var i = 0; i < node.positions.length; i++) {
-          var pos = node.positions[i];
-          officialOptions += '<option value="' + pos.title + '">' + pos.title + '</option>';
-        }
-      }
-      if (node.departments) {
-        for (var i = 0; i < node.departments.length; i++) {
-          collectOfficials(node.departments[i]);
-        }
-      }
-    }
-    collectOfficials(scriptData.government.officeTree);
-  }
+  var officialOptions = _adminBuildOfficialPositionOptions('');
 
   // 生成人物选项
   var characterOptions = '<option value="">无</option>';
@@ -380,24 +427,7 @@ function addAdminDivision(parentNode) {
 // 编辑行政单位
 function editAdminDivision(node) {
   // 生成官职选项
-  var officialOptions = '<option value="">无</option>';
-  if (scriptData.government && scriptData.government.officeTree) {
-    function collectOfficials(n) {
-      if (n.positions) {
-        for (var i = 0; i < n.positions.length; i++) {
-          var pos = n.positions[i];
-          var selected = (node.officialPosition === pos.title) ? ' selected' : '';
-          officialOptions += '<option value="' + pos.title + '"' + selected + '>' + pos.title + '</option>';
-        }
-      }
-      if (n.departments) {
-        for (var i = 0; i < n.departments.length; i++) {
-          collectOfficials(n.departments[i]);
-        }
-      }
-    }
-    collectOfficials(scriptData.government.officeTree);
-  }
+  var officialOptions = _adminBuildOfficialPositionOptions(node.officialPosition);
 
   // 生成人物选项
   var characterOptions = '<option value="">无</option>';
@@ -1060,12 +1090,6 @@ function importCitiesFromFile() {
   input.click();
 }
 
-// 初始化行政区划面板
-function initAdministrationPanel() {
-  updateAdminStats();
-  renderCitiesList();
-}
-
 // ====== CK3-style interactive tree visualization (identical to government tree) ======
 
 function renderAdminTree() {
@@ -1583,22 +1607,7 @@ function renderMappingList() {
   }
 
   // 收集所有最底层的行政单位（县/城级别）
-  var leafDivisions = [];
-  function collectLeafDivisions(divs, parentPath) {
-    for (var i = 0; i < divs.length; i++) {
-      var d = divs[i];
-      var path = parentPath ? parentPath + ' > ' + d.name : d.name;
-      if (!d.children || d.children.length === 0) {
-        leafDivisions.push({
-          division: d,
-          path: path
-        });
-      } else {
-        collectLeafDivisions(d.children, path);
-      }
-    }
-  }
-  collectLeafDivisions(adminHierarchy.divisions, '');
+  var leafDivisions = _adminCollectLeafDivisionEntries(adminHierarchy.divisions, '');
 
   var html = '<div style="margin-bottom: 16px; padding: 12px; background: #2a2a2a; border: 1px solid #444; border-radius: 4px; font-size: 12px; color: #aaa; line-height: 1.6;">'
     + '💡 提示：将地图地块分配给最底层的行政单位（如县、城），建立行政区划与地理地图的对应关系。'
@@ -1653,21 +1662,8 @@ function renderMappingList() {
 // 打开地块分配模态框
 function openMapDivisionModal(divisionId) {
   // 查找行政单位
-  var division = null;
-  function findDivision(divs) {
-    for (var i = 0; i < divs.length; i++) {
-      if (divs[i].id === divisionId) {
-        division = divs[i];
-        return true;
-      }
-      if (divs[i].children && findDivision(divs[i].children)) {
-        return true;
-      }
-    }
-    return false;
-  }
   var adminHierarchy = getCurrentAdminHierarchy();
-  findDivision(adminHierarchy.divisions);
+  var division = _adminFindDivisionIn(adminHierarchy.divisions, divisionId);
 
   if (!division) {
     alert('未找到该行政单位');
@@ -1712,21 +1708,8 @@ function openMapDivisionModal(divisionId) {
 
 // 移除映射的地块
 function removeMappedRegion(divisionId, regionId) {
-  var division = null;
-  function findDivision(divs) {
-    for (var i = 0; i < divs.length; i++) {
-      if (divs[i].id === divisionId) {
-        division = divs[i];
-        return true;
-      }
-      if (divs[i].children && findDivision(divs[i].children)) {
-        return true;
-      }
-    }
-    return false;
-  }
   var adminHierarchy = getCurrentAdminHierarchy();
-  findDivision(adminHierarchy.divisions);
+  var division = _adminFindDivisionIn(adminHierarchy.divisions, divisionId);
 
   if (division && division.mappedRegions) {
     var index = division.mappedRegions.indexOf(regionId);
@@ -1752,24 +1735,13 @@ function autoMapDivisions() {
   }
 
   // 收集所有最底层的行政单位
-  var leafDivisions = [];
-  function collectLeafDivisions(divs) {
-    for (var i = 0; i < divs.length; i++) {
-      var d = divs[i];
-      if (!d.children || d.children.length === 0) {
-        leafDivisions.push(d);
-      } else {
-        collectLeafDivisions(d.children);
-      }
-    }
-  }
-  collectLeafDivisions(adminHierarchy.divisions);
+  var leafDivisions = _adminCollectLeafDivisionEntries(adminHierarchy.divisions, '');
 
   var matchCount = 0;
 
   // 尝试根据名称匹配
   for (var i = 0; i < leafDivisions.length; i++) {
-    var div = leafDivisions[i];
+    var div = leafDivisions[i].division;
     var divName = div.name;
 
     // 查找名称相似的地块
@@ -1889,20 +1861,14 @@ function checkDivisionPermission(divisionId, permission) {
  */
 function findDivisionById(divId) {
   if (!P.adminHierarchy) return null;
-  var found = null;
-  function _search(divs) {
-    for (var i = 0; i < divs.length; i++) {
-      if (divs[i].id === divId) { found = divs[i]; return; }
-      if (divs[i].children) _search(divs[i].children);
-      if (found) return;
-    }
-  }
-  Object.keys(P.adminHierarchy).forEach(function(fid) {
-    if (found) return;
+  var ids = Object.keys(P.adminHierarchy);
+  for (var i = 0; i < ids.length; i++) {
+    var fid = ids[i];
     var ah = P.adminHierarchy[fid];
-    if (ah && ah.divisions) _search(ah.divisions);
-  });
-  return found;
+    var found = ah && ah.divisions ? _adminFindDivisionIn(ah.divisions, divId) : null;
+    if (found) return found;
+  }
+  return null;
 }
 
 // ============================================================
