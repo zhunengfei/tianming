@@ -91,6 +91,10 @@ function _memMarkIllegalPresenter(m, where){
   return true;
 }
 
+// TM_RETENTION_GUARD: generateMemorials-origin-wrapped-not-dead.
+// tm-save-lifecycle.js captures this function as _origGenMem and calls it from
+// the runtime wrapper, so this original body is live even though the global name
+// is overwritten later.
 function generateMemorials(){
   // tokens 预算 16000·原 2-4 份奏疏利用不足·按 tokens 量力而为生成更多
   // 默认提高到 6-10 份·玩家在编辑器可通过 memorialMin/memorialMax 覆盖

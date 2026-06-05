@@ -258,14 +258,6 @@ function proposeKejuPreparation(topicType, topicData){
   });
 }
 
-/**
- * 手动立即举办科举（已废弃，保留兼容）
- */
-function manualStartKeju(){
-  document.getElementById('keju-panel-modal').remove();
-  startKejuExam();
-}
-
 // ══════════════════════════════════════════════════════════════════
 // v5·C2·朝议结果回调+强推惩罚
 // ══════════════════════════════════════════════════════════════════
@@ -693,7 +685,7 @@ function openDianshiDelegatePicker() {
   var html = '<div style="background:var(--bg-1);border:1px solid var(--gold-d);border-radius:10px;padding:1.2rem 1.4rem;max-width:680px;width:90%;max-height:80vh;overflow-y:auto;">'+
     '<div style="font-size:1.08rem;color:var(--gold);font-weight:700;margin-bottom:0.6rem;">\u3014\u9009\u4EFB\u6BBE\u8BD5\u4EE3\u4E3B\u4EBA\u3015</div>'+
     '<div style="font-size:0.8rem;color:var(--txt-d);margin-bottom:0.8rem;line-height:1.7;">\u7687\u5E1D\u4E0D\u5728\u4EAC\u5E08\u00B7\u9700\u9009\u5728\u4EAC\u5B98\u5458\u4EE3\u4E3B\u6BBE\u8BD5\u3002\u4E0D\u540C\u8EAB\u4EFD\u5F71\u54CD\u5929\u5B50\u95E8\u751F\u5173\u7CFB\u3002</div>'+
-    '<input id="delegate-search" placeholder="\u641C\u7D22\u59D3\u540D/\u5B98\u804C" style="width:100%;padding:5px 8px;margin-bottom:0.5rem;background:var(--bg-3);border:1px solid var(--bdr);color:var(--txt);" oninput="_filterDelegateList(this.value)">'+
+    '<input id="delegate-search" placeholder="\u641C\u7D22\u59D3\u540D/\u5B98\u804C" style="width:100%;padding:5px 8px;margin-bottom:0.5rem;background:var(--bg-3);border:1px solid var(--bdr);color:var(--txt);" oninput="_scheduleDelegateFilter(this.value)">'+
     '<div id="delegate-list" style="max-height:360px;overflow-y:auto;">';
   candidates.forEach(function(c){
     var lbl = _kejuClassifyDelegate(c);
@@ -726,6 +718,17 @@ function _kejuClassifyDelegate(c) {
     return { label:'\u53F8\u793C\u76D1', color:'var(--vermillion-300)', isEunuch: true };
   }
   return { label:'\u6587\u81E3', color:'var(--ink-300)' };
+}
+
+var _delegateFilterTimer = 0;
+var _delegateFilterQuery = '';
+function _scheduleDelegateFilter(query) {
+  _delegateFilterQuery = query || '';
+  if (_delegateFilterTimer) clearTimeout(_delegateFilterTimer);
+  _delegateFilterTimer = setTimeout(function() {
+    _delegateFilterTimer = 0;
+    _filterDelegateList(_delegateFilterQuery);
+  }, 80);
 }
 
 /** 筛选代主列表 */
@@ -1032,6 +1035,7 @@ if (typeof window !== 'undefined') {
   // R112·advanceKejuByDays 定义在 tm-chaoyi.js·由后者自行暴露到 window
   window.openDianshiDelegatePicker = openDianshiDelegatePicker;
   window._pickDianshiDelegate = _pickDianshiDelegate;
+  window._scheduleDelegateFilter = _scheduleDelegateFilter;
   window._filterDelegateList = _filterDelegateList;
   // v7.1·D1·暴露 classify / bumpSatisfaction·供 smoke 测试 + 其他模块
   window._kejuClassifyDelegate = _kejuClassifyDelegate;

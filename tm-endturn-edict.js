@@ -161,6 +161,9 @@ function extractEdictActions(edictText) {
     /(?:赐死|赐予自尽|处死|处斩|斩首|诛杀|赐鸩)([\u4e00-\u9fa5]{2,6})/g
   ];
   var _deathSet = {};
+  // P-诛逆·B：诏书写明通敌/资敌/汉奸/卖国/谋逆等罪名 → 标 treasonCited，handler 据此给皇威（诛逆立威）。
+  //   质判定：认玩家在诏书里 declared 的罪名（yes/no），不替玩家脑补忠奸；朝代中立（认通用奸佞罪名词，不写死朝代）。
+  var _treasonCited = /(通敌|通虏|通虜|资敌|資敵|资虏|汉奸|漢奸|卖国|賣國|谋逆|謀逆|叛国|叛國|里通外|私通后金|私通建|私通敌|私通虏|内奸|奸细|細作|通番|资寇|通寇|卖主求荣|通虏卖国)/.test(text);
   deathPatterns.forEach(function(pat) {
     var m;
     while ((m = pat.exec(text)) !== null) {
@@ -173,7 +176,7 @@ function extractEdictActions(edictText) {
       }
       if (char.length < 2 || _deathSet[char]) continue;
       _deathSet[char] = true;
-      actions.deaths.push({ character: char });
+      actions.deaths.push({ character: char, treasonCited: _treasonCited });
     }
   });
 
@@ -560,9 +563,10 @@ function applyEdictActions(actions) {
         // P-QAM·诛逆确定性 floor：赐死的若是【系统已定罪的逆党】(char._conspiracyConvicted·镇压谋反时 apply 标记)，确定性给小额皇威——
         //   诛除已坐实奸党正法是立威之举·此为不含糊的质判定(已定罪 yes/no)·小额保底；其余 赐死(可能忠良/未定罪)不在此硬给·忠奸交 AI 经 record_sentiment_changes 判。系统每回合 ±5 净封顶兜住与 AI 的叠加。
         try {
-          if (char._conspiracyConvicted) {
+          if (char._conspiracyConvicted || a.treasonCited) {
             var _AEx = (typeof AuthorityEngines !== 'undefined' && AuthorityEngines) || (typeof window !== 'undefined' && window.AuthorityEngines) || null;
-            if (_AEx && typeof _AEx.adjustHuangwei === 'function') _AEx.adjustHuangwei('executeRebelMinister', 3, '诛除已定罪逆党 ' + a.character + '·正法立威');
+            var _zhuniWhy = (char._conspiracyConvicted ? '诛除已定罪逆党 ' : '诛除通敌奸佞 ') + a.character + '·正法立威';
+            if (_AEx && typeof _AEx.adjustHuangwei === 'function') _AEx.adjustHuangwei('executeRebelMinister', 3, _zhuniWhy);
           }
         } catch (_exHwE) {}
         // 赐死某人会让其亲近者对玩家产生怨恨
@@ -692,6 +696,43 @@ function extractEdictFiscalReforms(edictText) {
     seen[rule.type] = 1;
     out.push({ type: rule.type, raw: String(m[0]).slice(0, 24) });
   });
+  return out;
+}
+
+// 一次性财政动作（加派/开仓/借贷）——非持久改革·诏令发出当回合落效一次（P-RP3·2026-06-05）
+// 国库面板"拟诏"出标准化措辞→此处识别+档位→prep 调 GuokuEngine.Actions 落效。每类去重·一回合一次。
+function extractEdictFiscalActions(edictText) {
+  if (!edictText || edictText.length < 4) return [];
+  if (typeof GM === 'undefined' || !GM) return [];
+  var text = String(edictText).replace(/\s+/g, '');
+  var out = [];
+  var CN = { '一':0.1,'二':0.2,'两':0.2,'三':0.3,'四':0.4,'五':0.5,'六':0.6,'七':0.7,'八':0.8,'九':0.9,'十':1.0 };
+  // 加派赋税（一次性临时加征）
+  if (/加派|三饷|辽饷|剿饷|练饷/.test(text)) {
+    var rate = 0.5;
+    var rm = text.match(/([一二两三四五六七八九十])成/);
+    if (rm && CN[rm[1]] != null) rate = CN[rm[1]];
+    else if (/十成|全饷|尽数加派/.test(text)) rate = 1.0;
+    else if (/薄赋|二成|两成/.test(text)) rate = 0.2;
+    rate = Math.max(0.05, Math.min(1, rate));
+    out.push({ type: 'extraTax', tier: rate, raw: '加派' + Math.round(rate * 100) + '%' });
+  }
+  // 开仓赈济（一次性花库银济灾）
+  if (/开仓|赈济|赈灾|放粮/.test(text)) {
+    var scale = 'regional';
+    if (/普天|天下|举国|全国/.test(text)) scale = 'national';
+    else if (/州县|一州|一县/.test(text)) scale = 'county';
+    out.push({ type: 'openGranary', tier: scale, raw: '开仓·' + scale });
+  }
+  // 借贷（一次性举债·金额带进措辞）
+  if (/借银|借贷|举债|商借|告贷|借款/.test(text)) {
+    var amount = 200000, term = 12;
+    var am = text.match(/(\d+(?:\.\d+)?)\s*万两?/);
+    if (am) { var n = parseFloat(am[1]); if (isFinite(n) && n > 0) amount = Math.round(n * 10000); }
+    var tmt = text.match(/限(\d+)月/);
+    if (tmt) { var tt = parseInt(tmt[1], 10); if (isFinite(tt) && tt > 0) term = tt; }
+    out.push({ type: 'takeLoan', tier: amount, term: term, raw: '借' + Math.round(amount / 10000) + '万' });
+  }
   return out;
 }
 

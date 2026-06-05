@@ -136,16 +136,8 @@ function _postTurnCourtChoose(openCourt) {
           // 兜底·v3 未加载时退到 v1 模式选择页
           openChaoyi();
         }
-        if (false && typeof openChaoyi === 'function') {
-          // 旧路径已废·v2 _cc2_openPrepareDialog 已物理删除·跳过
-          if (false) {} // sentinel·保留旧代码块结构
-        }
         // 2) CY 设置为常朝模式（兼容兜底路径）
         if (typeof CY !== 'undefined') { CY.mode = 'changchao'; CY.topic = ''; }
-        // 3) 不再覆盖 cy-body·v3 自有 modal
-        var cyBody = null;
-        if (cyBody) cyBody.innerHTML = '<div style="text-align:center;color:var(--color-foreground-muted);padding:1rem;font-size:0.78rem;">\u3014\u6714\u671D\u00B7\u6B21\u6708\u521D\u671D\u3015\u7B79\u5907\u4E2D\u2026\u2026</div>';
-        // _cc2_openPrepareDialog 已物理删除·此调用永不执行
         // 4) 添加底栏进度 banner
         if (typeof _showPostTurnCourtBanner === 'function') _showPostTurnCourtBanner();
       } catch(_e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_e, 'postTurnCourt] openFailed:') : console.error('[postTurnCourt] openFailed:', _e); }

@@ -19,6 +19,294 @@
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
   function safe(v, d) { return (v === undefined || v === null) ? (d || 0) : v; }
+  function num(v) {
+    var n = Number(v == null ? 0 : v);
+    return isFinite(n) ? n : 0;
+  }
+  function firstDefined() {
+    for (var i = 0; i < arguments.length; i++) {
+      if (arguments[i] !== undefined && arguments[i] !== null) return arguments[i];
+    }
+    return undefined;
+  }
+  function copyPlain(obj) {
+    if (!obj || typeof obj !== 'object') return null;
+    var out = {};
+    Object.keys(obj).forEach(function(k) { out[k] = obj[k]; });
+    return out;
+  }
+
+  function normalizePrivateWealth(ch) {
+    if (!ch) return null;
+    if (!ch.resources) ch.resources = {};
+    var r = ch.resources;
+    var legacy = r.private || ch.privateWealth || {};
+    var current = r.privateWealth || {};
+    var pw = {};
+    Object.keys(current).forEach(function(k) { pw[k] = current[k]; });
+    function pick(field, alt) {
+      return firstDefined(current[field], current[alt], legacy[field], legacy[alt], 0);
+    }
+    pw.money = num(pick('money', 'cash'));
+    pw.grain = num(pick('grain'));
+    pw.cloth = num(pick('cloth'));
+    pw.land = num(firstDefined(current.land, current.landAcres, legacy.land, legacy.landAcres, 0));
+    pw.treasure = num(pick('treasure'));
+    pw.slaves = num(pick('slaves'));
+    pw.commerce = num(pick('commerce'));
+    var debt = firstDefined(current.debt, legacy.debt, legacy.liability, legacy.arrears);
+    pw.debt = debt == null ? (pw.money < 0 ? Math.abs(pw.money) : 0) : num(debt);
+    if (current.isNeitang) pw.isNeitang = true;
+    if (current.leaderScope) pw.leaderScope = current.leaderScope;
+    if (current.factionName) pw.factionName = current.factionName;
+    r.privateWealth = pw;
+    return pw;
+  }
+
+  // 私产汇总估值（设计-角色经济·资源二）·五大类对象数组 overlay：数组在则按明细折算，缺则回退扁平聚合值。
+  //   明细数组键(与扁平聚合并存·不冲突)：landHoldings[]/houses[]/shops[]/treasures[]/familyBusiness[]/debts[]/investments[]
+  //   扁平 land(亩)/treasure/commerce/debt 仍是快路径聚合·领袖 isNeitang 镜像不受影响(走 money/grain/cloth)。
+  function _calcPrivateSummary(ch) {
+    var zero = { money: 0, grain: 0, cloth: 0, totalValue: { money: 0, grain: 0, cloth: 0 } };
+    if (!ch || !ch.resources) return zero;
+    var pw = ch.resources.privateWealth || {};
+    var landPrice = (global.GM && GM.currency && GM.currency.market && num(GM.currency.market.landPricePerUnit)) || 5;  // 默认每亩5两(对齐抄家 land×5)
+    var t = { money: num(pw.money), grain: num(pw.grain), cloth: num(pw.cloth) };
+    // 田产
+    if (Array.isArray(pw.landHoldings) && pw.landHoldings.length) {
+      pw.landHoldings.forEach(function(l) {
+        t.money += num(l.area) * landPrice;
+        t.grain += num(l.yieldPerYear && l.yieldPerYear.grain);
+        t.cloth += num(l.yieldPerYear && l.yieldPerYear.cloth);
+      });
+    } else {
+      t.money += num(pw.land) * landPrice;
+    }
+    // 房产
+    (Array.isArray(pw.houses) ? pw.houses : []).forEach(function(h) { t.money += num(firstDefined(h.estimatedValue, h.value, 0)); });
+    // 商铺（无估值则按年营收×3 折）
+    (Array.isArray(pw.shops) ? pw.shops : []).forEach(function(s) { t.money += num(firstDefined(s.estimatedValue, (num(s.annualRevenue) * 3), 0)); });
+    // 珍玩
+    if (Array.isArray(pw.treasures) && pw.treasures.length) pw.treasures.forEach(function(tr) { t.money += num(tr.estimatedValue); });
+    else t.money += num(pw.treasure);
+    // 家族企业（无估值则按年利×3 折）
+    (Array.isArray(pw.familyBusiness) ? pw.familyBusiness : []).forEach(function(b) { t.money += num(firstDefined(b.estimatedValue, (num(b.annualProfit) * 3), 0)); });
+    // 商业（扁平 commerce 估值）
+    t.money += num(pw.commerce);
+    // 投资本金
+    (Array.isArray(pw.investments) ? pw.investments : []).forEach(function(iv) { t.money += num(firstDefined(iv.principal, iv.amount, 0)); });
+    // 扣债务
+    if (Array.isArray(pw.debts) && pw.debts.length) {
+      pw.debts.forEach(function(d) {
+        var a = d.amount;
+        if (a && typeof a === 'object') { t.money -= num(a.money); t.grain -= num(a.grain); t.cloth -= num(a.cloth); }
+        else t.money -= num(firstDefined(a, d.principal, 0));
+      });
+    } else {
+      t.money -= num(pw.debt);
+    }
+    t.money = Math.round(t.money); t.grain = Math.round(t.grain); t.cloth = Math.round(t.cloth);
+    return { money: t.money, grain: t.grain, cloth: t.cloth, totalValue: { money: t.money, grain: t.grain, cloth: t.cloth } };
+  }
+
+  function familyStatusOf(ch) {
+    return ch && ch.familyStatus && typeof ch.familyStatus === 'object' ? ch.familyStatus : null;
+  }
+
+  function familyIdOf(ch) {
+    if (!ch) return '';
+    if (typeof ch.family === 'string') return ch.family;
+    if (ch.family && typeof ch.family === 'object') {
+      return ch.family.clanId || ch.family.id || ch.family.name || '';
+    }
+    return ch.familyId || ch.clanId || ch.motherClan || '';
+  }
+
+  function familyRoleOf(ch) {
+    if (!ch) return '';
+    if (ch.family && typeof ch.family === 'object') return ch.family.role || '';
+    return ch.familyRole || '';
+  }
+
+  function eachFamilyRecord(fn) {
+    var g = global.GM || {};
+    [g.clans, g.families].forEach(function(src) {
+      if (!src) return;
+      if (Array.isArray(src)) {
+        src.forEach(function(item) { if (item) fn(item.id || item.key || item.name, item); });
+      } else if (typeof src === 'object') {
+        Object.keys(src).forEach(function(k) { if (src[k]) fn(k, src[k]); });
+      }
+    });
+  }
+
+  function findFamilyRecord(ch) {
+    var id = familyIdOf(ch);
+    var status = familyStatusOf(ch);
+    var statusName = status && (status['郡望'] || status.junwang || status.name);
+    var found = null;
+    eachFamilyRecord(function(k, rec) {
+      if (found || !rec) return;
+      if (id && (k === id || rec.id === id || rec.key === id || rec.name === id)) found = { key: k, rec: rec };
+      else if (statusName && rec.name === statusName) found = { key: k, rec: rec };
+    });
+    return found;
+  }
+
+  function familyTierOf(ch, record) {
+    var status = familyStatusOf(ch);
+    return (record && (record.tier || record.familyTier))
+      || (ch && ch.familyTier)
+      || (status && (status['门第'] || status.tier))
+      || '';
+  }
+
+  function normalizeSocialClass(ch) {
+    if (!ch) return 'commoner';
+    if (ch.socialClass && CLASS_PARAMS[ch.socialClass]) return ch.socialClass;
+    var tier = String(familyTierOf(ch) || '').toLowerCase();
+    var status = familyStatusOf(ch);
+    var statusTier = String(status && (status['门第'] || status.tier) || '').toLowerCase();
+    var title = String(ch.title || ch.officialTitle || '');
+    var bg = String(ch.background || '');
+    if (tier.indexOf('imperial') >= 0 || statusTier.indexOf('imperial') >= 0 || ch.isRoyal) return 'imperial';
+    if (/general|commander|military|marshal|将|帅|都督|总兵|提督/.test(title + bg)) return 'militaryOfficial';
+    if (ch.officialTitle || (num(ch.rankLevel) >= 1 && num(ch.rankLevel) <= 18) || (num(ch.rank) >= 1 && num(ch.rank) <= 9)) return 'civilOfficial';
+    if (tier.indexOf('noble') >= 0 || statusTier.indexOf('noble') >= 0 || /公|侯|伯/.test(title)) return 'noble';
+    if (tier.indexOf('merchant') >= 0 || statusTier.indexOf('merchant') >= 0 || /商/.test(bg)) return 'merchant';
+    if (tier.indexOf('land') >= 0 || /地主|乡绅/.test(bg)) return 'landlord';
+    if (statusTier.indexOf('peasant') >= 0 || statusTier.indexOf('outcast') >= 0) return 'commoner';
+    return inferSocialClass(ch);
+  }
+
+  function classParamsSnapshot(key) {
+    var src = CLASS_PARAMS[key] || CLASS_PARAMS.commoner || {};
+    var out = {};
+    Object.keys(src).forEach(function(k) {
+      if (typeof src[k] === 'number') out[k] = src[k];
+    });
+    return out;
+  }
+
+  function buildFamilyEconomySnapshot(ch) {
+    if (!ch) return null;
+    var found = findFamilyRecord(ch);
+    var record = found && found.rec;
+    var status = familyStatusOf(ch);
+    var id = (record && (record.id || record.key)) || (found && found.key) || familyIdOf(ch);
+    var name = (record && record.name) || (status && (status['郡望'] || status.junwang || status.name)) || id || '';
+    var members = record && Array.isArray(record.members) ? record.members : (Array.isArray(ch.familyMembers) ? ch.familyMembers : []);
+    if (!id && !name && !status && !members.length) return null;
+    var role = familyRoleOf(ch);
+    return {
+      clanId: id || '',
+      clanName: name || '',
+      tier: familyTierOf(ch, record),
+      renown: num(firstDefined(record && record.renown, record && record.prestige, record && record.clanPrestige, ch.clanPrestige, status && status['声望'])),
+      sharedWealth: num(firstDefined(record && record.sharedWealth, record && record.commonWealth, record && record.wealth)),
+      memberCount: members.length,
+      role: role,
+      isHead: role === 'head' || role === 'leader' || (record && (record.headId === ch.id || record.head === ch.name)),
+      familyStatus: copyPlain(status)
+    };
+  }
+
+  function buildSocialTierSnapshot(ch) {
+    if (!ch) return null;
+    var found = findFamilyRecord(ch);
+    var record = found && found.rec;
+    var key = normalizeSocialClass(ch);
+    return {
+      key: key,
+      rankLevel: num(firstDefined(ch.rankLevel, ch.rank)),
+      familyTier: familyTierOf(ch, record),
+      clanPrestige: num(firstDefined(ch.clanPrestige, record && record.renown, record && record.prestige)),
+      classParams: classParamsSnapshot(key)
+    };
+  }
+
+  // 六资源 → NPC 行为倾向权重（设计-角色经济·注入 AI 推演 prompt）
+  //   纯函数·defensive read（不 re-normalize·供 buildEconomySnapshot 内联调用）·通用·阈值朝代中立
+  var BW_MIDCLASS = 2000, BW_RICH = 20000;   // 中产/巨富 银两参考（引擎默认·剧本可另调平衡）
+  function computeBehaviorWeights(ch) {
+    if (!ch) return null;
+    var r = ch.resources || {};
+    var pw = r.privateWealth || r.private || {};
+    var money = num(pw.money);
+    var fame = num(r.fame);
+    var merit = num(r.virtueMerit);
+    var integrity = num(firstDefined(ch.integrity, 50));
+    var ambition = num(firstDefined(ch.ambition, 50));
+    var stress = num(firstDefined(r.stress, ch.stress, 20));
+    var health = num(firstDefined(r.health, ch.health, 70));
+    var corruption = (100 - integrity) / 100;
+    var ptMoney = r.publicTreasury ? num(firstDefined(r.publicTreasury.balance, r.publicTreasury.money)) : 0;
+    var clanInf = num(firstDefined(ch.clanPrestige, 50)) / 100;
+    var hasMil = !!(ch.hasMilitaryPower || /将|帅|总兵|提督|都督|统领|经略|总兵官/.test(String(ch.officialTitle || ch.title || '')));
+    function c1(v) { return Math.round(clamp(v, 0, 1) * 100) / 100; }
+    return {
+      bribery:           c1(0.1 + (money < 0 ? 0.4 : 0) + (money < BW_MIDCLASS ? 0.2 : 0) + ambition / 100 * 0.3),
+      embezzle:          c1(0.05 + (money < 0 ? 0.3 : 0) + corruption * 0.5 + (ptMoney > 100000 ? 0.1 : 0)),
+      politicalClout:    Math.round(clamp(0.2 + fame / 100 * 0.3 + merit / 15000 * 0.3 + money / (BW_RICH * 5) * 0.2, 0, 2) * 100) / 100,
+      luxury:            c1(0.2 + money / BW_RICH * 0.4 + (num(ch.rankLevel) >= 1 && num(ch.rankLevel) <= 2 ? 0.2 : 0)),
+      partyFunding:      c1(money / BW_RICH * 0.5 + ptMoney / 1000000 * 0.3),
+      antiCorruptSens:   c1(0.5 - (fame < 0 ? 0.3 : 0) - clanInf * 0.3),
+      resignRisk:        c1(stress / 100 * 0.4 + (100 - health) / 100 * 0.3 + (fame < -50 ? 0.2 : 0)),
+      rebelRisk:         c1((money < 0 ? 0.1 : 0) + (merit > 7500 && fame < -30 ? 0.3 : 0) + (hasMil ? 0.3 : 0) - (fame > 50 ? 0.2 : 0)),
+      recruitTalent:     c1(merit / 10500 * 0.5 + fame / 100 * 0.3)
+    };
+  }
+
+  function buildEconomySnapshot(ch) {
+    if (!ch) return null;
+    if (!ch.resources) ch.resources = {};
+    var r = ch.resources;
+    var privateWealth = normalizePrivateWealth(ch);
+    var money = num(privateWealth && privateWealth.money);
+    var publicPurse = r.publicPurse || null;
+    var publicTreasury = r.publicTreasury || null;
+    return {
+      privateWealth: {
+        money: money,
+        grain: num(privateWealth && privateWealth.grain),
+        cloth: num(privateWealth && privateWealth.cloth),
+        land: num(privateWealth && privateWealth.land),
+        treasure: num(privateWealth && privateWealth.treasure),
+        slaves: num(privateWealth && privateWealth.slaves),
+        commerce: num(privateWealth && privateWealth.commerce),
+        debt: money < 0 ? Math.max(Math.abs(money), num(privateWealth && privateWealth.debt)) : num(privateWealth && privateWealth.debt)
+      },
+      familyEconomy: buildFamilyEconomySnapshot(ch),
+      socialTier: buildSocialTierSnapshot(ch),
+      hiddenWealth: num(r.hiddenWealth),
+      privateSummary: _calcPrivateSummary(ch),
+      fame: num(r.fame),
+      virtueMerit: num(r.virtueMerit),
+      virtueStage: num(r.virtueStage),
+      behaviorWeights: computeBehaviorWeights(ch),
+      health: num(firstDefined(r.health, ch.health)),
+      stress: num(firstDefined(r.stress, ch.stress)),
+      publicPurse: publicPurse ? {
+        money: num(publicPurse.money),
+        grain: num(publicPurse.grain),
+        cloth: num(publicPurse.cloth)
+      } : null,
+      publicTreasury: publicTreasury ? {
+        linkedPost: publicTreasury.linkedPost || publicTreasury.post || null,
+        linkedRegion: publicTreasury.linkedRegion || publicTreasury.region || null,
+        balance: num(firstDefined(publicTreasury.balance, publicTreasury.money)),
+        grain: num(publicTreasury.grain),
+        cloth: num(publicTreasury.cloth),
+        deficit: num(firstDefined(publicTreasury.deficit, publicTreasury.lastHandoverDeficit)),
+        isReadOnly: publicTreasury.isReadOnly !== false
+      } : null,
+      lastTick: {
+        income: ch._lastTickIncome || null,
+        expense: ch._lastTickExpense || null,
+        net: num(ch._lastTickNet)
+      }
+    };
+  }
 
   function getMonthRatio() {
     if (typeof _getDaysPerTurn === 'function') return _getDaysPerTurn() / 30;
@@ -153,6 +441,7 @@
     var leaderLabel = ctx.type === 'emperor' ? '帑廪'
                     : ctx.type === 'factionLeader' ? (ctx.faction && (ctx.faction.name + '·国库') || '国库')
                     : null;
+    normalizePrivateWealth(ch);
 
     // 1) 公库（机构绑定 · 只读镜像）—— 由地方/中央财政系统更新
     //    势力领袖特例：linkedPost=<帑廪/势力国库> · 镜像 GM.guoku 或 faction.treasury 三列（money/grain/cloth）
@@ -221,10 +510,44 @@
     if (ch.integrity === undefined) ch.integrity = 50 + Math.floor((Math.random() - 0.5) * 40);
 
     // 社会阶层
-    if (!ch.socialClass) ch.socialClass = inferSocialClass(ch);
+    if (!ch.socialClass || !CLASS_PARAMS[ch.socialClass]) ch.socialClass = normalizeSocialClass(ch);
 
     // 家族
     if (!ch.family) ch.family = { clanId: null, headId: null, role: 'member' };
+  }
+
+  // 显式检测缺失字段（设计-角色经济·运行时自动补齐 _detectMissingFields）
+  function detectMissingFields(ch) {
+    var missing = [];
+    if (!ch) return missing;
+    if (!ch.name) missing.push('name');
+    if (ch.gender == null) missing.push('gender');
+    if (ch.age == null) missing.push('age');
+    if (!ch.zi && !ch.courtesy) missing.push('courtesy');
+    if (!ch.resources) missing.push('resources');
+    ['loyalty', 'ambition', 'intelligence', 'administration'].forEach(function(a) { if (ch[a] == null) missing.push(a); });
+    if (!ch.socialClass) missing.push('socialClass');
+    if (!ch.family) missing.push('family');
+    return missing;
+  }
+
+  // 确定性补全残缺角色（设计-角色经济·_ensureCharComplete 的确定性层）
+  //   五类触发(AI涌现/剧本进场/玩家诏令/历史事件/继承婚姻)统一靠每回合全 char 扫描收口——
+  //   不论角色从何途径进来，下个 tick 必被补全。AI 散文/家谱深度生成由 aiGenerateCompleteCharacter 负责(创建时)。
+  function ensureCharComplete(ch) {
+    if (!ch) return [];
+    var missing = detectMissingFields(ch);
+    if (missing.length) {
+      if (ch.gender == null) ch.gender = '男';   // 古代官场默认(剧本/AI 可改)
+      if (ch.age == null) ch.age = 35;
+      // 十维缺省(中庸 50)·只填 undefined·不覆盖既有
+      ['loyalty', 'ambition', 'intelligence', 'valor', 'military', 'administration',
+       'management', 'charisma', 'diplomacy', 'benevolence'].forEach(function(a) { if (ch[a] == null) ch[a] = 50; });
+      ch._autoCompletedTurn = (global.GM && global.GM.turn) || 0;
+    }
+    ensureCharResources(ch);   // 六资源保障
+    ensureCourtesyName(ch);    // 字保障
+    return missing;
   }
 
   function inferSocialClass(ch) {
@@ -237,6 +560,34 @@
     if (/地主|乡绅/.test(ch.background || '')) return 'landlord';
     if (/僧|道|尼|觊/.test(ch.background || '')) return 'clergy';
     return 'commoner';
+  }
+
+  // 身份转换：任命/受封时升阶（绕过 socialClass 的 sticky 早返）
+  //   平民/商/地主/僧道 入仕 → 文官/武官；受爵/世袭 → 勋贵；皇族不降；已官身/勋贵不降。
+  //   覆盖设计四转换之三：捐纳→官·科举→官·武官世袭→勋贵（获罪→庶人在 confiscate 已落）。
+  function reconcileSocialClassOnAppointment(ch) {
+    if (!ch || !ch.officialTitle) return ch ? ch.socialClass : null;
+    var cls = ch.socialClass;
+    if (cls === 'imperial') return cls;                      // 皇族不因任官改阶
+    var t = String(ch.officialTitle || '') + String(ch.title || '');
+    var bg = String(ch.background || '');
+    // 受封爵位 / 世袭袭爵 → 勋贵
+    if (/(公|侯|伯)$/.test(ch.officialTitle || '') || /世袭|袭爵/.test(bg + t)) {
+      if (cls !== 'noble') ch.socialClass = 'noble';
+      return ch.socialClass;
+    }
+    if (cls === 'noble') return cls;                         // 已勋贵不降
+    if (cls === 'civilOfficial' || cls === 'militaryOfficial') return cls;  // 已官身
+    // 平民/商/地主/僧道/无效 → 入仕升官身
+    ch.socialClass = /general|commander|military|marshal|将|帅|都督|总兵|提督/.test(t + bg) ? 'militaryOfficial' : 'civilOfficial';
+    return ch.socialClass;
+  }
+
+  // 显式阶层设置（供捐纳/世袭/掠夺等专门转换路径调用）
+  function setSocialClass(ch, cls) {
+    if (!ch || !CLASS_PARAMS[cls]) return false;
+    ch.socialClass = cls;
+    return true;
   }
 
   // ═════════════════════════════════════════════════════════════
@@ -284,16 +635,20 @@
       if (ch.isImperialFavorite && Math.random() < 0.05) return 500 + Math.random() * 5000;
       return 0;
     },
-    // 4. 经营（商人/地主）
+    // 4. 经营（商人/地主）·有 shops[] 明细则交细粒度 shopRevenue 处理(防双计)
     commerce: function(ch) {
+      var pw = ch.resources.privateWealth;
+      if (Array.isArray(pw.shops) && pw.shops.length) return 0;
       var cls = CLASS_PARAMS[ch.socialClass] || {};
-      if (cls.commerceYield) return (ch.resources.privateWealth.commerce || 0) * cls.commerceYield / 12;
+      if (cls.commerceYield) return (pw.commerce || 0) * cls.commerceYield / 12;
       return 0;
     },
-    // 5. 田租（地主）
+    // 5. 田租（地主）·有 landHoldings[] 明细则交细粒度 landRentDetail(防双计)
     rent: function(ch) {
+      var pw = ch.resources.privateWealth;
+      if (Array.isArray(pw.landHoldings) && pw.landHoldings.length) return 0;
       var cls = CLASS_PARAMS[ch.socialClass] || {};
-      if (cls.landYield) return (ch.resources.privateWealth.land || 0) * cls.landYield / 12;
+      if (cls.landYield) return (pw.land || 0) * cls.landYield / 12;
       return 0;
     },
     // 6. 贿赂（腐败收入）
@@ -355,6 +710,48 @@
     personalTribute: function(ch) {
       if ((ch.rankLevel || 0) < 15) return 0;  // 高官才有
       return (ch.rankLevel || 0) * (ch.influence || 50) / 50 * 5;
+    },
+    // 15. 商铺营收（细粒度·shops[] 各店年营收/12）
+    shopRevenue: function(ch) {
+      var pw = ch.resources.privateWealth;
+      if (!Array.isArray(pw.shops) || !pw.shops.length) return 0;
+      var s = 0;
+      pw.shops.forEach(function(x) { s += num(x.annualRevenue); });
+      return s / 12;
+    },
+    // 16. 家族企业利润（细粒度·familyBusiness[] 年利按 partner 数分红/12）
+    businessProfit: function(ch) {
+      var pw = ch.resources.privateWealth;
+      if (!Array.isArray(pw.familyBusiness) || !pw.familyBusiness.length) return 0;
+      var s = 0;
+      pw.familyBusiness.forEach(function(b) {
+        var p = num(b.annualProfit);
+        var partners = Array.isArray(b.partners) ? b.partners.length : 1;
+        s += partners > 1 ? p / partners : p;   // 多股东均分
+      });
+      return s / 12;
+    },
+    // 17. 放贷/投资收益（细粒度·investments[] 年息/12·违约不计）
+    investmentReturn: function(ch) {
+      var pw = ch.resources.privateWealth;
+      if (!Array.isArray(pw.investments) || !pw.investments.length) return 0;
+      var s = 0;
+      pw.investments.forEach(function(iv) {
+        if (iv.status === 'defaulted') return;
+        s += num(firstDefined(iv.expectedReturn, num(iv.principal) * num(firstDefined(iv.rate, 0.1)), 0));
+      });
+      return s / 12;
+    },
+    // 18. 田庄租息（细粒度·landHoldings[] 按亩×市价×地租率/12）
+    landRentDetail: function(ch) {
+      var pw = ch.resources.privateWealth;
+      if (!Array.isArray(pw.landHoldings) || !pw.landHoldings.length) return 0;
+      var cls = CLASS_PARAMS[ch.socialClass] || {};
+      var yieldRate = cls.landYield || 0.05;
+      var price = (global.GM && GM.currency && GM.currency.market && num(GM.currency.market.landPricePerUnit)) || 5;
+      var s = 0;
+      pw.landHoldings.forEach(function(l) { s += num(l.area) * price * yieldRate; });
+      return s / 12;
     }
   };
 
@@ -383,10 +780,11 @@
       if (cls.salaryMult > 2) return cls.consumptionBase * 0.3;
       return cls.consumptionBase * 0.1;
     },
-    // 5. 宅第修缮
+    // 5. 宅第修缮·有 houses[] 明细则交细粒度 houseUpkeep(防双计)
     estate: function(ch) {
-      var land = ch.resources.privateWealth.land || 0;
-      return land * 0.01;  // 亩 0.01 两/月修缮
+      var pw = ch.resources.privateWealth;
+      if (Array.isArray(pw.houses) && pw.houses.length) return 0;
+      return (pw.land || 0) * 0.01;  // 亩 0.01 两/月修缮
     },
     // 6. 驭下（塞银/孝敬上司）
     patronage: function(ch) {
@@ -420,16 +818,41 @@
     lifeEvents: function(ch) {
       return safe(ch._lifeEventCostThisTurn, 0);
     },
-    // 13. 借款利息
+    // 13. 借款利息·有 debts[] 明细则交细粒度 debtService(防双计)
     debtInterest: function(ch) {
-      if (!ch.resources.privateWealth.money || ch.resources.privateWealth.money >= 0) return 0;
-      return Math.abs(ch.resources.privateWealth.money) * 0.02;  // 2%/月
+      var pw = ch.resources.privateWealth;
+      if (Array.isArray(pw.debts) && pw.debts.length) return 0;
+      if (!pw.money || pw.money >= 0) return 0;
+      return Math.abs(pw.money) * 0.02;  // 2%/月
     },
     // 14. 赌博挥霍
     gambling: function(ch) {
       // traits 含"贪玩"或 stress > 70 时可能
       if ((ch.stress || 0) > 70 && Math.random() < 0.1) return 100 + Math.random() * 500;
       return 0;
+    },
+    // 15. 宅院维护（细粒度·houses[] 各宅年维护/12 + 奢华度月耗）
+    houseUpkeep: function(ch) {
+      var pw = ch.resources.privateWealth;
+      if (!Array.isArray(pw.houses) || !pw.houses.length) return 0;
+      var s = 0;
+      pw.houses.forEach(function(h) {
+        var annual = num(firstDefined(h.annualUpkeep, num(h.estimatedValue || h.value) * 0.02, 0));
+        s += annual / 12 + num(h.luxuryLevel) * 20;   // 月维护 + 奢华月耗(luxuryLevel 0-10 → 0-200/月)
+      });
+      return s;
+    },
+    // 16. 债务清偿（细粒度·debts[] 各笔按月息）
+    debtService: function(ch) {
+      var pw = ch.resources.privateWealth;
+      if (!Array.isArray(pw.debts) || !pw.debts.length) return 0;
+      var s = 0;
+      pw.debts.forEach(function(d) {
+        var a = d.amount;
+        var principal = (a && typeof a === 'object') ? num(a.money) : num(firstDefined(a, d.principal, 0));
+        s += principal * num(firstDefined(d.monthlyRate, d.rate ? num(d.rate) / 12 : 0.02));  // 默认月息 2%
+      });
+      return s;
     }
   };
 
@@ -499,7 +922,8 @@
     }
     // 正当收入入 money
     ['salary','imperialReward','commerce','rent','inheritance','tributeShare',
-     'examReward','templeDonation','militaryReward','personalTribute','extortion'].forEach(function(k) {
+     'examReward','templeDonation','militaryReward','personalTribute','extortion',
+     'shopRevenue','businessProfit','investmentReturn','landRentDetail'].forEach(function(k) {
       if (incomeDetail[k]) r.privateWealth.money += incomeDetail[k];
     });
 
@@ -533,6 +957,9 @@
 
     // ─ 名望衰减 ─
     tickFame(ch, mr);
+
+    // ─ §XI 角色↔官方变量联动（环境腐败→integrity·皇威皇权→loyalty·暴君→压力）─
+    tickCharVariableLinkages(ch, mr);
 
     // 记录本回合流水
     ch._lastTickIncome = incomeDetail;
@@ -658,6 +1085,45 @@
     }
   }
 
+  // 统一只读镜像（UI/外部读公库的唯一入口）—— 闲职/无官返回全零
+  function getCharPublicTreasuryDisplay(ch) {
+    var empty = { money: 0, grain: 0, cloth: 0, deficit: 0, isReadOnly: true, isInherited: false, linkedPost: null, linkedRegion: null, isGuoku: false };
+    if (!ch) return empty;
+    ensureCharResources(ch);
+    updatePublicTreasuryMirror(ch);
+    var pt = ch.resources.publicTreasury;
+    if (!pt || (!pt.linkedPost && !pt.linkedRegion && !pt.isGuoku)) return empty;
+    return {
+      money: num(pt.balance),
+      grain: num(pt.grain),
+      cloth: num(pt.cloth),
+      deficit: num(firstDefined(pt.deficit, pt.lastHandoverDeficit)),
+      isReadOnly: pt.isReadOnly !== false,
+      isInherited: !!(pt.handoverLog && pt.handoverLog.length > 0 && num(pt.lastHandoverDeficit) > 0),
+      linkedPost: pt.linkedPost || null,
+      linkedRegion: pt.linkedRegion || null,
+      isGuoku: !!pt.isGuoku
+    };
+  }
+
+  // 去职追亏：离任时机构(职位/区域)仍有亏空 → 向离任者私产追偿，返回追回额
+  //   surplus(盈余)无需移交——公库绑机构，盈余天然留任给继任，故只处理 deficit。
+  function pursueTreasuryDeficit(ch, entity) {
+    if (!ch || !entity || !entity.publicTreasury || !entity.publicTreasury.money) return { pursued: 0, deficitRemaining: 0 };
+    ensureCharResources(ch);
+    var m = entity.publicTreasury.money;
+    var def = num(m.deficit);
+    if (def <= 0) return { pursued: 0, deficitRemaining: 0 };
+    var pw = ch.resources.privateWealth;
+    var pursued = Math.min(def, Math.max(0, num(pw.money)));   // 至多追到私产现银见底，不造负债
+    if (pursued > 0) {
+      pw.money -= pursued;
+      m.deficit = def - pursued;
+      m.available = num(m.available) + pursued;
+    }
+    return { pursued: pursued, deficitRemaining: m.deficit };
+  }
+
   function tickStressHealth(ch, mr) {
     // 压力消长
     var stressDelta = 0;
@@ -686,12 +1152,19 @@
   function tickVirtueMerit(ch, mr) {
     var r = ch.resources;
     // 每月微积累（按能力 + 政绩）
+    var TP = (typeof window !== 'undefined' ? window : (typeof global !== 'undefined' ? global : this)).TMPromotion;
     var base = 0;
-    if (ch.officialTitle) base += 0.1;
-    if (ch.abilities && ch.abilities.administration) base += (ch.abilities.administration - 50) / 100 * 0.3;
-    if (ch.integrity > 70) base += 0.2;
-    if (ch._recentAchievements) base += ch._recentAchievements * 0.5;
-    r.virtueMerit = (r.virtueMerit || 0) + base * mr;
+    if (ch.officialTitle) base += 0.3;                                  // 在职底(庸臣也有基本积累)
+    if (ch._recentAchievements) base += ch._recentAchievements * 0.5;   // 近期功绩
+    // 八维能臣度驱动(能者多得·拉大能力差距)·替代原死字段 ch.abilities·#3 功名与廉洁解耦(去掉 integrity>70 加成)
+    var _cap = TP ? TP.capability(ch, (typeof getEffectiveAttr === 'function' ? getEffectiveAttr : null)) : 50;
+    base += Math.max(0, (_cap - 45) / 100 * 1.0);                       // 能力加成只加不减·斜率大(能臣远多于庸臣)
+    if (base < 0) base = 0;
+    var _gain = base * (TP ? TP.capabilityFactor(_cap) : 1) * mr;
+    if (TP) _gain *= TP.diminishFactor(r.virtueMerit || 0) * TP.SCALE;  // 高位递减 + 对齐 0-15000 尺度
+    var _capT = TP ? TP.EARN.perTurnCapBase * mr : 1e9;                 // 单回合封顶(随回合长 mr 缩放)
+    if (_gain > _capT) _gain = _capT;
+    r.virtueMerit = (r.virtueMerit || 0) + _gain;
     updateVirtueStage(ch);
   }
 
@@ -704,67 +1177,185 @@
                         : Math.min(0, r.fame + decay * mr);
   }
 
+  // §XI 角色↔官方变量联动（设计-角色经济·安全核心三条·均写 char 叶子字段）
+  //   #1 环境腐败→integrity双向 #2 皇威皇权→loyalty漂移(温和·不压恩德系统) #3 暴君段→在朝官员压力
+  //   缺前提缓做：#4 皇帝宠信疑忌(GM.emperor.suspicionOf/favorOf 不存在) #7 地方官→民心(走 ledger 叶子·单列)
+  function tickCharVariableLinkages(ch, mr) {
+    if (!ch || ch.dead || ch.retired) return;
+    var G = global.GM || {};
+    // #1 环境腐败 → integrity 双向腐化（§11.2）·浊环境加速堕落/清明环境约束贪官
+    if (ch.department && G.corruption && G.corruption.subDepts && G.corruption.subDepts[ch.department] && ch.integrity != null) {
+      var dc = num(G.corruption.subDepts[ch.department].true);
+      if (dc > 50) ch.integrity = clamp(ch.integrity - (dc - 40) / 100 * 2 * mr, 0, 100);   // 年至多 -2
+      else if (dc < 30 && ch.integrity < 50) ch.integrity = clamp(ch.integrity + 0.5 * mr, 0, 100);
+    }
+    // #2 皇威段位 + 皇权弱+野心 → loyalty（对君忠诚·§11.3）·×0.5 温和漂移避免压过恩德系统
+    if (ch.loyalty != null && !isEmperor(ch)) {
+      var w = G.huangwei ? num(G.huangwei.index) : 50;
+      var h = G.huangquan ? num(G.huangquan.index) : 50;
+      var lDelta = 0;
+      if (w > 90) lDelta -= 1;        // 暴君段·口服心离
+      else if (w > 70) lDelta += 1;   // 威严段·正常敬畏
+      else if (w < 30) lDelta -= 2;   // 失威段·臣民离心
+      if (h < 35 && (ch.ambition || 0) > 70) {  // 皇权弱+野心高 → 谋权臣
+        lDelta -= 1;
+        ch.ambition = clamp((ch.ambition || 0) + 0.5 * mr, 0, 100);
+      }
+      if (lDelta) ch.loyalty = clamp(ch.loyalty + lDelta * 0.5 * mr, 0, 100);
+    }
+    // #3 暴君段 → 在朝官员压力累积（§11.4·避祸事件 selfTarnish/feignIllness 暂略）
+    if (ch.officialTitle && G.huangwei && num(G.huangwei.index) > 90) {
+      ch.stress = clamp((ch.stress || 20) + 1.5 * mr, 0, 100);
+    }
+  }
+
   // ═════════════════════════════════════════════════════════════
-  // 抄家清算
+  // 抄家清算（隐匿挖掘 + 五级株连）
   // ═════════════════════════════════════════════════════════════
+
+  // 隐匿率：豪门易隐 + 监察弱 + 越贪越擅藏 + 权贵藏匿能力强
+  function estimateConcealmentRatio(ch) {
+    if (!ch) return 0;
+    var r = ch.resources || {};
+    var clanInfluence = clamp(num(firstDefined(ch.clanPrestige, 50)) / 100, 0, 1);   // 族望作豪门代理
+    var monitoring = clamp(num(firstDefined(ch.monitoring, 0.5)), 0, 1);             // 监察强度 0-1
+    var corruption = clamp((100 - num(firstDefined(ch.integrity, 50))) / 100, 0, 1); // 越不廉越擅藏
+    var merit = num(r.virtueMerit);
+    var ratio = clanInfluence * 0.3 + (1 - monitoring) * 0.3 + corruption * 0.4
+              + (merit > 7500 ? 0.2 : 0);   // 朝宗阶以上权贵（≈旧 500×SCALE）
+    return clamp(ratio, 0, 1);
+  }
+
+  // 估算隐匿总额 = 已追踪藏款 + 申报财产 × 隐匿率（未追踪那部分）
+  function estimateHiddenWealth(ch) {
+    if (!ch) return 0;
+    ensureCharResources(ch);
+    var r = ch.resources, pw = r.privateWealth;
+    var visible = Math.max(0, (pw.money || 0)) + (pw.land || 0) * 5 + (pw.treasure || 0) + (pw.commerce || 0);
+    return num(r.hiddenWealth) + visible * estimateConcealmentRatio(ch);
+  }
+
+  // 株连五级：none / immediate_family / full_family / nine_generations / ten_generations
+  function collectImplicatedIds(ch, tier) {
+    var ids = [];
+    if (!ch || !tier || tier === 'none') return ids;
+    function pushId(x) {
+      if (x == null) return;
+      var id = (typeof x === 'object') ? (x.id || x.name) : x;
+      if (id != null && ids.indexOf(id) < 0 && id !== ch.id && id !== ch.name) ids.push(id);
+    }
+    var fam = ch.family || {};
+    // 直系：配偶 + 子女
+    [ch.spouseId, ch.spouse, fam.spouse, fam.spouseId].forEach(pushId);
+    (fam.children || ch.children || []).forEach(pushId);
+    if (tier === 'immediate_family') return ids;
+    // 三族：父母 + 兄弟姐妹 + 孙辈
+    [fam.fatherId, fam.motherId, fam.father, fam.mother].forEach(pushId);
+    (fam.siblings || []).forEach(pushId);
+    (fam.grandchildren || []).forEach(pushId);
+    if (tier === 'full_family') return ids;
+    // 九族 / 十族：全族成员
+    var clanId = fam.clanId || familyIdOf(ch);
+    if (clanId && GM.clans && GM.clans[clanId] && Array.isArray(GM.clans[clanId].members)) {
+      GM.clans[clanId].members.forEach(pushId);
+    }
+    if (tier === 'ten_generations') {
+      (ch.disciples || ch.mensheng || []).forEach(pushId);  // 十族：再加门生故吏
+    }
+    return ids;
+  }
 
   function confiscate(ch, opts) {
     if (!ch) return { success: false, reason: '无此人' };
     opts = opts || {};
     ensureCharResources(ch);
+    if (ch.confiscated && !opts._recursed) return { success: false, reason: '已抄没', total: 0 };
 
     var r = ch.resources;
+
+    // 挖掘率：thoroughness×0.3 + interrogationPressure×0.5 + informantQuality×0.2；
+    // 未给细项则退化为 opts.intensity（向后兼容旧调用）
+    var excavationRate;
+    if (opts.thoroughness != null || opts.interrogationPressure != null || opts.informantQuality != null) {
+      excavationRate = num(opts.thoroughness) * 0.3 + num(opts.interrogationPressure) * 0.5 + num(opts.informantQuality) * 0.2;
+    } else {
+      excavationRate = (opts.intensity != null) ? num(opts.intensity) : 0.5;
+    }
+    excavationRate = clamp(excavationRate, 0, 1);
+
+    // 隐匿挖掘（动态隐匿率 × 挖掘率）—— 先算，因 estimateHiddenWealth 内部会重置 r.privateWealth
+    var hiddenFound = estimateHiddenWealth(ch) * excavationRate;
+    r.hiddenWealth = Math.max(0, num(r.hiddenWealth) * (1 - excavationRate));
+
+    // pw 须在 estimateHiddenWealth 之后取（其内部 normalize 会换 r.privateWealth 引用）
     var pw = r.privateWealth;
-    var visible = (pw.money || 0) + (pw.land || 0) * 5 + (pw.treasure || 0) + (pw.commerce || 0);
-    var hiddenFound = 0;
+    var visible = Math.max(0, (pw.money || 0)) + (pw.land || 0) * 5 + (pw.treasure || 0) + (pw.commerce || 0);
 
-    // 隐匿挖掘（按 opts.intensity）
-    var intensity = opts.intensity || 0.5;
-    hiddenFound = (r.hiddenWealth || 0) * Math.min(1, intensity);
-    r.hiddenWealth -= hiddenFound;
-
-    // 株连亲族（按 intensity 概率）
-    var clanLoss = 0;
-    if (opts.includeClan && ch.family && ch.family.clanId && GM.clans && GM.clans[ch.family.clanId]) {
-      var clan = GM.clans[ch.family.clanId];
-      clanLoss = (clan.sharedWealth || 0) * intensity * 0.5;
-      clan.sharedWealth = Math.max(0, (clan.sharedWealth || 0) - clanLoss);
+    // 株连等级解析（向后兼容旧 includeClan → 九族）
+    var tier = opts.clanImplication || (opts.includeClan ? 'nine_generations' : 'none');
+    var clanLoss = 0;        // 家族共财损失（由主犯入账）
+    var implicatedHaul = 0;  // 受株连族人各自抄没所得（各自已自行入账，仅汇报）
+    var implicated = [];
+    if (!opts._recursed && tier !== 'none') {
+      // 九族 / 十族：取家族共财
+      if (tier === 'nine_generations' || tier === 'ten_generations') {
+        var clanId = (ch.family && ch.family.clanId) || familyIdOf(ch);
+        if (clanId && GM.clans && GM.clans[clanId]) {
+          var clan = GM.clans[clanId];
+          clanLoss = num(clan.sharedWealth) * excavationRate * 0.5;
+          clan.sharedWealth = Math.max(0, num(clan.sharedWealth) - clanLoss);
+        }
+      }
+      // 递归抄受株连角色（各自不再株连，避免回环；各自自行入账）
+      implicated = collectImplicatedIds(ch, tier);
+      implicated.forEach(function(id) {
+        var m = (GM.chars || []).find(function(c) { return c && (c.id === id || c.name === id); });
+        if (m && !m.confiscated && !m.dead) {
+          var sub = confiscate(m, { intensity: excavationRate, destination: opts.destination, clanImplication: 'none', _recursed: true });
+          if (sub && sub.total) implicatedHaul += sub.total;
+        }
+      });
     }
 
+    // 主犯入账总额 = 本人明产 + 挖出暗产 + 家族共财
     var total = visible + hiddenFound + clanLoss;
 
     // 现金清零；田产没官；slaves/treasure/commerce 估值记账
-    pw.money = 0;
-    pw.land = 0;
-    pw.treasure = 0;
-    pw.commerce = 0;
-    pw.slaves = 0;
+    pw.money = 0; pw.land = 0; pw.treasure = 0; pw.commerce = 0; pw.slaves = 0;
 
     // 按 destination 分账（默认入帑廪·"籍没入官"传统）
     var dest = opts.destination || 'guoku';
     if (dest === 'neitang' && GM.neitang) {
-      GM.neitang.balance += total;
+      GM.neitang.balance = num(GM.neitang.balance) + total;
       GM.neitang._recentConfiscation = (GM.neitang._recentConfiscation || 0) + total;
-    } else if (dest === 'guoku' && GM.guoku) {
-      GM.guoku.balance += total;
+    } else if (GM.guoku) {
+      GM.guoku.balance = num(GM.guoku.balance) + total;
+      dest = 'guoku';
     }
 
-    // 角色状态：死/流放
+    // 角色状态：抄没 → 庶人·身败名裂
     ch.retired = true;
     ch.confiscated = true;
+    ch.status = 'disgraced';
+    ch.socialClass = 'commoner';
+    if (r.fame != null) r.fame = clamp(r.fame - 40, -100, 100);  // 抄家名望重挫
 
-    // 风闻
-    if (typeof addEB === 'function') {
+    // 风闻（仅主犯播报，株连不刷屏）
+    if (!opts._recursed && typeof addEB === 'function') {
       var _U = (typeof CurrencyUnit !== 'undefined' && CurrencyUnit.getUnit)
         ? CurrencyUnit.getUnit() : { money:'两' };
-      addEB('惩罚', '抄没' + ch.name + '家产 ' + Math.round(total / 10000) + ' 万' + _U.money + '（明 ' +
-        Math.round(visible / 10000) + ' 万 · 暗 ' + Math.round(hiddenFound / 10000) + ' 万）',
+      var tierLabel = { immediate_family:'·株及妻孥', full_family:'·株连三族', nine_generations:'·株连九族', ten_generations:'·夷十族' }[tier] || '';
+      var grand = total + implicatedHaul;
+      addEB('惩罚', '抄没' + ch.name + '家产 ' + Math.round(grand / 10000) + ' 万' + _U.money + '（明 ' +
+        Math.round(visible / 10000) + ' 万 · 暗 ' + Math.round(hiddenFound / 10000) + ' 万）' + tierLabel,
         { credibility: 'high', subject: ch.id });
     }
 
     return {
       success: true, visible: visible, hidden: hiddenFound,
-      clanLoss: clanLoss, total: total, destination: dest
+      clanLoss: clanLoss, implicated: implicated, implicatedHaul: implicatedHaul,
+      total: total, grandTotal: total + implicatedHaul,
+      destination: dest, clanImplication: tier
     };
   }
 
@@ -783,17 +1374,32 @@
     if (!ch.family || !ch.family.children) return;
     var total = (ch.resources.privateWealth.money || 0) +
                 (ch.resources.privateWealth.treasure || 0);
-    var heirs = ch.family.children || [];
+    var heirIds = ch.family.children || [];
+    var heirs = heirIds.map(function(id) { return (GM.chars || []).find(function(c) { return c.id === id; }); }).filter(Boolean);
     if (heirs.length === 0) {
       // 入内帑（无嗣财产归公）
       if (GM.neitang) GM.neitang.balance += total * 0.5;
       return;
     }
-    var perHeir = total / heirs.length;
-    heirs.forEach(function(heirId) {
-      var heir = (GM.chars || []).find(function(c) { return c.id === heirId; });
-      if (heir) heir._inheritanceThisTurn = (heir._inheritanceThisTurn || 0) + perHeir;
-    });
+    // 继承规则：clanRules.inheritance(eldest_son 嫡长 / equal 均分 / merit_based 按贤)·clan/family 覆盖·默认均分
+    var found = findFamilyRecord(ch);
+    var clanRules = (found && found.rec && found.rec.clanRules) || {};
+    var rule = clanRules.inheritance || (ch.family && ch.family.inheritance) || 'equal';
+    function grant(heir, amt) { if (heir && amt) heir._inheritanceThisTurn = (heir._inheritanceThisTurn || 0) + amt; }
+    if (rule === 'eldest_son') {
+      // 嫡长继承：年最长者全予（femaleShare 留扩展·默认 0）
+      var eldest = heirs.slice().sort(function(a, b) { return num(b.age) - num(a.age); })[0];
+      grant(eldest, total);
+    } else if (rule === 'merit_based') {
+      // 按贤继承：以功名(+基数100防0)为权重分配
+      var weights = heirs.map(function(h) { return Math.max(1, num(h.resources && h.resources.virtueMerit) + 100); });
+      var wsum = weights.reduce(function(a, b) { return a + b; }, 0);
+      heirs.forEach(function(h, i) { grant(h, total * weights[i] / wsum); });
+    } else {
+      // 均分（诸子均分）
+      var perHeir = total / heirs.length;
+      heirs.forEach(function(h) { grant(h, perHeir); });
+    }
   }
 
   // ═════════════════════════════════════════════════════════════
@@ -809,10 +1415,55 @@
     '之','甫','夫','父','卿','先','允','懿','章','业','绩','轩','辅','弼',
     '达','通','逸','敏','才','俊','英','奇','杰','彦','质','朴','真','实'
   ];
+  // 排行/品德前缀（用于语义关联生成）
+  var COURTESY_RANK_PREFIX = ['子','孟','仲','叔','季','伯','元','景','德','公'];
+
+  // 「字」语义词库：名末字（义根）→ 典型表字（同义扩展/反义互补/补足/典故）
+  //   通用·不限单朝——皆为传统取字法则下的常见配对
+  var COURTESY_TEMPLATES = {
+    '亮': ['孔明','景仁','元辉'], '明': ['景亮','思远','子炳','晦之'],
+    '德': ['孟直','子厚','仲翁','怀仁'], '义': ['怀仁','元正','君直','子方'],
+    '仁': ['子义','君礼','景厚','安卿'], '忠': ['伯直','守信','子诚','贞甫'],
+    '勇': ['子刚','元毅','伯虎','武卿'], '文': ['子雅','仲彦','景章','质夫'],
+    '武': ['子烈','元威','伯昌','定之'], '智': ['子睿','思敏','元哲'],
+    '信': ['守诚','君实','子谅'], '贤': ['希圣','希孟','子能'],
+    '良': ['伯善','子美','怀玉'], '清': ['濯之','子澄','涤生'],
+    '正': ['公直','子方','存中'], '光': ['晦之','子辉','景升'],
+    '华': ['子实','茂先','韶卿'], '俊': ['彦升','子英','茂才'],
+    '杰': ['世英','子奇','士伟'], '安': ['泰之','子宁','定国'],
+    '兴': ['子振','起之','邦彦'], '昌': ['盛之','子隆','炽甫'],
+    '弘': ['毅之','广源','子道'], '毅': ['弘之','刚甫','子果'],
+    '謙': ['牧之','光卿','受益'], '谦': ['牧之','光卿','受益'],
+    '愈': ['退之'], '熹': ['元晦','仲晦'], '羽': ['云长','翼德'],
+    '诚': ['敬之','子悫','信夫'], '敬': ['诚之','子肃','慎甫'],
+    '思': ['子睿','明远','希贤'], '宗': ['继先','绍祖','承业'],
+    '世': ['延嗣','克承','绍宗'], 'national': []
+  };
+  // 语义关联（同义/反义）：义根 → 关联字（再配排行前缀）
+  var COURTESY_SEMANTIC = {
+    '山': ['岳','峰','嵩','岱'], '水': ['川','源','澜','清'],
+    '玉': ['珉','瑜','瑾','璞'], '金': ['钧','铉','锡','鉴'],
+    '云': ['霄','汉','卿','翔'], '风': ['行','逸','举','翔'],
+    '松': ['乔','贞','操','茂'], '竹': ['筠','虚','节','清'],
+    '龙': ['云','渊','骧','飞'], '虎': ['威','彪','贲','勇'],
+    '日': ['昭','曜','晖','旭'], '月': ['朗','望','华','澄'],
+    '海': ['川','涵','纳','澜'], '川': ['源','流','深','广'],
+    '春': ['和','荣','发','元'], '秋': ['实','成','肃','收']
+  };
 
   function generateCourtesyName(name, traits) {
     if (!name) return '';
-    // 根据名字含义与特质匹配（简化：根据 traits 影响 prefix 选择）
+    var anchor = String(name).slice(-1);   // 取名末字为义根（诸葛亮→亮）
+    // 1) 预置语义词库直接命中
+    var tpl = COURTESY_TEMPLATES[anchor];
+    if (tpl && tpl.length) return tpl[Math.floor(Math.random() * tpl.length)];
+    // 2) 语义关联（同义/反义）+ 排行/品德前缀
+    var rel = COURTESY_SEMANTIC[anchor];
+    if (rel && rel.length) {
+      var pfx = COURTESY_RANK_PREFIX[Math.floor(Math.random() * COURTESY_RANK_PREFIX.length)];
+      return pfx + rel[Math.floor(Math.random() * rel.length)];
+    }
+    // 3) 特质导向前缀
     var prefer = {
       '儒': ['文','德','仁'], '武': ['武','勇','威'], '仁': ['仁','德','慈'],
       '奸': ['子','伯','仲'], '清': ['清','廉','朴']
@@ -836,19 +1487,41 @@
     }
   }
 
-  // 显示用称呼（按场景选名/字/官职）
+  // 显示用称呼（完整称呼树·按说话者/正式度/上下级/亲疏/家族选 名/字/官职）
+  //   context: { speaker, formality:'formal'|'informal'|'intimate', relationship, hierarchical:'upward'|'downward',
+  //             intimacy:-1~1, sameFamily, isElder }
   function formatAddress(ch, context) {
     if (!ch) return '';
     context = context || {};
-    // 亲近 → 字
-    if (context.relationship === 'intimate' || context.relationship === 'friend') {
-      return ch.zi || ch.name;
+    var speaker = context.speaker || null;
+    var zi = ch.zi || ch.courtesy || '';
+    var title = ch.officialTitle || ch.title || '';
+    var surname = ch.surname || (ch.name ? String(ch.name).charAt(0) : '');
+    var formality = context.formality || (context.formal ? 'formal' : '');
+    var intimacy = (typeof context.intimacy === 'number') ? context.intimacy : null;
+
+    // 1) 目标是皇帝 → 陛下
+    if (isEmperor(ch)) return '陛下';
+    // 2) 说话者是皇帝：眷顾称字·朝堂称名
+    if (speaker && isEmperor(speaker)) {
+      if (formality === 'intimate' || context.relationship === 'intimate') return zi || ch.name;
+      return ch.name;
     }
-    // 正式 → 官职
-    if (context.formal && ch.officialTitle) return ch.officialTitle;
-    // 下级称上级 → 职/字
-    if (context.hierarchical === 'upward') return ch.officialTitle || ch.zi || ch.name;
-    // 默认名
+    // 3) 亲近 → 字（兼容旧键 relationship）
+    if (context.relationship === 'intimate' || context.relationship === 'friend') return zi || ch.name;
+    // 4) 正式 → 官职
+    if (formality === 'formal' && title) return title;
+    // 5) 上下级
+    if (context.hierarchical === 'upward') return title || zi || ch.name;          // 下对上：尊称官衔
+    if (context.hierarchical === 'downward') return (intimacy != null && intimacy >= 0.5 && zi) ? zi : ch.name;
+    // 6) 平级按亲疏
+    if (intimacy != null) {
+      if (intimacy >= 0.7) return zi || ch.name;          // 挚友/同年 → 字
+      if (intimacy < 0) return surname + (title || '');   // 敌对 → 姓+官衔
+      return ch.name;                                      // 平常 → 名
+    }
+    // 7) 家族内：长辈对晚辈称字
+    if (context.sameFamily && context.isElder) return zi || ch.name;
     return ch.name;
   }
 
@@ -863,8 +1536,7 @@
     var chars = GM.chars || [];
     chars.forEach(function(ch) {
       try {
-        ensureCharResources(ch);
-        ensureCourtesyName(ch);
+        ensureCharComplete(ch);   // 运行时自动补齐(收口五类触发·含 ensureCharResources+ensureCourtesyName)
         tickCharacter(ch, mr, context);
       } catch(e) {
         console.error('[charEcon] tickCharacter:', ch && ch.name, e);
@@ -879,11 +1551,39 @@
   // 家族共财（两层）
   // ═════════════════════════════════════════════════════════════
 
+  // 家族经济模式：communal(共财同居) / divided(分家)·朝代默认表(通用·剧本/clan 可覆盖)
+  var FAMILY_MODE_DEFAULT = {
+    '先秦': 'communal', '秦': 'communal', '汉': 'communal', '西汉': 'communal', '东汉': 'communal',
+    '三国': 'communal', '晋': 'communal', '两晋': 'communal', '南北朝': 'communal', '隋': 'communal', '唐': 'communal',
+    '五代': 'divided', '宋': 'divided', '北宋': 'divided', '南宋': 'divided', '辽': 'divided', '金': 'divided', '元': 'divided',
+    '明': 'communal', '清': 'communal'   // 明东南共财/北方分家·清宗族复兴·此为引擎默认·剧本可按区域覆盖
+  };
+  function familyModeDefault(dynasty) {
+    if (!dynasty) return 'communal';
+    if (FAMILY_MODE_DEFAULT[dynasty]) return FAMILY_MODE_DEFAULT[dynasty];
+    for (var k in FAMILY_MODE_DEFAULT) { if (String(dynasty).indexOf(k) >= 0) return FAMILY_MODE_DEFAULT[k]; }
+    return 'communal';
+  }
+  function _currentDynasty() {
+    var G = global.GM || {};
+    return G.dynasty || (G.scenario && G.scenario.dynasty) || (G.scenarioMeta && G.scenarioMeta.dynasty) || (G.sc && G.sc.dynasty) || '';
+  }
+  // 角色所属家族模式：clan.mode 显式覆盖优先，否则按朝代默认
+  function familyModeOf(ch) {
+    var found = findFamilyRecord(ch);
+    if (found && found.rec && found.rec.mode) return found.rec.mode;
+    return familyModeDefault(_currentDynasty());
+  }
+
   function tickClanPool(mr) {
     if (!GM.clans) return;
+    var dynMode = familyModeDefault(_currentDynasty());
     Object.values(GM.clans).forEach(function(clan) {
       if (!clan.members) return;
-      // 每月族人按 3% 缴纳给 clan 公共池（core family）
+      // 分家(divided)：各房独立私产·仅祠堂/族田共有(本 tick 不模拟)·不走共财池
+      var mode = clan.mode || dynMode;
+      if (mode === 'divided') return;
+      // 共财(communal)：每月族人按 3% 缴纳给 clan 公共池（core family）
       var contribution = 0;
       clan.members.forEach(function(mId) {
         var m = (GM.chars || []).find(function(c) { return c.id === mId; });
@@ -940,6 +1640,39 @@
     if (ch._fameHistory.length > 20) ch._fameHistory = ch._fameHistory.slice(-20);
   }
 
+  // 名望事件表（设计方案-角色经济·资源三 涨/降来源）——通用·不限单朝
+  //   政绩/救灾/水利/教育/赈济 已由 applier localAction 映射接入；此表补其余结构化/叙事来源。
+  var FAME_EVENTS = {
+    // 涨
+    great_achievement: 10,   // 重大政绩
+    military_victory: 8,     // 平叛/克捷
+    suppress_revolt: 8,      // 平乱
+    diplomacy_success: 6,    // 外交成就
+    reform_success: 12,      // 主持重大改革成功
+    literary_fame: 6,        // 著名文章/诗词流传
+    living_shrine: 20,       // 百姓立生祠
+    retire_virtuous: 8,      // 退隐著书立说
+    recommend_talent: 5,     // 举荐名臣
+    // 降
+    corruption_exposed: -30, // 腐败被揭
+    military_defeat: -25,    // 军事溃败
+    military_rout: -40,      // 全军覆没
+    miscarriage_justice: -15,// 重大冤案
+    reform_failure: -20,     // 改革失败
+    faction_purged: -10,     // 党争失败被贬
+    scandal_personal: -22,   // 私德丑闻
+    scandal_clan: -12,       // 家族丑闻
+    defection: -90,          // 投敌/叛乱
+    delay_military: -18      // 贻误军机
+  };
+  // 按事件键施加名望变更（mult 缩放幅度，如战役规模 0.5~1.5）
+  function applyFameEvent(ch, key, mult) {
+    if (!ch || FAME_EVENTS[key] == null) return 0;
+    var delta = Math.round(FAME_EVENTS[key] * (mult == null ? 1 : mult));
+    if (delta !== 0) adjustFame(ch, delta, key);
+    return delta;
+  }
+
   // 贤能变更
   function adjustVirtueMerit(ch, delta, reason) {
     ensureCharResources(ch);
@@ -955,23 +1688,42 @@
     tick: tick,
     isEmperor: isEmperor,
     ensureCharResources: ensureCharResources,
+    ensureCharComplete: ensureCharComplete,
+    detectMissingFields: detectMissingFields,
     updatePublicTreasuryMirror: updatePublicTreasuryMirror,
+    getCharPublicTreasuryDisplay: getCharPublicTreasuryDisplay,
+    pursueTreasuryDeficit: pursueTreasuryDeficit,
     ensureCourtesyName: ensureCourtesyName,
     formatAddress: formatAddress,
     Income: Income,
     Expenses: Expenses,
     tickCharacter: tickCharacter,
     confiscate: confiscate,
+    estimateHiddenWealth: estimateHiddenWealth,
+    estimateConcealmentRatio: estimateConcealmentRatio,
     distributeInheritance: distributeInheritance,
+    familyModeOf: familyModeOf,
+    familyModeDefault: familyModeDefault,
     paySalary: paySalary,
     addBribeIncome: addBribeIncome,
     adjustFame: adjustFame,
+    applyFameEvent: applyFameEvent,
+    FAME_EVENTS: FAME_EVENTS,
+    tickCharVariableLinkages: tickCharVariableLinkages,
     adjustVirtueMerit: adjustVirtueMerit,
     CLASS_PARAMS: CLASS_PARAMS,
     VIRTUE_STAGES: VIRTUE_STAGES,
     getVirtueStageName: getVirtueStageName,
     generateCourtesyName: generateCourtesyName,
+    normalizePrivateWealth: normalizePrivateWealth,
+    buildFamilyEconomySnapshot: buildFamilyEconomySnapshot,
+    buildSocialTierSnapshot: buildSocialTierSnapshot,
+    buildEconomySnapshot: buildEconomySnapshot,
+    computeBehaviorWeights: computeBehaviorWeights,
+    calcPrivateSummary: _calcPrivateSummary,
     inferSocialClass: inferSocialClass,
+    reconcileSocialClassOnAppointment: reconcileSocialClassOnAppointment,
+    setSocialClass: setSocialClass,
     getMonthRatio: getMonthRatio
   };
 

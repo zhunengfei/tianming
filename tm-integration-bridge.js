@@ -22,21 +22,30 @@
   //  行政区划扁平化（遍历多层树，返回所有叶子/中间节点）
   // ═══════════════════════════════════════════════════════════════════
 
+  function _walkAdminDivisions(nodes, visitor, opts, parent, depth) {
+    opts = opts || {};
+    nodes = nodes || [];
+    depth = depth || 0;
+    for (var i = 0; i < nodes.length; i++) {
+      var d = nodes[i];
+      if (!d) continue;
+      visitor(d, parent || null, depth);
+      var children = d.children && d.children.length
+        ? d.children
+        : (opts.followDivisions && d.divisions && d.divisions.length ? d.divisions : null);
+      if (children) _walkAdminDivisions(children, visitor, opts, d, depth + 1);
+    }
+  }
+
   function flattenDivisions(adminHierarchy) {
     if (!adminHierarchy) return [];
     var result = [];
-    function walk(nodes, parent, depth) {
-      (nodes || []).forEach(function(d) {
-        if (!d) return;
-        result.push({ node: d, parent: parent, depth: depth });
-        if (d.children && d.children.length) walk(d.children, d, depth + 1);
-        else if (d.divisions && d.divisions.length) walk(d.divisions, d, depth + 1);
-      });
-    }
     Object.keys(adminHierarchy).forEach(function(facId) {
       var fh = adminHierarchy[facId];
       if (!fh) return;
-      walk(fh.divisions || [], null, 0);
+      _walkAdminDivisions(fh.divisions || [], function(d, parent, depth) {
+        result.push({ node: d, parent: parent, depth: depth });
+      }, { followDivisions: true }, null, 0);
     });
     return result;
   }
@@ -53,17 +62,9 @@
   function getLeafDivisions(adminHierarchy, factionId) {
     var tops = getTopLevelDivisions(adminHierarchy, factionId);
     var leaves = [];
-    function walk(nodes) {
-      (nodes || []).forEach(function(n) {
-        if (!n) return;
-        if (!n.children || n.children.length === 0) {
-          leaves.push(n);
-        } else {
-          walk(n.children);
-        }
-      });
-    }
-    walk(tops);
+    _walkAdminDivisions(tops, function(n) {
+      if (!n.children || n.children.length === 0) leaves.push(n);
+    });
     return leaves;
   }
 
@@ -71,14 +72,9 @@
   function getAllDivisions(adminHierarchy, factionId) {
     var tops = getTopLevelDivisions(adminHierarchy, factionId);
     var out = [];
-    function walk(nodes) {
-      (nodes || []).forEach(function(n) {
-        if (!n) return;
-        out.push(n);
-        if (n.children) walk(n.children);
-      });
-    }
-    walk(tops);
+    _walkAdminDivisions(tops, function(n) {
+      out.push(n);
+    });
     return out;
   }
 

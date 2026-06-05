@@ -149,6 +149,8 @@
       if (!ch) return;
       ch.officialTitle = alloc.officialTitle;
       if (alloc.dept) ch.dept = alloc.dept;
+      // 科举按名次注入初始功名(状元>榜眼>探花>二甲>三甲)·入仕的功名来源·标已迁移防被 derive 覆盖
+      try { if (window.TMPromotion) { if (!ch.resources) ch.resources = {}; var _rk = alloc.rank || 99; var _place = _rk === 1 ? 'zhuangyuan' : _rk === 2 ? 'bangyan' : _rk === 3 ? 'tanhua' : (_rk <= 20 ? 'jinshi_2' : 'jinshi_3'); var _grant = TMPromotion.kejuGrant(_place); ch.resources.virtueMerit = Math.max(ch.resources.virtueMerit || 0, _grant); ch.resources.virtueStage = TMPromotion.stageForMerit(ch.resources.virtueMerit); ch.resources._meritScale = TMPromotion.SCALE; } } catch (_kjvmE) {}
       ch._allocationType = alloc.allocation;
       if (alloc.note) ch._allocationNote = alloc.note;
       applied++;

@@ -1014,6 +1014,16 @@
         if (p1.affinity_changes && Array.isArray(p1.affinity_changes)) {
           p1.affinity_changes.forEach(function(ac) {
             if (!ac.a || !ac.b || !ac.delta) return;
+            var _rawA = ac.a, _rawB = ac.b;
+            if (typeof canonicalizeCharName === 'function') {
+              try {
+                ac.a = canonicalizeCharName(ac.a) || ac.a;
+                ac.b = canonicalizeCharName(ac.b) || ac.b;
+              } catch (_) {}
+            }
+            if (ac.a !== _rawA && !ac.raw_a) ac.raw_a = _rawA;
+            if (ac.b !== _rawB && !ac.raw_b) ac.raw_b = _rawB;
+            if (ac.a === ac.b) return;
             var delta = clamp(parseInt(ac.delta) || 0, -30, 30);
             if (delta !== 0 && typeof AffinityMap !== 'undefined') {
               AffinityMap.add(ac.a, ac.b, delta, ac.reason || 'AI\u63A8\u6F14');
@@ -1291,10 +1301,15 @@
           var _pNameCU = (P.playerInfo && P.playerInfo.characterName) || '';
           p1.char_updates.forEach(function(cu) {
             if (!cu.name) return;
+            var _rawCuName = cu.name;
+            if (typeof canonicalizeCharName === 'function') {
+              try { cu.name = canonicalizeCharName(cu.name) || cu.name; } catch (_) {}
+            }
+            if (cu.name !== _rawCuName && !cu.raw_name) cu.raw_name = _rawCuName;
             var ch = (typeof _fuzzyFindChar === 'function' ? _fuzzyFindChar(cu.name) : null) || findCharByName(cu.name);
             if (!ch) return;
             // ── 玩家保护：玩家角色的决策字段(立场/党派/官职) 不允许 AI 修改 ──
-            var _isPlayerTarget = (_pNameCU && cu.name === _pNameCU) || ch.isPlayer;
+            var _isPlayerTarget = (_pNameCU && (cu.name === _pNameCU || _rawCuName === _pNameCU)) || ch.isPlayer;
             if (_isPlayerTarget) {
               // 移除玩家决策字段——只保留状态影响字段(stress/health/能力变化)
               delete cu.new_stance;
@@ -1893,8 +1908,12 @@
 
         // ── 问对承诺进展更新 ──
         if (p1.commitment_update && Array.isArray(p1.commitment_update) && GM._npcCommitments) {
+          var _commitmentUpdateSeen = {};
           p1.commitment_update.forEach(function(cu) {
             if (!cu || !cu.id) return;
+            var _cuIdKey = String(cu.id);
+            if (_commitmentUpdateSeen[_cuIdKey]) return;
+            _commitmentUpdateSeen[_cuIdKey] = true;
             // 遍历找到对应承诺
             var found = null, foundNpc = null;
             Object.keys(GM._npcCommitments).forEach(function(nm) {
@@ -1903,6 +1922,7 @@
               });
             });
             if (!found) return;
+            if (found._terminalSettled && (found.status === 'completed' || found.status === 'failed' || found.status === 'obstructed')) return;
             // 若 AI 指定了 npcName 但与实际不符，以实际为准
             var npcActual = cu.npcName || foundNpc;
             found.progress = Math.max(0, Math.min(100, (found.progress||0) + (parseInt(cu.progress_delta,10)||0)));
@@ -1914,6 +1934,9 @@
             var _ckWill = (typeof found.willingness === 'number') ? found.willingness : 0.6;
             if (found.status === 'completed' || found.consequenceType === 'success') {
               found.status = 'completed';
+              found._terminalSettled = true;
+              found._terminalSettledTurn = GM.turn;
+              found._terminalSettledKind = 'completed';
               addEB('问对·履行', foundNpc + '享息：' + found.task.slice(0,30) + '——' + (cu.feedback||'').slice(0, 40));
               if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(foundNpc, '履命完成：' + found.task + '——' + (cu.feedback||''), '慰', Math.min(8, 4 + Math.round(_ckW)));
               var _cch = findCharByName(foundNpc);
@@ -1957,18 +1980,17 @@
               }
             } else if (found.status === 'failed' || cu.consequenceType === 'abandoned') {
               found.status = 'failed';
+              found._terminalSettled = true;
+              found._terminalSettledTurn = GM.turn;
+              found._terminalSettledKind = 'npc_duty_failed';
+              found._loyaltyPenaltyBlocked = true;
               addEB('问对·失诺', foundNpc + '未履：' + found.task.slice(0,30) + '——' + (cu.feedback||'').slice(0,40));
               if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(foundNpc, '未履命：' + found.task + '——' + (cu.feedback||''), '忧', Math.min(8, 4 + Math.round(_ckW)));
               var _fch = findCharByName(foundNpc);
               if (_fch) {
-                _fch._promiseBroken = (_fch._promiseBroken || 0) + 1;   // P-commit-calib·累积失约
-                var _ckPen = Math.max(1, Math.min(10, Math.round(
-                  ((cu.consequenceType === 'abandoned') ? 4 : 3) * _ckW          // 撂挑子比单纯失败更重
-                  + ((_ckWill > 0.7) ? 1.5 : 0)                                  // 满口应承却背弃→额外失信
-                  + Math.min(3, (_fch._promiseBroken - 1) * 1.0)                 // 惯犯累积失信(封顶+3)
-                )));
-                if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(_fch, -_ckPen, '问对履命失诺', { source:'wendui-task-failed' });
-                else _fch.loyalty = Math.max(0, ((typeof _fch.loyalty === 'number' && isFinite(_fch.loyalty)) ? _fch.loyalty : 50) - _ckPen);
+                _fch._promiseBroken = (_fch._promiseBroken || 0) + 1;   // NPC 奉旨差事未闭环·只记履约信用，不视为玩家违约
+                _fch._dutyFailures = (_fch._dutyFailures || 0) + 1;
+                _fch._lastDutyFailureTurn = GM.turn;
                 _fch.stress = Math.min(100, (_fch.stress||0) + Math.min(12, Math.round(5 * _ckW)));
               }
             } else if (cu.feedback) {
@@ -1988,30 +2010,38 @@
               var elapsed = GM.turn - found.assignedTurn;
               if (elapsed > (found.deadline || 3) + 2 && found.progress < 50) {
                 found.status = 'failed';
+                found._terminalSettled = true;
+                found._terminalSettledTurn = GM.turn;
+                found._terminalSettledKind = 'npc_duty_overdue';
+                found._loyaltyPenaltyBlocked = true;
                 addEB('\u95EE\u5BF9\u00B7\u8FC7\u671F', foundNpc + '迟迟未办：' + found.task.slice(0,30));
               }
             }
           });
         }
 
-        // P-commit-calib·静默失约兜底：AI 整回合未提及的承诺·过期(deadline+2)且进度<50 → 判失约+记失信账(治『撂下不办却无后果』)
+        // P-commit-calib·静默失约兜底：NPC 奉旨差事过期(deadline+2)且进度<50 → 判未办成+记履约信用，不扣忠诚
         if (GM._npcCommitments && typeof GM._npcCommitments === 'object') {
           Object.keys(GM._npcCommitments).forEach(function(_swNm) {
             (GM._npcCommitments[_swNm] || []).forEach(function(_swC) {
-              if (!_swC || _swC.status === 'completed' || _swC.status === 'failed') return;
+              if (!_swC || _swC.status === 'completed' || _swC.status === 'failed' || _swC._terminalSettled) return;
               if (_swC.lastUpdateTurn === GM.turn) return;
               var _swEl = (GM.turn || 0) - (_swC.assignedTurn || GM.turn || 0);
               if (_swEl > ((_swC.deadline || 3) + 2) && (_swC.progress || 0) < 50) {
                 _swC.status = 'failed';
                 _swC.lastUpdateTurn = GM.turn;
+                _swC._terminalSettled = true;
+                _swC._terminalSettledTurn = GM.turn;
+                _swC._terminalSettledKind = 'npc_duty_lapsed';
+                _swC._loyaltyPenaltyBlocked = true;
                 if (!_swC.feedback) _swC.feedback = '迟迟未办，无声搁置';
                 var _swCh = findCharByName(_swNm);
                 if (_swCh) {
                   var _swW = ({dispatch:2.0,diplomacy:2.0,finance:1.8,intel:1.6,query:1.3,write:1.1,other:1.0})[_swC.category||'other']||1.0;
                   _swCh._promiseBroken = (_swCh._promiseBroken || 0) + 1;
-                  var _swPen = Math.max(1, Math.min(8, Math.round(2.5 * _swW + Math.min(3, (_swCh._promiseBroken - 1) * 1.0))));
-                  if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(_swCh, -_swPen, '问对承诺搁置', { source:'wendui-task-lapsed' });
-                  else _swCh.loyalty = Math.max(0, ((typeof _swCh.loyalty === 'number' && isFinite(_swCh.loyalty)) ? _swCh.loyalty : 50) - _swPen);
+                  _swCh._dutyFailures = (_swCh._dutyFailures || 0) + 1;
+                  _swCh._lastDutyFailureTurn = GM.turn;
+                  _swCh.stress = Math.min(100, (_swCh.stress||0) + Math.min(10, Math.round(4 * _swW)));
                 }
                 if (typeof addEB === 'function') addEB('问对·搁置', _swNm + '搁置未办：' + String(_swC.task||'').slice(0,30));
               }
@@ -2120,9 +2150,16 @@
               if (!Array.isArray(target.basisRefs) || !target.basisRefs.length) target.basisRefs = target.sourceRefs;
             }
             if (target.status === 'completed') {
+              target._terminalSettled = true;
+              target._terminalSettledTurn = _curT;
+              target._terminalSettledKind = 'completed';
               addEB('对话·履行', nm + '·' + String(taskRef).slice(0, 30) + '·' + String(dcf.feedback || '').slice(0, 40));
               if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(nm, '对话承诺已履行·' + String(taskRef).slice(0, 40), '慰', 4);
             } else if (target.status === 'failed' || target.status === 'obstructed') {
+              target._terminalSettled = true;
+              target._terminalSettledTurn = _curT;
+              target._terminalSettledKind = target.status === 'obstructed' ? 'npc_duty_obstructed' : 'npc_duty_failed';
+              target._loyaltyPenaltyBlocked = true;
               addEB('对话·失诺', nm + '·' + String(taskRef).slice(0, 30) + '·' + String(dcf.feedback || '').slice(0, 40));
               if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(nm, '对话承诺失诺·' + String(taskRef).slice(0, 40), '愧', 4);
             }
@@ -4486,8 +4523,9 @@
                   var _targetCh = (typeof findCharByName==='function') ? findCharByName(it.target) : null;
                   if (_actorCh && _typeDef.fameActor) _cEng.adjustFame(_actorCh, _typeDef.fameActor, typeInfo+'→'+it.target);
                   if (_targetCh && _typeDef.fameTarget) _cEng.adjustFame(_targetCh, _typeDef.fameTarget, '被'+it.actor+typeInfo);
-                  if (_actorCh && _typeDef.virtueActor) _cEng.adjustVirtueMerit(_actorCh, _typeDef.virtueActor, typeInfo);
-                  if (_targetCh && _typeDef.virtueTarget) _cEng.adjustVirtueMerit(_targetCh, _typeDef.virtueTarget, '被'+typeInfo);
+                  // 功名×SCALE 对齐 0-15000 尺度·仅正政绩(举荐/调和/师徒等)入功名;负的(构陷/背叛)属政治品行·#3 功名=政绩不直接扣
+                  if (_actorCh && _typeDef.virtueActor > 0) _cEng.adjustVirtueMerit(_actorCh, Math.round(_typeDef.virtueActor * (window.TMPromotion ? TMPromotion.SCALE : 1)), typeInfo);
+                  if (_targetCh && _typeDef.virtueTarget > 0) _cEng.adjustVirtueMerit(_targetCh, Math.round(_typeDef.virtueTarget * (window.TMPromotion ? TMPromotion.SCALE : 1)), '被'+typeInfo);
                 }
               } catch(_fve){}
               // ── 当事人（actor、target）写入记忆 ──

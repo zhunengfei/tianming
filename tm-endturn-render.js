@@ -1584,11 +1584,159 @@ function _rucReasonChips(reasons, fallback) {
   });
   return html;
 }
-
 function _renderUnifiedChanges(oldVars) {
   oldVars = oldVars || {};
   // v2：新布局 · 10 分类卡块·每项带原因 chip
   var html = '';
+
+  function _rucAttr(v) {
+    return escHtml(v).replace(/"/g, '&quot;');
+  }
+
+  function _rucReasonTags(text) {
+    var raw = String(text || '');
+    var lower = raw.toLowerCase();
+    var tags = [];
+    var seen = {};
+    var dict = {
+      tax: '\u7A0E\u538B',
+      taxes: '\u7A0E\u538B',
+      levy: '\u5F81\u53D1',
+      corvee: '\u5FAD\u5F79',
+      military: '\u519B\u52A1',
+      army: '\u519B\u52A1',
+      keju: '\u79D1\u4E3E',
+      commerce: '\u5546\u8D38',
+      trade: '\u5546\u8D38',
+      land: '\u571F\u5730',
+      office: '\u5B98\u5236',
+      offices: '\u5B98\u5236',
+      hukou: '\u6237\u53E3',
+      census: '\u6E05\u518C\u6838\u7C4D',
+      peasant: '\u6C11\u8D1F',
+      burden: '\u6C11\u8D1F',
+      fiscal: '\u8D22\u653F',
+      finance: '\u8D22\u653F',
+      corruption: '\u8150\u8D25',
+      corrupt: '\u8150\u8D25',
+      local: '\u5730\u65B9',
+      morale: '\u519B\u5FC3',
+      arrears: '\u6B20\u9977',
+      approved: '\u8BAE\u51C6',
+      rejected: '\u9A73\u56DE',
+      deferred: '\u7F13\u8BAE',
+      changed: '\u6539\u52A8',
+      blocked: '\u963B\u6EDE',
+      relief: '\u8D48\u6D4E',
+      famine: '\u707E\u8352',
+      disaster: '\u707E\u5BB3',
+      minxin: '\u6C11\u5FC3',
+      public: '\u6C11\u5FC3',
+      party: '\u515A\u4E89',
+      class: '\u9636\u5C42'
+    };
+    function add(label) {
+      if (!label || seen[label]) return;
+      seen[label] = true;
+      tags.push(label);
+    }
+    if (/military\s+arrears/.test(lower)) add('\u519B\u9977\u62D6\u6B20');
+    raw.split(/[\/,\s;|:_-]+/).forEach(function(token) {
+      var key = String(token || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (dict[key]) add(dict[key]);
+    });
+    return tags;
+  }
+
+  function _rucReasonFromTags(prefix, tail) {
+    var tags = _rucReasonTags(tail);
+    return prefix + (tags.length ? '\uFF1A' + tags.join('\u3001') : '');
+  }
+
+  function _rucLocalizeReason(reason) {
+    var raw = String(reason || '').trim();
+    if (!raw) return '';
+    var lower = raw.toLowerCase();
+    if (/ecology\s+matched/.test(lower)) {
+      return _rucReasonFromTags('\u5236\u5EA6\u751F\u6001\u5339\u914D', raw.replace(/.*ecology\s+matched\s*/i, ''));
+    }
+    if (/ai\s+turn\s+result/.test(lower)) {
+      return _rucReasonFromTags('AI\u63A8\u6F14\u7ED3\u679C', raw.replace(/.*ai\s+turn\s+result\s*/i, ''));
+    }
+    if (/huji[-_\s]*governance[-_\s]*backlash|governance[-_\s]*backlash/.test(lower)) {
+      return '\u6237\u53E3\u6CBB\u7406\u53CD\u566C';
+    }
+    if (/court\s+feedback/.test(lower)) {
+      return _rucReasonFromTags('\u5EF7\u8BAE\u88C1\u5B9A', raw.replace(/.*court\s+feedback\s*/i, ''));
+    }
+    if (/social[-_\s]*political[-_\s]*signal/.test(lower)) {
+      return _rucReasonFromTags('\u793E\u4F1A\u653F\u6CBB\u4FE1\u53F7', raw.replace(/.*social[-_\s]*political[-_\s]*signal\s*/i, ''));
+    }
+    if (/player[-_\s]*action/.test(lower)) {
+      return _rucReasonFromTags('\u73A9\u5BB6\u64CD\u4F5C\u5F71\u54CD', raw.replace(/.*player[-_\s]*action\s*/i, ''));
+    }
+    var tags = /[a-z]/i.test(raw) ? _rucReasonTags(raw) : [];
+    if (tags.length) return tags.join('\u3001');
+    return raw;
+  }
+
+  function _rucGroupChangeItems(items) {
+    var groups = [];
+    var byName = {};
+    (items || []).forEach(function(it) {
+      var name = it.name || '\u672A\u547D\u540D';
+      var g = byName[name];
+      if (!g) {
+        g = byName[name] = { name: name, items: [], reasons: [], reasonSeen: {} };
+        groups.push(g);
+      }
+      g.items.push(it);
+      if (it.reason && !g.reasonSeen[it.reason]) {
+        g.reasonSeen[it.reason] = true;
+        g.reasons.push(it.reason);
+      }
+    });
+    return groups;
+  }
+
+  function _rucRenderActorChangeGroup(opts) {
+    var groups = _rucGroupChangeItems(opts.items);
+    var total = opts.items.length;
+    var out = '';
+    if (!groups.length) return out;
+    out += '<div class="tr-cg-block ' + opts.cls + '">';
+    out += '<div class="tr-cg-hdr"><div class="ic">' + opts.ic + '</div><div class="lab">' + opts.label + '</div>';
+    if (opts.sub) out += '<div class="sub">' + opts.sub + '</div>';
+    out += '<div class="count">' + groups.length + ' \u7EC4 / ' + total + ' \u9879</div></div>';
+    out += '<div class="tr-cg-group-tools">';
+    out += '<button type="button" class="tr-cg-group-btn" data-action="turn-change-expand-all" onclick="this.closest(\'.tr-cg-block\').querySelectorAll(\'.tr-cg-fold-group\').forEach(function(el){el.open=true;});">\u5C55\u5F00\u5168\u90E8</button>';
+    out += '<button type="button" class="tr-cg-group-btn" data-action="turn-change-collapse-all" onclick="this.closest(\'.tr-cg-block\').querySelectorAll(\'.tr-cg-fold-group\').forEach(function(el){el.open=false;});">\u6536\u8D77\u5168\u90E8</button>';
+    out += '</div>';
+    out += '<div class="tr-cg-items tr-cg-fold-items">';
+    groups.forEach(function(g) {
+      var key = opts.kind + ':' + g.name;
+      var reasonSummary = g.reasons.slice(0, 2).join('\uFF1B');
+      if (g.reasons.length > 2) reasonSummary += '\uFF1B\u7B49 ' + g.reasons.length + ' \u6761\u8FD1\u56E0';
+      var openAttr = g.items.length <= 2 ? ' open' : '';
+      out += '<details class="tr-cg-fold-group" data-change-group="' + _rucAttr(key) + '" data-change-group-name="' + _rucAttr(g.name) + '"' + openAttr + '>';
+      out += '<summary class="tr-cg-fold-summary"><span class="tr-cg-fold-name">' + escHtml(g.name) + '</span><span class="tr-cg-fold-count">' + g.items.length + ' \u9879\u53D8\u5316</span>';
+      if (reasonSummary) out += '<span class="tr-cg-fold-reason">' + escHtml(reasonSummary) + '</span>';
+      out += '</summary>';
+      out += '<div class="tr-cg-fold-body">';
+      g.items.forEach(function(it) {
+        var d = (it.nv || 0) - (it.ov || 0);
+        var cls = d < -5 ? ' warn' : '';
+        out += '<div class="tr-cg-item' + cls + '">';
+        out += '<div class="tr-cg-name"><span class="mini-ic">' + opts.itemIc + '</span>' + escHtml(it.field) + '</div>';
+        out += '<div class="tr-cg-vals">' + _rucValHtml(it.ov, it.nv, function(v){return Math.round(v||0).toString();}, '') + '</div>';
+        out += '<div class="tr-cg-reasons">' + (it.reason?'<span class="tr-reason-txt">'+escHtml(it.reason)+'</span>':'') + '</div>';
+        out += '</div>';
+      });
+      out += '</div></details>';
+    });
+    out += '</div></div>';
+    return out;
+  }
 
   // ═══ ① 本回合要点 ═══
   var highlights = [];
@@ -1954,22 +2102,19 @@ function _renderUnifiedChanges(oldVars) {
         var fMap = {'influence':'\u5F71\u54CD\u529B','satisfaction':'\u6EE1\u610F\u5EA6','cohesion':'\u51DD\u805A\u529B'};
         // 跳过非数字字段（如 status/new_agenda）·避免 Math.round('活跃') 产生 NaN
         if (!fMap[ch.field] || typeof ch.oldValue !== 'number' || typeof ch.newValue !== 'number') return;
-        ptyItems.push({name:pc.name, field:fMap[ch.field], ov:ch.oldValue||0, nv:ch.newValue||0, reason:ch.reason||''});
+        ptyItems.push({name:pc.name, field:fMap[ch.field], ov:ch.oldValue||0, nv:ch.newValue||0, reason:_rucLocalizeReason(ch.reason||'')});
       });
     });
     if (ptyItems.length > 0) {
-      html += '<div class="tr-cg-block tr-cg-party">';
-      html += '<div class="tr-cg-hdr"><div class="ic">\u515A</div><div class="lab">\u671D \u4E2D \u515A \u6D3E</div>';
-      html += '<div class="count">' + ptyItems.length + ' \u9879</div></div>';
-      html += '<div class="tr-cg-items">';
-      ptyItems.forEach(function(it){
-        html += '<div class="tr-cg-item">';
-        html += '<div class="tr-cg-name">' + escHtml(it.name) + ' <span class="sub-lbl">' + escHtml(it.field) + '</span></div>';
-        html += '<div class="tr-cg-vals">' + _rucValHtml(it.ov, it.nv, function(v){return Math.round(v||0).toString();}, '') + '</div>';
-        html += '<div class="tr-cg-reasons">' + (it.reason?'<span class="tr-reason-txt">'+escHtml(it.reason)+'</span>':'') + '</div>';
-        html += '</div>';
+      html += _rucRenderActorChangeGroup({
+        cls: 'tr-cg-party',
+        kind: 'party',
+        ic: '\u515A',
+        itemIc: '\u515A',
+        label: '\u671D \u4E2D \u515A \u6D3E',
+        sub: '\u540C\u515A\u6D3E\u53D8\u5316\u5DF2\u5408\u5E76\u4E3A\u6298\u53E0\u7EC4',
+        items: ptyItems
       });
-      html += '</div></div>';
     }
   }
 
@@ -1980,22 +2125,19 @@ function _renderUnifiedChanges(oldVars) {
       (cc.changes||[]).forEach(function(ch){
         var fMap = {'satisfaction':'\u6EE1\u610F\u5EA6','influence':'\u5F71\u54CD\u529B','population':'\u4EBA\u53E3'};
         if (!fMap[ch.field] || typeof ch.oldValue !== 'number' || typeof ch.newValue !== 'number') return;
-        clsItems.push({name:cc.name, field:fMap[ch.field], ov:ch.oldValue||0, nv:ch.newValue||0, reason:ch.reason||''});
+        clsItems.push({name:cc.name, field:fMap[ch.field], ov:ch.oldValue||0, nv:ch.newValue||0, reason:_rucLocalizeReason(ch.reason||'')});
       });
     });
     if (clsItems.length > 0) {
-      html += '<div class="tr-cg-block tr-cg-class">';
-      html += '<div class="tr-cg-hdr"><div class="ic">\u9636</div><div class="lab">\u9636 \u5C42 \u52A8 \u6001</div>';
-      html += '<div class="count">' + clsItems.length + ' \u9879</div></div>';
-      html += '<div class="tr-cg-items">';
-      clsItems.forEach(function(it){
-        html += '<div class="tr-cg-item">';
-        html += '<div class="tr-cg-name">' + escHtml(it.name) + ' <span class="sub-lbl">' + escHtml(it.field) + '</span></div>';
-        html += '<div class="tr-cg-vals">' + _rucValHtml(it.ov, it.nv, function(v){return Math.round(v||0).toString();}, '') + '</div>';
-        html += '<div class="tr-cg-reasons">' + (it.reason?'<span class="tr-reason-txt">'+escHtml(it.reason)+'</span>':'') + '</div>';
-        html += '</div>';
+      html += _rucRenderActorChangeGroup({
+        cls: 'tr-cg-class',
+        kind: 'class',
+        ic: '\u9636',
+        itemIc: '\u9636',
+        label: '\u9636 \u5C42 \u52A8 \u6001',
+        sub: '\u540C\u9636\u5C42\u53D8\u5316\u5DF2\u5408\u5E76\u4E3A\u6298\u53E0\u7EC4',
+        items: clsItems
       });
-      html += '</div></div>';
     }
   }
 

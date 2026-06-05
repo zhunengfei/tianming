@@ -515,6 +515,7 @@
     searchKeyword: '',     // 自寻贤臣的搜索词
     libraryKeyword: ''     // 档案库的本地搜索词
   };
+  var _libKeywordTimer = 0;
 
   TM.ceming.openDialog = function() {
     // 防重入
@@ -534,6 +535,10 @@
   };
 
   TM.ceming.closeDialog = function() {
+    if (_libKeywordTimer) {
+      clearTimeout(_libKeywordTimer);
+      _libKeywordTimer = 0;
+    }
     var ov = document.getElementById('ceming-overlay');
     if (ov) ov.remove();
     _dlgState.selectedProfile = null;
@@ -564,6 +569,10 @@
 
   TM.ceming._switchTab = function(tab) {
     _dlgState.activeTab = tab;
+    if (tab !== 'library' && _libKeywordTimer) {
+      clearTimeout(_libKeywordTimer);
+      _libKeywordTimer = 0;
+    }
     document.querySelectorAll('#ceming-overlay .cm-tab-btn').forEach(function(btn){
       var active = btn.getAttribute('data-tab') === tab;
       btn.style.borderBottomColor = active ? 'var(--gold,#c89b4d)' : 'transparent';
@@ -596,7 +605,7 @@
       Object.keys(roles).map(function(r){ return '<option value="'+r+'"'+(_dlgState.filterRole===r?' selected':'')+'>'+(roleLabels[r]||r)+'</option>'; }).join('');
 
     var html = '<div style="display:flex;gap:8px;margin-bottom:8px;">' +
-      '<input id="cm-lib-search" placeholder="搜索姓名/字号/官至/谥号…（如 王守仁/伯安/兵部尚书）" oninput="TM.ceming._setLibKeyword(this.value)" value="' + (_dlgState.libraryKeyword || '').replace(/"/g, '&quot;') + '" style="flex:2;padding:6px 10px;background:rgba(0,0,0,0.2);border:1px solid var(--border,#3a2c1a);color:var(--text);">' +
+      '<input id="cm-lib-search" placeholder="搜索姓名/字号/官至/谥号…（如 王守仁/伯安/兵部尚书）" oninput="TM.ceming._scheduleLibKeyword(this.value)" value="' + (_dlgState.libraryKeyword || '').replace(/"/g, '&quot;') + '" style="flex:2;padding:6px 10px;background:rgba(0,0,0,0.2);border:1px solid var(--border,#3a2c1a);color:var(--text);">' +
       '<select id="cm-filter-dynasty" onchange="TM.ceming._setFilter(\'dynasty\',this.value)" style="flex:1;padding:6px;background:rgba(0,0,0,0.2);border:1px solid var(--border,#3a2c1a);color:var(--text);">' + dynastyOpts + '</select>' +
       '<select id="cm-filter-role" onchange="TM.ceming._setFilter(\'role\',this.value)" style="flex:1;padding:6px;background:rgba(0,0,0,0.2);border:1px solid var(--border,#3a2c1a);color:var(--text);">' + roleOpts + '</select>' +
     '</div>';
@@ -664,6 +673,16 @@
     else if (key === 'role') _dlgState.filterRole = value;
     var body = document.getElementById('ceming-body');
     if (body) body.innerHTML = _renderLibraryTab();
+  };
+
+  TM.ceming._scheduleLibKeyword = function(value) {
+    _dlgState.libraryKeyword = value || '';
+    if (_libKeywordTimer) clearTimeout(_libKeywordTimer);
+    _libKeywordTimer = setTimeout(function() {
+      _libKeywordTimer = 0;
+      if (_dlgState.activeTab !== 'library') return;
+      TM.ceming._setLibKeyword(_dlgState.libraryKeyword || '');
+    }, 120);
   };
 
   // 档案库本地搜索（保留 input 焦点·只重新渲染网格）

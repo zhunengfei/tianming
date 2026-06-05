@@ -599,6 +599,24 @@ function _endTurn_collectInput() {
     }
   } catch(_frErr) { GM._turnFiscalReforms = []; try { window.TM && TM.errors && TM.errors.captureSilent(_frErr, 'prep·extractEdictFiscalReforms'); } catch(_){} }
 
+  // 一次性财政动作（加派/开仓/借贷）·诏书驱动落效·P-RP3·2026-06-05
+  // 国库面板"拟诏"→玩家发诏→本回合诏令文识别+即落 GuokuEngine.Actions（一回合一次·allEdictText 只本回合·不重复执行）
+  try {
+    var _fiscalActions = (typeof extractEdictFiscalActions === 'function') ? extractEdictFiscalActions(allEdictText) : [];
+    GM._turnFiscalActions = _fiscalActions;
+    if (_fiscalActions.length > 0 && window.GuokuEngine && GuokuEngine.Actions) {
+      _fiscalActions.forEach(function(fa) {
+        try {
+          var fn = GuokuEngine.Actions[fa.type];
+          if (typeof fn !== 'function') return;
+          var r = (fa.type === 'takeLoan') ? fn(fa.tier, fa.term) : fn(fa.tier);
+          addEB('诏令落效', '户部·' + fa.raw + (r && r.success === false ? '（未成：' + (r.reason || '') + '）' : '·已行'));
+        } catch (_faOne) {}
+      });
+      _dbg('[财政动作] 诏令落效 ' + _fiscalActions.length + ' 条', _fiscalActions);
+    }
+  } catch(_faErr) { GM._turnFiscalActions = []; try { window.TM && TM.errors && TM.errors.captureSilent(_faErr, 'prep·extractEdictFiscalActions'); } catch(_){} }
+
   // 收集昏君活动
   if (typeof TyrantActivitySystem !== 'undefined') {
     input.tyrantActivities = TyrantActivitySystem.collectActivities();

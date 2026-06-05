@@ -2072,7 +2072,7 @@
         var tpTac = '【sc25c·战术层 tactical】（temp=0.3·宁可不写不可编造）\n' + _ctx25c + '\n返回严格 JSON·\n'
           + '{"immediate_foreshadow":[{"turn":' + _ptT25c + ',"content":"伏笔(40字)","resolveBy":' + (_ptT25c + 3) + ',"type":"threat|opportunity|mystery|romance"}],'
           + '"turn_memory":[{"event":"40字","importance":1-10,"actors":["..."]}],'
-          + '"state_board":{"mood":"朝堂氛围(40字)","open_loops":["待推进的悬念"],"unfulfilled_promises":["玩家未兑现"],"recent_summary":"近期摘要(150字)"},'
+          + '"state_board":{"mood":"朝堂氛围(40字)","open_loops":["待推进的悬念"],"unfulfilled_promises":["待兑现决策/未闭环事项"],"recent_summary":"近期摘要(150字)"},'
           + '"imperial_candidates":[{"content":"诏令候选(40字)","importance":0.5,"confidence":0.5,"reason":"为何应起诏"}],'
           + '"trend":"局势短期趋势(50字)"}';
         var tpStr = '【sc25c·战略层 strategic】（temp=0.5·允许判断与综合）\n' + _ctx25c + '\n返回严格 JSON·\n'
@@ -2208,7 +2208,7 @@
         tp25 += '"mood":"\u671D\u5802\u5F53\u524D\u6C1B\u56F4\u57FA\u8C03\u4E00\u53E5\u8BDD(40\u5B57\u00B7\u5982"\u767E\u5B98\u89C2\u671B\u00B7\u7687\u5E1D\u5A01\u91CD\u00B7\u6050\u60E7\u5927\u4E8E\u5E0C\u671B")",';
         tp25 += '"open_loops":["\u60AC\u800C\u672A\u51B3\u4F46\u5E94\u63A8\u8FDB\u7684\u5267\u60C5\u7EBF 1(35\u5B57)","\u7EBF 2","\u7EBF 3"],';
         tp25 += '"recent_summary":"\u672C\u56DE\u5408\u6700\u538B\u7F29\u7684\u6458\u8981(150\u5B57\u00B7\u8986\u76D6\u6240\u6709\u5173\u952E\u53D8\u52A8\u00B7\u4E0B\u56DE\u5408 sc1 \u4F18\u5148\u8BFB)",';
-        tp25 += '"unfulfilled_promises":["\u73A9\u5BB6\u672A\u5151\u73B0\u7684\u627F\u8BFA/\u62DF\u8BAE\u4F46\u672A\u9881\u7684\u8BCF\u4EE4 1(35\u5B57)","2","3"]';
+        tp25 += '"unfulfilled_promises":["\u5F85\u5151\u73B0\u51B3\u7B56/\u672A\u95ED\u73AF\u4E8B\u9879/\u62DF\u8BAE\u4F46\u672A\u9881\u7684\u8BCF\u4EE4 1(35\u5B57)","2","3"]';
         tp25 += '},';
         // P13.4 imperialEdict \u5019\u9009\uFF08KokoroMemo review_policy \u8303\u5F0F\uFF09
         // AI \u63A8\u65AD\u672C\u56DE\u5408\u5E94\u6709\u7684"\u7687\u547D\u7EA7\u9489\u5B50\u6761\u76EE"\u2014\u2014\u6BD4\u5982\u73A9\u5BB6\u9881\u5E03"\u7956\u8BAD"\u6216\u4E8B\u4EF6\u786E\u7ACB\u4E86\u4E00\u4E2A\u4E0D\u53EF\u53D8\u89C4\u5219

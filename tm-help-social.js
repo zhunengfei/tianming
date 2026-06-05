@@ -784,9 +784,19 @@ function triggerHistoricalEvent(eventType, description) {
 // 每对角色间有独立的亲疏值（-100 到 +100）
 // NPC 之间也有关系，不以玩家为中心
 // ============================================================
+function _tmAffinityCanonName(name) {
+  if (!name) return name;
+  try {
+    if (typeof canonicalizeCharName === 'function') return canonicalizeCharName(name) || name;
+  } catch (_) {}
+  return name;
+}
+
 var AffinityMap = {
   /** 获取两人之间的亲疏值 */
   get: function(nameA, nameB) {
+    nameA = _tmAffinityCanonName(nameA);
+    nameB = _tmAffinityCanonName(nameB);
     if (!GM.affinityMap || !nameA || !nameB) return 0;
     var key = [nameA, nameB].sort().join('|');
     return GM.affinityMap[key] || 0;
@@ -794,6 +804,8 @@ var AffinityMap = {
 
   /** 设置两人之间的亲疏值 */
   set: function(nameA, nameB, value) {
+    nameA = _tmAffinityCanonName(nameA);
+    nameB = _tmAffinityCanonName(nameB);
     if (!nameA || !nameB) return;
     if (!GM.affinityMap) GM.affinityMap = {};
     var key = [nameA, nameB].sort().join('|');
@@ -802,6 +814,8 @@ var AffinityMap = {
 
   /** 增减亲疏值 */
   add: function(nameA, nameB, delta, reason) {
+    nameA = _tmAffinityCanonName(nameA);
+    nameB = _tmAffinityCanonName(nameB);
     var cur = AffinityMap.get(nameA, nameB);
     AffinityMap.set(nameA, nameB, cur + delta);
     _dbg('[Affinity] ' + nameA + '↔' + nameB + ': ' + (delta>0?'+':'') + delta + ' → ' + AffinityMap.get(nameA, nameB) + (reason ? ' (' + reason + ')' : ''));
@@ -809,6 +823,7 @@ var AffinityMap = {
 
   /** 获取某角色的所有关系（按绝对值排序） */
   getRelations: function(name) {
+    name = _tmAffinityCanonName(name);
     if (!GM.affinityMap || !name) return [];
     var results = [];
     Object.keys(GM.affinityMap).forEach(function(key) {
@@ -1295,4 +1310,3 @@ SettlementPipeline.register('postPerf', '岗位考绩', function() { if(GM.postS
 // perturn 步骤：每回合末执行一次（与 AI 推演结果配合的全局结算）
 SettlementPipeline.register('changeQueue', '数据变化队列', function() { processChangeQueue(); }, 92, 'perturn');
 SettlementPipeline.register('clearCache', '清空查询缓存', function() { WorldHelper.clearCache(); }, 95, 'perturn');
-

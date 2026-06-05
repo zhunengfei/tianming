@@ -18,49 +18,57 @@
 //   §9 [L1300] 成就系统 + 议程执行
 // ============================================================
 
+function _walkOfficeTree(nodes, visitor) {
+  nodes = nodes || [];
+  for (var i = 0; i < nodes.length; i++) {
+    var n = nodes[i];
+    if (!n) continue;
+    if (visitor(n) === false) return false;
+    if (n.subs && _walkOfficeTree(n.subs, visitor) === false) return false;
+  }
+  return true;
+}
+
 function findOfficeByFunction(funcKeyword) {
   if (!GM.officeTree || !funcKeyword) return null;
   var result = null;
-  (function walk(nodes) {
-    if (result) return;
-    nodes.forEach(function(n) {
-      if (result) return;
-      // 1. 检查部门职能数组
-      var funcMatch = false;
-      if (n.functions && n.functions.length > 0) {
-        funcMatch = n.functions.some(function(f) { return f.indexOf(funcKeyword) >= 0; });
-      }
-      // 2. 检查部门名称/描述
-      if (!funcMatch && n.desc && n.desc.indexOf(funcKeyword) >= 0) funcMatch = true;
-      if (!funcMatch && n.name && n.name.indexOf(funcKeyword) >= 0) funcMatch = true;
-      // 3. 检查各官职的职责
-      if (!funcMatch && n.positions) {
+  _walkOfficeTree(GM.officeTree, function(n) {
+    // 1. 检查部门职能数组
+    var funcMatch = false;
+    if (n.functions && n.functions.length > 0) {
+      funcMatch = n.functions.some(function(f) { return f.indexOf(funcKeyword) >= 0; });
+    }
+    // 2. 检查部门名称/描述
+    if (!funcMatch && n.desc && n.desc.indexOf(funcKeyword) >= 0) funcMatch = true;
+    if (!funcMatch && n.name && n.name.indexOf(funcKeyword) >= 0) funcMatch = true;
+    // 3. 检查各官职的职责
+    if (!funcMatch && n.positions) {
+      n.positions.forEach(function(p) {
+        if (p.duties && p.duties.indexOf(funcKeyword) >= 0) funcMatch = true;
+      });
+    }
+    if (funcMatch) {
+      // 找到该部门的最高级别在任官员
+      var topHolder = null;
+      if (n.positions) {
         n.positions.forEach(function(p) {
-          if (p.duties && p.duties.indexOf(funcKeyword) >= 0) funcMatch = true;
+          if (p.holder && (!topHolder || (parseInt(p.rank) || 9) < (parseInt(topHolder.rank) || 9))) {
+            topHolder = p;
+          }
         });
       }
-      if (funcMatch) {
-        // 找到该部门的最高级别在任官员
-        var topHolder = null;
-        if (n.positions) {
-          n.positions.forEach(function(p) {
-            if (p.holder && (!topHolder || (parseInt(p.rank) || 9) < (parseInt(topHolder.rank) || 9))) {
-              topHolder = p;
-            }
-          });
-        }
-        result = {
-          dept: n.name,
-          deptDesc: n.desc || '',
-          official: topHolder ? topHolder.name : '',
-          holder: topHolder ? topHolder.holder : '',
-          duties: topHolder ? (topHolder.duties || '') : '',
-          functions: n.functions || []
-        };
-      }
-      if (n.subs) walk(n.subs);
-    });
-  })(GM.officeTree);
+      result = {
+        dept: n.name,
+        deptDesc: n.desc || '',
+        official: topHolder ? topHolder.name : '',
+        holder: topHolder ? topHolder.holder : '',
+        duties: topHolder ? (topHolder.duties || '') : '',
+        functions: n.functions || []
+      };
+      return false;
+    }
+    return true;
+  });
   return result;
 }
 
@@ -71,18 +79,16 @@ function findOfficeByFunction(funcKeyword) {
 function getOfficeFunctionSummary() {
   if (!GM.officeTree || GM.officeTree.length === 0) return '';
   var lines = ['【官制职能分工——AI必须据此判断由谁负责何事】'];
-  (function walk(nodes) {
-    nodes.forEach(function(n) {
-      var funcs = (n.functions && n.functions.length > 0) ? n.functions.join('、') : (n.desc || '');
-      if (!funcs) return;
-      var holders = [];
-      if (n.positions) n.positions.forEach(function(p) {
-        if (p.holder) holders.push(p.name + ':' + p.holder);
-      });
-      lines.push('  ' + n.name + '→' + funcs + (holders.length > 0 ? '（' + holders.join('，') + '）' : '（空缺）'));
-      if (n.subs) walk(n.subs);
+  _walkOfficeTree(GM.officeTree, function(n) {
+    var funcs = (n.functions && n.functions.length > 0) ? n.functions.join('、') : (n.desc || '');
+    if (!funcs) return true;
+    var holders = [];
+    if (n.positions) n.positions.forEach(function(p) {
+      if (p.holder) holders.push(p.name + ':' + p.holder);
     });
-  })(GM.officeTree);
+    lines.push('  ' + n.name + '→' + funcs + (holders.length > 0 ? '（' + holders.join('，') + '）' : '（空缺）'));
+    return true;
+  });
   lines.push('  ※AI推演中，各类事务应交由对应职能部门处理，不得由无关官员越权处理');
   return lines.join('\n');
 }
@@ -91,13 +97,11 @@ function getOfficeFunctionSummary() {
 function _computeOfficeHash() {
   if (!GM.officeTree) return '';
   var parts = [];
-  (function walk(nodes) {
-    nodes.forEach(function(n) {
-      parts.push(n.name + (n.functions ? n.functions.join(',') : ''));
-      if (n.positions) n.positions.forEach(function(p) { parts.push(p.name + (p.rank||'')); });
-      if (n.subs) walk(n.subs);
-    });
-  })(GM.officeTree);
+  _walkOfficeTree(GM.officeTree, function(n) {
+    parts.push(n.name + (n.functions ? n.functions.join(',') : ''));
+    if (n.positions) n.positions.forEach(function(p) { parts.push(p.name + (p.rank||'')); });
+    return true;
+  });
   // 简单字符串哈希
   var s = parts.join('|'), h = 0;
   for (var i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;

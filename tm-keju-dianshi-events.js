@@ -111,7 +111,10 @@
    * 寒门状元事件·剧本无关·读 GM.classes 寒门/门阀 fallback·全缺 skip event·prestige 仍走 party effects。
    */
   function _kjCommonerZhuangyuanEvent(ch) {
-    if (!ch || ch.familyTier !== 'commoner') return;
+    if (!ch) return;
+    var familyTier = String(ch.familyTier || '');
+    var className = String(ch.class || ch.socialClass || ch.className || ch.origin || '');
+    if (familyTier !== 'common' && familyTier !== 'commoner' && !/寒门|庶|平民|百姓|农|工匠/.test(className)) return;
 
     var commonerCls = _kjResolveClassName('commoner');
     var aristocratCls = _kjResolveClassName('aristocrat');

@@ -55,6 +55,16 @@ async function _runPreSubmitPartyClassCalibration() {
         try { console.warn('[endTurn] pre-submit social/political signal bridge failed', _socialPoliticalE); } catch(_){}
       }
     }
+    try {
+      if (typeof window !== 'undefined' && window.TM && TM.ClassCharacterRelations && typeof TM.ClassCharacterRelations.run === 'function') {
+        TM.ClassCharacterRelations.run(GM, {
+          source: 'pre-submit-class-character-relations',
+          turn: GM && GM.turn
+        });
+      }
+    } catch(_classCharacterRelationsE) {
+      try { console.warn('[endTurn] pre-submit class/character relations failed', _classCharacterRelationsE); } catch(_){}
+    }
     if (!_pcSchedulerRan) try {
       if (typeof window !== 'undefined' && window.TM && TM.PartyClassActors && typeof TM.PartyClassActors.run === 'function') {
         if (typeof TM.PartyClassActors.tick === 'function') {

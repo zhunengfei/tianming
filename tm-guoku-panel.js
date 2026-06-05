@@ -749,14 +749,21 @@ function _guoku_extraTax() {
     '</div></div>';
   if (typeof openGenericModal === 'function') openGenericModal('加派赋税', html, null);
 }
-function _guoku_doExtraTax(rate) {
-  var r = GuokuEngine.Actions.extraTax(rate);
-  if (r.success) {
-    if (typeof toast === 'function') toast('已加派 ' + Math.round(rate*100) + '%');
-    if (typeof closeGenericModal === 'function') closeGenericModal();
+// 户部财计·诏书驱动：选档=拟入诏令建议库（不直改数值·回合末诏令落效）·P-RP3 2026-06-05
+function _guoku_draftFiscalEdict(content) {
+  if (typeof GM === 'undefined' || !GM) return;
+  if (!Array.isArray(GM._edictSuggestions)) GM._edictSuggestions = [];
+  GM._edictSuggestions.push({ source: '户部', from: '户部', content: content, turn: GM.turn, used: false });
+  if (typeof _recordPlayerActionSignal === 'function') {
+    try { _recordPlayerActionSignal('edict', content, { source: 'guoku-fiscal', topic: '户部财计' }); } catch (_) {}
   }
-  renderGuokuPanel();
-  if (typeof renderTopBarVars === 'function') renderTopBarVars();
+  if (typeof toast === 'function') toast('已拟入诏书建议库');
+  if (typeof closeGenericModal === 'function') closeGenericModal();
+  if (typeof _renderEdictSuggestions === 'function') { try { _renderEdictSuggestions(); } catch (_) {} }
+}
+function _guoku_doExtraTax(rate) {
+  var word = rate >= 1.0 ? '十成' : (rate >= 0.5 ? '五成' : '二成');
+  _guoku_draftFiscalEdict('加派' + word + '赋税以纾国用。然加派必致民怨、吏胥浮收，着户部权衡缓急，限期奏行。');
 }
 
 function _guoku_openGranary() {
@@ -773,11 +780,9 @@ function _guoku_openGranary() {
   if (typeof openGenericModal === 'function') openGenericModal('开仓赈济', html, null);
 }
 function _guoku_doOpenGranary(scale) {
-  var r = GuokuEngine.Actions.openGranary(scale);
-  if (typeof toast === 'function') toast(r.success ? '已开仓' : ('未成：' + r.reason));
-  if (typeof closeGenericModal === 'function') closeGenericModal();
-  renderGuokuPanel();
-  if (typeof renderTopBarVars === 'function') renderTopBarVars();
+  var word = scale === 'national' ? '普天' : (scale === 'regional' ? '一省' : '州县');
+  var costWord = scale === 'national' ? '约五十万两' : (scale === 'regional' ? '约十五万两' : '约五万两');
+  _guoku_draftFiscalEdict('开仓赈济' + word + '，发太仓粟米' + costWord + '以济饥民。着户部即行勘灾散赈，毋使流离。');
 }
 
 function _guoku_takeLoan() {
@@ -825,11 +830,8 @@ function _guoku_openLoanDialog(sourceId) {
     openGenericModal('借贷于' + src.name, html, function() {
       var amt = Number((document.getElementById('loanAmt')||{}).value) || 100000;
       var term = Number((document.getElementById('loanTerm')||{}).value) || 12;
-      var r = GuokuEngine.takeLoanBySource(sourceId, amt, term);
-      if (typeof toast === 'function') toast(r.success ? ('已借于' + src.name) : ('未成：' + r.reason));
-      if (typeof closeGenericModal === 'function') closeGenericModal();
-      renderGuokuPanel();
-      if (typeof renderTopBarVars === 'function') renderTopBarVars();
+      var wan = Math.max(1, Math.round(amt / 10000));
+      _guoku_draftFiscalEdict('向' + src.name + '借银 ' + wan + ' 万两，限 ' + term + ' 月归还，月息 ' + (src.interest * 100).toFixed(1) + '%。着户部立券明息，按月本利偿付。');
     });
   }
 }

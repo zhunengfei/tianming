@@ -104,10 +104,140 @@
     if (G._edictPolicyActions.length > 80) G._edictPolicyActions.splice(0, G._edictPolicyActions.length - 80);
   }
 
+  function _clamp01(v) {
+    v = Number(v);
+    if (!isFinite(v)) return 0;
+    return Math.max(0, Math.min(1, v));
+  }
+
+  function _ensureCurrencyPolicyLedger() {
+    var G = global.GM;
+    if (!G) return null;
+    if (!Array.isArray(G._currencyPolicyActions)) G._currencyPolicyActions = [];
+    return G._currencyPolicyActions;
+  }
+
+  function _recordCurrencyPolicyAction(action, detail, text) {
+    var G = global.GM;
+    var ledger = _ensureCurrencyPolicyLedger();
+    if (!G || !ledger) return;
+    ledger.push(Object.assign({
+      turn: G.turn || 0,
+      action: action,
+      text: String(text || '').slice(0, 120)
+    }, detail || {}));
+    if (ledger.length > 80) ledger.splice(0, ledger.length - 80);
+  }
+
+  function _findCurrencyReformPresetId(text, params) {
+    params = params || {};
+    if (params.presetId) return params.presetId;
+    text = String(text || '');
+    if (/一条鞭|赋役折银|银本位|改用银|白银本位|完整币制|统一钱法/.test(text)) return 'wanli_yitiaobian';
+    if (/开海|海外银|银流|海商|月港|通商/.test(text)) return 'ming_open_silver_1567';
+    return '';
+  }
+
+  function _findCurrencyPaperObject(text, params) {
+    var G = global.GM || {};
+    var paper = G.currency && G.currency.paper;
+    var list = paper && Array.isArray(paper.issuances) ? paper.issuances : [];
+    var paperId = (params && params.paperId) || _findCurrencyPaperIdFromText(text);
+    if (paperId) {
+      var byId = list.find(function(p) { return p && p.id === paperId; });
+      if (byId) return byId;
+    }
+    return list.find(function(p) { return p && p.state !== 'abolish'; }) || null;
+  }
+
+  function _inferCurrencyTextPolicy(text, params) {
+    text = String(text || '');
+    params = params || {};
+    var regionId = _resolvePolicyRegionId(text, params);
+    var action = params.action || '';
+    if (!action && /(接受|收纳|折纳|准用|通行).*(宝钞|纸钞|纸币|官票|钞)|(?:宝钞|纸钞|纸币|官票|钞).*(接受|收纳|折纳|准用|通行)/.test(text)) {
+      action = 'regional_acceptance';
+    }
+    if (!action && /(开海|海外银|银流|白银流入|海商|月港|通商).*(银|海|商|流)|(?:海外银|银流|海商纳银|开海通商)/.test(text)) {
+      action = 'overseas_silver_flow';
+    }
+    if (!action && /(完整币制|币制改革|统一钱法|银本位|白银本位|赋役折银|一条鞭)/.test(text)) {
+      action = 'full_currency_reform';
+    }
+    if (!action && params.presetId) action = 'full_currency_reform';
+    if (!action) return {};
+    return {
+      action: action,
+      regionId: regionId,
+      presetId: _findCurrencyReformPresetId(text, params),
+      amount: params.amount || _edictAmountFromText(text, action === 'overseas_silver_flow' ? 500000 : 0),
+      acceptanceDelta: params.acceptanceDelta != null ? Number(params.acceptanceDelta) : 0.35
+    };
+  }
+
   function _executeCurrencyTextPolicy(text, params) {
     text = String(text || '');
-    var CE = global.CurrencyEngine;
-    if (!CE) return false;
+    var CE = global.CurrencyEngine || {};
+    var G = global.GM || {};
+    var inferredCurrency = Object.assign({}, _inferCurrencyTextPolicy(text, params), params || {});
+
+    if (inferredCurrency.action === 'full_currency_reform') {
+      var reformId = inferredCurrency.presetId || _findCurrencyReformPresetId(text, params) || 'wanli_yitiaobian';
+      var reformResult = false;
+      if (typeof CE.applyReform === 'function') {
+        reformResult = CE.applyReform(reformId, params || {});
+      }
+      if (G.currency) {
+        if (reformId === 'wanli_yitiaobian' || /银本位|白银本位|赋役折银|一条鞭/.test(text)) G.currency.currentStandard = 'silver';
+        if (!Array.isArray(G.currency.reforms)) G.currency.reforms = [];
+        if (!G.currency.reforms.some(function(r) { return r && r.id === reformId && r.turn === (G.turn || 0); })) {
+          G.currency.reforms.push({ id: reformId, turn: G.turn || 0, source: 'edict' });
+        }
+      }
+      var fullResult = reformResult || { ok: true, fallback: true, reformId: reformId };
+      _recordCurrencyPolicyAction('full_currency_reform', { reformId: reformId, result: fullResult }, text);
+      _recordEdictPolicyAction('currency', 'full_currency_reform', fullResult, text);
+      return fullResult;
+    }
+
+    if (inferredCurrency.action === 'regional_acceptance') {
+      if (!G.currency) G.currency = {};
+      if (!G.currency.paper) G.currency.paper = { issuances: [] };
+      if (!Array.isArray(G.currency.paper.issuances)) G.currency.paper.issuances = [];
+      var paperObj = _findCurrencyPaperObject(text, inferredCurrency);
+      if (!paperObj) {
+        paperObj = { id: inferredCurrency.paperId || 'edict_paper_' + (G.turn || 0), name: inferredCurrency.paperName || _currencyPaperNameFromText(text), state: 'circulate', acceptanceByRegion: {} };
+        G.currency.paper.issuances.push(paperObj);
+      }
+      if (!paperObj.acceptanceByRegion) paperObj.acceptanceByRegion = {};
+      var acceptRegion = inferredCurrency.regionId || 'all';
+      var beforeAccept = Number(paperObj.acceptanceByRegion[acceptRegion] || 0);
+      paperObj.acceptanceByRegion[acceptRegion] = _clamp01(beforeAccept + (inferredCurrency.acceptanceDelta || 0.35));
+      var acceptResult = { ok: true, paperId: paperObj.id, regionId: acceptRegion, acceptance: paperObj.acceptanceByRegion[acceptRegion] };
+      _recordCurrencyPolicyAction('regional_acceptance', acceptResult, text);
+      _recordEdictPolicyAction('currency', 'regional_acceptance', acceptResult, text);
+      return acceptResult;
+    }
+
+    if (inferredCurrency.action === 'overseas_silver_flow') {
+      if (!G.currency) G.currency = {};
+      if (!G.currency.coins) G.currency.coins = {};
+      if (!G.currency.coins.silver) G.currency.coins.silver = { stock: 0, enabled: true };
+      if (!G.currency.foreignFlow) G.currency.foreignFlow = {};
+      var silverAmount = Math.max(0, inferredCurrency.amount || 500000);
+      var openResult = false;
+      if (typeof CE.applyReform === 'function') {
+        openResult = CE.applyReform(inferredCurrency.presetId || 'ming_open_silver_1567', params || {});
+      }
+      G.currency.foreignFlow.tradeMode = 'liberal';
+      G.currency.foreignFlow.cumulativeNet = (G.currency.foreignFlow.cumulativeNet || 0) + silverAmount;
+      G.currency.coins.silver.stock = (G.currency.coins.silver.stock || 0) + silverAmount;
+      var silverResult = openResult || { ok: true, fallback: true };
+      silverResult = Object.assign({}, silverResult, { ok: silverResult.ok !== false, regionId: inferredCurrency.regionId || 'all', amount: silverAmount });
+      _recordCurrencyPolicyAction('overseas_silver_flow', silverResult, text);
+      _recordEdictPolicyAction('currency', 'overseas_silver_flow', silverResult, text);
+      return silverResult;
+    }
 
     if (/私铸|私钱|盗铸|伪钱/.test(text) && /禁|严禁|禁绝|搜检|整饬|查/.test(text)) {
       var ban = (typeof CE.banPrivateMint === 'function') ? CE.banPrivateMint() : false;
@@ -148,6 +278,7 @@
 
   function _isCurrencyTextPolicy(text) {
     text = String(text || '');
+    if (_inferCurrencyTextPolicy(text, {}).action) return true;
     if (/私铸|私钱|盗铸|伪钱/.test(text) && /禁|严禁|禁绝|搜检|整饬|查/.test(text)) return true;
     if (/废|罢|停用|禁用|废止|收回/.test(text) && /交子|会子|宝钞|官票|纸币|纸钞|钞/.test(text)) return true;
     if (/发|发行|颁行|开印|官办/.test(text) && /交子|会子|宝钞|官票|纸币|纸钞|钞/.test(text)) return true;
@@ -157,6 +288,8 @@
 
   function _inferHujiTextPolicy(text) {
     text = String(text || '');
+    var migration = _inferMigrationSettlementPolicy(text, {});
+    if (migration.action) return migration;
     if (/隐户|隐匿户|漏籍/.test(text) && /清查|搜检|搜括|括户|核查|编入|入籍/.test(text)) {
       return { action: 'purge_hidden', target: 'hidden_households', scope: /全国|天下/.test(text) ? 'national' : 'general' };
     }
@@ -174,6 +307,143 @@
 
   function _isHujiTextPolicy(text) {
     return !!_inferHujiTextPolicy(text).action;
+  }
+
+  function _ensurePopulationPolicyLedger() {
+    var G = global.GM;
+    if (!G) return null;
+    if (!Array.isArray(G._populationPolicyActions)) G._populationPolicyActions = [];
+    return G._populationPolicyActions;
+  }
+
+  function _recordPopulationPolicyAction(action, detail, text) {
+    var G = global.GM;
+    var ledger = _ensurePopulationPolicyLedger();
+    if (!G || !ledger) return;
+    ledger.push(Object.assign({
+      turn: G.turn || 0,
+      action: action,
+      text: String(text || '').slice(0, 120)
+    }, detail || {}));
+    if (ledger.length > 100) ledger.splice(0, ledger.length - 100);
+  }
+
+  function _inferCorveeTextPolicy(text, params) {
+    text = String(text || '');
+    params = params || {};
+    if (params.action === 'start_large_corvee' || params.presetId) {
+      return { action: 'start_large_corvee', presetId: params.presetId || params.preset || '', amount: params.amount || _edictAmountFromText(text, 30000) };
+    }
+    if (/(大徭役|徭役|调丁|征发|起役|河工|修河|工役|大役)/.test(text)) {
+      return { action: 'start_large_corvee', presetId: params.presetId || params.preset || 'river_repair', amount: params.amount || _edictAmountFromText(text, 30000) };
+    }
+    return {};
+  }
+
+  function _inferMilitaryTextPolicy(text, params) {
+    text = String(text || '');
+    params = params || {};
+    if (params.action === 'conscription' || params.amount || params.enable) {
+      return { action: params.action || 'conscription', system: params.system || params.enable || 'mubing', amount: params.amount || _edictAmountFromText(text, 10000), regionId: _resolvePolicyRegionId(text, params) };
+    }
+    if (/(征兵|募兵|募军|入营|军伍|补边镇|补军|练兵)/.test(text)) {
+      return { action: 'conscription', system: params.system || params.enable || 'mubing', amount: params.amount || _edictAmountFromText(text, 10000), regionId: _resolvePolicyRegionId(text, params) };
+    }
+    return {};
+  }
+
+  function _inferMigrationSettlementPolicy(text, params) {
+    text = String(text || '');
+    params = params || {};
+    var action = params.action === 'migration_settlement' ? 'migration_settlement' : '';
+    if (!action && /(迁徙|迁民|移民|安置|安插).*(流民|民户|人口|屯田)|(?:流民|民户).*(迁徙|迁民|安置|屯田)/.test(text)) action = 'migration_settlement';
+    if (!action) return {};
+    var sourceRegionId = params.sourceRegionId || (/陕北|陕西/.test(text) ? 'shaanxi' : (/山西/.test(text) ? 'shanxi' : ''));
+    var targetRegionId = params.targetRegionId || (/京畿|京师|畿辅/.test(text) ? 'jingji' : (/江南/.test(text) ? 'jiangnan' : ''));
+    return {
+      action: 'migration_settlement',
+      sourceRegionId: sourceRegionId,
+      targetRegionId: targetRegionId,
+      amount: params.amount || _edictAmountFromText(text, 5000)
+    };
+  }
+
+  function _executeLargeCorveePolicy(params, text) {
+    var G = global.GM || {};
+    var P = G.population;
+    if (!P) return false;
+    params = Object.assign({}, _inferCorveeTextPolicy(text, params), params || {});
+    var amount = Math.max(0, params.amount || _edictAmountFromText(text, 30000));
+    var presetId = params.presetId || params.preset || '';
+    if (!presetId && global.HujiEngine && Array.isArray(global.HujiEngine.LARGE_CORVEE_PRESETS) && global.HujiEngine.LARGE_CORVEE_PRESETS[0]) {
+      presetId = global.HujiEngine.LARGE_CORVEE_PRESETS[0].id;
+    }
+    if (!presetId) presetId = 'edict_large_corvee';
+    var result = null;
+    if (global.HujiEngine && typeof global.HujiEngine.startLargeCorvee === 'function') {
+      result = global.HujiEngine.startLargeCorvee(presetId, { amount: amount, source: 'edict', text: String(text || '').slice(0, 120) });
+    } else {
+      result = { ok: true, fallback: true, presetId: presetId };
+      P.largeCorveeActive = { presetId: presetId, amount: amount, startTurn: G.turn || 0, source: 'edict' };
+    }
+    if (!P.corvee) P.corvee = {};
+    if (!Array.isArray(P.corvee.events)) P.corvee.events = [];
+    P.corvee.events.push({ turn: G.turn || 0, action: 'start_large_corvee', presetId: presetId, amount: amount });
+    _recordPopulationPolicyAction('start_large_corvee', { presetId: presetId, amount: amount, result: result }, text);
+    _recordEdictPolicyAction('corvee', 'start_large_corvee', result, text);
+    return (result && result.ok === false) ? false : (result || true);
+  }
+
+  function _executeConscriptionPolicy(params, text) {
+    var G = global.GM || {};
+    var P = G.population;
+    if (!P) return false;
+    params = Object.assign({}, _inferMilitaryTextPolicy(text, params), params || {});
+    var amount = Math.max(0, params.amount || _edictAmountFromText(text, 10000));
+    if (!P.military) P.military = { types: {} };
+    if (!P.military.types) P.military.types = {};
+    var system = params.system || params.enable || 'mubing';
+    if (!P.military.types[system]) P.military.types[system] = { enabled: false, soldiers: 0, strength: 0 };
+    var mt = P.military.types[system];
+    mt.enabled = true;
+    mt.soldiers = (mt.soldiers || 0) + amount;
+    mt.strength = (mt.strength || 0) + amount;
+    P.military.totalPool = (P.military.totalPool || 0) + amount;
+    if (!Array.isArray(P.military.recruitmentEvents)) P.military.recruitmentEvents = [];
+    var result = { ok: true, system: system, amount: amount, regionId: params.regionId || null };
+    P.military.recruitmentEvents.push(Object.assign({ turn: G.turn || 0, source: 'edict' }, result));
+    _recordPopulationPolicyAction('conscription', result, text);
+    _recordEdictPolicyAction('military', 'conscription', result, text);
+    return result;
+  }
+
+  function _executeMigrationSettlementPolicy(params, text) {
+    var G = global.GM || {};
+    var P = G.population;
+    if (!P || !P.byRegion) return false;
+    params = Object.assign({}, _inferMigrationSettlementPolicy(text, params), params || {});
+    var source = params.sourceRegionId;
+    var target = params.targetRegionId;
+    if (!source || !target || !P.byRegion[source] || !P.byRegion[target] || source === target) return false;
+    var src = P.byRegion[source];
+    var dst = P.byRegion[target];
+    var amount = Math.max(0, Math.min(src.mouths || 0, params.amount || _edictAmountFromText(text, 5000)));
+    if (amount <= 0) return false;
+    var households = Math.max(1, Math.round(amount / 5));
+    var ding = Math.max(0, Math.round(amount * 0.32));
+    src.mouths = Math.max(0, (src.mouths || 0) - amount);
+    src.households = Math.max(0, (src.households || 0) - households);
+    src.ding = Math.max(0, (src.ding || 0) - ding);
+    dst.mouths = (dst.mouths || 0) + amount;
+    dst.households = (dst.households || 0) + households;
+    dst.ding = (dst.ding || 0) + ding;
+    P.fugitives = Math.max(0, (P.fugitives || 0) - amount);
+    if (!Array.isArray(P.migrationEvents)) P.migrationEvents = [];
+    var result = { ok: true, sourceRegionId: source, targetRegionId: target, amount: amount, households: households, ding: ding };
+    P.migrationEvents.push(Object.assign({ turn: G.turn || 0, source: 'edict' }, result));
+    _recordPopulationPolicyAction('migration_settlement', result, text);
+    _recordEdictPolicyAction('huji', 'migration_settlement', result, text);
+    return result;
   }
 
   function _edictRatioAfterLabel(text, label, fallback) {
@@ -260,6 +530,14 @@
     params = params || {};
     var regionId = _resolvePolicyRegionId(text, params);
     var amount = params.amount || _edictAmountFromText(text, 0);
+    if (/财政博弈|地方财政博弈|议地方财政|暂留|换取足额起运|协商存留|议存留/.test(text)) {
+      var retainedShare = params.retainedShare != null ? Number(params.retainedShare)
+        : (params.cunliuRatio != null ? Number(params.cunliuRatio) : 0.3);
+      return { action: 'fiscal_bargain', regionId: regionId, retainedShare: _clamp01(retainedShare), qiyunRatio: _clamp01(1 - retainedShare) };
+    }
+    if (/长期财政追踪|财政追踪|长期追踪|岁终核验|核验起运|核验.*贪墨/.test(text)) {
+      return { action: 'long_term_tracking', regionId: regionId, horizonTurns: params.horizonTurns || _turnsForMonthsLocal(36) };
+    }
     if (/监察|御史|巡按|巡察|查核|核查|稽核/.test(text)) {
       return { action: 'dispatch_censor', regionId: regionId, cost: params.cost || 3000 };
     }
@@ -357,6 +635,40 @@
       }
     }
 
+    if (action === 'fiscal_bargain') {
+      if (!params.regionId) return { ok: false, reason: 'missing region for fiscal bargain' };
+      if (!G.fiscal) G.fiscal = {};
+      if (!G.fiscal.regions) G.fiscal.regions = {};
+      if (!G.fiscal.regions[params.regionId]) G.fiscal.regions[params.regionId] = { regionId: params.regionId, compliance: 0.5, autonomyLevel: 0.2 };
+      var bargainRegion = G.fiscal.regions[params.regionId];
+      var retained = _clamp01(params.retainedShare != null ? params.retainedShare : 0.3);
+      var qiyun = _clamp01(params.qiyunRatio != null ? params.qiyunRatio : 1 - retained);
+      bargainRegion.compliance = _clamp01((bargainRegion.compliance || 0.5) + 0.12);
+      bargainRegion.autonomyLevel = _clamp01((bargainRegion.autonomyLevel || 0.2) + 0.03);
+      bargainRegion.allocation = Object.assign({}, bargainRegion.allocation || {}, _centralLocalAllocationSpecFromText('', { qiyunRatio: qiyun, cunliuRatio: retained }));
+      bargainRegion.lastFiscalBargain = { turn: G.turn || 0, retainedShare: retained, qiyunRatio: qiyun };
+      if (!Array.isArray(G._centralLocalBargains)) G._centralLocalBargains = [];
+      G._centralLocalBargains.push({ turn: G.turn || 0, regionId: params.regionId, retainedShare: retained, qiyunRatio: qiyun, compliance: bargainRegion.compliance });
+      if (G._centralLocalBargains.length > 80) G._centralLocalBargains.splice(0, G._centralLocalBargains.length - 80);
+      result = { ok: true, action: action, regionId: params.regionId, retainedShare: retained, qiyunRatio: qiyun };
+    }
+    if (action === 'long_term_tracking') {
+      if (!params.regionId) return { ok: false, reason: 'missing region for long term tracking' };
+      if (!G._centralLocalTracking) G._centralLocalTracking = {};
+      G._centralLocalTracking[params.regionId] = {
+        enabled: true,
+        startTurn: G.turn || 0,
+        horizonTurns: params.horizonTurns || _turnsForMonthsLocal(36),
+        fields: ['qiyun', 'cunliu', 'skimmed', 'compliance']
+      };
+      if (G.fiscal && G.fiscal.regions && G.fiscal.regions[params.regionId]) {
+        G.fiscal.regions[params.regionId].tracking = G._centralLocalTracking[params.regionId];
+        if (!Array.isArray(G.fiscal.regions[params.regionId].history)) G.fiscal.regions[params.regionId].history = [];
+        G.fiscal.regions[params.regionId].history.push({ turn: G.turn || 0, action: action, tracking: true });
+      }
+      result = { ok: true, action: action, regionId: params.regionId };
+    }
+
     _recordEdictPolicyAction('central_local', action, result, text);
     if (G._centralLocalPolicyActions) {
       G._centralLocalPolicyActions.push({ turn: G.turn || 0, action: action, regionId: params.regionId, amount: params.amount || 0 });
@@ -370,6 +682,9 @@
     params = params || {};
     var regionId = _resolvePolicyRegionId(text, params);
     var policyId = params.policyId || null;
+    if (!policyId && /(迁民出山|环境迁民|退耕还林|移民减压|减轻环境承载|迁出山地)/.test(text)) policyId = 'migration_relief';
+    if (!policyId && /(技术投入|水利技术|试新法|省水农具|新法|技术)/.test(text)) policyId = 'tech_investment';
+    if (!policyId && /(灾后恢复|灾后复原|水毁田土|水毁|复耕三年|灾后复耕)/.test(text)) policyId = 'disaster_recovery';
     if (!policyId && /禁伐|禁樵|禁樵采|严禁樵采/.test(text)) policyId = 'jin_hu_kui';
     if (!policyId && /封山|育木|育林|造林/.test(text)) policyId = 'feng_shan_mu';
     if (!policyId && /疏浚|浚河|疏河|浚渠/.test(text)) policyId = 'yi_he_shui';
@@ -406,6 +721,15 @@
         source: 'edict'
       });
     }
+    if (!G._envPolicyActions) G._envPolicyActions = [];
+    G._envPolicyActions.push({
+      turn: G.turn || 0,
+      policyId: params.policyId,
+      regionId: params.regionId || 'all',
+      source: 'edict',
+      ok: !(result && result.ok === false)
+    });
+    if (G._envPolicyActions.length > 100) G._envPolicyActions.splice(0, G._envPolicyActions.length - 100);
     _recordEdictPolicyAction('environment', params.policyId, result, text);
     return (result && result.ok === false) ? false : (result || true);
   }
@@ -432,6 +756,25 @@
       officeName: name,
       rank: _edictOfficeRankFromText(text, 5),
       duties: duties
+    };
+  }
+
+  function _isOfficeAbolishText(text) {
+    text = String(text || '');
+    return /裁撤|裁革|裁汰|废止|废除|撤销|罢撤|罢废|并归|归并/.test(text) &&
+      /司|部|院|监|处|局|署|府|所|馆|机构|官署|衙门/.test(text);
+  }
+
+  function _inferOfficeAbolishFromText(text) {
+    text = String(text || '');
+    if (!_isOfficeAbolishText(text)) return {};
+    var name = '';
+    var m = text.match(/(?:裁撤|裁革|裁汰|废止|废除|撤销|罢撤|罢废)\s*([^，。、；;\s]{1,16}?(?:司|部|院|监|处|局|署|府|所|馆))/);
+    if (!m) m = text.match(/([^，。、；;\s]{1,16}?(?:司|部|院|监|处|局|署|府|所|馆))(?:机构|官署|衙门)?\s*(?:并归|归并|改隶)/);
+    if (m) name = m[1];
+    return {
+      action: 'abolish',
+      officeName: name
     };
   }
 
@@ -521,7 +864,6 @@
       critical: ['action'],
       drafter: '户部尚书',
       aiEntry: function(params) {
-        if (typeof global.HujiEngine === 'undefined') return false;
         params = params || {};
         if (!params.action) {
           var inferredHuji = _inferHujiTextPolicy(params._edictText || '');
@@ -532,6 +874,9 @@
         var P = global.GM.population;
         if (!P) return false;
         var action = params.action || '';
+        if (action === 'start_large_corvee') return _executeLargeCorveePolicy(params, params._edictText || '');
+        if (action === 'conscription') return _executeConscriptionPolicy(params, params._edictText || '');
+        if (action === 'migration_settlement') return _executeMigrationSettlementPolicy(params, params._edictText || '');
         // recount/重造黄册
         if (action === 'recount' || action === '重造' || action === '大造') {
           P.meta.lastRegistrationTurn = 0;
@@ -596,8 +941,15 @@
       critical: ['mode'],
       drafter: '户部尚书',
       aiEntry: function(params) {
+        params = params || {};
+        var corveeIntent = _inferCorveeTextPolicy(params._edictText || '', params);
+        if (corveeIntent.action === 'start_large_corvee') {
+          params = Object.assign({}, corveeIntent, params);
+          return _executeLargeCorveePolicy(params, params._edictText || '');
+        }
         var P = global.GM.population;
-        if (!P || !P.corvee) return false;
+        if (!P) return false;
+        if (!P.corvee) P.corvee = {};
         var ok = false;
         if (params.mode === 'fully_commuted' || params.preset === 'yitiao_bian') {
           P.corvee.fullyCommuted = true;
@@ -618,8 +970,16 @@
       critical: ['system'],
       drafter: '兵部尚书',
       aiEntry: function(params) {
+        params = params || {};
+        var militaryIntent = _inferMilitaryTextPolicy(params._edictText || '', params);
+        if (militaryIntent.action === 'conscription') {
+          params = Object.assign({}, militaryIntent, params);
+          return _executeConscriptionPolicy(params, params._edictText || '');
+        }
         var P = global.GM.population;
-        if (!P || !P.military) return false;
+        if (!P) return false;
+        if (!P.military) P.military = { types: {} };
+        if (!P.military.types) P.military.types = {};
         var ok = false;
         if (params.enable && P.military.types[params.enable]) {
           P.military.types[params.enable].enabled = true;
@@ -645,8 +1005,25 @@
       drafter: '吏部尚书',
       aiEntry: function(params) {
         if (!global.GM.officeTree) return false;
-        params = Object.assign({}, _inferOfficeReformFromText(params && params._edictText || ''), params || {});
+        var edictText = params && params._edictText || '';
+        params = Object.assign({}, _inferOfficeReformFromText(edictText), _inferOfficeAbolishFromText(edictText), params || {});
+        if (!params.officeName) params.officeName = params.institutionName || params.name || params.target || '';
         if (!params.officeName) return false;
+        if (params.action === 'abolish') {
+          var targetInst = _findDynamicInstitutionByName(params.officeName);
+          if (!targetInst || typeof abolishInstitution !== 'function') return false;
+          var abolished = abolishInstitution(targetInst.id);
+          if (abolished) {
+            abolished.abolishedBy = params.abolishedBy || params.createdBy || 'edict';
+            abolished.abolishText = edictText || params.reason || abolished.abolishText || '';
+            if (global.addEB) global.addEB('官制', '裁撤 ' + abolished.name);
+            if (typeof global.AuthorityComplete !== 'undefined') {
+              global.AuthorityComplete.triggerHuangweiEvent('structuralReform');
+              global.AuthorityComplete.triggerHuangquanEvent('structureReform');
+            }
+          }
+          return abolished || false;
+        }
         if (!global.GM.customOffices) global.GM.customOffices = [];
         if (!global.GM.customOffices.some(function(o) { return o && o.name === params.officeName; })) {
           global.GM.customOffices.push({
@@ -733,8 +1110,11 @@
     if (!type || !type.requiredFields) return 0.5;
     if (typeKey === 'currency_reform' && _isCurrencyTextPolicy(text)) return 0.75;
     if (typeKey === 'huji_reform' && _isHujiTextPolicy(text)) return 0.75;
+    if (typeKey === 'corvee_reform' && _inferCorveeTextPolicy(text, {}).action) return 0.75;
+    if (typeKey === 'military_reform' && _inferMilitaryTextPolicy(text, {}).action) return 0.75;
     if (typeKey === 'central_local_finance' && _isCentralLocalTextPolicy(text)) return 0.75;
     if (typeKey === 'environment_policy' && _isEnvironmentTextPolicy(text)) return 0.75;
+    if (typeKey === 'office_reform' && _isOfficeAbolishText(text)) return 0.75;
     // 按关键字检测
     var keywordMap = {
       coinType: /铜钱|银|金|铁钱|纸|钞|通宝|重宝|元宝/,
@@ -793,6 +1173,12 @@
   }
 
   function _detectType(text) {
+    if (/完整币制|币制改革|统一钱法|银本位|白银本位|赋役折银|海外银|银流|开海通商|海商纳银|接受宝钞|纸钞折纳|官府收纳.*钞/.test(text)) return 'currency_reform';
+    if (/迁民出山|退耕还林|技术投入|水利技术|灾后恢复|水毁田土|环境承载|省水农具/.test(text)) return 'environment_policy';
+    if (/财政博弈|地方财政博弈|长期财政追踪|财政追踪|岁终核验|足额起运|起运.*存留.*贪墨/.test(text)) return 'central_local_finance';
+    if (/征兵|募兵入营|募兵|军伍|补边镇|补军/.test(text)) return 'military_reform';
+    if (/大徭役|徭役|调丁|河工|修河|起役/.test(text)) return 'corvee_reform';
+    if (/迁徙安置|迁民安置|流民.*屯田|安置.*流民/.test(text)) return 'huji_reform';
     if (/铜钱|银本|金本|铸.*通宝|发.*钞|交子|会子|宝钞|官票|纸币|纸钞|私铸|私钱|减铸|币制|钱法|币改/.test(text)) return 'currency_reform';
     if (/禁伐|封山|育木|育林|疏浚|浚河|水利|治水|复耕|屯田|休耕|限垦|开荒|垦荒|垦殖|治盐|盐碱|清污|净流|禁猎|环境|承载/.test(text)) return 'environment_policy';
     if (/央地|起运|存留|留成|分成|分税|下拨|拨银|拨款|发帑|强征|地方留存|监察御史|巡按|巡察|查核钱粮/.test(text)) return 'central_local_finance';
@@ -800,6 +1186,7 @@
     if (/户籍|户口|户等|黄册|白册|保甲|里甲|编户|色目|隐户|逃户|流民|黄籍|漏籍/.test(text)) return 'huji_reform';
     if (/徭役|役法|差役|均徭|一条鞭|摊丁|役银/.test(text)) return 'corvee_reform';
     if (/府兵|募兵|卫所|八旗|绿营|兵制|军制|常备/.test(text)) return 'military_reform';
+    if (_isOfficeAbolishText(text)) return 'office_reform';
     if (/设.*司|立.*部|置.*院|创.*监|官制|职官|机构/.test(text)) return 'office_reform';
     return null;
   }
@@ -1249,6 +1636,134 @@
   }
 
   // C3 · 动态机构 GM.dynamicInstitutions
+  function _institutionLifecycleText(inst, action, detail) {
+    detail = detail || {};
+    if (action === 'court_debate') return (inst && inst.name || '') + ' 廷议：' + (detail.decision || detail.summary || '准入廷议');
+    if (action === 'trial_start') return (inst && inst.name || '') + ' 试行：' + (detail.summary || '择期试行');
+    if (action === 'trial_failed') return (inst && inst.name || '') + ' 试行失败：' + (detail.reason || detail.summary || '成效未达');
+    if (action === 'historical_reference') return (inst && inst.name || '') + ' 历史引用：' + (detail.note || detail.citedBy || '后续制度议案引用');
+    if (action === 'status_feedback') return (inst && inst.name || '') + ' 状态反馈：' + (detail.summary || detail.text || '状态已更新');
+    var name = inst && inst.name || '未名机构';
+    if (action === 'created') return '新设机构 ' + name;
+    if (action === 'underfunded') return name + ' 经费不足，运行受挫';
+    if (action === 'corruption_high') return name + ' 腐化偏高，需监察';
+    if (action === 'abolished') return '裁撤机构 ' + name;
+    return name + ' 制度状态变化';
+  }
+
+  function _institutionLifecyclePhase(action) {
+    var map = {
+      created: { key: 'proposed', label: '提出', affectsStage: true },
+      proposed: { key: 'proposed', label: '提出', affectsStage: true },
+      court_debate: { key: 'court_debate', label: '廷议', affectsStage: true },
+      trial_start: { key: 'trial_start', label: '试行', affectsStage: true },
+      running: { key: 'trial_start', label: '试行', affectsStage: true },
+      trial_failed: { key: 'trial_failed', label: '失败', affectsStage: true },
+      underfunded: { key: 'trial_failed', label: '失败', affectsStage: true },
+      corruption_high: { key: 'status_feedback', label: '状态反馈', affectsStage: false },
+      abolished: { key: 'abolished', label: '废止', affectsStage: true },
+      historical_reference: { key: 'historical_reference', label: '历史引用', affectsStage: false },
+      status_feedback: { key: 'status_feedback', label: '状态反馈', affectsStage: false }
+    };
+    return map[action] || { key: action || 'unknown', label: '状态反馈', affectsStage: false };
+  }
+
+  function _ensureInstitutionLifecycleProduct(inst) {
+    if (!inst) return null;
+    if (!inst.lifecycle || typeof inst.lifecycle !== 'object') inst.lifecycle = {};
+    if (!Array.isArray(inst.lifecycle.timeline)) inst.lifecycle.timeline = [];
+    if (!Array.isArray(inst.lifecycle.feedback)) inst.lifecycle.feedback = [];
+    if (!Array.isArray(inst.lifecycle.historicalReferences)) inst.lifecycle.historicalReferences = [];
+    return inst.lifecycle;
+  }
+
+  function _updateInstitutionLifecycleProduct(inst, event, phase) {
+    var product = _ensureInstitutionLifecycleProduct(inst);
+    if (!product || !event) return;
+    phase = phase || _institutionLifecyclePhase(event.action);
+    var item = {
+      turn: event.turn,
+      action: event.action,
+      key: phase.key,
+      label: phase.label,
+      stage: event.stage,
+      text: event.text,
+      detail: event.detail || {}
+    };
+    product.timeline.push(item);
+    if (product.timeline.length > 80) product.timeline.splice(0, product.timeline.length - 80);
+    if (phase.affectsStage) {
+      product.currentStage = phase.key;
+      product.currentLabel = phase.label;
+    }
+    if (phase.key === 'historical_reference') {
+      product.historicalReferences.push(Object.assign({ turn: event.turn, text: event.text }, event.detail || {}));
+      if (product.historicalReferences.length > 20) product.historicalReferences.splice(0, product.historicalReferences.length - 20);
+    }
+    if (phase.key === 'status_feedback' || event.action === 'trial_failed' || event.action === 'underfunded') {
+      product.feedback.push(Object.assign({ turn: event.turn, action: event.action, text: event.text }, event.detail || {}));
+      if (product.feedback.length > 30) product.feedback.splice(0, product.feedback.length - 30);
+    }
+  }
+
+  function _recordInstitutionLifecycleEvent(inst, action, detail) {
+    var G = global.GM;
+    if (!G || !inst || !action) return null;
+    var turn = G.turn || 0;
+    detail = detail || {};
+    if (!Array.isArray(G._institutionLifecycleEvents)) G._institutionLifecycleEvents = [];
+    var exists = G._institutionLifecycleEvents.some(function(e) {
+      return e && e.turn === turn && e.id === inst.id && e.action === action;
+    });
+    if (exists) return null;
+    var phase = _institutionLifecyclePhase(action);
+    var event = {
+      turn: turn,
+      id: inst.id || '',
+      name: inst.name || '',
+      action: action,
+      phaseKey: phase.key,
+      phaseLabel: phase.label,
+      stage: inst.stage || '',
+      rank: inst.rank || null,
+      annualBudget: inst.annualBudget || 0,
+      corruption: typeof inst.corruption === 'number' ? inst.corruption : null,
+      effectiveness: typeof inst.effectiveness === 'number' ? inst.effectiveness : null,
+      text: _institutionLifecycleText(inst, action, detail),
+      detail: detail
+    };
+    G._institutionLifecycleEvents.push(event);
+    if (G._institutionLifecycleEvents.length > 120) {
+      G._institutionLifecycleEvents.splice(0, G._institutionLifecycleEvents.length - 120);
+    }
+    _updateInstitutionLifecycleProduct(inst, event, phase);
+    if (!Array.isArray(inst.history)) inst.history = [];
+    inst.history.push({
+      turn: event.turn,
+      action: event.action,
+      phaseKey: event.phaseKey,
+      phaseLabel: event.phaseLabel,
+      stage: event.stage,
+      text: event.text,
+      detail: detail
+    });
+    if (inst.history.length > 40) inst.history.splice(0, inst.history.length - 40);
+    if (Array.isArray(G._turnReport)) {
+      G._turnReport.push({
+        type: 'institution_lifecycle',
+        action: action,
+        phaseKey: event.phaseKey,
+        phaseLabel: event.phaseLabel,
+        id: event.id,
+        name: event.name,
+        stage: event.stage,
+        text: event.text,
+        turn: turn
+      });
+    }
+    return event;
+  }
+
   function registerDynamicInstitution(spec) {
     var G = global.GM;
     if (!G.dynamicInstitutions) G.dynamicInstitutions = [];
@@ -1286,6 +1801,7 @@
       inst.effectiveness *= 0.5;
     }
     if (global.addEB) global.addEB('机构', '新设 ' + inst.name + '（品 ' + inst.rank + '，岁支 ' + inst.annualBudget + '）');
+    _recordInstitutionLifecycleEvent(inst, 'created', { source: inst.createdBy || 'edict' });
     return inst;
   }
 
@@ -1303,18 +1819,87 @@
           inst.stage = 'underfunded';
           inst.effectiveness *= 0.8;
           if (global.addEB) global.addEB('机构', inst.name + ' 拨款不足，裁员');
+          _recordInstitutionLifecycleEvent(inst, 'underfunded', { annualBudget: inst.annualBudget, money: G.guoku.money || 0 });
         }
       }
       inst.corruption = Math.min(100, inst.corruption + 0.1 * mr);
       if (inst.corruption > 80 && G.corruption) {
         G.corruption.trueIndex = Math.min(100, (typeof G.corruption.trueIndex === 'number' ? G.corruption.trueIndex : (G.corruption.overall || 0)) + 0.05 * mr);
         G.corruption.overall = G.corruption.trueIndex;
+        _recordInstitutionLifecycleEvent(inst, 'corruption_high', { corruption: inst.corruption });
       }
     });
     G.dynamicInstitutions = G.dynamicInstitutions.filter(function(inst) {
       if (inst.stage === 'abolished' && (ctx.turn - inst.abolishedTurn) > _turnsForMonthsLocal(60)) return false;
       return true;
     });
+  }
+
+  function _findDynamicInstitutionById(instId) {
+    var G = global.GM || {};
+    var list = Array.isArray(G.dynamicInstitutions) ? G.dynamicInstitutions : [];
+    return list.find(function(i) { return i && i.id === instId; }) || null;
+  }
+
+  function advanceInstitutionLifecycle(instId, action, detail) {
+    var inst = _findDynamicInstitutionById(instId);
+    if (!inst || !action) return null;
+    detail = detail || {};
+    if (action === 'court_debate') inst.stage = 'debate';
+    else if (action === 'trial_start') inst.stage = 'trial';
+    else if (action === 'trial_failed') {
+      inst.stage = 'failed';
+      inst.failureReason = detail.reason || detail.summary || inst.failureReason || '';
+      if (typeof inst.effectiveness === 'number') inst.effectiveness = Math.max(0, inst.effectiveness * 0.65);
+    } else if (action === 'abolished') {
+      inst.stage = 'abolished';
+      inst.abolishedTurn = (global.GM && global.GM.turn) || 0;
+    }
+    return _recordInstitutionLifecycleEvent(inst, action, detail);
+  }
+
+  function getInstitutionLifecycleView(instId) {
+    var inst = _findDynamicInstitutionById(instId);
+    if (!inst) return null;
+    var product = _ensureInstitutionLifecycleProduct(inst);
+    var timeline = product.timeline.slice();
+    if (timeline.length === 0 && Array.isArray(inst.history)) {
+      timeline = inst.history.map(function(e) {
+        var phase = _institutionLifecyclePhase(e.action);
+        return Object.assign({}, e, { key: e.phaseKey || phase.key, label: e.phaseLabel || phase.label });
+      });
+    }
+    var steps = [
+      { key: 'proposed', label: '提出' },
+      { key: 'court_debate', label: '廷议' },
+      { key: 'trial_start', label: '试行' },
+      { key: 'trial_failed', label: '失败' },
+      { key: 'abolished', label: '废止' },
+      { key: 'historical_reference', label: '历史引用' },
+      { key: 'status_feedback', label: '状态反馈' }
+    ].map(function(step) {
+      var hit = timeline.find(function(e) { return e && (e.key === step.key || e.phaseKey === step.key); });
+      return {
+        key: step.key,
+        label: step.label,
+        status: hit ? 'done' : 'pending',
+        turn: hit ? hit.turn : null,
+        text: hit ? hit.text : ''
+      };
+    });
+    var currentStage = inst.stage === 'abolished' ? 'abolished' : (product.currentStage || (steps.find(function(s) { return s.status === 'done'; }) || {}).key || inst.stage || 'proposed');
+    var currentPhase = _institutionLifecyclePhase(currentStage === 'trial' ? 'trial_start' : currentStage);
+    return {
+      id: inst.id,
+      name: inst.name,
+      stage: inst.stage || '',
+      currentStage: currentStage,
+      currentLabel: currentStage === 'abolished' ? '废止' : (product.currentLabel || currentPhase.label),
+      visibleSteps: steps,
+      timeline: timeline,
+      feedback: product.feedback.slice(),
+      historicalReferences: product.historicalReferences.slice()
+    };
   }
 
   function abolishInstitution(instId) {
@@ -1325,6 +1910,7 @@
     inst.stage = 'abolished';
     inst.abolishedTurn = G.turn || 0;
     if (global.addEB) global.addEB('机构', inst.name + ' 已废');
+    _recordInstitutionLifecycleEvent(inst, 'abolished', {});
     return inst;
   }
 
@@ -1356,6 +1942,48 @@
   //  AI 上下文
   // ═══════════════════════════════════════════════════════════════════
 
+  function _institutionStageLabel(stage) {
+    if (stage === 'running') return '运行';
+    if (stage === 'proposal') return '拟设';
+    if (stage === 'underfunded') return '欠费';
+    if (stage === 'abolished') return '已废';
+    return stage || '未定';
+  }
+
+  function _institutionContextItem(inst) {
+    var bits = [String(inst.name || '未名机构')];
+    bits.push(_institutionStageLabel(inst.stage));
+    if (inst.rank) bits.push('品级' + inst.rank);
+    if (typeof inst.annualBudget === 'number') bits.push('岁支' + Math.round(inst.annualBudget));
+    if (typeof inst.corruption === 'number') bits.push('腐化' + Math.round(inst.corruption));
+    if (typeof inst.effectiveness === 'number') bits.push('效能' + Math.round(inst.effectiveness * 100) + '%');
+    if (inst.duties) bits.push('职掌' + String(inst.duties).slice(0, 18));
+    return bits.join('/');
+  }
+
+  function _appendInstitutionAIContext(lines, G) {
+    var list = Array.isArray(G.dynamicInstitutions) ? G.dynamicInstitutions : [];
+    if (list.length === 0) return;
+    var active = list.filter(function(inst) {
+      return inst && inst.stage !== 'abolished';
+    }).slice(0, 4);
+    if (active.length > 0) {
+      lines.push('【制度】在册动态机构 ' + active.length + ' 个：' + active.map(_institutionContextItem).join('；'));
+    }
+    var turn = G.turn || 0;
+    var recentLimit = _turnsForMonthsLocal(24);
+    var recentAbolished = list.filter(function(inst) {
+      if (!inst || inst.stage !== 'abolished') return false;
+      var abolishedTurn = typeof inst.abolishedTurn === 'number' ? inst.abolishedTurn : 0;
+      return turn - abolishedTurn <= recentLimit;
+    }).slice(0, 3);
+    if (recentAbolished.length > 0) {
+      lines.push('【制度废止】近来裁撤：' + recentAbolished.map(function(inst) {
+        return String(inst.name || '未名机构') + '（第' + (inst.abolishedTurn || 0) + '回合）';
+      }).join('、'));
+    }
+  }
+
   function getAIContext() {
     var G = global.GM;
     if (!G) return '';
@@ -1373,6 +2001,7 @@
       var recent = G._abductions.filter(function(o) { return (G.turn || 0) - o.turn < 5; });
       if (recent.length > 0) lines.push('【抗疏】近有 ' + recent.length + ' 起');
     }
+    _appendInstitutionAIContext(lines, G);
     return lines.length > 0 ? lines.join('\n') : '';
   }
 
@@ -1404,6 +2033,8 @@
     // R12b inline·原 phase-c-patches APPEND
     registerDynamicInstitution: registerDynamicInstitution,
     abolishInstitution: abolishInstitution,
+    advanceInstitutionLifecycle: advanceInstitutionLifecycle,
+    getInstitutionLifecycleView: getInstitutionLifecycleView,
     enhanceOfficeReformDraft: enhanceOfficeReformDraft,
     VERSION: 2
   };
@@ -1421,6 +2052,8 @@
   global.PhaseC.tick = tick;
   global.PhaseC.registerDynamicInstitution = registerDynamicInstitution;
   global.PhaseC.abolishInstitution = abolishInstitution;
+  global.PhaseC.advanceInstitutionLifecycle = advanceInstitutionLifecycle;
+  global.PhaseC.getInstitutionLifecycleView = getInstitutionLifecycleView;
   global.PhaseC.enhanceOfficeReformDraft = enhanceOfficeReformDraft;
   global.PhaseC.openClarificationPanel = openClarificationPanel;
   global.PhaseC.processImperialAssentExtended = processImperialAssentExtended;

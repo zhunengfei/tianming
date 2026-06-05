@@ -904,6 +904,12 @@
     var cleanOfficials = (G.chars || []).filter(function(c) { return c.alive !== false && (c.integrity || 60) > 80; }).length;
     if (corruptOfficials > cleanOfficials) adjustMinxin('localOfficial', -0.1 * mr * (corruptOfficials - cleanOfficials) / 5, '贪官多');
     else if (cleanOfficials > corruptOfficials * 2) adjustMinxin('localOfficial', +0.1 * mr, '清官多');
+    // 民众敬爱：地方官名望(fame)众望所归→民心微涨·恶名昭彰→微跌（设计-角色经济·资源三 民众敬爱）。
+    //   并入同一 localOfficial 源(同封顶·防双驱)·小幅(0.05)·只算在职官。fame≠prestige≠功名。
+    var belovedOfficials = (G.chars || []).filter(function(c) { return c.alive !== false && c.officialTitle && c.resources && (c.resources.fame || 0) > 50; }).length;
+    var hatedOfficials = (G.chars || []).filter(function(c) { return c.alive !== false && c.officialTitle && c.resources && (c.resources.fame || 0) < -30; }).length;
+    if (belovedOfficials > hatedOfficials) adjustMinxin('localOfficial', +0.05 * mr * Math.min(3, belovedOfficials - hatedOfficials), '清望素著');
+    else if (hatedOfficials > belovedOfficials) adjustMinxin('localOfficial', -0.05 * mr * Math.min(3, hatedOfficials - belovedOfficials), '民怨载道');
     // 粮价
     if (G.currency && G.currency.market) {
       var grainPrice = G.currency.market.grainPrice || 100;
@@ -1013,6 +1019,172 @@
     return !!(G && G.settings && G.settings.passiveAuthorityLinkage === true);
   }
 
+  var VARIABLE_LINKAGE_VARIABLES = ['guoku', 'neitang', 'population', 'corruption', 'minxin', 'huangquan', 'huangwei'];
+  var VARIABLE_LINKAGE_LABELS = {
+    guoku: '帑廪',
+    neitang: '内帑',
+    population: '在籍户口',
+    corruption: '腐败',
+    minxin: '民心',
+    huangquan: '皇权',
+    huangwei: '皇威'
+  };
+  var VARIABLE_LINKAGE_STATUS = {
+    DEFAULT: 'implemented_default',
+    GATED: 'implemented_gated',
+    GAP: 'documented_gap'
+  };
+
+  function _varLink(from, to, strength, direction, status, mechanism) {
+    return {
+      id: from + '_to_' + to,
+      from: from,
+      to: to,
+      fromLabel: VARIABLE_LINKAGE_LABELS[from] || from,
+      toLabel: VARIABLE_LINKAGE_LABELS[to] || to,
+      strength: strength,
+      direction: direction,
+      status: status,
+      mechanism: mechanism
+    };
+  }
+
+  var VARIABLE_LINKAGE_MATRIX = [
+    _varLink('guoku', 'neitang', 'strong', 'mixed', VARIABLE_LINKAGE_STATUS.DEFAULT, 'treasury surplus can feed inner treasury; inner relief can flow back through neitang_to_guoku'),
+    _varLink('guoku', 'population', 'medium', 'positive', VARIABLE_LINKAGE_STATUS.DEFAULT, 'fiscal shortage increases fugitive pressure; stable revenue is the baseline for household retention'),
+    _varLink('guoku', 'corruption', 'strong', 'negative', VARIABLE_LINKAGE_STATUS.DEFAULT, 'fiscal distress feeds corruption index pressure'),
+    _varLink('guoku', 'minxin', 'strong', 'mixed', VARIABLE_LINKAGE_STATUS.DEFAULT, 'fiscal abundance/shortage shifts minxin through relief and extraction pressure'),
+    _varLink('guoku', 'huangquan', 'medium', 'positive', VARIABLE_LINKAGE_STATUS.DEFAULT, 'healthy public treasury supports decree capacity and imperial authority'),
+    _varLink('guoku', 'huangwei', 'medium', 'positive', VARIABLE_LINKAGE_STATUS.DEFAULT, 'healthy public treasury supports visible imperial prestige'),
+
+    _varLink('neitang', 'guoku', 'strong', 'mixed', VARIABLE_LINKAGE_STATUS.DEFAULT, 'inner treasury relief transfers money back to public treasury when court money is strained'),
+    _varLink('neitang', 'population', 'weak', 'positive', VARIABLE_LINKAGE_STATUS.GAP, 'planned palace relief and reserve spending have no household-retention runtime path yet'),
+    _varLink('neitang', 'corruption', 'medium', 'conditional', VARIABLE_LINKAGE_STATUS.DEFAULT, 'large inner treasury encourages palace rent-seeking and raises corruption index'),
+    _varLink('neitang', 'minxin', 'medium', 'negative', VARIABLE_LINKAGE_STATUS.GAP, 'planned perception hit for palace hoarding has no minxin runtime path yet'),
+    _varLink('neitang', 'huangquan', 'strong', 'positive', VARIABLE_LINKAGE_STATUS.GAP, 'planned discretionary funds to authority execution path is not wired yet'),
+    _varLink('neitang', 'huangwei', 'strong', 'positive', VARIABLE_LINKAGE_STATUS.DEFAULT, 'wealthy inner treasury can fund grand ceremony prestige'),
+
+    _varLink('population', 'guoku', 'strong', 'positive', VARIABLE_LINKAGE_STATUS.DEFAULT, 'fugitives reduce tax base and treasury income potential'),
+    _varLink('population', 'neitang', 'weak', 'positive', VARIABLE_LINKAGE_STATUS.GAP, 'planned household prosperity to inner tribute path is not wired yet'),
+    _varLink('population', 'corruption', 'medium', 'conditional', VARIABLE_LINKAGE_STATUS.DEFAULT, 'fugitive and hidden-household disorder creates local rent-seeking pressure'),
+    _varLink('population', 'minxin', 'weak', 'mixed', VARIABLE_LINKAGE_STATUS.DEFAULT, 'fugitive ratio depresses minxin when household loss grows'),
+    _varLink('population', 'huangquan', 'medium', 'positive', VARIABLE_LINKAGE_STATUS.GAP, 'planned registered-household base to authority legitimacy path is not wired yet'),
+    _varLink('population', 'huangwei', 'weak', 'positive', VARIABLE_LINKAGE_STATUS.DEFAULT, 'very large settled population adds prestige through prosperous-realm signal'),
+
+    _varLink('corruption', 'guoku', 'strong', 'negative', VARIABLE_LINKAGE_STATUS.DEFAULT, 'high corruption leaks public treasury money each tick'),
+    _varLink('corruption', 'neitang', 'medium', 'negative', VARIABLE_LINKAGE_STATUS.DEFAULT, 'high corruption also siphons inner treasury money'),
+    _varLink('corruption', 'population', 'strong', 'negative', VARIABLE_LINKAGE_STATUS.DEFAULT, 'high corruption drives fugitives and hidden households upward'),
+    _varLink('corruption', 'minxin', 'strong', 'negative', VARIABLE_LINKAGE_STATUS.DEFAULT, 'high corruption directly lowers minxin'),
+    _varLink('corruption', 'huangquan', 'strong', 'negative', VARIABLE_LINKAGE_STATUS.GATED, 'passiveAuthorityLinkage can make false reporting weaken huangquan'),
+    _varLink('corruption', 'huangwei', 'strong', 'negative', VARIABLE_LINKAGE_STATUS.GATED, 'passiveAuthorityLinkage can make public bribery scandals weaken huangwei'),
+
+    _varLink('minxin', 'guoku', 'strong', 'mixed', VARIABLE_LINKAGE_STATUS.DEFAULT, 'true minxin changes tax efficiency multiplier'),
+    _varLink('minxin', 'neitang', 'weak', 'negative', VARIABLE_LINKAGE_STATUS.GAP, 'planned public resentment to palace-spending pressure path is not wired yet'),
+    _varLink('minxin', 'population', 'strong', 'mixed', VARIABLE_LINKAGE_STATUS.DEFAULT, 'low minxin increases fugitives and household loss'),
+    _varLink('minxin', 'corruption', 'medium', 'mixed', VARIABLE_LINKAGE_STATUS.DEFAULT, 'low minxin raises petty extraction tolerance while high minxin suppresses corruption'),
+    _varLink('minxin', 'huangquan', 'strong', 'mixed', VARIABLE_LINKAGE_STATUS.GATED, 'passiveAuthorityLinkage can make low minxin weaken huangquan'),
+    _varLink('minxin', 'huangwei', 'strong', 'mixed', VARIABLE_LINKAGE_STATUS.GATED, 'passiveAuthorityLinkage can make high/low minxin raise or lower huangwei'),
+
+    _varLink('huangquan', 'guoku', 'strong', 'mixed', VARIABLE_LINKAGE_STATUS.DEFAULT, 'huangquan now adjusts authority tax efficiency and public treasury collection'),
+    _varLink('huangquan', 'neitang', 'strong', 'mixed', VARIABLE_LINKAGE_STATUS.GAP, 'planned authority control over inner funds is not wired yet'),
+    _varLink('huangquan', 'population', 'medium', 'mixed', VARIABLE_LINKAGE_STATUS.DEFAULT, 'strong authority reduces fugitives/hidden households while weak authority worsens flight'),
+    _varLink('huangquan', 'corruption', 'strong', 'mixed', VARIABLE_LINKAGE_STATUS.DEFAULT, 'strong huangquan suppresses corruption index'),
+    _varLink('huangquan', 'minxin', 'medium', 'mixed', VARIABLE_LINKAGE_STATUS.GAP, 'planned authority fairness/oppression to minxin path is not wired yet'),
+    _varLink('huangquan', 'huangwei', 'strong', 'mixed', VARIABLE_LINKAGE_STATUS.GATED, 'passiveAuthorityLinkage can let strong/weak huangquan affect huangwei'),
+
+    _varLink('huangwei', 'guoku', 'medium', 'mixed', VARIABLE_LINKAGE_STATUS.GAP, 'planned prestige to fiscal compliance path is not wired yet'),
+    _varLink('huangwei', 'neitang', 'medium', 'negative', VARIABLE_LINKAGE_STATUS.GAP, 'planned prestige spectacle spending to inner treasury path is not wired yet'),
+    _varLink('huangwei', 'population', 'medium', 'mixed', VARIABLE_LINKAGE_STATUS.GAP, 'planned prestige/fear to household stability path is not wired yet'),
+    _varLink('huangwei', 'corruption', 'strong', 'mixed', VARIABLE_LINKAGE_STATUS.GAP, 'planned prestige deterrence or impunity to corruption path is not wired yet'),
+    _varLink('huangwei', 'minxin', 'strong', 'mixed', VARIABLE_LINKAGE_STATUS.DEFAULT, 'high or low huangwei adjusts minxin through imperialVirtue'),
+    _varLink('huangwei', 'huangquan', 'strong', 'mixed', VARIABLE_LINKAGE_STATUS.GATED, 'passiveAuthorityLinkage can let very high huangwei feed personal rule')
+  ];
+
+  function getVariableLinkageMatrix() {
+    return VARIABLE_LINKAGE_MATRIX.map(function(link) {
+      return Object.assign({}, link);
+    });
+  }
+
+  function getVariableLinkageSummary() {
+    var summary = {
+      total: VARIABLE_LINKAGE_MATRIX.length,
+      variables: VARIABLE_LINKAGE_VARIABLES.slice(),
+      labels: Object.assign({}, VARIABLE_LINKAGE_LABELS),
+      byStatus: {},
+      byStrength: {},
+      byDirection: {}
+    };
+    VARIABLE_LINKAGE_MATRIX.forEach(function(link) {
+      summary.byStatus[link.status] = (summary.byStatus[link.status] || 0) + 1;
+      summary.byStrength[link.strength] = (summary.byStrength[link.strength] || 0) + 1;
+      summary.byDirection[link.direction] = (summary.byDirection[link.direction] || 0) + 1;
+    });
+    return summary;
+  }
+
+  function _clampNumber(value, min, max) {
+    var n = Number(value);
+    if (!isFinite(n)) n = min;
+    return Math.max(min, Math.min(max, n));
+  }
+
+  function _populationMouths(G) {
+    var p = G && G.population;
+    var n = p && p.national;
+    return Math.max(1, Number((n && n.mouths) || (p && p.mouths) || 1) || 1);
+  }
+
+  function _populationDing(G) {
+    var p = G && G.population;
+    var n = p && p.national;
+    return Math.max(1, Number((n && n.ding) || (p && p.ding) || Math.round(_populationMouths(G) * 0.35)) || 1);
+  }
+
+  function _populationFugitives(G) {
+    var p = G && G.population;
+    var n = p && p.national;
+    if (!p) return 0;
+    if (typeof p.fugitives === 'number') return Math.max(0, p.fugitives);
+    if (n && typeof n.fugitives === 'number') return Math.max(0, n.fugitives);
+    return 0;
+  }
+
+  function _setPopulationFugitives(G, value) {
+    if (!G || !G.population) return 0;
+    var next = Math.max(0, Math.round(Number(value) || 0));
+    G.population.fugitives = next;
+    if (G.population.national && typeof G.population.national === 'object') G.population.national.fugitives = next;
+    return next;
+  }
+
+  function _adjustPopulationFugitives(G, delta) {
+    return _setPopulationFugitives(G, _populationFugitives(G) + (Number(delta) || 0));
+  }
+
+  function _populationHiddenCount(G) {
+    var p = G && G.population;
+    var n = p && p.national;
+    if (!p) return 0;
+    if (typeof p.hiddenCount === 'number') return Math.max(0, p.hiddenCount);
+    if (typeof p.hiddenPopulation === 'number') return Math.max(0, p.hiddenPopulation);
+    if (n && typeof n.hiddenCount === 'number') return Math.max(0, n.hiddenCount);
+    return 0;
+  }
+
+  function _setPopulationHiddenCount(G, value) {
+    if (!G || !G.population) return 0;
+    var next = Math.max(0, Math.round(Number(value) || 0));
+    G.population.hiddenCount = next;
+    if (typeof G.population.hiddenPopulation === 'number') G.population.hiddenPopulation = next;
+    if (G.population.national && typeof G.population.national === 'object') G.population.national.hiddenCount = next;
+    return next;
+  }
+
+  function _adjustPopulationHiddenCount(G, delta) {
+    return _setPopulationHiddenCount(G, _populationHiddenCount(G) + (Number(delta) || 0));
+  }
+
   function _tickVarLinkage(ctx, mr) {
     var G = global.GM;
     if (!G) return;
@@ -1060,17 +1232,24 @@
 
     // ── 户口 → 其他 ──
     var population = G.population && G.population.national;
-    if (population) {
+    if (G.population) {
       // 户口 → 帑廪（逃户流失税基）
-      var fugRatio = (G.population.fugitives || 0) / Math.max(1, population.mouths);
+      var popMouths = _populationMouths(G);
+      var popDing = _populationDing(G);
+      var fugRatio = _populationFugitives(G) / popMouths;
       if (fugRatio > 0.05 && G.guoku) {
         // 税收损失
-        G.guoku.money = Math.max(0, G.guoku.money - population.ding * fugRatio * 2 * mr / 12);
+        G.guoku.money = Math.max(0, G.guoku.money - popDing * fugRatio * 2 * mr / 12);
+      }
+      // 户口 → 腐败（逃户/隐户越多，胥吏上下其手空间越大）
+      var disorderRatio = (_populationFugitives(G) + _populationHiddenCount(G)) / popMouths;
+      if (disorderRatio > 0.08 && G.corruption && typeof G.corruption === 'object') {
+        _addCorrIndex(G, Math.min(0.35, (disorderRatio - 0.08) * 1.5) * mr);
       }
       // 户口 → 民心（逃户增则民怨）
       if (fugRatio > 0.08) adjustMinxin('localOfficial', -0.2 * mr, '逃户众');
       // 户口 → 皇威（人口兴则威）
-      if (population.mouths > 100000000) adjustHuangwei('benevolence', 0.03 * mr, '人口繁盛');
+      if (_populationMouths(G) > 100000000) adjustHuangwei('benevolence', 0.03 * mr, '人口繁盛');
     }
 
     // ── 腐败 → 其他 ──
@@ -1086,6 +1265,13 @@
     }
     // 腐败 → 民心（直接）
     if (corruptOverall > 50) adjustMinxin('localOfficial', -(corruptOverall - 50) * 0.005 * mr, '贪腐横行');
+    // 腐败 → 户口（苛索/包庇让逃户与隐户上升）
+    if (corruptOverall > 65 && G.population) {
+      var corrSeverity = (corruptOverall - 65) / 35;
+      var corrMouths = _populationMouths(G);
+      _adjustPopulationFugitives(G, Math.max(1, Math.round(corrMouths * 0.00035 * corrSeverity * mr)));
+      _adjustPopulationHiddenCount(G, Math.max(1, Math.round(corrMouths * 0.00020 * corrSeverity * mr)));
+    }
     // 腐败 → 皇权（虚报扭曲）
     if (_allowPassiveAuthorityLinkage() && corruptOverall > 70) adjustHuangquan('idleGovern', -0.1 * mr, '虚报失真');
     // 腐败 → 皇威（官场贿赂公开化）
@@ -1099,7 +1285,12 @@
       G._taxEfficiencyMult = Math.max(0.5, Math.min(1.3, taxEff));
       // 民心 → 户口（逃亡率）
       if (mx.trueIndex < 30 && G.population) {
-        G.population.fugitives = (G.population.fugitives || 0) + Math.round(population.mouths * 0.001 * mr);
+        _adjustPopulationFugitives(G, Math.round(_populationMouths(G) * 0.001 * mr));
+      }
+      // 民心 → 腐败（民怨低迷纵容苛索，民心高则轻微压制贪墨）
+      if (G.corruption && typeof G.corruption === 'object') {
+        if (mx.trueIndex < 35) _addCorrIndex(G, Math.min(0.25, (35 - mx.trueIndex) * 0.01) * mr);
+        else if (mx.trueIndex > 80) _addCorrIndex(G, -Math.min(0.15, (mx.trueIndex - 80) * 0.02) * mr);
       }
       // 民心 → 皇权（民变威胁皇权）
       if (_allowPassiveAuthorityLinkage() && mx.trueIndex < 30) adjustHuangquan('idleGovern', -0.15 * mr, '民心向背');
@@ -1111,6 +1302,24 @@
     // ── 皇权 → 其他 ──
     var hq = _ensureHuangquan();
     if (hq) {
+      // 皇权 → 帑廪（诏令执行率影响征收效率）
+      if (G.guoku) {
+        var authorityTaxEff = _clampNumber(1 + ((Number(hq.index) || 50) - 55) / 250, 0.75, 1.18);
+        G._authorityTaxEfficiencyMult = authorityTaxEff;
+        var authorityTaxDelta = Math.round(_populationDing(G) * (authorityTaxEff - 1) * 0.25 * mr);
+        G.guoku.money = Math.max(0, (G.guoku.money || 0) + authorityTaxDelta);
+      }
+      // 皇权 → 户口（强则编审有力，弱则逃亡隐匿增加）
+      if (G.population) {
+        if (hq.index > 75) {
+          _adjustPopulationFugitives(G, -Math.max(1, Math.round(_populationFugitives(G) * 0.01 * mr)));
+          _adjustPopulationHiddenCount(G, -Math.max(1, Math.round(_populationHiddenCount(G) * 0.006 * mr)));
+        } else if (hq.index < 35) {
+          var weakSeverity = (35 - hq.index) / 35;
+          _adjustPopulationFugitives(G, Math.max(1, Math.round(_populationMouths(G) * 0.00025 * weakSeverity * mr)));
+          _adjustPopulationHiddenCount(G, Math.max(1, Math.round(_populationMouths(G) * 0.00018 * weakSeverity * mr)));
+        }
+      }
       // 皇权 → 腐败（强时可镇压）
       if (hq.index > 75 && G.corruption && typeof G.corruption === 'object') {
         _addCorrIndex(G, -0.1 * mr);
@@ -1286,6 +1495,9 @@
     _updatePerceivedHuangwei_f1: _updatePerceivedHuangwei,
     getUnifiedHuangquanPhaseHandler: getUnifiedHuangquanPhaseHandler,
     checkDecreeRealtime: checkDecreeRealtime,
+    getVariableLinkageMatrix: getVariableLinkageMatrix,
+    getVariableLinkageSummary: getVariableLinkageSummary,
+    VARIABLE_LINKAGE_VARIABLES: VARIABLE_LINKAGE_VARIABLES,
     VERSION: 1
   };
 

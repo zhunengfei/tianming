@@ -169,6 +169,9 @@ var REFORM_PHASES = {
 /**
  * 获取当前剧本的每回合天数
  */
+// TM_RETENTION_GUARD: edict-days-per-turn-compatible-redefinition.
+// This later definition intentionally mirrors tm-utils.js for the edict module.
+// Treat it as duplicated compatibility, not dead code, until the helper is centralized.
 function _getDaysPerTurn() {
   if (typeof P === 'undefined' || !P.time) return 30;
   var dpt = Number(P.time.daysPerTurn);

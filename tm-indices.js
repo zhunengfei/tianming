@@ -62,6 +62,230 @@
 //
 // ══════════════════════════════════════════════════════════════
 
+function _tmCleanCharLookupName(name) {
+  if (name == null) return '';
+  return String(name).replace(/\s+/g, ' ').trim();
+}
+
+function _tmCleanCharAliasKey(name) {
+  return _tmCleanCharLookupName(name).replace(/[\s·・\-—_，,。.;；:：'"“”‘’（）()【】\[\]《》<>]/g, '');
+}
+
+function _tmAddCharAlias(out, value) {
+  var s = _tmCleanCharLookupName(value);
+  if (!s || s.length > 24) return;
+  out[s] = true;
+  var parts = s.split(/[\s·・\-—_，,。.;；:：'"“”‘’（）()【】\[\]《》<>]+/);
+  parts.forEach(function(p) {
+    p = _tmCleanCharLookupName(p);
+    if (p && (p.length >= 2 || p === '朕') && p.length <= 12) out[p] = true;
+  });
+}
+
+function _tmFindPlayerCharRaw() {
+  var G = (typeof GM !== 'undefined' && GM) ? GM : null;
+  if (!G || !Array.isArray(G.chars)) return null;
+  var pInfo = (typeof P !== 'undefined' && P && P.playerInfo) ? P.playerInfo : {};
+  var pName = _tmCleanCharLookupName(pInfo.characterName || '');
+  if (pName) {
+    for (var i = 0; i < G.chars.length; i++) {
+      var c = G.chars[i];
+      if (c && c.name === pName) return c;
+    }
+  }
+  for (var j = 0; j < G.chars.length; j++) {
+    var pc = G.chars[j];
+    if (pc && pc.isPlayer) return pc;
+  }
+  return null;
+}
+
+function _tmGetCurrentScenarioRaw() {
+  try {
+    if (typeof P !== 'undefined' && P && Array.isArray(P.scenarios) && typeof GM !== 'undefined' && GM) {
+      for (var i = 0; i < P.scenarios.length; i++) {
+        if (P.scenarios[i] && P.scenarios[i].id === GM.sid) return P.scenarios[i];
+      }
+    }
+  } catch(_) {}
+  return null;
+}
+
+function _tmPlayerCharAliases() {
+  var out = {};
+  var ch = _tmFindPlayerCharRaw();
+  var pInfo = (typeof P !== 'undefined' && P && P.playerInfo) ? P.playerInfo : {};
+  if (ch) {
+    ['name','zi','haoName','milkName','title','officialTitle','role','occupation'].forEach(function(k) {
+      _tmAddCharAlias(out, ch[k]);
+    });
+    ['aliases','formerNames','_aliases'].forEach(function(k) {
+      if (Array.isArray(ch[k])) ch[k].forEach(function(v) { _tmAddCharAlias(out, v); });
+    });
+  }
+  ['characterName','characterTitle','factionLeader','factionLeaderTitle'].forEach(function(k) {
+    _tmAddCharAlias(out, pInfo[k]);
+  });
+
+  var sc = _tmGetCurrentScenarioRaw();
+  if (sc) {
+    ['emperor','ruler','monarch','king','leader'].forEach(function(k) {
+      var v = sc[k];
+      if (!v) return;
+      if (!ch || String(v).indexOf(ch.name || '') >= 0 || String(v).indexOf(pInfo.characterName || '') >= 0) _tmAddCharAlias(out, v);
+    });
+  }
+
+  if (typeof GM !== 'undefined' && GM) {
+    _tmAddCharAlias(out, GM.eraName);
+    if (Array.isArray(GM.eraNames) && GM.eraNames.length) _tmAddCharAlias(out, GM.eraNames[GM.eraNames.length - 1].name);
+  }
+  if (typeof P !== 'undefined' && P && P.time) _tmAddCharAlias(out, P.time.reign);
+
+  [
+    '皇帝','天子','君上','陛下','圣上','皇上','主上','君父','朕','今上','至尊','万岁','万岁爷',
+    '大王','王上','国主','主公','君主','可汗','大汗','汗王','单于','天可汗'
+  ].forEach(function(v) { _tmAddCharAlias(out, v); });
+
+  return Object.keys(out);
+}
+
+function canonicalizeCharName(name) {
+  var raw = _tmCleanCharLookupName(name);
+  if (!raw) return raw;
+  var G = (typeof GM !== 'undefined' && GM) ? GM : null;
+  if (!G || !Array.isArray(G.chars)) return raw;
+
+  for (var i = 0; i < G.chars.length; i++) {
+    var c = G.chars[i];
+    if (c && c.name === raw) return c.name;
+  }
+
+  for (var j = 0; j < G.chars.length; j++) {
+    var ch = G.chars[j];
+    if (!ch || !ch.name) continue;
+    if (ch.zi === raw || ch.haoName === raw || ch.milkName === raw) return ch.name;
+    if (Array.isArray(ch.aliases) && ch.aliases.indexOf(raw) >= 0) return ch.name;
+    if (Array.isArray(ch.formerNames) && ch.formerNames.indexOf(raw) >= 0) return ch.name;
+    if (Array.isArray(ch._aliases) && ch._aliases.indexOf(raw) >= 0) return ch.name;
+  }
+
+  var player = _tmFindPlayerCharRaw();
+  if (!player || !player.name) return raw;
+  var rawKey = _tmCleanCharAliasKey(raw);
+  var aliases = _tmPlayerCharAliases();
+  for (var k = 0; k < aliases.length; k++) {
+    if (aliases[k] === raw || _tmCleanCharAliasKey(aliases[k]) === rawKey) return player.name;
+  }
+  return raw;
+}
+
+function _tmMergeArrayUnique(base, extra, limit) {
+  var out = Array.isArray(base) ? base.slice() : [];
+  (Array.isArray(extra) ? extra : []).forEach(function(v) {
+    if (out.indexOf(v) < 0) out.push(v);
+  });
+  return limit ? out.slice(-limit) : out;
+}
+
+function _tmMergeCharLedgerValue(dst, src) {
+  if (dst == null) return src;
+  if (src == null) return dst;
+  if (Array.isArray(dst) || Array.isArray(src)) return _tmMergeArrayUnique(dst, src, 80);
+  if (typeof dst === 'object' && typeof src === 'object') {
+    Object.keys(src).forEach(function(k) {
+      if (dst[k] == null) dst[k] = src[k];
+      else if (Array.isArray(dst[k]) || Array.isArray(src[k])) dst[k] = _tmMergeArrayUnique(dst[k], src[k], 80);
+      else if (typeof dst[k] === 'number' && typeof src[k] === 'number' && (k === 'favor' || k === 'strength')) {
+        dst[k] = Math.max(-100, Math.min(100, dst[k] + src[k]));
+      }
+    });
+    return dst;
+  }
+  return dst;
+}
+
+function _tmMergeObjectAliasKey(obj, alias, canonical) {
+  if (!obj || !alias || !canonical || alias === canonical || obj[alias] == null) return;
+  obj[canonical] = _tmMergeCharLedgerValue(obj[canonical], obj[alias]);
+  delete obj[alias];
+}
+
+function _tmCanonicalizeNameArray(list, aliasMap, canonical) {
+  if (!Array.isArray(list)) return list;
+  var out = [];
+  list.forEach(function(v) {
+    var n = _tmCleanCharLookupName(v);
+    if (aliasMap[n]) n = canonical;
+    if (n && out.indexOf(n) < 0) out.push(n);
+  });
+  return out;
+}
+
+function normalizePlayerCharacterNameLedgers() {
+  var G = (typeof GM !== 'undefined' && GM) ? GM : null;
+  if (!G || !Array.isArray(G.chars)) return;
+  var player = _tmFindPlayerCharRaw();
+  if (!player || !player.name) return;
+  var aliases = _tmPlayerCharAliases().filter(function(n) { return n && n !== player.name; });
+  if (!aliases.length) return;
+  var sig = player.name + '|' + aliases.slice().sort().join('|') + '|T' + (G.turn || 0);
+  if (G._playerAliasLedgerNormalizeSig === sig) return;
+  G._playerAliasLedgerNormalizeSig = sig;
+
+  var aliasMap = {};
+  aliases.forEach(function(a) { aliasMap[a] = true; });
+
+  if (G.affinityMap && typeof G.affinityMap === 'object') {
+    Object.keys(G.affinityMap).forEach(function(key) {
+      var parts = key.split('|');
+      if (parts.length !== 2) return;
+      var a = aliasMap[parts[0]] ? player.name : parts[0];
+      var b = aliasMap[parts[1]] ? player.name : parts[1];
+      if (a === b) { delete G.affinityMap[key]; return; }
+      var nextKey = [a, b].sort().join('|');
+      if (nextKey === key) return;
+      G.affinityMap[nextKey] = Math.max(-100, Math.min(100, Number(G.affinityMap[nextKey] || 0) + Number(G.affinityMap[key] || 0)));
+      delete G.affinityMap[key];
+    });
+  }
+
+  G.chars.forEach(function(ch) {
+    if (!ch) return;
+    aliases.forEach(function(a) {
+      _tmMergeObjectAliasKey(ch.relations, a, player.name);
+      _tmMergeObjectAliasKey(ch._relationships, a, player.name);
+      _tmMergeObjectAliasKey(ch._impressions, a, player.name);
+      _tmMergeObjectAliasKey(ch._relationHistory, a, player.name);
+    });
+    ['_memory','_memArchive','_scars'].forEach(function(k) {
+      if (!Array.isArray(ch[k])) return;
+      ch[k].forEach(function(m) {
+        if (!m || typeof m !== 'object') return;
+        if (aliasMap[m.who]) m.who = player.name;
+        if (aliasMap[m.char]) m.char = player.name;
+        if (Array.isArray(m.participants)) m.participants = _tmCanonicalizeNameArray(m.participants, aliasMap, player.name);
+        if (Array.isArray(m.witnesses)) m.witnesses = _tmCanonicalizeNameArray(m.witnesses, aliasMap, player.name);
+      });
+    });
+  });
+
+  if (Array.isArray(G._memoryArchiveFull)) {
+    G._memoryArchiveFull.forEach(function(m) {
+      if (!m || typeof m !== 'object') return;
+      if (aliasMap[m.char]) m.char = player.name;
+      if (aliasMap[m.who]) m.who = player.name;
+      if (Array.isArray(m.participants)) m.participants = _tmCanonicalizeNameArray(m.participants, aliasMap, player.name);
+      if (Array.isArray(m.witnesses)) m.witnesses = _tmCanonicalizeNameArray(m.witnesses, aliasMap, player.name);
+    });
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.canonicalizeCharName = canonicalizeCharName;
+  window.normalizePlayerCharacterNameLedgers = normalizePlayerCharacterNameLedgers;
+}
+
 function buildIndices() {
   // 初始化索引对象
   if (!GM._indices) {
@@ -83,6 +307,16 @@ function buildIndices() {
 
   // 2. 势力索引（按名字）
   GM._indices.facByName = new Map();
+  try {
+    var _playerCharForAliases = _tmFindPlayerCharRaw();
+    if (_playerCharForAliases && _playerCharForAliases.name) {
+      _tmPlayerCharAliases().forEach(function(alias) {
+        if (alias) GM._indices.charByName.set(alias, _playerCharForAliases);
+      });
+    }
+    normalizePlayerCharacterNameLedgers();
+  } catch(e) { try{window.TM&&TM.errors&&TM.errors.captureSilent(e,'char-alias-index');}catch(_){} }
+
   if (GM.facs && GM.facs.length > 0) {
     GM.facs.forEach(function(fac) {
       if (fac && fac.name) {
@@ -339,7 +573,13 @@ function findCharByName(name) {
   if (!GM._indices || !GM._indices.charByName) {
     buildIndices();
   }
+  var rawName = _tmCleanCharLookupName(name);
+  var canonName = canonicalizeCharName(rawName);
+  name = canonName || rawName;
   var hit = GM._indices.charByName.get(name);
+  if (hit && rawName && rawName !== name) {
+    try { GM._indices.charByName.set(rawName, hit); } catch(_) {}
+  }
   if (hit) return hit;
   // Fallback·线性扫 GM.chars·捕获未注册到索引的新生成角色(多站点 push 漏 index.set)
   // 命中后顺手 patch 索引·下次直接 O(1)
@@ -349,19 +589,23 @@ function findCharByName(name) {
       if (!c) continue;
       if (c.name === name) {
         try { GM._indices.charByName.set(name, c); } catch(e){try{window.TM&&TM.errors&&TM.errors.captureSilent(e,'tm-index-world');}catch(_){}}
+        if (rawName && rawName !== name) try { GM._indices.charByName.set(rawName, c); } catch(_){}
         return c;
       }
       // 别名/字/号/乳名/曾用名兜底匹配
       if (c.zi === name || c.haoName === name || c.milkName === name) {
         try { GM._indices.charByName.set(name, c); } catch(e){try{window.TM&&TM.errors&&TM.errors.captureSilent(e,'tm-index-world');}catch(_){}}
+        if (rawName && rawName !== name) try { GM._indices.charByName.set(rawName, c); } catch(_){}
         return c;
       }
       if (Array.isArray(c.aliases) && c.aliases.indexOf(name) >= 0) {
         try { GM._indices.charByName.set(name, c); } catch(e){try{window.TM&&TM.errors&&TM.errors.captureSilent(e,'tm-index-world');}catch(_){}}
+        if (rawName && rawName !== name) try { GM._indices.charByName.set(rawName, c); } catch(_){}
         return c;
       }
       if (Array.isArray(c.formerNames) && c.formerNames.indexOf(name) >= 0) {
         try { GM._indices.charByName.set(name, c); } catch(e){try{window.TM&&TM.errors&&TM.errors.captureSilent(e,'tm-index-world');}catch(_){}}
+        if (rawName && rawName !== name) try { GM._indices.charByName.set(rawName, c); } catch(_){}
         return c;
       }
     }
@@ -863,4 +1107,3 @@ var WorldHelper = {
 };
 
 // findCharByName / findFacByName 已在索引系统中定义（约6895行），此处不再重复
-

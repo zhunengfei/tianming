@@ -14,6 +14,25 @@
     return maxLen ? s.slice(0, maxLen) : s;
   }
 
+  function canonicalCharName(value) {
+    var s = clean(value, 120);
+    if (!s) return '';
+    try {
+      if (root && typeof root.canonicalizeCharName === 'function') return clean(root.canonicalizeCharName(s) || s, 120);
+      if (typeof canonicalizeCharName === 'function') return clean(canonicalizeCharName(s) || s, 120);
+    } catch (_) {}
+    return s;
+  }
+
+  function canonicalNameList(list) {
+    var out = [];
+    arr(list).forEach(function(value) {
+      var n = canonicalCharName(value);
+      if (n && out.indexOf(n) < 0) out.push(n);
+    });
+    return out;
+  }
+
   function stableSlug(value, maxLen) {
     var s = clean(value, maxLen || 120).toLowerCase()
       .replace(/[^\w\u3400-\u9fff]+/g, '-')
@@ -99,7 +118,7 @@
   }
 
   function scopeForActor(actor) {
-    actor = clean(actor, 120);
+    actor = canonicalCharName(actor);
     if (!actor) return '';
     return /^npc:/i.test(actor) ? actor : ('npc:' + actor);
   }
@@ -182,7 +201,7 @@
   function evaluateCharacterMemoryUpdate(item, opts) {
     opts = opts || {};
     item = item || {};
-    var actor = clean(item.actor || item.char || item.name || item.character || item.ownerId, 120);
+    var actor = canonicalCharName(item.actor || item.char || item.name || item.character || item.ownerId);
     var body = memoryText(item);
     var confidence = clamp01(item.confidence);
     var explicitRefs = refsFromItem(item, ['source_refs', 'sourceRefs', 'basis_refs', 'basisRefs', 'evidenceRefs']);
@@ -242,7 +261,7 @@
         authority: 'ai_extracted',
         source: 'ai_extracted',
         turn: turn,
-        entities: [actor].concat(arr(item.entities)),
+        entities: [actor].concat(canonicalNameList(item.entities)),
         ownerScope: ownerScope,
         readScope: readScope,
         sourceRefs: sourceRefs,
@@ -295,7 +314,7 @@
       if (!item) return;
       var targetId = clean(item.target_id || item.targetId || item.id, 160);
       var targetFactKey = clean(item.target_fact_key || item.targetFactKey || item.factKey, 200);
-      var actor = clean(item.actor || item.char || item.name || item.character, 120);
+      var actor = canonicalCharName(item.actor || item.char || item.name || item.character);
       var memoryType = normalizeMemoryType({ memory_type: item.memory_type || item.memoryType });
       var reasonText = clean(item.reason || item.memory || item.why || item.note, 400);
       var confidence = clamp01(item.confidence);

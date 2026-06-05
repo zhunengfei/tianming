@@ -126,10 +126,23 @@ async function _endTurn_updateSystems(timeRatio, zhengwen) {
 
   // 6.04 角色经济回合结算（6 资源 × 全角色）
   try {
+    // 功名重标定迁移(幂等)：开局/读档/新 spawn 角色按品级+八维能力 derive 拨发功名·已迁移者跳过保留累积。
+    if (typeof window !== 'undefined' && window.TMPromotion && typeof TMPromotion.migrateAllMerit === 'function') TMPromotion.migrateAllMerit();
     if (typeof CharEconEngine !== 'undefined') {
       CharEconEngine.tick({ turn: GM.turn, monthRatio: monthRatio, _monthRatio: monthRatio });
     }
   } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] CharEconEngine.tick 失败:') : console.error('[endTurn] CharEconEngine.tick 失败:', e); }
+
+  // 6.045 功名自动升迁(自动区·正四品及下·功名结算后)。政治区(从三品及上)不自动·归玩家诏令/廷推/AI。
+  try {
+    if (typeof window !== 'undefined' && window.TMPromotion && typeof TMPromotion.runAutoPromotion === 'function') {
+      var _proRes = TMPromotion.runAutoPromotion(GM, monthRatio);
+      if (_proRes && typeof addEB === 'function') {
+        (_proRes.promoted || []).forEach(function(_p){ try { addEB('铨选', _p.name + ' 累功晋阶 ' + TMPromotion.rankNameOf(_p.to)); } catch(_e1){} });
+        (_proRes.demoted || []).forEach(function(_d){ try { addEB('铨选', _d.name + ' 功微降叙 ' + TMPromotion.rankNameOf(_d.to)); } catch(_e2){} });
+      }
+    }
+  } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] 功名自动升迁失败:') : console.error('[endTurn] 功名自动升迁:', e); }
 
   // 6.05 经济联动（层层剥夺/区域财政/俸禄流/贪腐流/下拨/民心反馈）
   try {

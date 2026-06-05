@@ -1519,6 +1519,35 @@ SettlementPipeline.register('stressTrait', '压力特质', function() { StressTr
 // ============================================================
 // NPC 记忆系统 — 每个角色有自己的主观记忆
 // ============================================================
+function _tmMemoryCanonName(name) {
+  if (!name) return name;
+  try {
+    if (typeof canonicalizeCharName === 'function') return canonicalizeCharName(name) || name;
+  } catch (_) {}
+  return name;
+}
+
+function _tmMemoryCanonNameArray(list) {
+  if (!Array.isArray(list)) return list;
+  var out = [];
+  list.forEach(function(name) {
+    var n = _tmMemoryCanonName(name);
+    if (n && out.indexOf(n) < 0) out.push(n);
+  });
+  return out;
+}
+
+function _tmMemoryFindChar(name) {
+  name = _tmMemoryCanonName(name);
+  try {
+    if (typeof findCharByName === 'function') {
+      var found = findCharByName(name);
+      if (found) return found;
+    }
+  } catch (_) {}
+  return (GM.chars || []).find(function(c) { return c && c.name === name; }) || null;
+}
+
 var NpcMemorySystem = {
   /**
    * 获取角色的动态记忆容量（根据品位/身份/互动量分级）
@@ -1619,7 +1648,14 @@ var NpcMemorySystem = {
    */
   remember: function(charName, event, emotion, importance, relatedPerson, meta) {
     if (!GM.chars) return;
-    var ch = GM.chars.find(function(c) { return c.name === charName; });
+    charName = _tmMemoryCanonName(charName);
+    relatedPerson = _tmMemoryCanonName(relatedPerson);
+    if (meta && typeof meta === 'object') {
+      meta = Object.assign({}, meta);
+      if (Array.isArray(meta.participants)) meta.participants = _tmMemoryCanonNameArray(meta.participants);
+      if (Array.isArray(meta.witnesses)) meta.witnesses = _tmMemoryCanonNameArray(meta.witnesses);
+    }
+    var ch = _tmMemoryFindChar(charName);
     if (!ch || ch.alive === false) return;
     if (!ch._memory) ch._memory = [];
     if (!ch._memArchive) ch._memArchive = [];
@@ -1723,7 +1759,9 @@ var NpcMemorySystem = {
   /** 方向2：把事件镜像到另一方·情绪自动翻转 */
   _mirrorToOther: function(originName, event, emotion, importance, otherName, meta) {
     if (!GM.chars) return;
-    var other = GM.chars.find(function(c) { return c.name === otherName; });
+    originName = _tmMemoryCanonName(originName);
+    otherName = _tmMemoryCanonName(otherName);
+    var other = _tmMemoryFindChar(otherName);
     if (!other || other.alive === false) return;
     if (other._fakeDeath) return;
     // 情绪翻转映射
@@ -1750,6 +1788,7 @@ var NpcMemorySystem = {
    * @param {string} [category] - 类别标签（career/scheme/political等，用于事件前缀）
    */
   addMemory: function(charName, event, importance, category) {
+    charName = _tmMemoryCanonName(charName);
     // 根据事件内容和重要性推断情绪
     var emotion = '平';
     if (/嘉许|优等|擢升|成功|得逞|入仕|继位|登基|喜|大捷|胜/.test(event)) emotion = '喜';
@@ -1836,11 +1875,13 @@ var NpcMemorySystem = {
   /** 获取角色的记忆摘要（供AI使用——像一个人的内心自述）6.2: 带每回合缓存 */
   _memCache: {}, _memCacheTurn: -1,
   getMemoryContext: function(charName) {
+    charName = _tmMemoryCanonName(charName);
     // 6.2: 每回合缓存——同一回合内同一角色只构建一次
     if (this._memCacheTurn !== GM.turn) { this._memCache = {}; this._memCacheTurn = GM.turn; }
     if (this._memCache[charName]) return this._memCache[charName];
     if (!GM.chars) return '';
-    var ch = GM.chars.find(function(c) { return c.name === charName; });
+    charName = _tmMemoryCanonName(charName);
+    var ch = _tmMemoryFindChar(charName);
     if (!ch) return '';
     var parts = [];
 
@@ -1974,7 +2015,9 @@ var NpcMemorySystem = {
   /** 获取对特定人物的印象值 */
   getImpression: function(charName, targetName) {
     if (!GM.chars) return 0;
-    var ch = GM.chars.find(function(c) { return c.name === charName; });
+    charName = _tmMemoryCanonName(charName);
+    targetName = _tmMemoryCanonName(targetName);
+    var ch = _tmMemoryFindChar(charName);
     if (!ch || !ch._impressions || !ch._impressions[targetName]) return 0;
     return ch._impressions[targetName].favor;
   },
@@ -1982,7 +2025,8 @@ var NpcMemorySystem = {
   /** 获取角色当前情绪 */
   getMood: function(charName) {
     if (!GM.chars) return '平';
-    var ch = GM.chars.find(function(c) { return c.name === charName; });
+    charName = _tmMemoryCanonName(charName);
+    var ch = _tmMemoryFindChar(charName);
     return (ch && ch._mood) || '平';
   },
 
@@ -2032,7 +2076,9 @@ var NpcMemorySystem = {
    */
   upsertArc: function(charName, arcData) {
     if (!GM.chars || !arcData || !arcData.title) return null;
-    var ch = GM.chars.find(function(c) { return c.name === charName; });
+    charName = _tmMemoryCanonName(charName);
+    if (Array.isArray(arcData.participants)) arcData.participants = _tmMemoryCanonNameArray(arcData.participants);
+    var ch = _tmMemoryFindChar(charName);
     if (!ch) return null;
     if (!ch._arcs) ch._arcs = [];
     var arc = null;
@@ -2076,7 +2122,8 @@ var NpcMemorySystem = {
    */
   linkMemoryToArc: function(charName, memoryIdx, arcId) {
     if (!GM.chars) return;
-    var ch = GM.chars.find(function(c) { return c.name === charName; });
+    charName = _tmMemoryCanonName(charName);
+    var ch = _tmMemoryFindChar(charName);
     if (!ch || !ch._memory || !ch._memory[memoryIdx]) return;
     ch._memory[memoryIdx].arcId = arcId;
     if (ch._arcs) {
@@ -2097,6 +2144,7 @@ var NpcMemorySystem = {
   recallMemory: function(query, opts) {
     query = query || {};
     opts = opts || {};
+    if (query.participant) query.participant = _tmMemoryCanonName(query.participant);
     var limit = opts.limit || 20;
     var sortBy = opts.sortBy || 'importance';  // importance|turn|credibility
     var archive = (typeof GM !== 'undefined' && GM._memoryArchiveFull) ? GM._memoryArchiveFull : [];
@@ -2148,6 +2196,7 @@ var NpcMemorySystem = {
   /** 兼容旧调用：按角色名取最近个人记忆，供朝议/旧模块读取 */
   recall: function(charName, limit) {
     limit = limit || 5;
+    charName = _tmMemoryCanonName(charName);
     if (!charName) return [];
     var archive = (typeof GM !== 'undefined' && Array.isArray(GM._memoryArchiveFull)) ? GM._memoryArchiveFull : [];
     var hits = archive.filter(function(m) { return m && m.char === charName; });
@@ -2163,7 +2212,8 @@ var NpcMemorySystem = {
   /** 获取 NPC 的所有活跃 arc（phase ≠ resolved） */
   getActiveArcs: function(charName) {
     if (!GM.chars) return [];
-    var ch = GM.chars.find(function(c) { return c.name === charName; });
+    charName = _tmMemoryCanonName(charName);
+    var ch = _tmMemoryFindChar(charName);
     if (!ch || !ch._arcs) return [];
     return ch._arcs.filter(function(a) { return a.phase !== 'resolved'; });
   },
@@ -2171,7 +2221,9 @@ var NpcMemorySystem = {
   /** 获取 NPC 对另一人的关系演变快照 */
   getRelationHistory: function(charName, otherName) {
     if (!GM.chars) return [];
-    var ch = GM.chars.find(function(c) { return c.name === charName; });
+    charName = _tmMemoryCanonName(charName);
+    otherName = _tmMemoryCanonName(otherName);
+    var ch = _tmMemoryFindChar(charName);
     if (!ch || !ch._relationHistory || !ch._relationHistory[otherName]) return [];
     return ch._relationHistory[otherName];
   }
@@ -2190,7 +2242,8 @@ var CharacterGrowthSystem = {
    */
   recordExperience: function(charName, domain, desc) {
     if (!GM.chars) return;
-    var ch = GM.chars.find(function(c) { return c.name === charName; });
+    charName = _tmMemoryCanonName(charName);
+    var ch = _tmMemoryFindChar(charName);
     if (!ch || ch.alive === false) return;
     if (!ch._lifeExp) ch._lifeExp = [];
     ch._lifeExp.push({ domain: domain, desc: desc, turn: GM.turn });
@@ -2310,7 +2363,7 @@ var CharacterGrowthSystem = {
     if (!desc) return;
     CharacterGrowthSystem.recordExperience(charName, '帝师', desc);
     NpcMemorySystem.remember(charName, '蒙圣上栽培——' + desc, '敬', 8, (P.playerInfo && P.playerInfo.characterName) || '陛下');
-    var ch = GM.chars ? GM.chars.find(function(c) { return c.name === charName; }) : null;
+    var ch = GM.chars ? _tmMemoryFindChar(charName) : null;
     if (ch) {
       if (typeof adjustCharacterLoyalty === 'function') {
         adjustCharacterLoyalty(ch, 3, '\u5E1D\u5E08\u683D\u57F9\uFF1A' + desc, { source:'character-growth-training' });

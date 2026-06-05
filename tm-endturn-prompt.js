@@ -820,7 +820,9 @@
         var curTitle = c.officialTitle || c.title || '';
         var activeArcs = (c._arcs || []).filter(function(a){ return a.phase !== 'resolved'; });
         var arcAttr = activeArcs.length ? ' active_arcs="' + _xE(activeArcs.slice(0,3).map(function(a){return a.title;}).join('·')) + '"' : '';
-        xmlLines.push('  <heart char="' + _xE(c.name||'') + '" mood="' + _xE(mood) + '" title="' + _xE(curTitle) + '"' + arcAttr + '>');
+        var _gmAttr = '';
+        try { if (window.TMPromotion && c.resources && c.resources.virtueMerit != null) { _gmAttr = ' gongming="' + Math.round(c.resources.virtueMerit) + '·' + TMPromotion.stageName(c.resources.virtueStage) + '"'; } } catch(_gmE){}
+        xmlLines.push('  <heart char="' + _xE(c.name||'') + '" mood="' + _xE(mood) + '" title="' + _xE(curTitle) + '"' + _gmAttr + arcAttr + '>');
         var sorted = c._memory.slice().sort(function(a,b){ return (b.importance||0) - (a.importance||0); });
         var top = sorted.slice(0, perChar).filter(function(m){ return (m.importance||0) >= impMin; });
         top.forEach(function(m){
@@ -971,6 +973,8 @@
     tp += '  · 势力/党派/阶层/区域变化 → faction_updates / party_updates / class_updates / region_updates\n';
     tp += '  · 工程/运动/战役启动 → project_updates 保存进度；相应 fiscal_adjustments 记支出\n';
     tp += '  · 任何其他深层字段（人物属性、忠诚、好感、记忆、派系关系、异象、科举阶段等）→ anyPathChanges op:"set/delta/push/merge"\n';
+    tp += '  · 重大事件名望(resources.fame ±·经 char_updates/anyPathChanges)：平叛克捷/外交建功/百姓立生祠/退隐著书/著文传世 名望涨；重大冤案/党争失势贬谪/私德家族丑闻 名望跌；投敌叛乱 名望崩。仅限重大事件——日常往来好恶另有系统结算·勿在此重复。' + String.fromCharCode(10);
+    tp += '※ 功名(gongming·见 npc-hearts·累积政绩资历·六阶 未识/有闻/清誉/儒望/朝宗/师表)是升迁举荐主要依据：擢人补缺优先功名高者(任人唯贤)；功名浅者骤擢高位=幸进，会招言官非议、清议哗然(应在叙事/npc_actions 体现)。功名低者勿越级保举。三品以上大员擢用尤重功名与资历。\n';
     tp += '※ 叙事与数据一一对应·宁可不写·不可写而不改·也不可改而不叙。zhengwen/events 里出现的"实际变化"在本回合结束时必须真的落到 GM 状态。\n';
     tp += '※ 连锁义务：授某人为某官 → 该官 officialTitle 必新；给官职改名 → 所有持此官者同步改名；移驻某地 → location+_travelTo；仕途 careerHistory 必须追加（appoint/transfer/dismiss 类动作自动写入·但 AI 若写了"赐进太师衔"之类额外身份也要手动 careerEvent）。\n';
     // ═══ 走位/赴任·强制约束（避免"启程拖到下回合"和"重置剩余天数"两大 bug）═══
@@ -2197,6 +2201,8 @@
       // 朝会和礼仪（永久注入——确保政治场景准确）
       if (_d.courtEtiquette) sysP += '\n\u3010\u4E0A\u671D\u793C\u4EEA\u3011' + _d.courtEtiquette;
       if (_d.courtProcedure) sysP += '\n\u3010\u671D\u4F1A\u5236\u5EA6\u3011' + _d.courtProcedure;
+      // 「字」社交细则·补 dynasty 称谓系统（per-character 称字/称名）
+      sysP += String.fromCharCode(10) + '【称字称名之别】对话/叙事称呼某臣：关系亲近（同年/师生/挚友）或受帝眷顾时称其“字”；正式朝堂、上对下称名或官衔；敌对贬斥称姓+官衔。被称“字”暗示交情非比寻常·勿滥用。';
 
       // 前15回合：质询补充（防止分析盲点）
       if (GM.turn <= 15) {
@@ -2745,7 +2751,7 @@
     sysP += '\n你可以通过返回JSON中的对应字段修改游戏中的一切：';
     sysP += '\n- resource_changes: 修改任何资源变量';
     sysP += '\n- char_updates: 修改角色忠诚/野心/压力/所在地/立场/党派等（new_location/new_stance/new_party）';
-    sysP += '\n- battleResult: 结构化战斗结果。若本回合明确发生战斗，请输出 {winnerFactionId, loserFactionId, occupiedCityIds, casualties:{attacker,defender}, affectedArmies:[{armyId,side,loss,moraleDelta,loyaltyDelta,state,commanderFate}], commanderFate:{name,outcome}, huangweiDelta, postBattleEffects[]}，胜负/占城/伤亡不得只写在叙事里。\n  ※ huangweiDelta 0~8：仅当赢家是玩家势力时按战果定皇威加分——灭国级大捷/收复重镇 6~8、击溃主力 3~5、小胜/边境摩擦 1~2；敌胜或平局给 0。漏给则引擎按保底 +2/场落地。';
+    sysP += '\n- battleResult: 结构化战斗结果。若本回合明确发生战斗，请输出 {winnerFactionId, loserFactionId, occupiedCityIds, casualties:{attacker,defender}, affectedArmies:[{armyId,side,loss,moraleDelta,loyaltyDelta,state,commanderFate}], commanderFate:{name,outcome}, huangweiDelta, postBattleEffects[]}，胜负/占城/伤亡不得只写在叙事里。★【玩家胜仗必出 battleResult】玩家方（朝廷/官军）本回合只要交战并取胜，必须输出本字段且 winnerFactionId 填玩家势力——否则军胜不会结算进皇威（玩家会看到「军胜」项纹丝不动）；叙事一旦出现"大破/大捷/收复/克城/歼敌/平虏/破贼"等胜果字样，必须配套 battleResult，不能只写在叙事里。\n  ※ huangweiDelta 0~8：仅当赢家是玩家势力时按战果定皇威加分——灭国级大捷/收复重镇 6~8、击溃主力 3~5、小胜/边境摩擦 1~2；敌胜或平局给 0。漏给则引擎按保底 +2/场落地。';
     _mark('base');
     sysP += '\n\n【NPC自主行为系统·核心——每回合必须生成】';
     sysP += '\nnpc_actions是世界活力的引擎。每回合应有5-10条NPC自主行为，涵盖不同层级的角色。';

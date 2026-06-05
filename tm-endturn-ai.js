@@ -1212,7 +1212,7 @@
             Object.keys(GM._npcCommitments).forEach(function(npcName) {
               var arr = GM._npcCommitments[npcName];
               if (!Array.isArray(arr)) return;
-              arr.filter(function(c){ return c && c.status !== 'completed'; }).slice(0, 5).forEach(function(c) {
+              arr.filter(function(c){ return c && (c.status === 'pending' || c.status === 'executing' || c.status === 'delayed'); }).slice(0, 5).forEach(function(c) {
                 _flatCommits.push({ npc: npcName, task: c.task, assignedTurn: c.assignedTurn, deadline: c.deadline, status: c.status, progress: c.progress, willingness: c.willingness });
               });
             });
@@ -2014,8 +2014,8 @@
       }
       _reviewConsolidatedInboxForSc1();
       // ★ P12.1 state_board 注入（KokoroMemo state_renderer 范式·按 priority 排序·~1200 字预算）
-      // 4 类轻量会话状态——朝堂氛围/未解线索/近期摘要/未兑现承诺
-      // 优先级：mood（最即时） > unfulfilled_promises（玩家责任） > open_loops（待推进） > recent_summary（背景）
+      // 4 类轻量会话状态——朝堂氛围/未解线索/近期摘要/待闭环事项
+      // 优先级：mood（最即时） > unfulfilled_promises（待兑现决策） > open_loops（待推进） > recent_summary（背景）
       // Phase 4·sc28 snapshot 注入 sc1 prompt 头部·上回合世界快照让 sc1 上下文连续 (G1 schema 精简时此段优先保留)
       var _sc28Inject = '';
       try {
@@ -2036,7 +2036,7 @@
           sbLines.push('=== 上回合 state_board（朝堂状态板·下回合主推演必读·按重要度排序） ===');
           if (sb.mood) sbLines.push('【朝堂氛围】' + sb.mood);
           if (Array.isArray(sb.unfulfilled_promises) && sb.unfulfilled_promises.length > 0) {
-            sbLines.push('【玩家未兑现承诺/拟议未颁诏令·下回合应推进】');
+            sbLines.push('【待兑现决策/拟议未颁诏令·下回合应推进】');
             sb.unfulfilled_promises.forEach(function(p) { sbLines.push('  · ' + p); });
           }
           if (Array.isArray(sb.open_loops) && sb.open_loops.length > 0) {
