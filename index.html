@@ -797,13 +797,42 @@ console.log('天命游戏脚本开始加载...');
      远早于玩家在启动页点选剧本（需数秒）；启动路径 _tmStartApplyOfficialSnapshot 再幂等兜底。 -->
 <script>
 (function(){
+  // 2026-06-06 在线版地图修复：天启 7MB 运行时快照（内含 43 地块的整份地图）原本只从相对路径
+  // （github.io）拉取。国内访问 github.io 时这个大文件常超时/拉不下来，导致 getMapData() 取空、
+  // 玩家看到「剧本没有配备地图」。这里仿照本文件顶部 styles.css 的 data-css-fallback 范式，
+  // 给快照加 CDN 兜底：相对路径失败（onerror）或迟迟未应用（超时）时改从 jsDelivr 镜像拉。
+  // 桌面端读本地文件仍走相对路径首选，不受影响。
+  var SNAP_QS = '?v=20260515-laterjin-liaodong';
+  var SNAP_REL = 'data/scenario-supplements/tianqi7-official-runtime-snapshot.js' + SNAP_QS;
+  var SNAP_CDN = 'https://cdn.jsdelivr.net/gh/misfit-user/tianming@main/data/scenario-supplements/tianqi7-official-runtime-snapshot.js' + SNAP_QS;
+  var _snapFallbackUsed = false;
+  function _applied(){ return !!window.TM_TIANQI_OFFICIAL_RUNTIME_SNAPSHOT; }
+  function _injectSnap(src, isFallback){
+    var s = document.createElement('script');
+    s.src = src;
+    s.async = true;
+    s.onerror = function(){
+      if (!isFallback && !_snapFallbackUsed && !_applied()) {
+        _snapFallbackUsed = true;
+        console.warn('[tianqi-snap] 相对路径加载失败，改用 CDN 兜底：' + SNAP_CDN);
+        _injectSnap(SNAP_CDN, true);
+      }
+    };
+    (document.head || document.documentElement).appendChild(s);
+  }
   function _loadTianqiSnapshot(){
     if (window.__tmTianqiSnapLoaded) return;
     window.__tmTianqiSnapLoaded = true;
-    var s = document.createElement('script');
-    s.src = 'data/scenario-supplements/tianqi7-official-runtime-snapshot.js?v=20260515-laterjin-liaodong';
-    s.async = true;
-    (document.head || document.documentElement).appendChild(s);
+    _injectSnap(SNAP_REL, false);
+    // 超时兜底：onerror 不会在「连上但下载卡住」时触发，故再加一道计时器——
+    // 12s 内快照仍未应用，则直接从 CDN 拉一份（幂等去重由快照 IIFE 自身保证）。
+    setTimeout(function(){
+      if (!_applied() && !_snapFallbackUsed) {
+        _snapFallbackUsed = true;
+        console.warn('[tianqi-snap] 相对路径 12s 内未应用，改用 CDN 兜底：' + SNAP_CDN);
+        _injectSnap(SNAP_CDN, true);
+      }
+    }, 12000);
   }
   if (typeof window.requestIdleCallback === 'function') {
     window.requestIdleCallback(_loadTianqiSnapshot, { timeout: 3000 });
