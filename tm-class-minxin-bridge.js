@@ -410,7 +410,7 @@
 
     var delta = pressureDelta(payload, cls);
     var regionWeights = resolveRegionWeights(root, payload, cls);
-    var leaves = getLeafDivisions(root);
+    var leaves = null; // 2026-06-06·懒求值·仅 fallback(无 MinxinLedger)路径才需·热路径不再每次遍历数百府州(治过回合卡顿)
     var appliedRegions = [];
     var sourceKey = 'class:' + key;
     var usedMinxinLedger = false;
@@ -447,6 +447,7 @@
     }
 
     if (!usedMinxinLedger && delta && regionWeights.length && payload.allowMinxinFeedback !== false) {
+      if (!leaves) leaves = getLeafDivisions(root);
       var totalWeight = regionWeights.reduce(function(sum, r) { return sum + Math.max(0, Number(r.weight) || 0); }, 0) || 1;
       regionWeights.forEach(function(r) {
         var matched = leaves.filter(function(leaf) { return matchLeaf(leaf, r.region); });

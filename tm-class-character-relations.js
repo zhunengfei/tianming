@@ -300,8 +300,8 @@
     return ok;
   }
 
-  function inferRole(cls, ch, evidence) {
-    var text = charText(ch) + ' ' + classText(cls);
+  function inferRole(cls, ch, evidence, precomputedText) {
+    var text = precomputedText != null ? precomputedText : (charText(ch) + ' ' + classText(cls));
     if (evidence.some(function(e) { return /representative|leader/i.test(e); })) return 'spokesperson';
     if (/减免|蠲|赈|抚|减派|清丈|保护|relief|remit|reduce|exempt|protect/.test(text)) return 'broker';
     if (/镇压|清党|加派|严征|suppress|purge|crackdown/.test(text)) return 'suppressor';
@@ -425,8 +425,70 @@
       source: raw.source || options.source || 'class-character-relations',
       evidence: toArray(raw.evidence || raw.reason).slice(0, 3)
     });
-    rebuildMirrors(root);
+    if (!options || !options.skipMirrors) rebuildMirrors(root);
     return clone(next);
+  }
+
+  // 2026-06-06·把 scorePair 里的 class 级计算(代表集/支持党派集/类目class侧/诉求tokens)从内层 char 循环(×人物数)
+  // 提到每阶层预算一次·内层只做 char 侧·语义与 scorePair 完全等价(治过回合 discover 3.9s 卡顿)
+  function buildClassScoreCtx(root, cls, parties) {
+    var cn = normalizeName(classNameOf(cls));
+    var repNames = Object.create(null);
+    [cls && cls.representativeNpcs, cls && cls.leaders, cls && cls.representatives].forEach(function(list) {
+      toArray(list).forEach(function(entry) { var n = normalizeName(entryName(entry)); if (n) repNames[n] = 1; });
+    });
+    var supportParties = Object.create(null);
+    toArray(cls && (cls.supportingParties || cls.supporting_parties || cls.parties || cls.linkedParties)).forEach(function(entry) {
+      var n = normalizeName(entryName(entry)); if (n) supportParties[n] = 1;
+    });
+    toArray(parties).forEach(function(party) {
+      var hit = false;
+      toArray(party.socialBase || party.social_base || party.baseClasses || party.supportBase).forEach(function(entry) {
+        if (normalizeName(entryName(entry)) === cn) hit = true;
+      });
+      if (hit) { var pn = normalizeName(partyNameOf(party)); if (pn) supportParties[pn] = 1; }
+    });
+    var ct = classText(cls);
+    var catClass = Object.create(null);
+    Object.keys(CATEGORY).forEach(function(k) { if (hasAny(ct, CATEGORY[k].classTokens)) catClass[k] = 1; });
+    var demand = String(cls && (cls.demands || cls.currentDemand) || '');
+    var demandTokens = [];
+    if (demand && normalizeName(demand).length >= 2) {
+      demand.split(/[\s,.;:!?，。；、]+/).forEach(function(tok) { tok = normalizeName(tok); if (tok.length >= 2) demandTokens.push(tok); });
+    }
+    return {
+      ct: ct, repNames: repNames, supportParties: supportParties, catClass: catClass,
+      milClass: hasAny(ct, CATEGORY.military.classTokens), gentryClass: hasAny(ct, CATEGORY.gentry.classTokens),
+      demandTokens: demandTokens
+    };
+  }
+  function scorePairCtx(ctx, ch, htCache) {
+    var evidence = [], source = [], score = 0;
+    var cname = normalizeName(characterNameOf(ch)), cid = normalizeName(characterIdOf(ch));
+    if (ctx.repNames[cname] || (cid && ctx.repNames[cid])) {
+      score += 0.48; uniquePush(source, 'representative'); uniquePush(evidence, 'representativeNpcs matched ' + characterNameOf(ch));
+    }
+    var pn = normalizeName(ch && ch.party);
+    if (pn && ctx.supportParties[pn]) {
+      score += 0.24; uniquePush(source, 'party'); uniquePush(evidence, 'party social base matched ' + (ch && ch.party));
+    }
+    var ht = htCache.get(ch); if (ht === undefined) { ht = charText(ch); htCache.set(ch, ht); }
+    var hits = [];
+    Object.keys(CATEGORY).forEach(function(k) { if (ctx.catClass[k] && hasAny(ht, CATEGORY[k].charTokens)) hits.push(k); });
+    var military = Number(ch && ch.military) || 0, valor = Number(ch && ch.valor) || 0;
+    if (ctx.milClass && (military >= 75 || valor >= 80)) uniquePush(hits, 'military');
+    if (ctx.gentryClass && /gentry|noble|imperial|士|绅|进士|举人/i.test(String((ch && ch.familyTier) || '') + ' ' + String((ch && ch.learning) || ''))) uniquePush(hits, 'gentry');
+    hits.forEach(function(hit) { score += hit === 'military' ? 0.28 : 0.22; uniquePush(source, 'category:' + hit); uniquePush(evidence, 'category matched ' + hit); });
+    if (ctx.demandTokens.length) {
+      var stance = String(ch && (ch.stance || ch.personalGoal || ch.officeDuties || '') || '');
+      if (stance && normalizeName(stance).length >= 2) {
+        var ns = normalizeName(stance);
+        if (ctx.demandTokens.some(function(token) { return ns.indexOf(token) >= 0; })) {
+          score += 0.12; uniquePush(source, 'stance'); uniquePush(evidence, 'stance echoes class demand');
+        }
+      }
+    }
+    return { score: score, source: source, evidence: evidence };
   }
 
   function discoverPairs(root, options) {
@@ -434,10 +496,14 @@
     options = options || {};
     var turn = Number(options.turn != null ? options.turn : root.turn) || 0;
     var count = 0;
+    var _parties = getParties(root);
+    var _chars = getCharacters(root);
+    var _htCache = new Map();
     getClasses(root).forEach(function(cls) {
       if (!cls) return;
-      getCharacters(root).forEach(function(ch) {
-        var scored = scorePair(root, cls, ch);
+      var _ctx = buildClassScoreCtx(root, cls, _parties);
+      _chars.forEach(function(ch) {
+        var scored = scorePairCtx(_ctx, ch, _htCache);
         if (scored.score < 0.22) return;
         var cname = classNameOf(cls);
         var sat = Number(cls.satisfaction != null ? cls.satisfaction : cls.support);
@@ -448,8 +514,9 @@
         var admin = Number(ch.administration || ch.management || 0);
         var military = Number(ch.military || ch.valor || 0);
         var loyalty = Number(ch.loyalty || ch.loyal || 50);
-        var role = inferRole(cls, ch, scored.evidence);
+        var role = inferRole(cls, ch, scored.evidence, (_htCache.get(ch) || '') + ' ' + (_ctx.ct || ''));
         adjustRelation(root, {
+          character: ch,
           className: cname,
           characterId: characterIdOf(ch),
           characterName: characterNameOf(ch),
@@ -462,7 +529,7 @@
           source: ['discovery'].concat(scored.source).join('/'),
           evidence: scored.evidence,
           expiry: turn + 6
-        }, { turn: turn, source: options.source || 'class-character-discovery' });
+        }, { turn: turn, source: options.source || 'class-character-discovery', skipMirrors: true });
         count += 1;
       });
     });
@@ -534,7 +601,7 @@
           source: 'signal:' + signalSourceKind(sig),
           evidence: reason,
           expiry: turn + 6
-        }, { turn: turn, source: options.source || 'class-character-signal' });
+        }, { turn: turn, source: options.source || 'class-character-signal', skipMirrors: true });
         count += 1;
       });
     });
@@ -585,27 +652,43 @@
     };
   }
 
+  // 2026-06-06·把 O((阶层+人物)×边) 的逐项 filter 改为一次性建索引·normalizeName 调用从 ~数十万降到 ~数千(治过回合卡死)
+  function buildEdgeIndex(edges) {
+    var byClass = Object.create(null), byChar1 = Object.create(null), byChar2 = Object.create(null);
+    for (var i = 0; i < edges.length; i += 1) {
+      var e = edges[i];
+      var cn = normalizeName(e.className); if (cn) (byClass[cn] || (byClass[cn] = [])).push(e);
+      var k1 = normalizeName(e.characterId || e.characterName); if (k1) (byChar1[k1] || (byChar1[k1] = [])).push(e);
+      var k2 = normalizeName(e.characterName); if (k2) (byChar2[k2] || (byChar2[k2] = [])).push(e);
+    }
+    return { byClass: byClass, byChar1: byChar1, byChar2: byChar2 };
+  }
+  // 与原 filter 等价:边匹配人物 = norm(charId||charName)===norm(id||name) 或 norm(charName)===norm(name)
+  function charEdgesFromIndex(idx, ch) {
+    var id = characterIdOf(ch), nm = characterNameOf(ch);
+    var k1 = normalizeName(id || nm), k2 = normalizeName(nm);
+    var b1 = (k1 && idx.byChar1[k1]) || [];
+    if (!k2 || k2 === k1) return b1.slice();
+    var b2 = idx.byChar2[k2] || [];
+    if (!b2.length) return b1.slice();
+    if (!b1.length) return b2.slice();
+    var seen = new Set(b1), out = b1.slice();
+    for (var i = 0; i < b2.length; i += 1) if (!seen.has(b2[i])) out.push(b2[i]);
+    return out;
+  }
   function rebuildMirrors(root) {
     root = pickRoot(root);
-    var edges = Object.keys(ensureState(root).edges).map(function(k) { return ensureState(root).edges[k]; }).filter(Boolean);
+    var state = ensureState(root);
+    var edges = Object.keys(state.edges).map(function(k) { return state.edges[k]; }).filter(Boolean);
+    var idx = buildEdgeIndex(edges);
     getClasses(root).forEach(function(cls) {
-      var name = classNameOf(cls);
-      cls.classCharacterRelations = edges
-        .filter(function(e) { return normalizeName(e.className) === normalizeName(name); })
-        .sort(edgeSort)
-        .slice(0, 8)
-        .map(compactEdge);
+      var name = normalizeName(classNameOf(cls));
+      cls.classCharacterRelations = ((name && idx.byClass[name]) || []).slice().sort(edgeSort).slice(0, 8).map(compactEdge);
     });
     getCharacters(root).forEach(function(ch) {
-      var id = characterIdOf(ch);
-      var name = characterNameOf(ch);
-      ch.classBackings = edges
-        .filter(function(e) { return normalizeName(e.characterId || e.characterName) === normalizeName(id || name) || normalizeName(e.characterName) === normalizeName(name); })
-        .sort(edgeSort)
-        .slice(0, 8)
-        .map(compactEdge);
+      ch.classBackings = charEdgesFromIndex(idx, ch).sort(edgeSort).slice(0, 8).map(compactEdge);
     });
-    rebuildCharacterEffects(root, edges);
+    rebuildCharacterEffects(root, edges, idx);
   }
 
   function classByName(root, className) {
@@ -665,17 +748,12 @@
     return (edge.className || '未名阶层') + '(' + roleLabel(edge.role) + '/' + (mode === 'pressure' ? '怨' : '信') + pct(value) + ')';
   }
 
-  function rebuildCharacterEffects(root, edges) {
+  function rebuildCharacterEffects(root, edges, idx) {
     root = pickRoot(root);
     edges = toArray(edges);
+    if (!idx) idx = buildEdgeIndex(edges);
     getCharacters(root).forEach(function(ch) {
-      var id = characterIdOf(ch);
-      var name = characterNameOf(ch);
-      var mine = edges
-        .filter(function(e) {
-          return normalizeName(e.characterId || e.characterName) === normalizeName(id || name) || normalizeName(e.characterName) === normalizeName(name);
-        })
-        .sort(edgeSort);
+      var mine = charEdgesFromIndex(idx, ch).sort(edgeSort);
       var backing = mine.filter(function(e) { return supportScore(root, e) > 0; }).sort(function(a, b) { return supportScore(root, b) - supportScore(root, a); });
       var opposing = mine.filter(function(e) { return pressureScore(root, e) > 0; }).sort(function(a, b) { return pressureScore(root, b) - pressureScore(root, a); });
       var support = backing.reduce(function(sum, e) { return sum + supportScore(root, e); }, 0);

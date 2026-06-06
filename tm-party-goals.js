@@ -532,7 +532,7 @@
     });
     party.goals = Object.keys(byId).map(function(id) { return byId[id]; })
       .sort(function(a, b) { return (b.priority || 0) - (a.priority || 0); });
-    party.partyGoals = party.goals;
+    if (party.partyGoals) delete party.partyGoals; // 2026-06-06·partyGoals 是 goals 的冗余别名·存档序列化成两份(JSON不保共享引用)→消除·读取方均 goals||partyGoals 兜底
     syncLegacyMirrors(party);
     return party.goals;
   }
@@ -622,9 +622,15 @@
     } else {
       party.goals.push(goal);
     }
+    // 2026-06-06·去重+封顶·原本每回合 re-set 同一 goal 都无条件 push → 单 goal mutationHistory 累积到数千条同样内容(存档膨胀到60MB主因)
     goal.mutationHistory = toArray(goal.mutationHistory);
-    goal.mutationHistory.push({ turn: turn, source: options.source || 'set-goal', action: 'set', text: goal.text, kind: goal.kind });
-    party.partyGoals = party.goals;
+    var _mh = { turn: turn, source: options.source || 'set-goal', action: 'set', text: goal.text, kind: goal.kind };
+    var _mhLast = goal.mutationHistory[goal.mutationHistory.length - 1];
+    if (!_mhLast || _mhLast.action !== _mh.action || _mhLast.text !== _mh.text || _mhLast.kind !== _mh.kind) {
+      goal.mutationHistory.push(_mh);
+    }
+    if (goal.mutationHistory.length > 24) goal.mutationHistory = goal.mutationHistory.slice(-24);
+    if (party.partyGoals) delete party.partyGoals; // 2026-06-06·partyGoals 是 goals 的冗余别名·存档序列化成两份(JSON不保共享引用)→消除·读取方均 goals||partyGoals 兜底
     syncLegacyMirrors(party);
     return goal;
   }

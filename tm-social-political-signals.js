@@ -515,7 +515,7 @@
       }
     } catch (_) {}
     try {
-      if (TM.PartyGoals && typeof TM.PartyGoals.buildScenarioRelationIndex === 'function') {
+      if (!options.skipScenarioMaintenance && TM.PartyGoals && typeof TM.PartyGoals.buildScenarioRelationIndex === 'function') {
         TM.PartyGoals.buildScenarioRelationIndex(root, { turn: options.turn || signal.turn, source: options.source || signal.sourceSystem });
       }
     } catch (_) {}
@@ -541,7 +541,7 @@
       }
     });
     try {
-      if (TM.PartyGoals && typeof TM.PartyGoals.deriveFromClassDemands === 'function') {
+      if (!options.skipScenarioMaintenance && TM.PartyGoals && typeof TM.PartyGoals.deriveFromClassDemands === 'function') {
         var derived = TM.PartyGoals.deriveFromClassDemands(root, { turn: options.turn || signal.turn, source: (options.source || signal.sourceSystem) + '-derive' });
         summary.goals += toArray(derived && derived.sourceGoals).length + toArray(derived && derived.counterGoals).length;
       }
@@ -554,9 +554,15 @@
     options = options || {};
     var store = ensureStore(root);
     var total = { signals: 0, classes: 0, parties: 0, relations: 0, goals: 0, results: [] };
+    // 2026-06-06·整剧本级 PartyGoals 维护(buildScenarioRelationIndex/deriveFromClassDemands)从「每signal一次」提到整批一次·治过回合 applyPending 卡顿
+    var _turn = Number(options.turn != null ? options.turn : root.turn) || 0;
+    var _src = options.source || 'social-political-signal';
+    var _hasPending = store.items.some(function(s){ return s && s.applied !== true; });
+    if (_hasPending) { try { if (TM.PartyGoals && typeof TM.PartyGoals.buildScenarioRelationIndex === 'function') TM.PartyGoals.buildScenarioRelationIndex(root, { turn: _turn, source: _src }); } catch (_) {} }
+    var _signalOptions = Object.assign({}, options, { skipScenarioMaintenance: true });
     store.items.forEach(function(signal) {
       if (!signal || signal.applied === true) return;
-      var result = applySignal(root, signal, options);
+      var result = applySignal(root, signal, _signalOptions);
       signal.applied = true;
       signal.appliedTurn = Number(options.turn != null ? options.turn : root.turn) || 0;
       signal.appliedSource = options.source || 'social-political-signal';
@@ -567,6 +573,14 @@
       total.goals += result.goals;
       total.results.push({ signalId: signal.id, result: clone(result) });
     });
+    if (total.signals > 0) {
+      try {
+        if (TM.PartyGoals && typeof TM.PartyGoals.deriveFromClassDemands === 'function') {
+          var _derived = TM.PartyGoals.deriveFromClassDemands(root, { turn: _turn, source: _src + '-derive' });
+          total.goals += toArray(_derived && _derived.sourceGoals).length + toArray(_derived && _derived.counterGoals).length;
+        }
+      } catch (_) {}
+    }
     store.stats.applied = (Number(store.stats.applied) || 0) + total.signals;
     if (!Array.isArray(root._socialPoliticalSignalApplications)) root._socialPoliticalSignalApplications = [];
     if (total.signals > 0) {
