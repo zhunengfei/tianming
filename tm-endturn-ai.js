@@ -397,6 +397,25 @@
           }
         } catch(_dStatsE) {}
         if (data && data.choices && data.choices[0] && data.choices[0].message) raw = data.choices[0].message.content || '';
+        // 2026-06-07·超大响应源头封顶(防御纵深·配合 robustParseJSON 护栏)。
+        // 第三方中转/模型复读可吐回数 MB~数十 MB 的垃圾响应;回合「深度推演」阶段众多子调用拿它去解析/入账,
+        // 内存峰值叠加可把 Electron 渲染进程撑爆 → 深推时突然黑屏、必须重启。合法子调用 ≤8000 tokens(数十 KB)。
+        // 超过上限一律视为失控:丢弃内容·让此子调用按"空响应"优雅失败·绝不让超大串向下游(解析/MemoryTrace/turnAiResults)传播。
+        try {
+          var _RAW_CAP = 1000000; // ~1MB·远超任何合法子调用·远低于致 OOM 量级
+          if (raw && raw.length > _RAW_CAP) {
+            var _oversize = raw.length;
+            _dbg('[_callEndturnAI] ' + label + ' 响应过大 ' + _oversize + ' 字符·丢弃防 OOM(深推渲染器崩溃护栏)');
+            try { if (data && data.choices && data.choices[0] && data.choices[0].message) data.choices[0].message.content = ''; } catch(_clrE) {}
+            raw = '';
+            try {
+              if (!GM._turnAiResults) GM._turnAiResults = {};
+              if (!Array.isArray(GM._turnAiResults._oversizedResponses)) GM._turnAiResults._oversizedResponses = [];
+              GM._turnAiResults._oversizedResponses.push({ id: opts.id || '', label: label, len: _oversize, turn: GM.turn });
+              if (GM._turnAiResults._oversizedResponses.length > 20) GM._turnAiResults._oversizedResponses.shift();
+            } catch(_recE) {}
+          }
+        } catch(_capE) {}
         _recordMemoryTraceSubcall(body, opts, raw, data, started, true, null);
         if (typeof recordAIDiagnostic === 'function') {
           recordAIDiagnostic('call', { id: opts.id || '', label: label, ok: true, ms: Date.now() - started });
@@ -837,6 +856,13 @@
           return;
         }
         var _start = Date.now();
+        // 2026-06-07·深推渲染器崩溃诊断·每个子调用进出记 JS 堆水位。
+        // 若渲染器在某子调用内 OOM 崩溃·崩溃日志会停在该 sc 的「▶进入」行而无「■退出」行 → 断尾直接指认元凶 sc·并能看堆是否逼近 jsHeapSizeLimit。
+        try {
+          if (typeof performance !== 'undefined' && performance.memory) {
+            _dbg('[heap] ▶ ' + id + ' used=' + Math.round(performance.memory.usedJSHeapSize / 1048576) + 'MB / limit=' + Math.round(performance.memory.jsHeapSizeLimit / 1048576) + 'MB');
+          }
+        } catch(_heapEnterE) {}
         // Per-call fetch timeouts already bound retry cost. Keep wrapper retries explicit
         // so one slow optional pass cannot hold the whole end-turn flow for 10+ minutes.
         // Contract note: policy table now controls all wrapper retry counts.
@@ -853,6 +879,11 @@
             GM._subcallTimings[id] = _elapsed;
             _stats.totalTime += _elapsed;
             _stats.byId[id].totalTime += _elapsed;
+            try {
+              if (typeof performance !== 'undefined' && performance.memory) {
+                _dbg('[heap] ■ ' + id + ' ' + _elapsed + 'ms used=' + Math.round(performance.memory.usedJSHeapSize / 1048576) + 'MB');
+              }
+            } catch(_heapExitE) {}
             try {
               if (window.TM && TM.Endturn && TM.Endturn.Timing && typeof TM.Endturn.Timing.mark === 'function') {
                 TM.Endturn.Timing.mark(ctx, 'subcall', { id: id, label: name, ok: true, attempts: _attempt + 1, ms: _elapsed });

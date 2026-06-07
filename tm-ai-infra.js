@@ -658,6 +658,28 @@ async function _aiFetchWithRetryInner(url, body, signal, opts) {
   throw lastError || new Error('_aiFetchWithRetry: 重试耗尽');
 }
 
+// ============================================================
+// M3.1·次 API(secondary) 网络不可达 → 自动回退主 API(primary)
+//   规则(owner)：这几个子系统「优先次要 API，没有/不可用则走主 API」。
+//   _getAITier 已处理「secondary 未配 → 用 primary」；这里补「secondary 配了但连不上」一档。
+//   仅对「网络层不可达」(连接拒绝/DNS/Failed to fetch) 触发；不对 HTTP 4xx/5xx 或主动 abort 触发——
+//   那类失败换主 API 未必能解，且会掩盖真实配置错误。
+// ============================================================
+function _isAINetworkError(e) {
+  if (!e) return false;
+  if (e.name === 'AbortError') return false;   // 主动中断，不回退
+  if (e.status) return false;                  // 有 HTTP 状态码 = 服务器已应答，不回退
+  var msg = String((e && e.message) || e || '');
+  return e.name === 'TypeError' ||             // fetch 网络层失败典型为 TypeError: Failed to fetch
+    /Failed to fetch|NetworkError|ERR_CONNECTION|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|fetch failed/i.test(msg);
+}
+// 本次 tier 参数是否「实际解析为 secondary」(secondary 已配置且启用)·只有此时回退才有意义
+function _aiEffectiveTierIsSecondary(tier) {
+  if (tier !== 'secondary') return false;
+  try { if (typeof _getAITier === 'function') return _getAITier('secondary').tier === 'secondary'; } catch(_) {}
+  return false;
+}
+
 /**
  * 基础 AI 调用
  * @param {string} prompt - 提示词
@@ -671,6 +693,15 @@ async function callAI(prompt,maxTok,signal,tier,opts){
     tier = opts.tier;
   }
   opts = opts || {};
+  // M3.1·次 API 走 secondary 且网络不可达 → 自动回退主 API 重试一次（_noSecFallback 防递归）
+  if (_aiEffectiveTierIsSecondary(tier) && !opts._noSecFallback) {
+    var _o = Object.assign({}, opts, { _noSecFallback: true });
+    try { return await callAI(prompt, maxTok, signal, 'secondary', _o); }
+    catch (e) {
+      if (_isAINetworkError(e)) { console.warn('[AI] 次 API 不可达·回退主 API: ' + ((e && e.message) || e)); return await callAI(prompt, maxTok, signal, 'primary', _o); }
+      throw e;
+    }
+  }
   // M3·按 tier 取配置·secondary 未配回退 primary·防御 _getAITier 未定义
   var _aiCfg = null;
   try { if (typeof _getAITier === 'function') _aiCfg = _getAITier(tier); } catch(_){}
@@ -1009,6 +1040,15 @@ async function callAIMessages(messages,maxTok,signal,tier,opts){
     tier = opts.tier;
   }
   opts = opts || {};
+  // M3.1·次 API 走 secondary 且网络不可达 → 自动回退主 API 重试一次（_noSecFallback 防递归）
+  if (_aiEffectiveTierIsSecondary(tier) && !opts._noSecFallback) {
+    var _oM = Object.assign({}, opts, { _noSecFallback: true });
+    try { return await callAIMessages(messages, maxTok, signal, 'secondary', _oM); }
+    catch (e) {
+      if (_isAINetworkError(e)) { console.warn('[AI] 次 API 不可达·回退主 API: ' + ((e && e.message) || e)); return await callAIMessages(messages, maxTok, signal, 'primary', _oM); }
+      throw e;
+    }
+  }
   // M3·按 tier 取配置·secondary 未配回退 primary·防御 _getAITier 未定义
   var _aiCfgM = null;
   try { if (typeof _getAITier === 'function') _aiCfgM = _getAITier(tier); } catch(_){}
@@ -1053,6 +1093,15 @@ async function callAIMessages(messages,maxTok,signal,tier,opts){
  */
 async function _callAIMessagesStreamDirect(messages, maxTok, opts) {
   opts = opts || {};
+  // M3.1·次 API 走 secondary 且网络不可达 → 自动回退主 API 重试一次（_noSecFallback 防递归）
+  if (_aiEffectiveTierIsSecondary(opts.tier) && !opts._noSecFallback) {
+    var _oS = Object.assign({}, opts, { _noSecFallback: true });
+    try { return await _callAIMessagesStreamDirect(messages, maxTok, _oS); }
+    catch (e) {
+      if (_isAINetworkError(e)) { console.warn('[AI] 次 API 不可达·回退主 API: ' + ((e && e.message) || e)); return await _callAIMessagesStreamDirect(messages, maxTok, Object.assign({}, _oS, { tier: 'primary' })); }
+      throw e;
+    }
+  }
   // M3·按 tier 取 API 配置·默认 primary·secondary 未配自动回退（带 try 兜底以防万一）
   var _aiCfg = null;
   try { if (typeof _getAITier === 'function') _aiCfg = _getAITier(opts.tier); } catch(_){}
@@ -1542,6 +1591,22 @@ function getBalanceVal(path, defaultVal) {
 // ============================================================
 function robustParseJSON(raw) {
   if (!raw) return null;
+
+  // 2026-06-07·超大响应 OOM 护栏。
+  // 下面的多层修复每步都对整段 raw 做正则 .replace()(全量复制字符串·一次解析约 10~15× raw 的瞬时分配)。
+  // 模型复读/代理失控可吐出数 MB 的 raw·回合「深度推演」阶段 20+ 个 AI 子调用并发各跑一遍·
+  // 瞬时分配叠加可把 Electron 渲染进程内存撑爆 → 深推时突然黑屏、必须重启 App。
+  // 合法子调用响应 ≤8000 tokens(数十 KB)·故超过上限者一律视为失控:只做一次零/低拷贝直解·失败即放弃(交上层截断重修)·绝不进多拷贝修复风暴。
+  var MAX_PARSE_LEN = 500000; // ~500KB·远超任何合法子调用·远低于致 OOM 量级
+  if (raw.length > MAX_PARSE_LEN) {
+    try { if (typeof _dbg === 'function') _dbg('[robustParseJSON] 响应过大 ' + raw.length + ' 字符·跳过多层修复防 OOM'); } catch (_) {}
+    try { return JSON.parse(raw); } catch (_e0) {}
+    try {
+      var _s = raw.indexOf('{'), _e = raw.lastIndexOf('}');
+      if (_s >= 0 && _e > _s) return JSON.parse(raw.slice(_s, _e + 1));
+    } catch (_e1) {}
+    return null;
+  }
 
   // Layer 1: 去掉 markdown 代码块后直接解析
   var cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();

@@ -1017,6 +1017,9 @@
       if (linked && (linked.issue || linked.goal || linked.relation)) applied.issueGoalLinks++;
       if (linked && linked.relation) applied.relations++;
     });
+    // 2026-06-07·skipMirrors 批量写边·循环结束后只重建一次镜像。
+    // 原本每条 update 都触发全量 rebuildMirrors → AI 一次吐 N 条关系更新就是 O(N×(类+人)×边) 的过回合卡死(与 discoverPairs 同病灶)。
+    var _ccrTouched = false;
     result.class_character_relation_updates.forEach(function(update) {
       if (!TM.ClassCharacterRelations || typeof TM.ClassCharacterRelations.adjustRelation !== 'function') return;
       var edge = TM.ClassCharacterRelations.adjustRelation(source, Object.assign({}, update, {
@@ -1024,10 +1027,14 @@
         evidence: update && (update.evidence || update.reason || update.summary)
       }), {
         turn: turn,
-        source: sourceName
+        source: sourceName,
+        skipMirrors: true
       });
-      if (edge) applied.classCharacterRelations++;
+      if (edge) { applied.classCharacterRelations++; _ccrTouched = true; }
     });
+    if (_ccrTouched && TM.ClassCharacterRelations && typeof TM.ClassCharacterRelations.syncMirrors === 'function') {
+      try { TM.ClassCharacterRelations.syncMirrors(source); } catch (_ccrSyncE) {}
+    }
     try {
       if (TM.PartyGoals && typeof TM.PartyGoals.buildScenarioRelationIndex === 'function') TM.PartyGoals.buildScenarioRelationIndex(source, { turn: turn, source: sourceName });
     } catch (_) {}

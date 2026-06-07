@@ -822,6 +822,8 @@
   TM.ClassCharacterRelations = {
     run: run,
     adjustRelation: adjustRelation,
+    // 2026-06-07·供外部批量 adjustRelation(skipMirrors:true) 后一次性重建镜像·避免每条更新都全量重建(O(n²)卡死)
+    syncMirrors: function(root) { return rebuildMirrors(root); },
     snapshot: snapshot,
     ensureState: ensureState,
     getCharacters: getCharacters
