@@ -35,6 +35,7 @@ const checks = [
   { name: 'official-scenario', file: 'official-scenario-smoke.js', estSec: 1, expectExit: 0 },
   { name: 'tianqi-cache-recovery', file: 'smoke-tianqi-official-cache-recovery.js', estSec: 1, expectExit: 0 },
   { name: 'start-game-data-integrity', file: 'smoke-start-game-data-integrity.js', estSec: 20, expectExit: 0 },
+  { name: 'start-game-scenario-library', file: 'smoke-start-game-scenario-library.js', estSec: 1, expectExit: 0 },
   { name: 'phase8-office-standalone', file: 'smoke-phase8-office-standalone.js', estSec: 1, expectExit: 0 },
   { name: 'phase8-map-live-panels', file: 'smoke-phase8-map-live-panels.js', estSec: 1, expectExit: 0 },
   { name: 'shiji-history-ui', file: 'smoke-shiji-history-ui.js', estSec: 1, expectExit: 0 },

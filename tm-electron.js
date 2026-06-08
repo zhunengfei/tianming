@@ -14,20 +14,6 @@
 // ============================================================
 if(window.tianming&&window.tianming.isDesktop){
 
-  function _isPlayableScenario(scn){
-    if (!scn || typeof scn !== 'object') return false;
-    function count(key){ return Array.isArray(scn[key]) ? scn[key].length : 0; }
-    var vars = 0;
-    if (Array.isArray(scn.variables)) vars = scn.variables.length;
-    else if (scn.variables && typeof scn.variables === 'object') {
-      vars = Object.keys(scn.variables).reduce(function(sum, key){
-        return sum + (Array.isArray(scn.variables[key]) ? scn.variables[key].length : 0);
-      }, 0);
-    }
-    return count('characters') + count('chars') + count('factions') + count('facs') +
-      count('parties') + count('classes') + vars + count('events') + count('relations') > 0;
-  }
-
   // 2026-05-22·loadScenario·hot bundled fallback wrapper
   // 老 .exe + 1.2.4.1+ hot update 时·main.js 不知 bundled-scenarios/·renderer 自己 try fetch
   // 成功 → 用 hot 版·失败 → fallback IPC 走 main.js (拿 installer bundled)
@@ -58,6 +44,92 @@ if(window.tianming&&window.tianming.isDesktop){
     } catch (e) {
       console.warn('[official-scenario-seeder] ensure failed:', e && e.message || e);
     }
+  }
+
+  function _desktopHtmlArg(value){
+    return JSON.stringify(value == null ? '' : value).replace(/"/g, '&quot;');
+  }
+
+  function _normalizeDesktopScenario(scn, fallbackName){
+    if (!scn || typeof scn !== 'object') return null;
+    if (!scn.id) scn.id = 'scn_file_' + String(fallbackName || scn.name || Date.now()).replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g, '_');
+    if (!scn.name) scn.name = String(fallbackName || scn.id || '未命名剧本');
+    if (!scn.era && scn.dynasty) scn.era = scn.dynasty;
+    if (!scn.role && scn.emperor) scn.role = scn.emperor;
+    if (!scn.background && scn.overview) scn.background = scn.overview;
+    if (!scn.desc && scn.overview) scn.desc = scn.overview;
+    return scn;
+  }
+
+  function _installDesktopScenario(scn){
+    if (!scn || !scn.id) return;
+    if (!Array.isArray(P.scenarios)) P.scenarios = [];
+    var existing = P.scenarios.findIndex(function(s){return s && s.id===scn.id;});
+    if(existing>=0){P.scenarios[existing]=scn;}else{P.scenarios.push(scn);}
+    ['characters','factions','parties','classes','items','relations'].forEach(function(key){
+      if(scn[key]&&scn[key].length>0){
+        P[key]=(P[key]||[]).filter(function(it){return it.sid!==scn.id;});
+        scn[key].forEach(function(it){it.sid=scn.id;});
+        P[key]=P[key].concat(scn[key]);
+      }
+    });
+    if (typeof buildIndices === 'function') buildIndices();
+  }
+
+  function _projectScenarioListItems(files){
+    var seen = {};
+    (files || []).forEach(function(f){
+      if (f && f.id) seen['id:' + f.id] = true;
+      if (f && f.name) seen['name:' + f.name] = true;
+      if (f && f.title) seen['title:' + f.title] = true;
+    });
+    var scenarios = (window.P && Array.isArray(P.scenarios)) ? P.scenarios : [];
+    return scenarios.filter(function(sc){
+      if (!sc || sc._scenarioEditorSandbox) return false;
+      var label = sc.name || sc.title || sc.id || '';
+      if (sc.id && seen['id:' + sc.id]) return false;
+      if (label && (seen['name:' + label] || seen['title:' + label])) return false;
+      return !!(sc.id || label);
+    }).map(function(sc){
+      return {
+        id: sc.id || '',
+        name: sc.name || sc.title || sc.id || '未命名剧本',
+        title: sc.name || sc.title || sc.id || '未命名剧本',
+        modifiedStr: '正式剧本库',
+        source: 'project',
+        projectOnly: true,
+        playable: true
+      };
+    });
+  }
+
+  function _scenarioSourceLabel(item){
+    if (!item) return '';
+    if (item.projectOnly || item.source === 'project') return '正式库';
+    if (item.source === 'official') return '官方';
+    if (item.source === 'user') return '自制';
+    return item.source || '';
+  }
+
+  function _prepareDesktopStartScenario(scn, name){
+    scn = _normalizeDesktopScenario(scn, name);
+    if (!scn) { toast('剧本数据为空'); return; }
+    _installDesktopScenario(scn);
+    var now=new Date();
+    var pad=function(n){return String(n).padStart(2,'0');};
+    var defName=(scn.name||name||scn.id)+'_'+pad(now.getMonth()+1)+pad(now.getDate())+'_'+pad(now.getHours())+pad(now.getMinutes());
+    window._pendingStartPayload={scn:scn,origName:name||scn.name||scn.id};
+    var html='<div class="pnl">';
+    html+='<div class="pnl-hd"><div><div class="pnl-t">\u5f00\u59cb\u6e38\u620f</div>';
+    html+='<div class="pnl-sub">\u5267\u672c\uff1a'+(scn.name||name||scn.id)+'</div></div></div>';
+    html+='<div class="fd full" style="margin-bottom:1.2rem">';
+    html+='<label>\u5b58\u6863\u540d\uff08\u53ef\u4fee\u6539\uff09</label>';
+    html+='<input id="start-save-name" value="'+defName+'"></div>';
+    html+='<div class="pnl-ft">';
+    html+='<button class="bt bp" onclick="desktopConfirmStart()">\u25b6 \u5f00\u59cb</button>';
+    html+='<button class="bt bs" onclick="showScnSelect()">\u8fd4\u56de</button>';
+    html+='</div></div>';
+    showPanel(html);
   }
 
   // --- 主菜单显示/隐藏辅助 ---
@@ -164,20 +236,19 @@ if(window.tianming&&window.tianming.isDesktop){
     await _ensureOfficialScenarioFiles();
     var list=await window.tianming.listScenarios();
     var files=list.success?list.files:[];
-    var allCount=files.length;
-    files=files.filter(function(f){return f.playable!==false;});
+    files=files.concat(_projectScenarioListItems(files));
     var html='<div class="pnl">';
-    var draftNotice=(allCount>files.length)?'<p class="pnl-empty">已隐藏 '+(allCount-files.length)+' 个空白草稿；可在剧本管理中继续编辑。</p>':'';
     html+='<div class="pnl-hd"><span class="pnl-t">选择剧本</span></div>';
-    html+=draftNotice;
     if(!files.length){
       html+='<p class="pnl-empty">暂无剧本。</p>';
     }else{
       html+='<div class="pnl-list">';
       files.forEach(function(f){
+        var label = _scenarioSourceLabel(f);
+        var startCall = f.projectOnly ? 'desktopStartProjectScn('+_desktopHtmlArg(f.id)+')' : 'desktopStartScn('+_desktopHtmlArg(f.name)+')';
         html+='<div class="pnl-row cd">';
-        html+='<div class="pnl-row-info"><span class="pnl-row-name">'+f.name+'</span><span class="pnl-row-meta">'+f.modifiedStr+'</span></div>';
-        html+='<button class="bt bp bsm" onclick="desktopStartScn('+JSON.stringify(f.name).replace(/"/g,'&quot;')+')">开始</button>';
+        html+='<div class="pnl-row-info"><span class="pnl-row-name">'+(f.title||f.name||f.id)+'</span><span class="pnl-row-meta">'+(label?label+' · ':'')+(f.modifiedStr||'')+'</span></div>';
+        html+='<button class="bt bp bsm" onclick="'+startCall+'">开始</button>';
         html+='</div>';
       });
       html+='</div>';
@@ -192,11 +263,6 @@ if(window.tianming&&window.tianming.isDesktop){
     var r=await _loadScenarioWithHotFallback(name);
     if(!r.success){toast('加载失败: '+(r.error||''));return;}
     var scn=r.data;
-    if(!_isPlayableScenario(scn)){
-      toast('此剧本还是空卷，请先到剧本管理中补完人物、势力或事件');
-      showScnSelect();
-      return;
-    }
     // 生成稳定ID：用文件名生成确定性id（避免重复）
     if(!scn.id){scn.id='scn_file_'+name.replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g,'_');}
     // 兼容editor格式字段 → game格式字段
@@ -232,6 +298,13 @@ if(window.tianming&&window.tianming.isDesktop){
     html+='</div></div>';
     showPanel(html);
   };
+
+  window.desktopStartProjectScn=function(id){
+    var scn = (window.P && Array.isArray(P.scenarios)) ? P.scenarios.find(function(s){return s && s.id===id;}) : null;
+    if(!scn){toast('剧本库中未找到：'+id);showScnSelect();return;}
+    _prepareDesktopStartScenario(scn, scn.name||scn.id);
+  };
+
   window.desktopConfirmStart=function(){
     var payload=window._pendingStartPayload;
     var scn=payload.scn;

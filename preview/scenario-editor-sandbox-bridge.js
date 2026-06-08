@@ -208,6 +208,21 @@
     }));
   }
 
+  function persistReturnedScenarioToDesktop(sc) {
+    if (!sc || !(global.tianming && global.tianming.isDesktop && typeof global.tianming.saveScenario === 'function')) return;
+    var filename = sc.name || sc.title || sc.id || 'scenario';
+    try {
+      var result = global.tianming.saveScenario(filename, sc);
+      if (result && typeof result.then === 'function') {
+        result.catch(function(err) {
+          console.warn('[ScenarioSandboxBridge] desktop scenario save failed', err);
+        });
+      }
+    } catch (err2) {
+      console.warn('[ScenarioSandboxBridge] desktop scenario save failed', err2);
+    }
+  }
+
   function installSandboxScenario(payload) {
     ensureP();
     removeSandboxRows();
@@ -252,6 +267,7 @@
     } catch (err2) {
       console.warn('[ScenarioSandboxBridge] return saveP failed', err2);
     }
+    persistReturnedScenarioToDesktop(sc);
     global.TM_SCENARIO_EDITOR_RETURN = {
       id: sc.id,
       scenario: sc,
