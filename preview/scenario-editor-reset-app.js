@@ -9,6 +9,7 @@
   var PROJECT_LIBRARY_KEY = 'tm.scenarioEditorReset.projectLibrary.v1';
   var SANDBOX_STORAGE_KEY = 'tm.scenarioEditorReset.formalSandbox.v1';
   var RUNTIME_RETURN_STORAGE_KEY = 'tm.scenarioEditorReset.runtimeReturn.v1';
+  var RUNTIME_RETURN_DB_PREFIX = 'runtimeReturn:';
   var MAP_HANDOFF_KEY = 'tm.scenarioEditorReset.mapHandoff.v1';
   var MAP_RETURN_KEY = 'tm.scenarioEditorReset.mapReturn.v1';
   var API_SETTINGS_KEY = 'tm_api';
@@ -1654,6 +1655,24 @@
       setSaveIndicator(ok ? 'saved' : 'error', ok ? payload.savedAt : null,
         ok ? '大剧本·已存本地库（IndexedDB）' : '剧本过大且本地库不可用·请手动导出 JSON 备份');
     });
+  }
+
+  function runtimeReturnDbId(id) {
+    return RUNTIME_RETURN_DB_PREFIX + String(id || 'latest');
+  }
+
+  function putRuntimeReturnBody(payload) {
+    return openProjectDb().then(function(db) {
+      if (!db) return false;
+      return new Promise(function(resolve) {
+        try {
+          var tx = db.transaction(PROJECT_DB_STORE, 'readwrite');
+          tx.objectStore(PROJECT_DB_STORE).put({ id: runtimeReturnDbId(payload.id), runtimeReturn: payload });
+          tx.oncomplete = function() { db.close(); resolve(true); };
+          tx.onerror = function() { db.close(); resolve(false); };
+        } catch (_) { resolve(false); }
+      });
+    }).catch(function() { return false; });
   }
 
   function pushHistoryLog(type, detail) {
@@ -11008,22 +11027,37 @@
       releaseNotes: buildReleaseNotes(),
       fieldNotes: clone(state.fieldNotes || {})
     };
-    try {
-      localStorage.setItem(RUNTIME_RETURN_STORAGE_KEY, JSON.stringify(payload));
-    } catch (err) {
-      setStatus('写回正式页失败：' + (err && err.message || err), 'error');
-      throw err;
-    }
-    state.runtimeReturn = { id: payload.id, createdAt: payload.createdAt, scenarioName: scenario.name };
-    writeStoredDraft();
-    setStatus('已准备写回正式页：' + scenario.name, 'good');
-    return clone(payload);
+    return putRuntimeReturnBody(payload).then(function(idbOk) {
+      var manifest = {
+        id: payload.id,
+        createdAt: payload.createdAt,
+        source: payload.source,
+        scenarioName: scenario.name,
+        storage: idbOk ? 'indexedDB' : 'localStorage',
+        dbKey: runtimeReturnDbId(payload.id)
+      };
+      try {
+        try { localStorage.removeItem(RUNTIME_RETURN_STORAGE_KEY); } catch (_) {}
+        localStorage.setItem(RUNTIME_RETURN_STORAGE_KEY, JSON.stringify(idbOk ? manifest : payload));
+      } catch (err) {
+        setStatus('写回正式页失败：' + (err && err.message || err), 'error');
+        throw err;
+      }
+      state.runtimeReturn = { id: payload.id, createdAt: payload.createdAt, scenarioName: scenario.name, storage: manifest.storage };
+      writeStoredDraft();
+      setStatus(idbOk ? ('已准备写回正式页：' + scenario.name + '（大剧本走本地库）') : ('已准备写回正式页：' + scenario.name), 'good');
+      return clone(payload);
+    });
   }
 
   function returnToFormalRuntime() {
-    var payload = saveRuntimeReturnPayload();
-    if (global.location) global.location.href = '../index.html?tmScenarioEditorReturn=' + encodeURIComponent(payload.id);
-    return payload;
+    return saveRuntimeReturnPayload().then(function(payload) {
+      if (global.location) global.location.href = '../index.html?tmScenarioEditorReturn=' + encodeURIComponent(payload.id);
+      return payload;
+    }).catch(function(err) {
+      setStatus('写回正式页失败：' + (err && err.message || err), 'error');
+      return null;
+    });
   }
 
   // ── 地图编辑器跳转往返（刀3·①）·复用 MapEditorBridge(刀2) + applyMapPatch(刀1) ──
