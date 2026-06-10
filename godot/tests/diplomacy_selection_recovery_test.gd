@@ -16,6 +16,13 @@ func _ready() -> void:
 	if game_state == null:
 		_fail("Main scene did not initialize GameState")
 		return
+	if not main.has_method("select_runtime_panel"):
+		_fail("Main scene does not expose select_runtime_panel")
+		return
+	if not bool(main.call("select_runtime_panel", "diplomacy_panel")):
+		_fail("Main scene could not select the diplomacy panel")
+		return
+	await get_tree().process_frame
 
 	var removed_faction_id: String = str(panel.get("selected_faction_id"))
 	if removed_faction_id.is_empty():

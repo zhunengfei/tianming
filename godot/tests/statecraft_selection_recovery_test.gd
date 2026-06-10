@@ -17,6 +17,11 @@ func _ready() -> void:
 		_fail("Main scene did not initialize GameState")
 		return
 
+	if not bool(main.call("select_runtime_panel", "statecraft_panel")):
+		_fail("Main scene could not activate the statecraft panel")
+		return
+	await get_tree().process_frame
+
 	var removed_variable_name: String = str(panel.get("selected_variable_name"))
 	if removed_variable_name.is_empty():
 		_fail("Statecraft panel did not select an initial variable")

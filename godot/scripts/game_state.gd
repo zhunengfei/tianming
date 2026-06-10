@@ -300,6 +300,7 @@ func advance_month() -> Dictionary:
 	if monthly_simulator == null:
 		monthly_simulator = MonthlySimulatorScript.new()
 	var report: Dictionary = monthly_simulator.call("settle_month", self)
+	_sync_player_faction_relations_from_live_state()
 	_create_faction_ai_counterplays(report)
 	_tick_diplomacy_commitments()
 	turn_reports.append(report)
@@ -472,8 +473,11 @@ func character_browser_data() -> Dictionary:
 	}
 
 func faction_browser_data() -> Dictionary:
+	var faction_rows: Array = []
+	for raw in factions:
+		faction_rows.append(_faction_with_relationship_summary(_dict(raw)))
 	return {
-		"factions": factions.duplicate(true),
+		"factions": faction_rows,
 		"actions": faction_actions(),
 		"history": faction_action_history.duplicate(true),
 		"action_points": action_points
@@ -3586,6 +3590,12 @@ func _sync_player_faction_relation(faction_index: int) -> void:
 		"value": value,
 		"desc": desc
 	})
+
+func _sync_player_faction_relations_from_live_state() -> void:
+	for i in range(factions.size()):
+		var faction: Dictionary = _dict(factions[i])
+		if faction.has("relation_to_player") or faction.has("hostility"):
+			_sync_player_faction_relation(i)
 
 func _faction_relation_type_from_scores(relation: int, hostility: int) -> String:
 	var value: int = relation - hostility

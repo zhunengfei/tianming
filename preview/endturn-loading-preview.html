@@ -3,8 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
   <title>天命｜过回合加载</title>
   <link rel="icon" href="data:,">
+  <!--
+    过回合加载 · 预览页（preview mockup，不是运行时代码；对齐 schema 以运行时渲染器为权威）
+    2026-06-10 接手收拢：原稿为四层叠加 CSS（三栏布局 → minimal cinematic → real loading → typography），
+    此版收成单层定稿，删除被废弃布局遗留的隐藏 DOM（左侧阶段栏 / 右侧战报面板 / 回合摘要 chips / 缩略图池）。
+    31 个真实管线阶段与 34 张场景图数据逐字保留。右下角操控条为预览页专属，不属于拟上线 UI。
+  -->
   <style>
     :root {
       --ink-950: #080604;
@@ -24,8 +31,10 @@
       --stage-accent-rgb: 228, 196, 117;
       --stage-cinnabar-rgb: 184, 74, 56;
       --shadow-hard: 0 24px 80px rgba(0, 0, 0, 0.68);
-      --serif: "Noto Serif SC", "Source Han Serif SC", "STKaiti", "KaiTi", "SimSun", serif;
-      --sans: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+      --display: "Source Han Serif SC Heavy", "Source Han Serif SC", "Noto Serif CJK SC", "Noto Serif SC", "STZhongsong", "SimSun", serif;
+      --serif: "Source Han Serif SC", "Noto Serif CJK SC", "Noto Serif SC", "STZhongsong", "SimSun", serif;
+      --narrative: "FangSong", "STFangsong", "KaiTi", "Kaiti SC", "SimSun", serif;
+      --sans: "Microsoft YaHei UI", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", "Segoe UI", sans-serif;
     }
 
     * {
@@ -40,6 +49,10 @@
       background: var(--ink-950);
       color: var(--paper-100);
       font-family: var(--serif);
+      font-kerning: normal;
+      font-synthesis-weight: none;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
     }
 
     body {
@@ -49,6 +62,8 @@
     button {
       font: inherit;
     }
+
+    /* ============ 壳层与阶段组色相 ============ */
 
     .etl-shell {
       position: relative;
@@ -78,6 +93,11 @@
       --stage-cinnabar-rgb: 170, 68, 50;
     }
 
+    .etl-shell[data-group-key="deepsim"] {
+      --stage-accent-rgb: 198, 196, 156;
+      --stage-cinnabar-rgb: 96, 104, 118;
+    }
+
     .etl-shell[data-group-key="edict"] {
       --stage-accent-rgb: 232, 184, 94;
       --stage-cinnabar-rgb: 184, 74, 56;
@@ -98,6 +118,8 @@
       --stage-cinnabar-rgb: 190, 72, 46;
     }
 
+    /* ============ 背景影像（双缓冲交叉淡化 + 缓慢推镜） ============ */
+
     .etl-bg,
     .etl-bg-next {
       position: fixed;
@@ -106,10 +128,12 @@
       background-image: var(--scene-url);
       background-size: cover;
       background-position: center;
-      transform: scale(1.045);
-      filter: saturate(0.9) contrast(1.02);
-      transition: opacity 620ms ease, transform 980ms ease;
+      filter: saturate(0.86) contrast(1.08) brightness(0.72);
+      transform: scale(1.055);
+      transform-origin: 58% 46%;
+      transition: opacity 1400ms ease, transform 2200ms ease, filter 1400ms ease;
       will-change: opacity, transform;
+      animation: etl-scene-drift 16s ease-in-out infinite alternate;
     }
 
     .etl-bg-next {
@@ -119,14 +143,41 @@
 
     .etl-shell.is-swapping .etl-bg {
       opacity: 0;
-      transform: scale(1.07);
+      transform: scale(1.075) translate3d(-0.35%, 0.15%, 0);
     }
 
     .etl-shell.is-swapping .etl-bg-next {
       opacity: 1;
-      transform: scale(1.045);
+      transform: scale(1.055) translate3d(0.2%, -0.12%, 0);
+      /* 墨晕转场：新景如墨滴在绢上洇开 */
+      -webkit-mask-image: radial-gradient(circle at 44% 50%, black 55%, transparent 74%);
+      mask-image: radial-gradient(circle at 44% 50%, black 55%, transparent 74%);
+      -webkit-mask-repeat: no-repeat;
+      mask-repeat: no-repeat;
+      -webkit-mask-position: 44% 50%;
+      mask-position: 44% 50%;
+      animation: etl-ink-wipe 1400ms ease forwards;
     }
 
+    /* 影像缺失兜底：无可用场景时隐藏影像层，靠氛围层撑住画面 */
+    .etl-shell.no-scenes .etl-bg,
+    .etl-shell.no-scenes .etl-bg-next {
+      display: none;
+    }
+
+    .etl-shell.no-scenes .etl-stage-wash {
+      opacity: 0.72;
+    }
+
+    .etl-shell.no-scenes::before {
+      background:
+        radial-gradient(circle at 64% 36%, rgba(226, 174, 79, 0.16), transparent 38%),
+        radial-gradient(circle at 22% 74%, rgba(122, 34, 22, 0.2), transparent 34%),
+        linear-gradient(90deg, rgba(5, 4, 3, 0.96) 0%, rgba(10, 7, 5, 0.86) 38%, rgba(12, 8, 5, 0.78) 62%, rgba(5, 4, 3, 0.94) 100%),
+        linear-gradient(180deg, rgba(8, 6, 4, 0.9) 0%, rgba(10, 7, 5, 0.6) 34%, rgba(8, 6, 4, 0.96) 100%);
+    }
+
+    /* 暗角与扫描纹帷幕 */
     .etl-shell::before {
       content: "";
       position: fixed;
@@ -134,10 +185,8 @@
       z-index: -4;
       pointer-events: none;
       background:
-        radial-gradient(circle at 68% 38%, rgba(226, 174, 79, 0.18), transparent 30%),
-        radial-gradient(circle at 20% 72%, rgba(122, 34, 22, 0.18), transparent 26%),
-        linear-gradient(90deg, rgba(5, 4, 3, 0.92) 0%, rgba(7, 5, 4, 0.58) 38%, rgba(6, 5, 4, 0.38) 60%, rgba(5, 4, 3, 0.9) 100%),
-        linear-gradient(180deg, rgba(8, 6, 4, 0.72) 0%, rgba(8, 6, 4, 0.18) 32%, rgba(8, 6, 4, 0.94) 100%);
+        linear-gradient(90deg, rgba(5, 4, 3, 0.95) 0%, rgba(8, 6, 4, 0.68) 34%, rgba(8, 6, 4, 0.22) 62%, rgba(5, 4, 3, 0.82) 100%),
+        linear-gradient(180deg, rgba(8, 6, 4, 0.86) 0%, rgba(8, 6, 4, 0.12) 34%, rgba(8, 6, 4, 0.94) 100%);
     }
 
     .etl-shell::after {
@@ -146,12 +195,12 @@
       inset: 0;
       z-index: -3;
       pointer-events: none;
-      opacity: 0.22;
+      opacity: 0.2;
       background-image:
-        linear-gradient(rgba(226, 196, 117, 0.05) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(226, 196, 117, 0.04) 1px, transparent 1px);
-      background-size: 44px 44px, 44px 44px;
-      mask-image: linear-gradient(90deg, black, transparent 62%);
+        linear-gradient(90deg, rgba(228, 196, 117, 0.18), transparent 20%, transparent 80%, rgba(228, 196, 117, 0.08)),
+        repeating-linear-gradient(180deg, rgba(255, 244, 210, 0.028) 0 1px, transparent 1px 9px);
+      background-size: 100% 100%, 100% 18px;
+      animation: etl-veil-scan 5.6s linear infinite;
     }
 
     .etl-grain {
@@ -159,7 +208,7 @@
       inset: 0;
       z-index: -2;
       pointer-events: none;
-      opacity: 0.14;
+      opacity: 0.12;
       mix-blend-mode: soft-light;
       background:
         repeating-radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.24) 0 1px, transparent 1px 7px),
@@ -178,7 +227,7 @@
     .etl-stage-wash {
       z-index: -3;
       inset: -10%;
-      opacity: 0.46;
+      opacity: 0.52;
       mix-blend-mode: screen;
       background:
         linear-gradient(112deg, transparent 0 18%, rgba(var(--stage-accent-rgb), 0.13) 34%, transparent 54%),
@@ -186,14 +235,18 @@
       background-size: 150% 100%, 120% 120%;
       filter: blur(10px);
       transform: translate3d(-3%, 0, 0);
-      transition: opacity 360ms ease;
+      transition: opacity 360ms ease, filter 360ms ease;
       animation: etl-wash-breathe 7.2s ease-in-out infinite;
+    }
+
+    .etl-shell.is-stage-change .etl-stage-wash {
+      animation: etl-stage-wash-pop 460ms ease both, etl-wash-breathe 7.2s ease-in-out infinite;
     }
 
     .etl-archive-drift {
       z-index: -2;
       inset: -18%;
-      opacity: 0.16;
+      opacity: 0.2;
       background:
         repeating-linear-gradient(92deg, transparent 0 74px, rgba(var(--stage-accent-rgb), 0.1) 74px 75px, transparent 75px 132px),
         linear-gradient(90deg, transparent, rgba(255, 244, 210, 0.08), transparent);
@@ -204,7 +257,7 @@
 
     .etl-ruling-lines {
       z-index: 1;
-      opacity: 0.12;
+      opacity: 0.13;
       mix-blend-mode: screen;
       background:
         repeating-linear-gradient(180deg, rgba(var(--stage-accent-rgb), 0.24) 0 1px, transparent 1px 34px),
@@ -214,982 +267,57 @@
       animation: etl-ruling-scan 6.4s linear infinite;
     }
 
-    .etl-frame {
-      position: relative;
-      display: grid;
-      grid-template-columns: minmax(260px, 0.86fr) minmax(420px, 1.45fr) minmax(280px, 0.82fr);
-      min-height: 100vh;
-      gap: 24px;
-      padding: clamp(20px, 3.2vw, 46px);
-    }
-
-    .etl-side {
-      align-self: stretch;
-      min-height: 0;
-      padding-top: 4px;
-    }
-
-    .etl-brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      min-height: 44px;
-      margin-bottom: 26px;
-    }
-
-    .etl-brand-mark {
-      width: 38px;
-      height: 38px;
-      display: grid;
-      place-items: center;
-      border-radius: 3px;
-      color: #fff4e2;
-      font-size: 22px;
-      font-weight: 900;
-      background:
-        linear-gradient(145deg, rgba(214, 89, 66, 0.96), rgba(105, 30, 23, 0.98)),
-        #9d3326;
-      box-shadow:
-        inset 0 1px 0 rgba(255, 230, 190, 0.22),
-        0 8px 24px rgba(85, 20, 12, 0.45);
-      transform: rotate(-3deg);
-    }
-
-    .etl-brand-copy {
-      display: grid;
-      gap: 2px;
-    }
-
-    .etl-brand-title {
-      font-size: 17px;
-      font-weight: 800;
-      letter-spacing: 0.28em;
-      text-indent: 0.28em;
-      color: var(--gold-300);
-    }
-
-    .etl-brand-sub {
-      color: rgba(223, 205, 166, 0.72);
-      font-family: var(--sans);
-      font-size: 11px;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-    }
-
-    .etl-stage-list {
-      display: grid;
-      gap: 10px;
-      margin-top: 26px;
-    }
-
-    .etl-stage {
-      position: relative;
-      display: grid;
-      grid-template-columns: 34px minmax(0, 1fr);
-      gap: 12px;
-      padding: 10px 0;
-      color: rgba(245, 234, 208, 0.56);
-      transition: color 180ms ease, opacity 180ms ease;
-    }
-
-    .etl-stage::before {
-      content: "";
-      position: absolute;
-      left: 16px;
-      top: 40px;
-      bottom: -16px;
-      width: 1px;
-      background: linear-gradient(rgba(197, 155, 66, 0.55), rgba(197, 155, 66, 0.05));
-    }
-
-    .etl-stage:last-child::before {
-      display: none;
-    }
-
-    .etl-stage-index {
-      width: 34px;
-      height: 34px;
-      display: grid;
-      place-items: center;
-      border: 1px solid rgba(197, 155, 66, 0.34);
-      border-radius: 50%;
-      color: rgba(228, 196, 117, 0.65);
-      background: rgba(12, 8, 5, 0.44);
-      font-size: 13px;
-      line-height: 1;
-      transition: background 180ms ease, color 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
-    }
-
-    .etl-stage-main {
-      min-width: 0;
-      padding-top: 1px;
-    }
-
-    .etl-stage-name {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      font-size: 15px;
-      letter-spacing: 0.16em;
-      line-height: 1.35;
-    }
-
-    .etl-stage-note {
-      margin-top: 4px;
-      color: rgba(223, 205, 166, 0.5);
-      font-family: var(--sans);
-      font-size: 12px;
-      line-height: 1.45;
-    }
-
-    .etl-stage-state {
-      color: rgba(140, 185, 154, 0.75);
-      font-family: var(--sans);
-      font-size: 11px;
-      letter-spacing: 0.08em;
-      white-space: nowrap;
-      opacity: 0;
-    }
-
-    .etl-stage.is-active {
-      color: var(--paper-100);
-    }
-
-    .etl-stage.is-active .etl-stage-index {
-      color: var(--ink-900);
-      border-color: var(--gold-300);
-      background: linear-gradient(145deg, var(--gold-300), var(--gold-650));
-      box-shadow: 0 0 22px rgba(228, 196, 117, 0.34);
-    }
-
-    .etl-stage.is-active .etl-stage-state,
-    .etl-stage.is-done .etl-stage-state {
-      opacity: 1;
-    }
-
-    .etl-stage.is-done {
-      color: rgba(140, 185, 154, 0.74);
-    }
-
-    .etl-stage.is-done .etl-stage-index {
-      color: #dff0df;
-      border-color: rgba(140, 185, 154, 0.76);
-      background: rgba(57, 88, 62, 0.62);
-    }
-
-    .etl-main {
-      display: grid;
-      align-content: center;
-      justify-items: start;
-      min-height: calc(100vh - clamp(40px, 6.4vw, 92px));
-      padding: 5vh 0 15vh;
-    }
-
-    .etl-main-inner {
-      width: min(760px, 100%);
-    }
-
-    .etl-date {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      color: rgba(228, 196, 117, 0.78);
-      font-family: var(--sans);
-      font-size: 12px;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      min-height: 22px;
-      margin-bottom: 18px;
-    }
-
-    .etl-date::before {
-      content: "";
-      width: 38px;
-      height: 1px;
-      background: linear-gradient(90deg, var(--gold-450), transparent);
-    }
-
-    .etl-title {
-      margin: 0;
-      color: transparent;
-      font-size: clamp(54px, 8.2vw, 128px);
-      line-height: 0.95;
-      letter-spacing: 0.24em;
-      text-indent: 0.24em;
-      font-weight: 900;
-      background:
-        linear-gradient(180deg, #fff2bf 0%, #e2bd64 32%, #8d6325 74%, #f6e5a9 100%);
-      -webkit-background-clip: text;
-      background-clip: text;
-      filter: drop-shadow(0 22px 42px rgba(0, 0, 0, 0.8));
-      white-space: nowrap;
-      word-break: keep-all;
-    }
-
-    .etl-current {
-      width: min(580px, 100%);
-      min-height: 92px;
-      margin-top: 28px;
-      color: rgba(245, 234, 208, 0.88);
-      font-size: clamp(18px, 2vw, 24px);
-      line-height: 1.7;
-      letter-spacing: 0.12em;
-      text-shadow: 0 2px 14px rgba(0, 0, 0, 0.82);
-    }
-
-    .etl-current strong {
-      color: var(--gold-300);
-      font-weight: 800;
-    }
-
-    .etl-progress-wrap {
-      width: min(640px, 100%);
-      margin-top: 32px;
-    }
-
-    .etl-progress-meta {
-      display: flex;
-      justify-content: space-between;
-      gap: 14px;
-      margin-bottom: 9px;
-      color: rgba(223, 205, 166, 0.8);
-      font-family: var(--sans);
-      font-size: 12px;
-      letter-spacing: 0.12em;
-    }
-
-    .etl-progress {
-      position: relative;
-      height: 9px;
-      overflow: hidden;
-      border: 1px solid rgba(197, 155, 66, 0.36);
-      background: rgba(8, 6, 4, 0.72);
-      box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.75);
-    }
-
-    .etl-progress-fill {
-      position: absolute;
-      inset: 0 auto 0 0;
-      width: var(--progress, 8%);
-      background:
-        linear-gradient(90deg, rgba(138, 82, 29, 0.96), rgba(228, 196, 117, 0.98), rgba(173, 60, 43, 0.92));
-      box-shadow: 0 0 22px rgba(228, 196, 117, 0.28);
-      transition: width 520ms cubic-bezier(0.22, 1, 0.36, 1);
-    }
-
-    .etl-progress-fill::after {
-      content: "";
-      position: absolute;
+    /* 金尘微粒：低密度上浮，撑出空气感 */
+    .etl-motes {
+      position: fixed;
       inset: 0;
-      background: linear-gradient(90deg, transparent, rgba(255, 244, 210, 0.65), transparent);
-      transform: translateX(-80%);
-      animation: etl-shimmer 1.8s linear infinite;
-    }
-
-    .etl-flow {
-      display: grid;
-      grid-template-columns: repeat(var(--flow-count, 8), minmax(0, 1fr));
-      gap: 5px;
-      width: min(480px, 100%);
-      margin-top: 9px;
-    }
-
-    .etl-flow-step {
-      position: relative;
-      height: 18px;
-      border-top: 1px solid rgba(197, 155, 66, 0.16);
-      color: rgba(223, 205, 166, 0.42);
-      font-family: var(--sans);
-      font-size: 10px;
-      line-height: 18px;
-      letter-spacing: 0.05em;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: clip;
-      transition: color 180ms ease, border-color 180ms ease;
-    }
-
-    .etl-flow-step::before {
-      content: "";
-      position: absolute;
-      top: -3px;
-      left: 0;
-      width: 5px;
-      height: 5px;
-      border-radius: 50%;
-      background: rgba(197, 155, 66, 0.28);
-      box-shadow: 0 0 0 1px rgba(8, 6, 4, 0.7);
-    }
-
-    .etl-flow-step.is-done {
-      color: rgba(228, 196, 117, 0.56);
-      border-color: rgba(228, 196, 117, 0.32);
-    }
-
-    .etl-flow-step.is-active {
-      color: rgba(245, 234, 208, 0.88);
-      border-color: rgba(228, 196, 117, 0.82);
-    }
-
-    .etl-flow-step.is-active::before {
-      background: var(--gold-300);
-      box-shadow: 0 0 12px rgba(228, 196, 117, 0.62);
-    }
-
-    .etl-edict-strip {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      width: min(720px, 100%);
-      margin-top: 28px;
-    }
-
-    .etl-chip {
-      border: 1px solid rgba(197, 155, 66, 0.28);
-      border-left: 3px solid rgba(228, 196, 117, 0.72);
-      background: rgba(16, 12, 8, 0.46);
-      color: rgba(245, 234, 208, 0.82);
-      padding: 6px 10px;
-      font-size: 13px;
-      line-height: 1.25;
-      letter-spacing: 0.08em;
-      backdrop-filter: blur(6px);
-    }
-
-    .etl-chip.warn {
-      border-left-color: var(--red-400);
-    }
-
-    .etl-chip.good {
-      border-left-color: var(--green-300);
-    }
-
-    .etl-right {
-      display: grid;
-      align-content: space-between;
-      min-height: calc(100vh - clamp(40px, 6.4vw, 92px));
-      gap: 20px;
-    }
-
-    .etl-dispatch {
-      position: relative;
-      align-self: start;
-      padding: 18px 18px 20px;
-      border: 1px solid rgba(197, 155, 66, 0.28);
-      background:
-        repeating-linear-gradient(90deg, transparent 0, transparent 42px, rgba(228, 196, 117, 0.028) 42px, rgba(228, 196, 117, 0.028) 43px),
-        linear-gradient(180deg, rgba(31, 22, 13, 0.7), rgba(10, 7, 4, 0.56));
-      box-shadow: var(--shadow-hard);
-      backdrop-filter: blur(8px);
-    }
-
-    .etl-dispatch::before {
-      content: "";
-      position: absolute;
-      left: 18%;
-      right: 18%;
-      top: 0;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, rgba(228, 196, 117, 0.75), transparent);
-    }
-
-    .etl-panel-title {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin: 0 0 16px;
-      color: var(--gold-300);
-      font-size: 15px;
-      letter-spacing: 0.22em;
-      line-height: 1.35;
-    }
-
-    .etl-seal-mini {
-      width: 30px;
-      height: 30px;
-      display: grid;
-      place-items: center;
-      border-radius: 50%;
-      color: #fff4e2;
-      background: radial-gradient(circle at 34% 30%, #ce5d49, #7e241b 74%);
-      font-size: 13px;
-      letter-spacing: 0;
-      transform: rotate(-8deg);
-      box-shadow: 0 4px 14px rgba(111, 33, 26, 0.42);
-    }
-
-    .etl-stat-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 9px;
-      margin-bottom: 16px;
-    }
-
-    .etl-stat {
-      min-height: 74px;
-      padding: 10px 11px;
-      border: 1px solid rgba(197, 155, 66, 0.16);
-      background: rgba(8, 6, 4, 0.42);
-    }
-
-    .etl-stat b {
-      display: block;
-      color: rgba(245, 234, 208, 0.9);
-      font-size: 22px;
-      line-height: 1.15;
-      letter-spacing: 0.04em;
-    }
-
-    .etl-stat span {
-      display: block;
-      margin-top: 5px;
-      color: rgba(223, 205, 166, 0.58);
-      font-family: var(--sans);
-      font-size: 11px;
-      letter-spacing: 0.1em;
-    }
-
-    .etl-report-list {
-      display: grid;
-      gap: 8px;
-    }
-
-    .etl-report {
-      display: grid;
-      grid-template-columns: 34px minmax(0, 1fr) auto;
-      align-items: center;
-      gap: 10px;
-      padding: 9px 10px;
-      border: 1px solid rgba(197, 155, 66, 0.16);
-      background: rgba(8, 6, 4, 0.36);
-    }
-
-    .etl-report-glyph {
-      width: 28px;
-      height: 28px;
-      display: grid;
-      place-items: center;
-      border-radius: 2px;
-      color: #1b1008;
-      background: rgba(228, 196, 117, 0.76);
-      font-weight: 900;
-    }
-
-    .etl-report-name {
-      color: rgba(245, 234, 208, 0.86);
-      font-size: 13.5px;
-      letter-spacing: 0.1em;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .etl-report-note {
-      color: rgba(223, 205, 166, 0.54);
-      font-family: var(--sans);
-      font-size: 11px;
-      margin-top: 2px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .etl-report-delta {
-      color: var(--green-300);
-      font-family: var(--sans);
-      font-size: 12px;
-      white-space: nowrap;
-    }
-
-    .etl-report-delta.danger {
-      color: #e08a74;
-    }
-
-    .etl-controls {
-      align-self: end;
-      display: grid;
-      gap: 13px;
-    }
-
-    .etl-scenes {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
-      gap: 8px;
-      max-height: min(35vh, 312px);
-      min-height: 92px;
-      overflow: auto;
-      padding: 2px 2px 4px;
-      scrollbar-width: thin;
-      scrollbar-color: rgba(197, 155, 66, 0.45) rgba(10, 7, 4, 0.45);
-    }
-
-    .etl-scene-btn {
-      position: relative;
-      min-height: 68px;
-      padding: 0;
-      overflow: hidden;
-      border: 1px solid rgba(197, 155, 66, 0.28);
-      background: rgba(10, 7, 4, 0.72);
-      color: var(--paper-100);
-      cursor: pointer;
-      box-shadow: 0 12px 26px rgba(0, 0, 0, 0.34);
-      transition: transform 160ms ease, border-color 160ms ease;
-    }
-
-    .etl-scene-btn:hover,
-    .etl-scene-btn[aria-pressed="true"] {
-      border-color: rgba(228, 196, 117, 0.84);
-      transform: translateY(-2px);
-    }
-
-    .etl-scene-btn::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background-image: var(--thumb-url);
-      background-size: cover;
-      background-position: center;
-      filter: saturate(0.88) contrast(1.04);
-      transform: scale(1.04);
-    }
-
-    .etl-scene-btn::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(180deg, transparent 24%, rgba(5, 4, 3, 0.82));
-    }
-
-    .etl-scene-btn span {
-      position: absolute;
-      left: 7px;
-      right: 7px;
-      bottom: 7px;
       z-index: 1;
-      color: rgba(245, 234, 208, 0.88);
-      font-size: 11.5px;
-      letter-spacing: 0.08em;
-      text-align: left;
-    }
-
-    .etl-action-row {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-      gap: 8px;
-    }
-
-    .etl-btn {
-      min-height: 38px;
-      padding: 8px 13px;
-      border: 1px solid rgba(197, 155, 66, 0.34);
-      border-radius: 3px;
-      color: rgba(245, 234, 208, 0.9);
-      background: rgba(10, 7, 4, 0.62);
-      cursor: pointer;
-      font-size: 13px;
-      letter-spacing: 0.12em;
-      transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
-    }
-
-    .etl-btn:hover {
-      color: var(--gold-300);
-      border-color: rgba(228, 196, 117, 0.72);
-      background: rgba(31, 22, 13, 0.74);
-    }
-
-    .etl-btn.primary {
-      color: #160d08;
-      border-color: rgba(228, 196, 117, 0.9);
-      background: linear-gradient(145deg, var(--gold-300), var(--gold-650));
-      font-weight: 800;
-    }
-
-    .etl-seal-burst {
-      position: fixed;
-      left: 50%;
-      top: 50%;
-      z-index: 10;
-      width: 132px;
-      height: 132px;
-      display: grid;
-      place-items: center;
-      border-radius: 8px;
-      opacity: 0;
       pointer-events: none;
-      color: #fff0e2;
-      font-size: 30px;
-      font-weight: 900;
-      letter-spacing: 0.22em;
-      text-indent: 0.22em;
-      background:
-        linear-gradient(145deg, rgba(205, 79, 58, 0.98), rgba(111, 33, 26, 0.98)),
-        #9d3326;
-      border: 2px solid rgba(57, 12, 8, 0.95);
-      box-shadow:
-        inset 0 1px 3px rgba(255, 225, 184, 0.35),
-        inset 0 -8px 16px rgba(42, 7, 4, 0.26),
-        0 18px 70px rgba(79, 14, 8, 0.65);
-      transform: translate(-50%, -50%) scale(0.38) rotate(-8deg);
+      mix-blend-mode: screen;
     }
 
-    .etl-shell.is-sealed .etl-seal-burst {
-      animation: etl-seal 940ms cubic-bezier(0.3, 0.8, 0.2, 1) forwards;
-    }
-
-    .etl-seal-burst::after {
-      content: "";
+    .etl-mote {
       position: absolute;
-      inset: 8px;
-      border: 1px solid rgba(255, 226, 184, 0.34);
-      border-radius: 4px;
-    }
-
-    .etl-ink-lines {
-      position: fixed;
-      inset: 0;
-      z-index: 9;
-      pointer-events: none;
+      left: var(--mote-x, 20%);
+      bottom: -2vh;
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: rgba(var(--stage-accent-rgb), 0.85);
+      box-shadow: 0 0 8px rgba(var(--stage-accent-rgb), 0.55);
+      filter: blur(0.4px);
       opacity: 0;
-      background:
-        radial-gradient(circle at 50% 50%, rgba(162, 42, 28, 0.22), transparent 24%),
-        linear-gradient(90deg, transparent, rgba(228, 196, 117, 0.13), transparent);
+      animation: etl-mote-rise var(--mote-dur, 13s) linear infinite;
+      animation-delay: var(--mote-delay, 0s);
     }
 
-    .etl-shell.is-sealed .etl-ink-lines {
-      animation: etl-flash 940ms ease-out forwards;
+    .etl-mote:nth-child(2n) {
+      width: 2px;
+      height: 2px;
     }
 
-    @keyframes etl-shimmer {
-      to {
-        transform: translateX(120%);
-      }
+    .etl-mote:nth-child(3n) {
+      width: 4px;
+      height: 4px;
+      filter: blur(1px);
     }
 
-    @keyframes etl-seal {
-      0% {
-        opacity: 0;
-        transform: translate(-50%, -50%) scale(0.25) rotate(-9deg);
-      }
-      30% {
-        opacity: 1;
-        transform: translate(-50%, -50%) scale(1.18) rotate(-7deg);
-      }
-      56% {
-        opacity: 0.96;
-        transform: translate(-50%, -50%) scale(0.86) rotate(-5deg);
-      }
-      78% {
-        opacity: 0.96;
-        transform: translate(-50%, -50%) scale(1.03) rotate(-4deg);
-      }
-      100% {
-        opacity: 0;
-        transform: translate(-50%, -50%) scale(1) rotate(-3deg);
-      }
-    }
+    /* ============ 中轴主栏 ============ */
 
-    @keyframes etl-flash {
-      0%,
-      100% {
-        opacity: 0;
-      }
-      26%,
-      62% {
-        opacity: 1;
-      }
-    }
-
-    @media (max-width: 1180px) {
-      .etl-frame {
-        grid-template-columns: minmax(0, 1fr);
-        align-content: start;
-      }
-
-      .etl-side {
-        display: none;
-      }
-
-      .etl-main {
-        min-height: auto;
-        padding: 8vh 0 2vh;
-      }
-
-      .etl-right {
-        min-height: 0;
-      }
-
-      .etl-dispatch {
-        width: min(760px, 100%);
-      }
-
-      .etl-controls {
-        width: min(760px, 100%);
-      }
-    }
-
-    @media (max-width: 720px) {
-      .etl-frame {
-        gap: 18px;
-        padding: 18px 14px 22px;
-      }
-
-      .etl-title {
-        font-size: 48px;
-        letter-spacing: 0.16em;
-        text-indent: 0.16em;
-      }
-
-      .etl-current {
-        min-height: 122px;
-        font-size: 18px;
-      }
-
-      .etl-stat-grid {
-        grid-template-columns: 1fr 1fr;
-      }
-
-      .etl-scenes {
-        grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
-        max-height: 260px;
-      }
-
-      .etl-report {
-        grid-template-columns: 30px minmax(0, 1fr);
-      }
-
-      .etl-report-delta {
-        grid-column: 2;
-        justify-self: start;
-      }
-
-      .etl-action-row {
-        justify-content: stretch;
-      }
-
-      .etl-btn {
-        flex: 1;
-      }
-    }
-
-    /* Minimal cinematic pass: loading should set mood, not duplicate the result modal. */
     .etl-frame {
+      position: relative;
+      z-index: 3;
       display: block;
       min-height: 100vh;
-      padding: clamp(18px, 3vw, 42px);
-    }
-
-    .etl-side,
-    .etl-dispatch,
-    .etl-edict-strip {
-      display: none !important;
+      padding: 0;
     }
 
     .etl-main {
-      min-height: calc(100vh - clamp(36px, 6vw, 84px));
       display: flex;
       align-items: center;
       justify-content: flex-start;
-      padding: 0 0 10vh;
-    }
-
-    .etl-main-inner {
-      width: min(660px, calc(100vw - 36px));
-      margin-left: clamp(0px, 7vw, 112px);
-      transform: translateY(-3vh);
-    }
-
-    .etl-date {
-      margin-bottom: 14px;
-      color: rgba(228, 196, 117, 0.72);
-      font-size: 11px;
-      letter-spacing: 0.2em;
-    }
-
-    .etl-title {
-      font-size: clamp(56px, 9vw, 112px);
-      line-height: 0.92;
-      letter-spacing: 0.2em;
-      text-indent: 0.2em;
-    }
-
-    .etl-current {
-      width: min(520px, 100%);
-      min-height: 0;
-      margin-top: 22px;
-      font-size: clamp(18px, 1.7vw, 22px);
-      line-height: 1.75;
-      letter-spacing: 0.1em;
-    }
-
-    .etl-progress-wrap {
-      width: min(480px, 100%);
-      margin-top: 26px;
-    }
-
-    .etl-progress-meta {
-      margin-bottom: 8px;
-      font-size: 11px;
-      letter-spacing: 0.1em;
-    }
-
-    .etl-progress {
-      height: 7px;
-      border-color: rgba(228, 196, 117, 0.28);
-    }
-
-    .etl-right {
-      position: fixed;
-      left: clamp(14px, 4vw, 52px);
-      right: clamp(14px, 4vw, 52px);
-      bottom: clamp(14px, 3vw, 30px);
-      z-index: 4;
-      min-height: 0;
-      display: block;
-      pointer-events: none;
-    }
-
-    .etl-controls {
-      width: 100%;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      align-items: end;
-      gap: 12px;
-      pointer-events: auto;
-    }
-
-    .etl-scenes {
-      display: flex;
-      grid-template-columns: none;
-      gap: 1px;
-      max-height: none;
-      min-height: 14px;
-      height: 14px;
-      overflow: hidden;
-      padding: 0;
-      opacity: 0.38;
-      mask-image: linear-gradient(90deg, transparent, black 30px, black calc(100% - 30px), transparent);
-    }
-
-    .etl-scene-btn {
-      flex: 1 1 0;
-      width: auto;
-      min-width: 0;
-      min-height: 14px;
-      height: 14px;
-      border: 0;
-      border-radius: 0;
-      opacity: 0.58;
-      box-shadow: none;
-      filter: grayscale(0.18) contrast(1.03);
-      transform: none;
-    }
-
-    .etl-scene-btn:hover,
-    .etl-scene-btn[aria-pressed="true"] {
-      opacity: 0.92;
-      transform: none;
-    }
-
-    .etl-scene-btn span {
-      display: none;
-    }
-
-    .etl-action-row {
-      flex-wrap: nowrap;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 6px;
-    }
-
-    .etl-btn {
-      min-height: 34px;
-      padding: 7px 12px;
-      font-size: 12px;
-      letter-spacing: 0.1em;
-      background: rgba(8, 6, 4, 0.54);
-      backdrop-filter: blur(6px);
-    }
-
-    .etl-btn.primary {
-      min-width: 74px;
-    }
-
-    /* Real loading pass: no preview controls, only the in-game loading surface. */
-    .etl-bg,
-    .etl-bg-next {
-      filter: saturate(0.86) contrast(1.08) brightness(0.72);
-      transform: scale(1.055);
-      transform-origin: 58% 46%;
-      transition: opacity 860ms ease, transform 1600ms ease, filter 860ms ease;
-      animation: etl-scene-drift 16s ease-in-out infinite alternate;
-    }
-
-    .etl-shell.is-swapping .etl-bg {
-      opacity: 0;
-      transform: scale(1.075) translate3d(-0.35%, 0.15%, 0);
-    }
-
-    .etl-shell.is-swapping .etl-bg-next {
-      opacity: 1;
-      transform: scale(1.055) translate3d(0.2%, -0.12%, 0);
-    }
-
-    .etl-shell::before {
-      background:
-        linear-gradient(90deg, rgba(5, 4, 3, 0.95) 0%, rgba(8, 6, 4, 0.68) 34%, rgba(8, 6, 4, 0.22) 62%, rgba(5, 4, 3, 0.82) 100%),
-        linear-gradient(180deg, rgba(8, 6, 4, 0.86) 0%, rgba(8, 6, 4, 0.12) 34%, rgba(8, 6, 4, 0.94) 100%);
-    }
-
-    .etl-shell::after {
-      opacity: 0.2;
-      background-image:
-        linear-gradient(90deg, rgba(228, 196, 117, 0.18), transparent 20%, transparent 80%, rgba(228, 196, 117, 0.08)),
-        repeating-linear-gradient(180deg, rgba(255, 244, 210, 0.028) 0 1px, transparent 1px 9px);
-      background-size: 100% 100%, 100% 18px;
-      mask-image: none;
-      animation: etl-veil-scan 5.6s linear infinite;
-    }
-
-    .etl-grain {
-      opacity: 0.12;
-    }
-
-    .etl-stage-wash {
-      opacity: 0.52;
-      transition: opacity 360ms ease, filter 360ms ease;
-    }
-
-    .etl-shell.is-stage-change .etl-stage-wash {
-      animation: etl-stage-wash-pop 460ms ease both, etl-wash-breathe 7.2s ease-in-out infinite;
-    }
-
-    .etl-archive-drift {
-      opacity: 0.2;
-    }
-
-    .etl-ruling-lines {
-      opacity: 0.13;
-    }
-
-    .etl-frame {
-      padding: 0;
-      z-index: 3;
-    }
-
-    .etl-side,
-    .etl-right,
-    .etl-dispatch,
-    .etl-edict-strip {
-      display: none !important;
-    }
-
-    .etl-main {
       min-height: 100vh;
       padding: 0;
-      align-items: center;
     }
 
     .etl-main-inner {
@@ -1199,6 +327,10 @@
       padding-left: clamp(0px, 1.4vw, 20px);
       transform: translateY(-5vh);
       animation: etl-panel-arrive 780ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .etl-shell.is-restarting .etl-main-inner {
+      animation: etl-panel-leave 560ms ease both;
     }
 
     .etl-main-inner::before,
@@ -1230,46 +362,90 @@
     }
 
     .etl-date {
-      margin-bottom: 13px;
-      color: rgba(var(--stage-accent-rgb), 0.7);
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-height: 22px;
+      margin-bottom: 12px;
+      color: rgba(var(--stage-accent-rgb), 0.76);
       font-family: var(--sans);
-      font-size: 11px;
-      letter-spacing: 0.18em;
+      font-variant-numeric: tabular-nums;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.78);
       transition: color 360ms ease;
     }
 
+    .etl-date::before {
+      content: "";
+      width: 46px;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(var(--stage-accent-rgb), 0.72), rgba(var(--stage-cinnabar-rgb), 0.24), transparent);
+    }
+
+    /* 大标题随阶段组切换叙事词，渐变金随组色相走 */
     .etl-title {
-      font-size: clamp(62px, 8.6vw, 116px);
+      margin: 0;
+      color: transparent;
+      font-family: var(--display);
+      font-size: 96px;
+      font-weight: 900;
       line-height: 0.92;
-      letter-spacing: 0.18em;
-      text-indent: 0.18em;
+      letter-spacing: 0.09em;
+      text-indent: 0.09em;
+      white-space: nowrap;
+      word-break: keep-all;
       background:
         linear-gradient(180deg, #fff3c8 0%, rgba(var(--stage-accent-rgb), 0.96) 34%, rgba(117, 77, 34, 0.98) 74%, #f8e7ad 100%);
       background-size: 100% 180%;
       -webkit-background-clip: text;
       background-clip: text;
+      text-shadow:
+        0 1px 0 rgba(255, 248, 219, 0.18),
+        0 22px 52px rgba(0, 0, 0, 0.86);
       animation: etl-title-breathe 4.8s ease-in-out infinite, etl-gold-shift 8.4s ease-in-out infinite;
     }
 
+    .etl-title-text {
+      display: inline-block;
+    }
+
+    .etl-shell.is-title-swap .etl-title-text {
+      animation: etl-title-swap 760ms cubic-bezier(0.3, 0.7, 0.2, 1) both;
+    }
+
     .etl-current {
-      width: min(520px, 100%);
-      margin-top: 24px;
+      width: min(500px, 100%);
+      margin-top: 22px;
       color: rgba(245, 234, 208, 0.9);
-      font-size: clamp(18px, 1.55vw, 21px);
-      line-height: 1.72;
-      letter-spacing: 0.1em;
+      font-family: var(--narrative);
+      font-size: 22px;
+      font-weight: 500;
+      line-height: 1.58;
+      letter-spacing: 0.035em;
+      text-shadow:
+        0 1px 0 rgba(255, 239, 198, 0.08),
+        0 3px 16px rgba(0, 0, 0, 0.86);
       transition: color 360ms ease, text-shadow 360ms ease;
     }
 
+    .etl-current strong {
+      color: var(--gold-300);
+      font-weight: 800;
+    }
+
     .etl-live-detail {
-      width: min(520px, 100%);
+      width: min(500px, 100%);
       min-height: 20px;
-      margin-top: 10px;
-      color: rgba(223, 205, 166, 0.56);
+      margin-top: 9px;
+      color: rgba(232, 217, 184, 0.58);
       font-family: var(--sans);
+      font-variant-numeric: tabular-nums;
       font-size: 12px;
-      line-height: 1.5;
-      letter-spacing: 0.12em;
+      font-weight: 500;
+      line-height: 1.62;
+      letter-spacing: 0.035em;
       text-shadow: 0 2px 12px rgba(0, 0, 0, 0.76);
       transition: opacity 220ms ease, transform 220ms ease;
     }
@@ -1279,10 +455,12 @@
       transform: translateY(4px);
     }
 
+    /* ============ 进度区（主轨 + 31 细项微轨 + 队列 + 管线分组） ============ */
+
     .etl-progress-wrap {
       position: relative;
-      width: min(540px, 100%);
-      margin-top: 26px;
+      width: min(520px, 100%);
+      margin-top: 24px;
       padding-top: 10px;
     }
 
@@ -1301,15 +479,37 @@
     }
 
     .etl-progress-meta {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 14px;
       margin-bottom: 8px;
-      color: rgba(var(--stage-accent-rgb), 0.78);
+      color: rgba(var(--stage-accent-rgb), 0.82);
+      font-family: var(--sans);
+      font-variant-numeric: tabular-nums;
       font-size: 11px;
-      letter-spacing: 0.1em;
+      font-weight: 700;
+      letter-spacing: 0.04em;
       transition: color 260ms ease;
     }
 
+    .etl-progress-meta span:first-child {
+      max-width: 74%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .etl-progress-meta span:last-child {
+      color: rgba(246, 234, 202, 0.74);
+      font-size: 10px;
+      font-weight: 800;
+    }
+
     .etl-progress {
+      position: relative;
       height: 10px;
+      overflow: hidden;
       border: 0;
       background:
         repeating-linear-gradient(90deg, transparent 0 calc((100% / var(--micro-count, 30)) - 1px), rgba(var(--stage-accent-rgb), 0.2) calc((100% / var(--micro-count, 30)) - 1px) calc(100% / var(--micro-count, 30))),
@@ -1332,7 +532,14 @@
       pointer-events: none;
     }
 
+    .etl-shell.is-stage-change .etl-progress {
+      animation: etl-progress-knock 340ms ease;
+    }
+
     .etl-progress-fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: var(--progress, 8%);
       background:
         linear-gradient(90deg, rgba(var(--stage-cinnabar-rgb), 0.72), rgba(var(--stage-accent-rgb), 0.98) 62%, rgba(var(--stage-cinnabar-rgb), 0.9));
       box-shadow:
@@ -1342,26 +549,33 @@
     }
 
     .etl-progress-fill::before {
+      /* 笔锋：进度前沿如笔尖运墨 */
       content: "";
       position: absolute;
-      top: -4px;
-      right: -1px;
-      width: 1px;
-      height: 18px;
-      background: rgba(245, 234, 208, 0.72);
-      box-shadow: 0 0 14px rgba(var(--stage-accent-rgb), 0.74);
+      top: -5px;
+      right: -4px;
+      width: 9px;
+      height: 20px;
+      background: linear-gradient(180deg, rgba(255, 244, 210, 0.95), rgba(var(--stage-accent-rgb), 0.85) 55%, rgba(var(--stage-cinnabar-rgb), 0.8));
+      clip-path: polygon(50% 0, 92% 30%, 62% 100%, 22% 58%);
+      box-shadow: 0 0 16px rgba(var(--stage-accent-rgb), 0.8);
     }
 
     .etl-progress-fill::after {
-      animation-duration: 2.2s;
+      content: "";
+      position: absolute;
+      inset: 0;
       opacity: 0.74;
+      background: linear-gradient(90deg, transparent, rgba(255, 244, 210, 0.65), transparent);
+      transform: translateX(-80%);
+      animation: etl-shimmer 2.2s linear infinite;
     }
 
     .etl-micro-rail {
       display: grid;
       grid-template-columns: repeat(var(--micro-count, 30), minmax(0, 1fr));
       gap: 2px;
-      width: min(540px, 100%);
+      width: 100%;
       height: 18px;
       margin-top: 8px;
     }
@@ -1407,13 +621,15 @@
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
       gap: 10px;
-      width: min(540px, 100%);
-      margin-top: 4px;
-      color: rgba(223, 205, 166, 0.48);
+      width: min(520px, 100%);
+      margin-top: 6px;
+      color: rgba(232, 217, 184, 0.5);
       font-family: var(--sans);
-      font-size: 10px;
+      font-variant-numeric: tabular-nums;
+      font-size: 10.5px;
+      font-weight: 600;
       line-height: 1.4;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.025em;
     }
 
     .etl-subqueue span {
@@ -1423,30 +639,52 @@
       white-space: nowrap;
     }
 
+    .etl-subqueue span:first-child {
+      color: rgba(var(--stage-accent-rgb), 0.62);
+      font-weight: 800;
+    }
+
     .etl-subqueue .now {
-      color: rgba(var(--stage-accent-rgb), 0.82);
+      color: rgba(246, 234, 202, 0.86);
+      font-weight: 800;
     }
 
     .etl-flow {
-      width: min(540px, 100%);
-      margin-top: 11px;
+      display: grid;
+      grid-template-columns: repeat(var(--flow-count, 8), minmax(0, 1fr));
       gap: 2px;
+      width: min(520px, 100%);
+      margin-top: 12px;
     }
 
     .etl-flow-step {
-      height: 24px;
+      position: relative;
+      height: 23px;
       padding-top: 7px;
-      border-top-color: rgba(var(--stage-accent-rgb), 0.13);
+      border-top: 1px solid rgba(var(--stage-accent-rgb), 0.13);
       color: rgba(223, 205, 166, 0.36);
-      font-size: 10px;
+      font-family: var(--sans);
+      font-variant-numeric: tabular-nums;
+      font-size: 10.5px;
+      font-weight: 700;
       line-height: 1;
+      letter-spacing: 0.035em;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: clip;
+      transition: color 180ms ease, border-color 180ms ease;
     }
 
     .etl-flow-step::before {
+      content: "";
+      position: absolute;
       top: -4px;
+      left: 0;
       width: 6px;
       height: 6px;
+      border-radius: 50%;
       background: rgba(var(--stage-accent-rgb), 0.22);
+      box-shadow: 0 0 0 1px rgba(8, 6, 4, 0.7);
     }
 
     .etl-flow-step::after {
@@ -1465,9 +703,29 @@
       border-color: rgba(var(--stage-accent-rgb), 0.3);
     }
 
+    .etl-flow-step.is-done::before {
+      /* 该组已毕：盖小朱印「讫」 */
+      content: "讫";
+      width: 14px;
+      height: 14px;
+      top: -8px;
+      border-radius: 2px;
+      background: linear-gradient(145deg, rgba(205, 79, 58, 0.92), rgba(111, 33, 26, 0.94));
+      box-shadow: 0 0 0 1px rgba(57, 12, 8, 0.6), 0 2px 6px rgba(0, 0, 0, 0.5);
+      color: #ffe9d8;
+      font-family: var(--sans);
+      font-size: 9px;
+      font-weight: 700;
+      line-height: 14px;
+      text-align: center;
+      transform: rotate(-8deg);
+      animation: etl-stamp-pop 300ms cubic-bezier(0.3, 0.8, 0.2, 1) both;
+    }
+
     .etl-flow-step.is-active {
       color: rgba(245, 234, 208, 0.9);
       border-color: rgba(245, 234, 208, 0.64);
+      text-shadow: 0 0 14px rgba(var(--stage-accent-rgb), 0.42);
     }
 
     .etl-flow-step.is-active::after {
@@ -1479,14 +737,266 @@
       box-shadow: 0 0 14px rgba(var(--stage-accent-rgb), 0.7);
     }
 
-    .etl-shell.is-stage-change .etl-progress {
-      animation: etl-progress-knock 340ms ease;
-    }
-
     .etl-shell.is-stage-change .etl-current,
     .etl-shell.is-stage-change .etl-progress-meta,
     .etl-shell.is-stage-change .etl-subqueue {
       animation: etl-text-step 360ms ease;
+    }
+
+    /* ============ 落印收束 ============ */
+
+    .etl-seal-burst {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      z-index: 10;
+      width: 132px;
+      height: 132px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      opacity: 0;
+      pointer-events: none;
+      color: #fff0e2;
+      font-family: var(--display);
+      font-size: 30px;
+      font-weight: 900;
+      letter-spacing: 0.16em;
+      text-indent: 0.16em;
+      background:
+        linear-gradient(145deg, rgba(205, 79, 58, 0.98), rgba(111, 33, 26, 0.98)),
+        #9d3326;
+      border: 2px solid rgba(57, 12, 8, 0.95);
+      box-shadow:
+        inset 0 1px 3px rgba(255, 225, 184, 0.35),
+        inset 0 -8px 16px rgba(42, 7, 4, 0.26),
+        0 18px 70px rgba(79, 14, 8, 0.65);
+      transform: translate(-50%, -50%) scale(0.38) rotate(-8deg);
+    }
+
+    .etl-shell.is-sealed .etl-seal-burst {
+      animation: etl-seal 940ms cubic-bezier(0.3, 0.8, 0.2, 1) forwards;
+    }
+
+    .etl-seal-burst::after {
+      content: "";
+      position: absolute;
+      inset: 8px;
+      border: 1px solid rgba(255, 226, 184, 0.34);
+      border-radius: 4px;
+    }
+
+    .etl-ink-lines {
+      position: fixed;
+      inset: 0;
+      z-index: 9;
+      pointer-events: none;
+      opacity: 0;
+      background:
+        radial-gradient(circle at 50% 50%, rgba(162, 42, 28, 0.22), transparent 24%),
+        linear-gradient(90deg, transparent, rgba(228, 196, 117, 0.13), transparent);
+    }
+
+    .etl-shell.is-sealed .etl-ink-lines {
+      animation: etl-flash 940ms ease-out forwards;
+    }
+
+    /* ============ 预览操控条（仅预览页，不入正式游戏） ============ */
+
+    .etl-ctrl {
+      position: fixed;
+      right: clamp(14px, 2.4vw, 30px);
+      bottom: clamp(12px, 2.2vw, 24px);
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 7px;
+      border: 1px solid rgba(197, 155, 66, 0.22);
+      background: rgba(8, 6, 4, 0.55);
+      backdrop-filter: blur(8px);
+      opacity: 0.3;
+      transition: opacity 220ms ease, border-color 220ms ease;
+    }
+
+    .etl-ctrl:hover,
+    .etl-ctrl:focus-within {
+      opacity: 1;
+      border-color: rgba(228, 196, 117, 0.45);
+    }
+
+    .etl-ctrl-hint {
+      display: none;
+      padding: 0 6px 0 3px;
+      color: rgba(223, 205, 166, 0.55);
+      font-family: var(--sans);
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+    }
+
+    .etl-ctrl:hover .etl-ctrl-hint,
+    .etl-ctrl:focus-within .etl-ctrl-hint {
+      display: block;
+    }
+
+    .etl-ctrl-btn {
+      min-height: 30px;
+      padding: 5px 10px;
+      border: 1px solid rgba(197, 155, 66, 0.3);
+      border-radius: 2px;
+      color: rgba(245, 234, 208, 0.86);
+      background: rgba(16, 12, 8, 0.6);
+      cursor: pointer;
+      font-family: var(--sans);
+      font-size: 11.5px;
+      letter-spacing: 0.08em;
+      transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+    }
+
+    .etl-ctrl-btn:hover {
+      color: var(--gold-300);
+      border-color: rgba(228, 196, 117, 0.7);
+      background: rgba(31, 22, 13, 0.78);
+    }
+
+    .etl-ctrl-btn[aria-pressed="true"] {
+      color: #160d08;
+      border-color: rgba(228, 196, 117, 0.9);
+      background: linear-gradient(145deg, var(--gold-300), var(--gold-650));
+      font-weight: 700;
+    }
+
+    /* ============ 装裱描金细线（上下） ============ */
+
+    .etl-mount {
+      position: fixed;
+      inset: 12px clamp(16px, 3vw, 40px);
+      z-index: 2;
+      pointer-events: none;
+      opacity: 0.5;
+    }
+
+    .etl-mount::before,
+    .etl-mount::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(var(--stage-accent-rgb), 0.5) 18%, rgba(var(--stage-accent-rgb), 0.5) 82%, transparent);
+    }
+
+    .etl-mount::before {
+      top: 0;
+    }
+
+    .etl-mount::after {
+      bottom: 0;
+    }
+
+    /* ============ 阶段组巨字水印（右侧，随组更替） ============ */
+
+    .etl-group-glyph {
+      position: fixed;
+      right: -1.5vw;
+      top: 50%;
+      z-index: 0;
+      transform: translateY(-52%) rotate(3deg);
+      pointer-events: none;
+      font-family: var(--display);
+      font-size: clamp(280px, 46vh, 470px);
+      font-weight: 900;
+      line-height: 1;
+      color: rgba(var(--stage-accent-rgb), 0.045);
+      -webkit-text-stroke: 1px rgba(var(--stage-accent-rgb), 0.14);
+      text-shadow: 0 0 90px rgba(var(--stage-accent-rgb), 0.08);
+      transition: color 600ms ease;
+    }
+
+    .etl-shell.is-title-swap .etl-group-glyph {
+      animation: etl-glyph-pop 760ms cubic-bezier(0.3, 0.7, 0.2, 1) both;
+    }
+
+    /* ============ 起居注流水（已毕阶段竖排，右缘，读序右→左） ============ */
+
+    .etl-annals {
+      position: fixed;
+      right: clamp(20px, 4.6vw, 64px);
+      top: 50%;
+      z-index: 2;
+      transform: translateY(-50%);
+      height: min(62vh, 560px);
+      max-width: min(300px, 23vw);
+      overflow: hidden;
+      pointer-events: none;
+      writing-mode: vertical-rl;
+      font-family: var(--narrative);
+      font-size: 12.5px;
+      font-weight: 500;
+      letter-spacing: 0.14em;
+      line-height: 1;
+      color: rgba(245, 234, 208, 0.38);
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
+      mask-image: linear-gradient(180deg, transparent, black 9%, black 88%, transparent);
+    }
+
+    .etl-annal {
+      display: block;
+      margin-block-end: 13px;
+      white-space: nowrap;
+    }
+
+    .etl-annal.is-group-start::before {
+      content: "·";
+      color: rgba(var(--stage-cinnabar-rgb), 0.9);
+      font-weight: 900;
+    }
+
+    .etl-annal.is-fresh {
+      animation: etl-annal-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    /* ============ 动画 ============ */
+
+    @keyframes etl-shimmer {
+      to {
+        transform: translateX(120%);
+      }
+    }
+
+    @keyframes etl-seal {
+      0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.25) rotate(-9deg);
+      }
+      30% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.18) rotate(-7deg);
+      }
+      56% {
+        opacity: 0.96;
+        transform: translate(-50%, -50%) scale(0.86) rotate(-5deg);
+      }
+      78% {
+        opacity: 0.96;
+        transform: translate(-50%, -50%) scale(1.03) rotate(-4deg);
+      }
+      100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1) rotate(-3deg);
+      }
+    }
+
+    @keyframes etl-flash {
+      0%,
+      100% {
+        opacity: 0;
+      }
+      26%,
+      62% {
+        opacity: 1;
+      }
     }
 
     @keyframes etl-scene-drift {
@@ -1518,6 +1028,29 @@
       }
     }
 
+    @keyframes etl-title-swap {
+      0% {
+        opacity: 1;
+        filter: blur(0);
+        transform: translateY(0);
+      }
+      38% {
+        opacity: 0;
+        filter: blur(7px);
+        transform: translateY(3px);
+      }
+      56% {
+        opacity: 0;
+        filter: blur(5px);
+        transform: translateY(-2px);
+      }
+      100% {
+        opacity: 1;
+        filter: blur(0);
+        transform: translateY(0);
+      }
+    }
+
     @keyframes etl-panel-arrive {
       from {
         opacity: 0;
@@ -1526,6 +1059,19 @@
       to {
         opacity: 1;
         transform: translateY(-5vh) translateX(0);
+      }
+    }
+
+    @keyframes etl-panel-leave {
+      from {
+        opacity: 1;
+        transform: translateY(-5vh);
+        filter: blur(0);
+      }
+      to {
+        opacity: 0;
+        transform: translateY(-7.5vh);
+        filter: blur(4px);
       }
     }
 
@@ -1651,76 +1197,147 @@
       }
     }
 
+    @keyframes etl-mote-rise {
+      0% {
+        opacity: 0;
+        transform: translate3d(0, 0, 0);
+      }
+      12% {
+        opacity: 0.5;
+      }
+      60% {
+        opacity: 0.34;
+      }
+      100% {
+        opacity: 0;
+        transform: translate3d(var(--mote-sway, 2vw), -78vh, 0);
+      }
+    }
+
+    @keyframes etl-ink-wipe {
+      from {
+        -webkit-mask-size: 10% 10%;
+        mask-size: 10% 10%;
+      }
+      to {
+        -webkit-mask-size: 340% 340%;
+        mask-size: 340% 340%;
+      }
+    }
+
+    @keyframes etl-glyph-pop {
+      0% {
+        opacity: 1;
+        transform: translateY(-52%) rotate(3deg) scale(1);
+      }
+      38% {
+        opacity: 0;
+        transform: translateY(-52%) rotate(3deg) scale(0.985);
+      }
+      56% {
+        opacity: 0;
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(-52%) rotate(3deg) scale(1);
+      }
+    }
+
+    @keyframes etl-annal-in {
+      from {
+        opacity: 0;
+        clip-path: inset(0 0 100% 0);
+        filter: blur(3px);
+      }
+      to {
+        opacity: 1;
+        clip-path: inset(0 0 0 0);
+        filter: blur(0);
+      }
+    }
+
+    @keyframes etl-stamp-pop {
+      from {
+        opacity: 0;
+        transform: rotate(-14deg) scale(1.8);
+      }
+      to {
+        opacity: 1;
+        transform: rotate(-8deg) scale(1);
+      }
+    }
+
+    /* ============ 响应式 ============ */
+
+    @media (max-width: 1180px) {
+      .etl-title {
+        font-size: 86px;
+      }
+
+      .etl-current {
+        font-size: 21px;
+      }
+
+      .etl-group-glyph,
+      .etl-annals,
+      .etl-mount {
+        display: none;
+      }
+    }
+
     @media (max-width: 720px) {
       .etl-frame {
         padding: 18px 14px;
       }
 
       .etl-main {
-        align-items: flex-start;
+        align-items: center;
         min-height: 100vh;
-        padding: 74px 0 150px;
+        padding: 0;
       }
 
       .etl-main-inner {
         width: 100%;
         margin-left: 0;
-        transform: none;
-      }
-
-      .etl-title {
-        font-size: clamp(44px, 13vw, 58px);
-        letter-spacing: 0.14em;
-        text-indent: 0.14em;
-      }
-
-      .etl-current {
-        margin-top: 18px;
-        font-size: 17px;
-        line-height: 1.7;
-      }
-
-      .etl-right {
-        left: 14px;
-        right: 14px;
-        bottom: 12px;
-      }
-
-      .etl-controls {
-        grid-template-columns: 1fr;
-        gap: 8px;
-      }
-
-      .etl-action-row {
-        justify-content: stretch;
-      }
-
-      .etl-btn {
-        min-width: 0;
-      }
-
-      .etl-flow {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-      }
-
-      .etl-main {
-        align-items: center;
-        padding: 0;
-      }
-
-      .etl-main-inner {
         animation: none;
         transform: translateY(-5vh);
       }
 
-      .etl-live-detail {
+      .etl-date {
         font-size: 11px;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.04em;
+      }
+
+      .etl-title {
+        font-size: 54px;
+        line-height: 0.94;
+        letter-spacing: 0.065em;
+        text-indent: 0.065em;
+      }
+
+      .etl-current {
+        width: 100%;
+        margin-top: 18px;
+        font-size: 19px;
+        line-height: 1.56;
+        letter-spacing: 0.025em;
+      }
+
+      .etl-live-detail {
+        width: 100%;
+        font-size: 11.5px;
+        line-height: 1.58;
+        letter-spacing: 0.02em;
       }
 
       .etl-progress-wrap,
       .etl-flow {
         width: 100%;
+      }
+
+      .etl-progress-meta {
+        font-size: 10.5px;
+        letter-spacing: 0.025em;
       }
 
       .etl-micro-rail {
@@ -1732,16 +1349,49 @@
         grid-template-columns: 1fr 1fr;
         gap: 4px 8px;
         width: 100%;
-        font-size: 9.5px;
+        font-size: 10px;
+        letter-spacing: 0.01em;
       }
 
       .etl-subqueue span:first-child {
         grid-column: 1 / -1;
       }
 
+      .etl-flow {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
       .etl-flow-step {
         height: 22px;
         font-size: 10px;
+        letter-spacing: 0.02em;
+      }
+
+      .etl-ctrl {
+        right: 10px;
+        bottom: 10px;
+        gap: 4px;
+        padding: 5px 6px;
+      }
+
+      .etl-ctrl-btn {
+        min-height: 28px;
+        padding: 4px 8px;
+        font-size: 10.5px;
+      }
+
+      .etl-ctrl-hint {
+        display: none !important;
+      }
+    }
+
+    @media (max-width: 380px) {
+      .etl-title {
+        font-size: 50px;
+      }
+
+      .etl-current {
+        font-size: 18px;
       }
     }
 
@@ -1754,44 +1404,48 @@
         scroll-behavior: auto !important;
         transition-duration: 0.01ms !important;
       }
+
+      .etl-motes {
+        display: none;
+      }
     }
   </style>
 </head>
 <body>
-  <main class="etl-shell" id="previewShell" style="--scene-url:url('file:///C:/Users/37814/.codex/generated_images/019e8631-1223-7fd2-861b-8c4b471a0755/ig_0d4ac6045e539eec016a1e491b4400819487cf10fd98f5ce60.png');">
+  <main class="etl-shell" id="previewShell" data-group-key="entry" style="--scene-url:url('file:///C:/Users/37814/.codex/generated_images/019e8631-1223-7fd2-861b-8c4b471a0755/ig_0d4ac6045e539eec016a1e491b4400819487cf10fd98f5ce60.png');">
     <div class="etl-bg" aria-hidden="true"></div>
     <div class="etl-bg-next" aria-hidden="true"></div>
     <div class="etl-grain" aria-hidden="true"></div>
     <div class="etl-stage-wash" aria-hidden="true"></div>
     <div class="etl-archive-drift" aria-hidden="true"></div>
     <div class="etl-ruling-lines" aria-hidden="true"></div>
+    <div class="etl-motes" aria-hidden="true">
+      <span class="etl-mote" style="--mote-x:12%; --mote-dur:14s; --mote-delay:0s; --mote-sway:1.6vw;"></span>
+      <span class="etl-mote" style="--mote-x:24%; --mote-dur:18s; --mote-delay:3.4s; --mote-sway:-1.2vw;"></span>
+      <span class="etl-mote" style="--mote-x:37%; --mote-dur:12s; --mote-delay:6.2s; --mote-sway:2.2vw;"></span>
+      <span class="etl-mote" style="--mote-x:52%; --mote-dur:16s; --mote-delay:1.8s; --mote-sway:-2vw;"></span>
+      <span class="etl-mote" style="--mote-x:67%; --mote-dur:19s; --mote-delay:8.4s; --mote-sway:1.4vw;"></span>
+      <span class="etl-mote" style="--mote-x:79%; --mote-dur:13s; --mote-delay:4.6s; --mote-sway:-1.8vw;"></span>
+      <span class="etl-mote" style="--mote-x:90%; --mote-dur:17s; --mote-delay:10.2s; --mote-sway:1.1vw;"></span>
+    </div>
+    <div class="etl-mount" aria-hidden="true"></div>
+    <div class="etl-group-glyph" id="groupGlyph" aria-hidden="true">起</div>
+    <aside class="etl-annals" id="annalsLog" aria-label="已毕推演项流水"></aside>
     <div class="etl-ink-lines" aria-hidden="true"></div>
     <div class="etl-seal-burst" aria-hidden="true">御览</div>
 
     <section class="etl-frame" aria-label="过回合加载画面">
-      <aside class="etl-side">
-        <div class="etl-brand">
-          <div class="etl-brand-mark">命</div>
-          <div class="etl-brand-copy">
-            <div class="etl-brand-title">天命</div>
-            <div class="etl-brand-sub">Turn Chronicle</div>
-          </div>
-        </div>
-
-        <div class="etl-stage-list" id="stageList"></div>
-      </aside>
-
       <section class="etl-main">
-        <div class="etl-main-inner">
+        <div class="etl-main-inner" id="mainInner">
           <div class="etl-date" id="dateLine">天启七年 九月 朔后</div>
-          <h1 class="etl-title">时移事去</h1>
+          <h1 class="etl-title"><span class="etl-title-text" id="titleLine">时移事去</span></h1>
           <div class="etl-current" id="currentLine">风雨入阁，诸司回奏。</div>
           <div class="etl-live-detail" id="detailLine">建立回合推演遮罩。</div>
 
           <div class="etl-progress-wrap" aria-label="推演进度">
             <div class="etl-progress-meta">
               <span id="phaseText">时移事去</span>
-              <span id="progressText">08%</span>
+              <span id="progressText">10%</span>
             </div>
             <div class="etl-progress">
               <div class="etl-progress-fill" id="progressFill"></div>
@@ -1804,67 +1458,19 @@
             </div>
             <div class="etl-flow" id="flowTrack" aria-label="真实过回合管线"></div>
           </div>
-
-          <div class="etl-edict-strip" aria-label="本回合摘要">
-            <span class="etl-chip good">赈济江淮 · 民心待核</span>
-            <span class="etl-chip">清丈田亩 · 户部覆算</span>
-            <span class="etl-chip warn">辽东军饷 · 国库承压</span>
-            <span class="etl-chip">朝中党派 · 反应生成</span>
-          </div>
         </div>
       </section>
-
-      <aside class="etl-right">
-        <section class="etl-dispatch" aria-label="回合结果概要">
-          <h2 class="etl-panel-title">本回合入史 <span class="etl-seal-mini">史</span></h2>
-          <div class="etl-stat-grid">
-            <div class="etl-stat"><b id="statEvents">12</b><span>事件候选</span></div>
-            <div class="etl-stat"><b id="statChanges">38</b><span>数值变更</span></div>
-            <div class="etl-stat"><b id="statReports">9</b><span>奏疏回报</span></div>
-            <div class="etl-stat"><b id="statRecords">4</b><span>史料写入</span></div>
-          </div>
-
-          <div class="etl-report-list">
-            <div class="etl-report">
-              <span class="etl-report-glyph">户</span>
-              <span>
-                <span class="etl-report-name">户口 · 逃户与隐户重算</span>
-                <span class="etl-report-note">清丈、赈济、赋役压力合并入账</span>
-              </span>
-              <span class="etl-report-delta">+5 项</span>
-            </div>
-            <div class="etl-report">
-              <span class="etl-report-glyph">帑</span>
-              <span>
-                <span class="etl-report-name">中央国库 · 岁入岁出结算</span>
-                <span class="etl-report-note">俸禄、军饷、宫廷支出同步扣除</span>
-              </span>
-              <span class="etl-report-delta danger">-3 项</span>
-            </div>
-            <div class="etl-report">
-              <span class="etl-report-glyph">党</span>
-              <span>
-                <span class="etl-report-name">朝中党派 · 折叠归组</span>
-                <span class="etl-report-note">影响力、满意度、凝聚力同组显示</span>
-              </span>
-              <span class="etl-report-delta">+6 项</span>
-            </div>
-            <div class="etl-report">
-              <span class="etl-report-glyph">军</span>
-              <span>
-                <span class="etl-report-name">军务 · 各军士气与补给</span>
-                <span class="etl-report-note">统帅状态、粮道与战报一并校正</span>
-              </span>
-              <span class="etl-report-delta danger">-4 项</span>
-            </div>
-          </div>
-        </section>
-
-        <section class="etl-controls" aria-label="过回合影像池" aria-hidden="true">
-          <div class="etl-scenes" id="sceneControls"></div>
-        </section>
-      </aside>
     </section>
+
+    <div class="etl-ctrl" role="group" aria-label="预览操控（仅预览页）">
+      <span class="etl-ctrl-hint">空格暂停 · ←→步进 · S换景 · R重演</span>
+      <button class="etl-ctrl-btn" type="button" id="btnPause" aria-pressed="false" title="暂停 / 继续（空格）">暂停</button>
+      <button class="etl-ctrl-btn" type="button" id="btnPrev" aria-label="上一推演项" title="上一推演项（←）">◀</button>
+      <button class="etl-ctrl-btn" type="button" id="btnNext" aria-label="下一推演项" title="下一推演项（→）">▶</button>
+      <button class="etl-ctrl-btn" type="button" id="btnScene" title="切换场景影像（S）">场景</button>
+      <button class="etl-ctrl-btn" type="button" id="btnSpeed" title="演示速度">1×</button>
+      <button class="etl-ctrl-btn" type="button" id="btnReplay" title="从头重演（R）">重演</button>
+    </div>
   </main>
 
   <script>
@@ -1875,6 +1481,7 @@
       function fileUrl(name) {
         return base + encodeURIComponent(name);
       }
+
       var scenes = [
         { name: '01 御苑夜宴', file: 'ChatGPT Image 2026年6月2日 23_50_31.png', tone: '内苑传闻' },
         { name: '02 夜议舆图', file: 'ChatGPT Image 2026年6月2日 23_52_32.png', tone: '阁臣夜议' },
@@ -1915,85 +1522,150 @@
         return scene;
       });
 
+      // 真实拍序：逐条对应运行时 showLoading 调用（标签照抄·时序照抄）。
+      // 显示 pct 做单调演绎——运行时本就有 _loadingMaxPct 单调钳制 + 400ms 自动爬升（封顶 95），
+      // note 标注真实传入值与钳制/倒序情况。真实管线 6 步母拍 pct = 18+12i。
       var stages = [
-        { name: '时移事去', short: '起', group: '起', note: 'showLoading("时移事去", 10)', line: '风雨入阁，诸司回奏。', detail: '建立回合推演遮罩。', pct: 10, duration: 760 },
-        { name: '预提交校准', short: '校', group: '整理', note: 'pre-submit party/class hooks', line: '朝局余波，先入暗账。', detail: '刷新党派、阶层、关系与民心前置校准。', pct: 12, duration: 680 },
-        { name: '情节弧与官缺清扫', short: '弧', group: '整理', note: 'prep 0-A / 0-0a / 0-0b', line: '案头诸事，先清旧牍。', detail: '确保人物情节弧，清待诏标记与幽灵持官。', pct: 14, duration: 620 },
-        { name: 'NPC 补官与奏疏落账', short: '官', group: '整理', note: 'prep 0-0c / 0-0commit', line: '缺员补署，奏牍入册。', detail: 'NPC 自动补任空缺，并提交奏疏决议。', pct: 16, duration: 620 },
-        { name: '采集本回合输入', short: '采', group: '整理', note: 'prep 0-1', line: '诏令、刑录、旧数并案。', detail: '收集诏令、刑录、旧变量、旧国库与户口快照。', pct: 18, duration: 720 },
-        { name: '三系统状态更新', short: '三', group: '整理', note: 'prep 1.7', line: '三司旧账，先行校准。', detail: '更新三系统基础状态，写入本回合上下文。', pct: 21, duration: 760 },
-        { name: '预取三系统 AI', short: '三AI', group: '预取', note: 'plan-prefetch 1.75', line: '旁证先行，静候主推。', detail: '后台启动三系统 AI 资料预取。', pct: 24, duration: 720 },
-        { name: '长期行动摘要', short: '长', group: '预取', note: 'plan-prefetch 1.8', line: '远策旧债，摘为一卷。', detail: '生成长期行动摘要，补入本回合提示材料。', pct: 27, duration: 780 },
-        { name: '推演上下文封卷', short: '封', group: '预取', note: 'ctx.subcalls ready', line: '史料封卷，待主机推演。', detail: '缓存预取 promise 与确定性兜底资料。', pct: 30, duration: 650 },
-        { name: '构造朝野上下文', short: '文', group: 'AI', note: '_endTurn_aiInfer prompt', line: '朝野脉络，归入一问。', detail: '拼接人物、势力、官职、记忆、诏令与近回合史记。', pct: 34, duration: 820 },
-        { name: 'AI 主推演', short: '推', group: 'AI', note: '_endTurn_aiInfer', line: '朝野应答，正在成局。', detail: '等待主推演返回时政记、正文、建议与结构化变更。', pct: 42, duration: 1800 },
-        { name: '推演结果校验', short: '验', group: 'AI', note: 'validateBeforeCommit', line: '新局既成，先验其骨。', detail: '校验 AI 结果是否可提交，失败则阻止推进回合。', pct: 48, duration: 820 },
-        { name: '应用任免赏罚军令', short: '令', group: '诏效', note: 'applyEdictActions', line: '诏令落地，官军随动。', detail: '应用任免、赐死、军建、赏赐与补发欠饷。', pct: 52, duration: 820 },
-        { name: '科举诏效扫描', short: '科', group: '诏效', note: 'G2/G3/G5 edict scan', line: '恩科武举，逐字检核。', detail: '扫描恩科、武举、童子试与时政记隐含触发。', pct: 56, duration: 780 },
-        { name: '帝王私行附效', short: '私', group: '诏效', note: 'TyrantActivitySystem.applyEffects', line: '宫中私行，亦入国势。', detail: '结算帝王私行附效与暴虐、声望、资源变化。', pct: 60, duration: 760 },
-        { name: '战斗围城行军结算', short: '战', group: '系统', note: 'BattleEngine.resolveAllBattles', line: '军报先至，烽烟定胜负。', detail: '结算战斗、围城、行军等确定性军事系统。', pct: 66, duration: 820 },
-        { name: '更新数据与子回合调度', short: '调', group: '系统', note: 'showLoading("更新数据", 92)', line: '日月折算，诸司分层推进。', detail: '运行 SubTickRunner，按 daily/monthly/perturn 分层调度。', pct: 92, duration: 820 },
-        { name: 'NPC Engine 与编年推进', short: 'NPC', group: '系统', note: 'showLoading("运行 NPC Engine", 94.5)', line: '群臣各行其志，暗流自生。', detail: '运行 NPC 行为推演，推进编年与回合数。', pct: 92.2, duration: 740 },
-        { name: '腐败与户口前移', short: '户', group: '系统', note: 'Corruption / Huji early tick', line: '黄册翻检，隐户逃丁入账。', detail: '结算腐败、户口、黄册治理与户口运行桥。', pct: 92.35, duration: 760 },
-        { name: '国库内帑与俸饷流', short: '库', group: '系统', note: 'Guoku / Neitang / CharEcon', line: '钱粮出入，俸饷归簿。', detail: '结算国库、内帑、人物经济、功名迁转与俸禄流。', pct: 92.55, duration: 780 },
-        { name: '央地财政与币政土地', short: '财', group: '系统', note: 'EconomyLinkage / Currency / CentralLocal', line: '央地转输，币粮同衡。', detail: '运行经济联动、货币、央地财政、土地兼并与借贷补完。', pct: 92.8, duration: 780 },
-        { name: '环境灾异与诏令补完', short: '灾', group: '系统', note: 'EnvCapacity / EdictParser / EdictComplete', line: '灾异民瘼，入本回合。', detail: '结算环境承载、灾异、诏令解析、项目与黄册周期。', pct: 93, duration: 780 },
-        { name: '皇权皇威民心联动', short: '权', group: '系统', note: 'AuthorityEngines / 42 linkage', line: '君心民望，互为牵引。', detail: '运行皇权、皇威、民心与 42 项变量联动。', pct: 93.2, duration: 820 },
-        { name: '阶段补丁与科举推进', short: '补', group: '系统', note: 'Phase C/D/B/A/E/F/G/H', line: '诸阶段补完，旧债清算。', detail: '运行 Phase C/D/B/A/E、F1-F6、G1-G4 与 H 阶段原生调用。', pct: 93.45, duration: 820 },
-        { name: 'NPC 献策与省经济', short: '省', group: '系统', note: 'NpcMemorials / province economy', line: '地方账簿，并入中枢。', detail: '触发 NPC 献策、行政区桥接、阈值、省经济与状态耦合。', pct: 93.7, duration: 760 },
-        { name: '应用决策变动队列', short: '队', group: '系统', note: 'showLoading("应用决策变动", 93)', line: '变动排队，逐项落库。', detail: '执行 ChangeQueue，登记财政收支、变量变化与改革触发。', pct: 94, duration: 820 },
-        { name: '历史事件与刚性触发', short: '史', group: '系统', note: 'showLoading("检查历史事件", 93.4)', line: '史事将临，先验其期。', detail: '检查历史事件、刚性触发、科举筹办完成与职位寿数。', pct: 94.3, duration: 780 },
-        { name: '监听队列与关系衰减', short: '听', group: '系统', note: 'showLoading("处理监听队列", 94)', line: '监听余波，关系自衰。', detail: '处理监听队列、关系冲突衰减、血仇继承与查询缓存。', pct: 94.6, duration: 760 },
-        { name: '变更归组与社会信号', short: '组', group: '史记', note: 'render-and-finalize signal bridge', line: '诸项变更，归并成卷。', detail: '标准化 turnChanges，记录社会政治信号并应用党派/阶层桥。', pct: 96, duration: 820 },
-        { name: '生成史记与一致性校验', short: '卷', group: '史记', note: 'showLoading("生成史记弹窗", 97)', line: '史官缀词，卷轴将开。', detail: '生成史记、起居注、数值变化分组与 9 域一致性附录。', pct: 97, duration: 1050 },
-        { name: '呈现回合结果', short: '呈', group: '呈览', note: 'hideLoading + showTurnResult', line: '御览成卷，待君一阅。', detail: '隐藏加载层，交付回合结果与史记卷轴。', pct: 97, duration: 1300 }
+        { name: '时移事去', short: '起', group: '起', note: 'tm-endturn-core:275 · real 10', line: '风雨入阁，诸司回奏。', detail: '建立回合推演遮罩。', pct: 10, duration: 760 },
+        { name: '回合阶段 1/6 · 整理本回合操作', short: '理', group: '整理', note: 'pipeline-executor:124 · real 18', line: '案牍先清，旧事归档。', detail: '管线第 1 步 prep：情节弧、官缺、奏疏与输入快照（内部无细分拍）。', pct: 18, duration: 900 },
+        { name: '回合阶段 2/6 · 预取辅助资料', short: '取', group: '预取', note: 'pipeline-executor:124 · real 30', line: '旁证先行，静候主推。', detail: '管线第 2 步 plan-prefetch：后台预取三系统与长期行动摘要。', pct: 30, duration: 900 },
+        { name: '回合阶段 3/6 · AI 主推演', short: '推', group: 'AI', note: 'pipeline-executor:124 · real 42', line: '朝野脉络，归入一问。', detail: '管线第 3 步 ai：主推演与诸子调用。', pct: 42, duration: 760 },
+        { name: '检索数据库中', short: '检', group: 'AI', note: 'tm-endturn-ai-infer:38 · real 20（钳·条停 42）', line: '故牍翻检，史料就位。', detail: '真实值 20 低于当前位被单调钳制——条不动，只换标签。', pct: 42, duration: 620 },
+        { name: '打包数据', short: '包', group: 'AI', note: 'tm-endturn-ai-infer:41 · real 25（钳）', line: '诸司案卷，封函待发。', detail: '真实值 25 被钳制，条停原位。', pct: 42.5, duration: 620 },
+        { name: 'AI 深度思考', short: '思', group: 'AI', note: 'tm-endturn-ai:1207 · real 42（此后 400ms 自动爬升）', line: '主机沉吟，天下在抱。', detail: '等待主推演期间，条按自动爬升缓行（每 tick +0.2~2.0，封顶 95）。', pct: 43, duration: 820 },
+        { name: 'AI 推演中·已生成 0.0k 字', short: '演', group: 'AI', note: 'tm-endturn-ai:3467 流式 onChunk · 50+min(15, 字数/1500)', line: '笔走龙蛇，万言将成。', detail: '流式接收中·按字数估算进度（真实公式 50+min(15, 字数/1500)）。', pct: 50, duration: 2600, stream: true },
+        { name: '深度回顾', short: '顾', group: 'AI', note: 'tm-endturn-ai:1576 · real 48（钳）', line: '复盘前事，查漏补缺。', detail: '真实值 48 低于流式高位，被钳制。', pct: 66, duration: 680 },
+        { name: '史官成文', short: '文', group: 'AI', note: 'tm-endturn-ai:3707 · real 57（钳）', line: '时政记成，初稿付梓。', detail: '主推演正文成稿。', pct: 67, duration: 680 },
+        { name: '文事·势力·并行推演', short: '并', group: '深推', note: 'tm-endturn-ai:3800 · real 58（钳）', line: '诸路并发，各演其势。', detail: '并行子推演启动。', pct: 68, duration: 680 },
+        { name: 'NPC 全面推演', short: 'NPC', group: '深推', note: 'tm-endturn-followup:511 · real 60（钳）', line: '群臣各行其志，暗流自生。', detail: 'NPC 行为深推子调用。', pct: 69, duration: 760 },
+        { name: '势力自主推演', short: '势', group: '深推', note: 'tm-endturn-followup:978 · real 63（钳）', line: '诸方势力，自谋其局。', detail: '势力 AI 子调用。', pct: 70, duration: 760 },
+        { name: '经济财政推演', short: '帑', group: '深推', note: 'tm-endturn-followup:1080 · real 65（钳）', line: '钱粮流转，市易自衡。', detail: '经济财政 AI 子调用。', pct: 71, duration: 760 },
+        { name: '军事态势推演', short: '军', group: '深推', note: 'tm-endturn-followup:1139 · real 67', line: '烽燧相望，兵机自演。', detail: '军事态势 AI 子调用。', pct: 72, duration: 760 },
+        { name: 'NPC 记忆回写', short: '忆', group: '深推', note: 'tm-endturn-followup:784 · real 67', line: '人各有记，恩怨入心。', detail: '推演结果写回 NPC 记忆。', pct: 73, duration: 680 },
+        { name: 'AI 撰写后人戏说', short: '说', group: '深推', note: 'tm-endturn-followup:1786 · real 70', line: '稗官野史，后人妄议。', detail: '生成后人戏说评点。', pct: 74, duration: 680 },
+        { name: '叙事质量审查', short: '审', group: '深推', note: 'tm-endturn-followup:2449 · real 85', line: '史笔有失，覆核再三。', detail: '叙事质量审查子调用。', pct: 85, duration: 760 },
+        { name: 'NPC 认知整合', short: '知', group: '深推', note: 'tm-endturn-followup:2511 · real 89', line: '众人所见，归于一史。', detail: 'NPC 认知与事实整合。', pct: 89, duration: 700 },
+        { name: '历史检查', short: '核', group: '深推', note: 'tm-endturn-followup:3216 · real 85（倒序·钳）', line: '前后失序，赖闸自守。', detail: '真实值 85 晚于 89 出现——倒序传值，靠单调钳制不回退。', pct: 89.5, duration: 620 },
+        { name: '解析', short: '解', group: '深推', note: 'tm-endturn-followup:3323 · real 90', line: '结构成形，变更可施。', detail: '解析主推演结构化结果。', pct: 90, duration: 680 },
+        { name: '回合阶段 4/6 · 应用诏令附效', short: '诏', group: '诏效', note: 'pipeline-executor:124 · real 54（钳）', line: '诏令落地，官军随动。', detail: '管线第 4 步 post-ai-edict：母拍真实值 54 已被钳在高位（内部无细分拍）。', pct: 91, duration: 760 },
+        { name: '回合阶段 5/6 · 系统结算', short: '系', group: '系统', note: 'pipeline-executor:124 · real 66（钳）', line: '日月折算，诸司分层推进。', detail: '管线第 5 步 systems：确定性系统总结算。', pct: 92, duration: 760 },
+        { name: '更新数据', short: '更', group: '系统', note: 'tm-endturn-systems:46 · real 92', line: '诸司账簿，逐项更易。', detail: 'SubTickRunner 分层调度入口。', pct: 92.5, duration: 760 },
+        { name: '运行 NPC Engine', short: '擎', group: '系统', note: 'tm-endturn-systems:56 · real 94.5', line: '群机运转，编年自进。', detail: 'NPC 行为引擎与编年推进。', pct: 94.5, duration: 700 },
+        { name: '计算领地产出', short: '产', group: '系统', note: 'tm-endturn-systems:318 · real 92.5（倒序·钳）', line: '田亩仓廪，岁入有数。', detail: '真实值 92.5 晚于 94.5 出现——倒序传值，钳制兜底。', pct: 94.6, duration: 620 },
+        { name: '财政结算', short: '算', group: '系统', note: 'tm-endturn-systems:326 · real 93（钳）', line: '钱粮出入，俸饷归簿。', detail: '国库收支结算。', pct: 94.7, duration: 620 },
+        { name: '应用决策变动', short: '队', group: '系统', note: 'tm-endturn-systems:339 · real 93（钳）', line: '变动排队，逐项落库。', detail: 'ChangeQueue 执行，登记财政收支与变量变化。', pct: 94.8, duration: 680 },
+        { name: '检查历史事件', short: '史', group: '系统', note: 'tm-endturn-systems:421 · real 93.4（钳）', line: '史事将临，先验其期。', detail: '历史事件与刚性触发检查。', pct: 94.9, duration: 620 },
+        { name: '检查职位与寿数', short: '寿', group: '系统', note: 'tm-endturn-systems:459 · real 93.7（钳）', line: '宦海浮沉，寿数有时。', detail: '职位任期与人物寿数检查。', pct: 95, duration: 620 },
+        { name: '处理监听队列', short: '听', group: '系统', note: 'tm-endturn-systems:498 · real 94（钳·条停 95）', line: '监听余波，关系自衰。', detail: '条已爬至 95 封顶——此后只换标签不动条。', pct: 95, duration: 620 },
+        { name: '清理回合缓存', short: '清', group: '系统', note: 'tm-endturn-systems:517 · real 94.3（钳·条停 95）', line: '故纸归匣，明日再启。', detail: '回合缓存清理。', pct: 95, duration: 620 },
+        { name: '回合阶段 6/6 · 生成史记弹窗', short: '卷', group: '史记', note: 'pipeline-executor:124 · real 78（钳·条停 95）', line: '史官缀词，卷轴将开。', detail: '管线第 6 步 render-and-finalize。', pct: 95, duration: 700 },
+        { name: '生成史记弹窗', short: '成', group: '史记', note: 'tm-endturn-pipeline-steps:659 · real 97（破 95·全程唯一可见前进）', line: '万事归卷，一笔定章。', detail: '97 高于爬升封顶 95——后半程唯一真实推动条的拍。', pct: 97, duration: 1050 },
+        { name: '呈现回合结果', short: '呈', group: '呈览', note: 'hideLoading（条满 100 淡出）+ showTurnResult', line: '御览成卷，待君一阅。', detail: '隐藏加载层，交付回合结果与史记卷轴。', pct: 100, duration: 1300 }
       ];
 
+      // 阶段组 → 大标题叙事词（朝代中立）
+      var groupTitles = {
+        entry: '时移事去',
+        prep: '整理案牍',
+        prefetch: '史料先行',
+        ai: '朝野推演',
+        deepsim: '诸方并演',
+        edict: '诏令落地',
+        systems: '诸司运转',
+        render: '史官缀笔',
+        final: '御览将呈'
+      };
+
+      // 阶段组 → 巨字水印（右侧）
+      var groupGlyphs = {
+        entry: '起',
+        prep: '牍',
+        prefetch: '驿',
+        ai: '推',
+        deepsim: '演',
+        edict: '诏',
+        systems: '司',
+        render: '笔',
+        final: '御'
+      };
+
+      // 阶段组 → 场景池（scenes 下标）：背景影像跟着推演叙事走
+      var groupScenes = {
+        entry: [29, 18],
+        prep: [13, 8, 9],
+        prefetch: [7, 12, 23, 6],
+        ai: [1, 31, 16],
+        deepsim: [20, 10, 21, 9],
+        edict: [17, 33, 2, 4],
+        systems: [28, 25, 22, 24, 27, 26, 5],
+        render: [32, 13],
+        final: [19, 30]
+      };
+
+      var AMBIENT_SCENE_MS = 5600;   // 同组内缓慢轮换间隔
+      var CROSSFADE_MS = 1400;       // 与 .etl-bg 的 opacity 过渡同步
+      var STAGE_CHANGE_MS = 520;     // 覆盖 knock/wash-pop/text-step 的最长动画
+      var TITLE_SWAP_MS = 760;
+      var RESTART_FADE_MS = 560;
+
       var shell = document.getElementById('previewShell');
-      var stageList = document.getElementById('stageList');
-      var sceneControls = document.getElementById('sceneControls');
+      var mainInner = document.getElementById('mainInner');
       var flowTrack = document.getElementById('flowTrack');
       var microRail = document.getElementById('microRail');
       var queueIndex = document.getElementById('queueIndex');
       var queueNow = document.getElementById('queueNow');
       var queueNext = document.getElementById('queueNext');
       var dateLine = document.getElementById('dateLine');
+      var titleLine = document.getElementById('titleLine');
       var currentLine = document.getElementById('currentLine');
       var detailLine = document.getElementById('detailLine');
       var phaseText = document.getElementById('phaseText');
       var progressText = document.getElementById('progressText');
       var progressFill = document.getElementById('progressFill');
-      var stageTimer = 0;
-      var sceneTimer = 0;
+      var groupGlyph = document.getElementById('groupGlyph');
+      var annalsLog = document.getElementById('annalsLog');
+      var btnPause = document.getElementById('btnPause');
+      var btnPrev = document.getElementById('btnPrev');
+      var btnNext = document.getElementById('btnNext');
+      var btnScene = document.getElementById('btnScene');
+      var btnSpeed = document.getElementById('btnSpeed');
+      var btnReplay = document.getElementById('btnReplay');
+
+      var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
       var step = 0;
       var sceneIndex = 29;
+      var speed = 1;
+      var paused = false;
+      var hiddenAutoPaused = false;
+      var swapping = false;
+      var pendingScene = -1;
+      var broken = {};
+      var brokenCount = 0;
+      var stageTimer = 0;
+      var sceneTimer = 0;
+      var changeTimer = 0;
+      var titleTimer = 0;
+      var swapTimer = 0;
+      var restartTimer = 0;
+      var streamTimer = 0;
 
       function padPct(value) {
         return String(value).padStart(2, '0') + '%';
       }
 
-      function renderStages() {
-        stageList.innerHTML = stages.map(function(stage, index) {
-          return [
-            '<div class="etl-stage" data-stage="', index, '">',
-            '<div class="etl-stage-index">', index + 1, '</div>',
-            '<div class="etl-stage-main">',
-            '<div class="etl-stage-name"><span>', stage.name, '</span><span class="etl-stage-state">', index === stages.length - 1 ? '待呈' : '待办', '</span></div>',
-            '<div class="etl-stage-note">', stage.note, '</div>',
-            '</div>',
-            '</div>'
-          ].join('');
-        }).join('');
-      }
-
-      function renderScenes() {
-        sceneControls.innerHTML = scenes.map(function(scene, index) {
-          return [
-            '<button class="etl-scene-btn" type="button" aria-pressed="', index === sceneIndex ? 'true' : 'false', '" data-scene="', index, '" style="--thumb-url:url(&quot;', scene.url, '&quot;)">',
-            '<span>', scene.name, '</span>',
-            '</button>'
-          ].join('');
-        }).join('');
+      function groupKeyOf(group) {
+        var value = String(group || '');
+        if (value === '起') return 'entry';
+        if (value === '整理') return 'prep';
+        if (value === '预取') return 'prefetch';
+        if (value === 'AI') return 'ai';
+        if (value === '深推') return 'deepsim';
+        if (value === '诏效') return 'edict';
+        if (value === '系统') return 'systems';
+        if (value === '史记') return 'render';
+        if (value === '呈览') return 'final';
+        return 'entry';
       }
 
       function renderFlow() {
@@ -2021,52 +1693,193 @@
         }).join('');
       }
 
+      // ---- 场景影像 ----
+
+      function aliveSceneIndexes() {
+        return scenes.map(function(_, i) { return i; }).filter(function(i) { return !broken[i]; });
+      }
+
+      function poolFor(groupKey) {
+        var pool = (groupScenes[groupKey] || []).filter(function(i) { return !broken[i]; });
+        if (pool.length) return pool;
+        return aliveSceneIndexes();
+      }
+
+      function setDateLine(scene) {
+        dateLine.textContent = scene.tone + ' · 天启七年 九月 朔后';
+      }
+
+      function setScene(index, instant) {
+        if (index === sceneIndex || index == null || broken[index]) return;
+        if (swapping) {
+          pendingScene = index;
+          return;
+        }
+        sceneIndex = index;
+        var scene = scenes[sceneIndex];
+        setDateLine(scene);
+        if (instant || reduceMotion) {
+          shell.style.setProperty('--scene-url', "url('" + scene.url + "')");
+          return;
+        }
+        swapping = true;
+        shell.style.setProperty('--next-scene-url', "url('" + scene.url + "')");
+        shell.classList.add('is-swapping');
+        window.clearTimeout(swapTimer);
+        swapTimer = window.setTimeout(function() {
+          shell.style.setProperty('--scene-url', "url('" + scene.url + "')");
+          shell.classList.remove('is-swapping');
+          swapping = false;
+          if (pendingScene >= 0) {
+            var next = pendingScene;
+            pendingScene = -1;
+            setScene(next);
+          }
+        }, CROSSFADE_MS);
+      }
+
+      function advanceWithinPool() {
+        var key = shell.getAttribute('data-group-key') || 'entry';
+        var pool = poolFor(key);
+        if (!pool.length) return;
+        var at = pool.indexOf(sceneIndex);
+        setScene(pool[(at + 1) % pool.length]);
+      }
+
+      function manualScene() {
+        var alive = aliveSceneIndexes();
+        if (!alive.length) return;
+        var at = alive.indexOf(sceneIndex);
+        setScene(alive[(at + 1) % alive.length]);
+      }
+
+      function sceneForGroup(groupKey) {
+        var pool = poolFor(groupKey);
+        if (!pool.length) return;
+        if (pool.indexOf(sceneIndex) >= 0) return; // 已在该组氛围内，不强切
+        setScene(pool[0]);
+      }
+
       function preloadScenes() {
-        scenes.forEach(function(scene) {
+        scenes.forEach(function(scene, index) {
           var img = new Image();
           img.decoding = 'async';
+          img.onerror = function() {
+            broken[index] = true;
+            brokenCount += 1;
+            if (brokenCount >= scenes.length) {
+              shell.classList.add('no-scenes');
+            } else if (index === sceneIndex) {
+              var alive = aliveSceneIndexes();
+              if (alive.length) setScene(alive[0], true);
+            }
+          };
           img.src = scene.url;
         });
       }
 
-      function groupKeyOf(group) {
-        var value = String(group || '');
-        if (value === '\u8d77') return 'entry';
-        if (value === '\u6574\u7406') return 'prep';
-        if (value === '\u9884\u53d6') return 'prefetch';
-        if (value === 'AI') return 'ai';
-        if (value === '\u8bcf\u6548') return 'edict';
-        if (value === '\u7cfb\u7edf') return 'systems';
-        if (value === '\u53f2\u8bb0') return 'render';
-        if (value === '\u5448\u89c8') return 'final';
-        return 'entry';
+      // ---- 大标题叙事 ----
+
+      function setTitle(groupKey) {
+        var next = groupTitles[groupKey] || groupTitles.entry;
+        var glyph = groupGlyphs[groupKey] || groupGlyphs.entry;
+        if (titleLine.textContent === next) return;
+        if (reduceMotion) {
+          titleLine.textContent = next;
+          groupGlyph.textContent = glyph;
+          return;
+        }
+        shell.classList.remove('is-title-swap');
+        void shell.offsetWidth;
+        shell.classList.add('is-title-swap');
+        window.clearTimeout(titleTimer);
+        window.setTimeout(function() {
+          titleLine.textContent = next;
+          groupGlyph.textContent = glyph;
+        }, Math.round(TITLE_SWAP_MS * 0.42));
+        titleTimer = window.setTimeout(function() {
+          shell.classList.remove('is-title-swap');
+        }, TITLE_SWAP_MS + 40);
       }
 
-      function setStage(index, sealed) {
+      // ---- 起居注流水（已毕阶段，右缘竖排） ----
+
+      var ANNALS_CAP = 12;
+      var annalsCount = 0;
+
+      function annalEntry(idx, fresh) {
+        var el = document.createElement('span');
+        var groupStart = idx === 0 || stages[idx - 1].group !== stages[idx].group;
+        el.className = 'etl-annal' + (groupStart ? ' is-group-start' : '') + (fresh ? ' is-fresh' : '');
+        el.textContent = stages[idx].name;
+        return el;
+      }
+
+      function syncAnnals(animate) {
+        if (step < annalsCount) {
+          // 回跳/重演：直接重建，不做笔触动画
+          annalsLog.innerHTML = '';
+          annalsCount = 0;
+          animate = false;
+        }
+        while (annalsCount < step) {
+          annalsLog.appendChild(annalEntry(annalsCount, animate));
+          annalsCount += 1;
+        }
+        while (annalsLog.children.length > ANNALS_CAP) {
+          annalsLog.removeChild(annalsLog.firstChild);
+        }
+      }
+
+      // ---- 流式拍模拟（复刻 tm-endturn-ai:3467 的字数进度回调） ----
+
+      function startStreamSim(stage) {
+        window.clearInterval(streamTimer);
+        var chars = 0;
+        streamTimer = window.setInterval(function() {
+          if (paused || document.hidden) return;
+          chars += Math.round((1400 + Math.random() * 800) * speed);
+          var approx = 50 + Math.min(15, Math.floor(chars / 1500));
+          var label = 'AI推演中·已生成' + (Math.round(chars / 100) / 10) + 'k字';
+          phaseText.textContent = label;
+          queueNow.textContent = '正：' + label;
+          progressText.textContent = approx + '%';
+          progressFill.style.setProperty('--progress', approx + '%');
+        }, 160);
+      }
+
+      // ---- 阶段推进 ----
+
+      function setStage(index) {
         step = (index + stages.length) % stages.length;
         var stage = stages[step];
+        window.clearInterval(streamTimer);
+        var groupKey = groupKeyOf(stage.group || stage.short || stage.name);
+        var groupChanged = shell.getAttribute('data-group-key') !== groupKey;
+
         shell.classList.remove('is-stage-change');
-        shell.setAttribute('data-group-key', groupKeyOf(stage.group || stage.short || stage.name));
+        shell.setAttribute('data-group-key', groupKey);
         void shell.offsetWidth;
         shell.classList.add('is-stage-change');
+        window.clearTimeout(changeTimer);
+        changeTimer = window.setTimeout(function() {
+          shell.classList.remove('is-stage-change');
+        }, STAGE_CHANGE_MS);
+
+        if (groupChanged) {
+          setTitle(groupKey);
+          sceneForGroup(groupKey);
+        }
+
         currentLine.innerHTML = stage.line;
         detailLine.textContent = stage.detail || stage.note;
         queueIndex.textContent = '推演项 ' + (step + 1) + '/' + stages.length;
         queueNow.textContent = '正：' + stage.name;
         queueNext.textContent = step < stages.length - 1 ? '候：' + stages[step + 1].name : '候：打开回合结果';
-        window.setTimeout(function() {
-          shell.classList.remove('is-stage-change');
-        }, 220);
         phaseText.textContent = stage.name;
         progressText.textContent = padPct(stage.pct);
         progressFill.style.setProperty('--progress', stage.pct + '%');
-        Array.prototype.forEach.call(stageList.querySelectorAll('.etl-stage'), function(el, idx) {
-          el.classList.toggle('is-active', idx === step);
-          el.classList.toggle('is-done', idx < step || (sealed && idx === step));
-          var state = el.querySelector('.etl-stage-state');
-          if (!state) return;
-          state.textContent = idx < step ? '已毕' : (idx === step ? '进行' : '待办');
-        });
+
         var groups = flowTrack._groups || [];
         var groupIndex = Math.max(0, groups.indexOf(stage.group || stage.short || stage.name));
         Array.prototype.forEach.call(flowTrack.querySelectorAll('.etl-flow-step'), function(el, idx) {
@@ -2077,27 +1890,15 @@
           el.classList.toggle('is-active', idx === step);
           el.classList.toggle('is-done', idx < step);
         });
+        syncAnnals(true);
+
+        if (stage.stream && !reduceMotion) {
+          startStreamSim(stage);
+        }
+
         if (step === stages.length - 1) {
           triggerSeal();
         }
-      }
-
-      function setScene(index) {
-        if (index === sceneIndex) return;
-        sceneIndex = index;
-        var scene = scenes[sceneIndex];
-        dateLine.textContent = scene.tone + ' · 天启七年 九月 朔后';
-        renderScenes();
-        shell.style.setProperty('--next-scene-url', "url('" + scene.url + "')");
-        shell.classList.add('is-swapping');
-        window.setTimeout(function() {
-          shell.style.setProperty('--scene-url', "url('" + scene.url + "')");
-          shell.classList.remove('is-swapping');
-        }, 650);
-      }
-
-      function advanceScene() {
-        setScene((sceneIndex + 1) % scenes.length);
       }
 
       function triggerSeal() {
@@ -2109,32 +1910,141 @@
         }, 1000);
       }
 
-      function schedule() {
+      function queueNextStage() {
         window.clearTimeout(stageTimer);
+        if (paused) return;
+        stageTimer = window.setTimeout(function() {
+          if (step === stages.length - 1) {
+            restartLoop();
+            return;
+          }
+          setStage(step + 1);
+          queueNextStage();
+        }, (stages[step].duration || 1600) / speed);
+      }
+
+      function restartLoop() {
+        // 收束一拍：整栏淡出，再从头开演
+        if (reduceMotion) {
+          setStage(0);
+          queueNextStage();
+          return;
+        }
+        shell.classList.add('is-restarting');
+        window.clearTimeout(restartTimer);
+        restartTimer = window.setTimeout(function() {
+          setStage(0);
+          shell.classList.remove('is-restarting');
+          // 重新触发入场动画
+          mainInner.style.animation = 'none';
+          void mainInner.offsetWidth;
+          mainInner.style.animation = '';
+          queueNextStage();
+        }, RESTART_FADE_MS);
+      }
+
+      // ---- 计时器编排 ----
+
+      function startAmbient() {
         window.clearInterval(sceneTimer);
+        if (reduceMotion) return; // 削减动态：背景不自动轮换（阶段推进保留）
         sceneTimer = window.setInterval(function() {
-          advanceScene();
-        }, 1180);
+          if (paused || document.hidden || swapping) return;
+          advanceWithinPool();
+        }, AMBIENT_SCENE_MS / speed);
+      }
+
+      function pause() {
+        if (paused) return;
+        paused = true;
+        window.clearTimeout(stageTimer);
+        btnPause.textContent = '继续';
+        btnPause.setAttribute('aria-pressed', 'true');
+      }
+
+      function resume() {
+        if (!paused) return;
+        paused = false;
+        btnPause.textContent = '暂停';
+        btnPause.setAttribute('aria-pressed', 'false');
         queueNextStage();
       }
 
-      function queueNextStage() {
-        window.clearTimeout(stageTimer);
-        stageTimer = window.setTimeout(function() {
-          setStage(step + 1, false);
-          queueNextStage();
-        }, stages[step].duration || 1600);
+      function togglePause() {
+        if (paused) resume();
+        else pause();
       }
 
-      renderStages();
-      renderScenes();
+      function setSpeed(next) {
+        speed = next;
+        btnSpeed.textContent = speed + '×';
+        queueNextStage();
+        startAmbient();
+      }
+
+      function stepBy(delta) {
+        if (step === stages.length - 1 && delta > 0) {
+          restartLoop();
+          return;
+        }
+        setStage(step + delta);
+        queueNextStage();
+      }
+
+      // ---- 预览操控 ----
+
+      btnPause.addEventListener('click', togglePause);
+      btnPrev.addEventListener('click', function() { stepBy(-1); });
+      btnNext.addEventListener('click', function() { stepBy(1); });
+      btnScene.addEventListener('click', manualScene);
+      btnSpeed.addEventListener('click', function() {
+        setSpeed(speed === 1 ? 2 : (speed === 2 ? 4 : 1));
+      });
+      btnReplay.addEventListener('click', function() {
+        setStage(0);
+        queueNextStage();
+      });
+
+      document.addEventListener('keydown', function(ev) {
+        if (ev.defaultPrevented) return;
+        if (ev.code === 'Space') {
+          ev.preventDefault();
+          togglePause();
+        } else if (ev.code === 'ArrowLeft') {
+          stepBy(-1);
+        } else if (ev.code === 'ArrowRight') {
+          stepBy(1);
+        } else if (ev.code === 'KeyS') {
+          manualScene();
+        } else if (ev.code === 'KeyR') {
+          setStage(0);
+          queueNextStage();
+        }
+      });
+
+      // 切到后台暂停计时，回前台续演，避免堆积
+      document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+          if (!paused) {
+            hiddenAutoPaused = true;
+            pause();
+          }
+        } else if (hiddenAutoPaused) {
+          hiddenAutoPaused = false;
+          resume();
+        }
+      });
+
+      // ---- 启动 ----
+
       renderFlow();
       renderMicroRail();
       preloadScenes();
       shell.style.setProperty('--scene-url', "url('" + scenes[sceneIndex].url + "')");
-      dateLine.textContent = scenes[sceneIndex].tone + ' · 天启七年 九月 朔后';
-      setStage(0, false);
-      schedule();
+      setDateLine(scenes[sceneIndex]);
+      setStage(0);
+      queueNextStage();
+      startAmbient();
     })();
   </script>
 </body>

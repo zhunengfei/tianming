@@ -2,6 +2,8 @@ extends PanelContainer
 
 class_name MonthlyReportPanel
 
+const TianmingUiScript := preload("res://scripts/tianming_ui.gd")
+
 var reports_box: VBoxContainer
 var title_label: Label
 var fiscal_label: Label
@@ -10,6 +12,8 @@ var authority_label: Label
 var population_label: Label
 var regional_label: Label
 var alerts_label: Label
+var detail_empty_state: PanelContainer
+var detail_log_strips: Array = []
 var current_reports: Array = []
 var selected_report_turn: int = 0
 
@@ -31,11 +35,12 @@ func _ready() -> void:
 	var left: VBoxContainer = VBoxContainer.new()
 	left.custom_minimum_size.x = 310
 	left.add_theme_constant_override("separation", 8)
-	root.add_child(left)
-	left.add_child(_make_text_label("月报簿", 20, Color(0.88, 0.72, 0.42)))
-	var scroll: ScrollContainer = ScrollContainer.new()
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var left_panel: PanelContainer = TianmingUiScript.create_content_panel(left, Vector4(10, 10, 10, 10))
+	left_panel.custom_minimum_size.x = 330
+	left_panel.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	root.add_child(left_panel)
+	left.add_child(TianmingUiScript.create_panel_header("月报簿", _make_text_label("回合报告与告警追踪", 13, Color(0.72, 0.64, 0.50))))
+	var scroll: ScrollContainer = TianmingUiScript.create_scroll_area()
 	left.add_child(scroll)
 	reports_box = VBoxContainer.new()
 	reports_box.add_theme_constant_override("separation", 4)
@@ -45,23 +50,20 @@ func _ready() -> void:
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right.add_theme_constant_override("separation", 9)
-	root.add_child(right)
+	root.add_child(TianmingUiScript.create_content_panel(right, Vector4(10, 10, 10, 10)))
 
-	title_label = _make_label(21, Color(0.88, 0.72, 0.42))
-	right.add_child(title_label)
-	fiscal_label = _make_label(14, Color(0.90, 0.86, 0.75))
-	right.add_child(fiscal_label)
-	military_label = _make_label(14, Color(0.86, 0.78, 0.66))
-	right.add_child(military_label)
-	authority_label = _make_label(14, Color(0.86, 0.70, 0.58))
-	right.add_child(authority_label)
-	population_label = _make_label(14, Color(0.82, 0.78, 0.68))
-	right.add_child(population_label)
-	regional_label = _make_label(14, Color(0.78, 0.72, 0.62))
-	right.add_child(regional_label)
-	alerts_label = _make_label(14, Color(0.95, 0.62, 0.42))
+	var title_strip: PanelContainer = TianmingUiScript.create_log_strip("报告", "月报", "gold")
+	right.add_child(title_strip)
+	title_label = _find_meta_label(title_strip, "tianming_log_strip_value")
+	detail_empty_state = TianmingUiScript.create_empty_state("尚未载入回合报告。", "muted")
+	right.add_child(detail_empty_state)
+	fiscal_label = _add_report_log_strip(right, "财政", "gold")
+	military_label = _add_report_log_strip(right, "军务")
+	authority_label = _add_report_log_strip(right, "权威")
+	population_label = _add_report_log_strip(right, "民生")
+	regional_label = _add_report_log_strip(right, "地方")
+	alerts_label = _add_report_log_strip(right, "告警", "gold")
 	alerts_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right.add_child(alerts_label)
 	set_reports([])
 
 func set_report(report: Dictionary) -> void:
@@ -107,7 +109,7 @@ func _refresh_report_list() -> void:
 		return
 	_clear_box(reports_box)
 	if current_reports.is_empty():
-		reports_box.add_child(_make_text_label("暂无月报", 14, Color(0.72, 0.66, 0.52)))
+		reports_box.add_child(TianmingUiScript.create_empty_state("暂无月报", "muted"))
 		return
 	for index in current_reports.size():
 		var raw: Variant = current_reports[index]
@@ -116,7 +118,8 @@ func _refresh_report_list() -> void:
 		if turn <= 0:
 			continue
 		var status: String = "已结算" if bool(report.get("settled", false)) else "预计"
-		var button: Button = Button.new()
+		var button: Button = TianmingUiScript.create_list_row_button("monthly_report_report", 58)
+		button.set_meta("tianming_monthly_report_turn", turn)
 		button.text = "第%d回合  %d年%d月\n%s · 国库银 %s · 事件 %d" % [
 			turn,
 			int(_num(report.get("year", 0))),
@@ -125,9 +128,8 @@ func _refresh_report_list() -> void:
 			_signed_big(_num(report.get("guoku_money_delta", 0)), "两"),
 			_array(report.get("events", [])).size()
 		]
-		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		button.modulate = Color(1.0, 0.86, 0.55, 1.0) if turn == selected_report_turn else Color.WHITE
+		TianmingUiScript.set_list_row_button_selected(button, turn == selected_report_turn)
 		button.pressed.connect(func() -> void:
 			select_report(turn)
 		)
@@ -136,6 +138,7 @@ func _refresh_report_list() -> void:
 func _show_report(report: Dictionary) -> void:
 	if report.is_empty():
 		title_label.text = "月报"
+		_set_detail_surface_active(false)
 		fiscal_label.text = "尚未载入回合报告。"
 		military_label.text = ""
 		authority_label.text = ""
@@ -145,6 +148,7 @@ func _show_report(report: Dictionary) -> void:
 		return
 
 	var status: String = "已结算" if bool(report.get("settled", false)) else "预计"
+	_set_detail_surface_active(true)
 	title_label.text = "%d年%d月 · %s" % [
 		int(_num(report.get("year", 0))),
 		int(_num(report.get("month", 0))),
@@ -285,6 +289,29 @@ func _make_text_label(text: String, font_size: int, color: Color) -> Label:
 	var label: Label = _make_label(font_size, color)
 	label.text = text
 	return label
+
+func _add_report_log_strip(parent: VBoxContainer, title_text: String, tone: String = "neutral") -> Label:
+	var strip: PanelContainer = TianmingUiScript.create_log_strip(title_text, "", tone)
+	detail_log_strips.append(strip)
+	parent.add_child(strip)
+	return _find_meta_label(strip, "tianming_log_strip_value")
+
+func _set_detail_surface_active(active: bool) -> void:
+	if detail_empty_state != null:
+		detail_empty_state.visible = not active
+	for raw_strip in detail_log_strips:
+		var strip: PanelContainer = raw_strip as PanelContainer
+		if strip != null:
+			strip.visible = active
+
+func _find_meta_label(root: Node, meta_name: String) -> Label:
+	if root is Label and bool(root.get_meta(meta_name, false)):
+		return root as Label
+	for child in root.get_children():
+		var found: Label = _find_meta_label(child, meta_name)
+		if found != null:
+			return found
+	return null
 
 func _make_label(font_size: int, color: Color) -> Label:
 	var label: Label = Label.new()

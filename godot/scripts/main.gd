@@ -5,6 +5,7 @@ const RuntimeTabHostScript := preload("res://scripts/runtime_tab_host.gd")
 const RuntimePanelPresenterScript := preload("res://scripts/runtime_panel_presenter.gd")
 const RuntimeCommandControllerScript := preload("res://scripts/runtime_command_controller.gd")
 const OverviewSummaryPanelScript := preload("res://scripts/overview_summary_panel.gd")
+const TianmingThemeScript := preload("res://scripts/tianming_theme.gd")
 
 @onready var status_label: Label = %StatusLabel
 @onready var vbox: VBoxContainer = $Panel/Margin/VBox
@@ -44,6 +45,7 @@ var quick_save_slot_id: String = "quick"
 var selected_scenario_path: String = ""
 
 func _ready() -> void:
+	theme = TianmingThemeScript.build()
 	var startup_options: Dictionary = {}
 	if not selected_scenario_path.is_empty():
 		startup_options["scenario_path"] = selected_scenario_path
@@ -165,16 +167,24 @@ func _refresh_active_runtime_panels() -> void:
 
 func _active_refresh_panel_keys() -> Array:
 	var keys: Array = ["overview_summary_panel"]
+	_append_background_refresh_panel_keys(keys)
 	if primary_tabs == null:
 		return keys
 	var index: int = primary_tabs.current_tab
 	if index < 0 or index >= primary_tabs.get_child_count():
 		return keys
 	var active_panel: Node = primary_tabs.get_child(index)
-	for panel_key in _runtime_panels().keys():
-		if _runtime_panels().get(panel_key) == active_panel and not panel_key in keys:
+	var runtime_panels: Dictionary = _runtime_panels()
+	for panel_key in runtime_panels.keys():
+		if runtime_panels.get(panel_key) == active_panel and not panel_key in keys:
 			keys.append(panel_key)
 	return keys
+
+func _append_background_refresh_panel_keys(keys: Array) -> void:
+	var runtime_panels: Dictionary = _runtime_panels()
+	for panel_key in ["character_browser_panel", "monthly_report_panel"]:
+		if runtime_panels.get(panel_key) != null and not panel_key in keys:
+			keys.append(panel_key)
 
 func _all_refresh_panel_keys() -> Array:
 	return _runtime_panels().keys()
@@ -334,7 +344,8 @@ func _shell_panel_payloads() -> Dictionary:
 
 func _add_data_tabs() -> void:
 	runtime_tab_host = RuntimeTabHostScript.new()
-	var tab_result: Dictionary = runtime_tab_host.call("build_tabs", self, vbox, _runtime_panel_payloads(["gameplay_hub_panel"]), _shell_panel_payloads(), ["gameplay_hub_panel"])
+	var initial_panel_keys: Array = ["gameplay_hub_panel", "world_map_panel"]
+	var tab_result: Dictionary = runtime_tab_host.call("build_tabs", self, vbox, _runtime_panel_payloads(initial_panel_keys), _shell_panel_payloads(), initial_panel_keys)
 	if not bool(tab_result.get("ok", false)):
 		push_warning("runtime tab host failed: %s" % str(tab_result.get("error", "")))
 		return

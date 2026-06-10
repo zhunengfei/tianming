@@ -3,6 +3,7 @@ extends MarginContainer
 class_name WorldMapPanel
 
 const WorldMapViewScript := preload("res://scripts/world_map_view.gd")
+const TianmingUiScript := preload("res://scripts/tianming_ui.gd")
 
 signal region_selected(region: Dictionary)
 signal region_edict_requested(edict_id: String)
@@ -16,6 +17,10 @@ var map_detail_resources: Label
 var map_detail_neighbors: Label
 var map_detail_prefectures: Label
 var map_quick_status: Label
+var map_selection_empty_state: PanelContainer
+var map_legend_entries_box: VBoxContainer
+var map_legend_empty_state: PanelContainer
+var map_legend_values: PackedStringArray = PackedStringArray()
 var selected_map_region: Dictionary = {}
 
 func _ready() -> void:
@@ -32,18 +37,28 @@ func _ready() -> void:
 	layout.add_theme_constant_override("separation", 12)
 	add_child(layout)
 
+	var map_column: VBoxContainer = VBoxContainer.new()
+	map_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	map_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	map_column.add_theme_constant_override("separation", 8)
+	layout.add_child(map_column)
+
+	map_column.add_child(TianmingUiScript.create_panel_header("天下图", _make_header_subtitle("地块态势与快捷指令")))
+
 	world_map_view = WorldMapViewScript.new()
 	world_map_view.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	world_map_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	world_map_view.custom_minimum_size = Vector2(520, 260)
 	world_map_view.connect("region_selected", Callable(self, "_on_view_region_selected"))
-	layout.add_child(world_map_view)
+	map_column.add_child(world_map_view)
+	_add_control_legend(map_column)
 	_add_detail_panel(layout)
 
 func set_map_data(map_data: Dictionary) -> void:
 	if world_map_view == null:
 		return
 	world_map_view.call("set_map_data", map_data)
+	_refresh_control_legend(_safe_array(map_data.get("regions", [])))
 	if selected_map_region.is_empty():
 		return
 	var selected_id: String = selected_region_runtime_id()
@@ -71,6 +86,8 @@ func clear_selection() -> void:
 	map_detail_resources.text = "无"
 	map_detail_neighbors.text = "无"
 	map_detail_prefectures.text = "无"
+	if map_selection_empty_state != null:
+		map_selection_empty_state.visible = true
 	if map_quick_status != null:
 		map_quick_status.text = "当前地块已不在运行态地图中，请重新选择。"
 
@@ -87,8 +104,9 @@ func set_quick_status(text: String) -> void:
 		map_quick_status.text = text
 
 func visible_text() -> String:
-	return "天下图\n%s\n归属\n%s\n治理\n%s\n资源\n%s\n邻接\n%s\n府州\n%s\n地块指令\n%s" % [
+	return "天下图\n%s\n控制图例\n%s\n归属\n%s\n治理\n%s\n资源\n%s\n邻接\n%s\n府州\n%s\n地块指令\n%s" % [
 		"" if map_detail_title == null else map_detail_title.text,
+		_legend_text(),
 		"" if map_detail_owner == null else map_detail_owner.text,
 		"" if map_detail_stats == null else map_detail_stats.text,
 		"" if map_detail_resources == null else map_detail_resources.text,
@@ -97,29 +115,48 @@ func visible_text() -> String:
 		"" if map_quick_status == null else map_quick_status.text
 	]
 
-func _add_detail_panel(parent: BoxContainer) -> void:
-	var panel: PanelContainer = PanelContainer.new()
-	panel.custom_minimum_size.x = 290
-	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	parent.add_child(panel)
+func _make_header_subtitle(text: String) -> Label:
+	var label: Label = Label.new()
+	label.text = text
+	return label
 
-	var margin: MarginContainer = MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 12)
-	margin.add_theme_constant_override("margin_top", 12)
-	margin.add_theme_constant_override("margin_right", 12)
-	margin.add_theme_constant_override("margin_bottom", 12)
-	panel.add_child(margin)
+func _add_control_legend(parent: VBoxContainer) -> void:
+	var legend_box: VBoxContainer = VBoxContainer.new()
+	legend_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	legend_box.size_flags_vertical = Control.SIZE_FILL
+	legend_box.add_theme_constant_override("separation", 6)
+
+	var legend_panel: PanelContainer = TianmingUiScript.create_content_panel(legend_box, Vector4(10, 8, 10, 8))
+	legend_panel.size_flags_vertical = Control.SIZE_FILL
+	parent.add_child(legend_panel)
+
+	legend_box.add_child(TianmingUiScript.create_section_title("控制图例"))
+
+	map_legend_entries_box = VBoxContainer.new()
+	map_legend_entries_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	map_legend_entries_box.add_theme_constant_override("separation", 5)
+	legend_box.add_child(map_legend_entries_box)
+
+	map_legend_empty_state = TianmingUiScript.create_empty_state("暂无地块控制数据。", "muted")
+	legend_box.add_child(map_legend_empty_state)
+
+func _add_detail_panel(parent: BoxContainer) -> void:
+	var detail_scroll: ScrollContainer = TianmingUiScript.create_scroll_area(null, Vector2(290, 0))
+	parent.add_child(TianmingUiScript.create_content_panel(detail_scroll, Vector4(12, 12, 12, 12)))
 
 	var detail_box: VBoxContainer = VBoxContainer.new()
+	detail_box.custom_minimum_size.x = 290
+	detail_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	detail_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	detail_box.add_theme_constant_override("separation", 8)
-	margin.add_child(detail_box)
+	detail_scroll.add_child(detail_box)
 
-	map_detail_title = Label.new()
-	map_detail_title.text = "点击地块"
-	map_detail_title.add_theme_font_size_override("font_size", 20)
-	map_detail_title.add_theme_color_override("font_color", Color(0.88, 0.72, 0.42))
-	map_detail_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	detail_box.add_child(map_detail_title)
+	var title_strip: PanelContainer = TianmingUiScript.create_log_strip("地块", "点击地块", "gold")
+	detail_box.add_child(title_strip)
+	map_detail_title = title_strip.find_child("LogStripValue", true, false) as Label
+
+	map_selection_empty_state = TianmingUiScript.create_empty_state("请先选择地块。", "muted")
+	detail_box.add_child(map_selection_empty_state)
 
 	map_detail_owner = _add_detail_value(detail_box, "归属")
 	map_detail_stats = _add_detail_value(detail_box, "治理")
@@ -127,18 +164,14 @@ func _add_detail_panel(parent: BoxContainer) -> void:
 	map_detail_neighbors = _add_detail_value(detail_box, "邻接")
 	map_detail_prefectures = _add_detail_value(detail_box, "府州")
 
-	var action_caption: Label = Label.new()
-	action_caption.text = "地块指令"
-	action_caption.add_theme_font_size_override("font_size", 13)
-	action_caption.add_theme_color_override("font_color", Color(0.67, 0.56, 0.38))
-	detail_box.add_child(action_caption)
+	detail_box.add_child(TianmingUiScript.create_section_title("地块指令"))
 
 	var action_row: HBoxContainer = HBoxContainer.new()
 	action_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	action_row.add_theme_constant_override("separation", 8)
 	detail_box.add_child(action_row)
 
-	var edict_button: Button = Button.new()
+	var edict_button: Button = TianmingUiScript.create_command_button("", 30)
 	edict_button.text = "减派蠲税"
 	edict_button.tooltip_text = "对当前选中地块发布民生诏令"
 	edict_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -147,7 +180,7 @@ func _add_detail_panel(parent: BoxContainer) -> void:
 	)
 	action_row.add_child(edict_button)
 
-	var order_button: Button = Button.new()
+	var order_button: Button = TianmingUiScript.create_command_button("", 30)
 	order_button.text = "增援驻防"
 	order_button.tooltip_text = "对当前选中地块发布军令"
 	order_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -156,31 +189,35 @@ func _add_detail_panel(parent: BoxContainer) -> void:
 	)
 	action_row.add_child(order_button)
 
-	map_quick_status = Label.new()
-	map_quick_status.text = "先选中地块。"
-	map_quick_status.add_theme_font_size_override("font_size", 13)
-	map_quick_status.add_theme_color_override("font_color", Color(0.78, 0.66, 0.45))
-	map_quick_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	detail_box.add_child(map_quick_status)
+	var quick_status_chip: PanelContainer = TianmingUiScript.create_status_chip("先选中地块。", "muted")
+	detail_box.add_child(quick_status_chip)
+	map_quick_status = quick_status_chip.find_child("StatusChipLabel", true, false) as Label
 
 func _add_detail_value(parent: VBoxContainer, caption: String) -> Label:
-	var caption_label: Label = Label.new()
-	caption_label.text = caption
-	caption_label.add_theme_font_size_override("font_size", 13)
-	caption_label.add_theme_color_override("font_color", Color(0.67, 0.56, 0.38))
-	parent.add_child(caption_label)
-	var value_label: Label = Label.new()
-	value_label.text = "未选择"
-	value_label.add_theme_font_size_override("font_size", 14)
-	value_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	value_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	parent.add_child(value_label)
-	return value_label
+	var strip: PanelContainer = TianmingUiScript.create_log_strip(caption, "未选择", _detail_tone(caption))
+	parent.add_child(strip)
+	return strip.find_child("LogStripValue", true, false) as Label
+
+func _detail_tone(caption: String) -> String:
+	match caption:
+		"归属":
+			return "gold"
+		"治理":
+			return "jade"
+		"资源":
+			return "neutral"
+		"邻接":
+			return "muted"
+		"府州":
+			return "neutral"
+	return "neutral"
 
 func _on_view_region_selected(region: Dictionary) -> void:
 	selected_map_region = region.duplicate(true)
 	if map_detail_title == null:
 		return
+	if map_selection_empty_state != null:
+		map_selection_empty_state.visible = false
 	map_detail_title.text = str(region.get("name", "未命名地块"))
 	map_detail_owner.text = "%s / %s" % [
 		str(region.get("owner", "")),
@@ -221,6 +258,58 @@ func _region_by_id(rows: Array, region_id: String) -> Dictionary:
 		if id == region_id or str(region.get("name", "")) == region_id:
 			return region
 	return {}
+
+func _refresh_control_legend(rows: Array) -> void:
+	if map_legend_entries_box == null:
+		return
+	for child in map_legend_entries_box.get_children():
+		map_legend_entries_box.remove_child(child)
+		child.queue_free()
+
+	map_legend_values = PackedStringArray()
+	var seen: Dictionary = {}
+	for raw in rows:
+		var region: Dictionary = _safe_dict(raw)
+		var label: String = _controller_label(region)
+		if label.is_empty():
+			continue
+		var legend_key: String = _controller_key(region)
+		if legend_key.is_empty():
+			legend_key = label
+		if seen.has(legend_key):
+			continue
+		seen[legend_key] = true
+		map_legend_values.append(label)
+		map_legend_entries_box.add_child(TianmingUiScript.create_color_swatch(label, _legend_color(region)))
+
+	if map_legend_empty_state != null:
+		map_legend_empty_state.visible = map_legend_values.is_empty()
+
+func _controller_label(region: Dictionary) -> String:
+	for key in ["controller", "owner", "controller_id", "owner_id"]:
+		var value: String = str(region.get(key, ""))
+		if not value.is_empty():
+			return value
+	return ""
+
+func _controller_key(region: Dictionary) -> String:
+	for key in ["controller_id", "controller", "owner_id", "owner"]:
+		var value: String = str(region.get(key, ""))
+		if not value.is_empty():
+			return value
+	return ""
+
+func _legend_color(region: Dictionary) -> Color:
+	if world_map_view != null and world_map_view.has_method("_region_color"):
+		var color_value: Variant = world_map_view.call("_region_color", region)
+		if typeof(color_value) == TYPE_COLOR:
+			return color_value
+	return Color(0.48, 0.36, 0.18, 0.72)
+
+func _legend_text() -> String:
+	if map_legend_values.size() == 0:
+		return "暂无"
+	return "、".join(map_legend_values)
 
 func _region_personnel_text(region: Dictionary, key: String) -> String:
 	var value: String = str(region.get(key, ""))

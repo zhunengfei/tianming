@@ -20,11 +20,22 @@ func _ready() -> void:
 	if game_state == null:
 		_fail("Main scene did not initialize GameState")
 		return
+	if not main.has_method("select_runtime_panel"):
+		_fail("Main scene does not expose select_runtime_panel")
+		return
+	if not bool(main.call("select_runtime_panel", "edict_panel")):
+		_fail("Main scene could not activate the edict panel")
+		return
+	await get_tree().process_frame
 
 	var removed_region_id: String = str(edict_panel.get("selected_region_id"))
 	if removed_region_id.is_empty():
 		_fail("Edict panel did not select an initial target region")
 		return
+	if not bool(main.call("select_runtime_panel", "military_order_panel")):
+		_fail("Main scene could not activate the military order panel")
+		return
+	await get_tree().process_frame
 	military_panel.set("selected_region_id", removed_region_id)
 
 	var regions: Array = _array(game_state.get("map_regions")).duplicate(true)

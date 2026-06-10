@@ -16,6 +16,13 @@ func _ready() -> void:
 	if game_state == null:
 		_fail("Main scene did not initialize GameState")
 		return
+	if not main.has_method("select_runtime_panel"):
+		_fail("Main scene does not expose select_runtime_panel")
+		return
+	if not bool(main.call("select_runtime_panel", "court_meeting_panel")):
+		_fail("Main scene could not activate the court meeting panel")
+		return
+	await get_tree().process_frame
 
 	var removed_topic_id: String = str(panel.get("selected_topic_id"))
 	var selected_participants: Array = _array(panel.get("selected_participant_ids"))

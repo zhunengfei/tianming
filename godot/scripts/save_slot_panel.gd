@@ -2,6 +2,8 @@ extends PanelContainer
 
 class_name SaveSlotPanel
 
+const TianmingUiScript := preload("res://scripts/tianming_ui.gd")
+
 signal save_slot_requested(slot_id: String)
 signal load_slot_requested(slot_id: String)
 signal delete_slot_requested(slot_id: String)
@@ -31,15 +33,17 @@ func _ready() -> void:
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	margin.add_child(root)
 
-	root.add_child(_make_label("存档", 21, Color(0.88, 0.72, 0.42)))
 	status_label = _make_label("选择槽位保存或读取当前进度。", 13, Color(0.78, 0.70, 0.58))
-	root.add_child(status_label)
+	root.add_child(TianmingUiScript.create_panel_header("存档", status_label))
+
+	var scroll: ScrollContainer = TianmingUiScript.create_scroll_area()
+	root.add_child(scroll)
 
 	slots_box = VBoxContainer.new()
 	slots_box.add_theme_constant_override("separation", 8)
 	slots_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	slots_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_child(slots_box)
+	scroll.add_child(slots_box)
 	set_slots([])
 
 func set_slots(slots: Array) -> void:
@@ -52,10 +56,11 @@ func set_slots(slots: Array) -> void:
 	slot_metadata_by_id.clear()
 	for child in slots_box.get_children():
 		child.queue_free()
+	slots_box.add_child(TianmingUiScript.create_section_title("存档槽位"))
 	if slots.is_empty():
 		pending_overwrite_slot_id = ""
 		pending_delete_slot_id = ""
-		slots_box.add_child(_make_label("暂无槽位。", 14, Color(0.82, 0.78, 0.68)))
+		slots_box.add_child(TianmingUiScript.create_empty_state("暂无槽位。", "muted"))
 		return
 	for raw in slots:
 		var metadata: Dictionary = _dict(raw)
@@ -102,7 +107,7 @@ func request_load_slot(slot_id: String) -> Dictionary:
 	_update_delete_button_labels()
 	var metadata: Dictionary = _dict(slot_metadata_by_id.get(slot_id, {}))
 	if not bool(metadata.get("exists", false)):
-		var missing: String = "妲戒綅鏆傛棤瀛樟。"
+		var missing: String = "该槽位暂无存档。"
 		set_status(missing)
 		return {
 			"ok": false,
@@ -133,12 +138,21 @@ func request_delete_slot(slot_id: String) -> Dictionary:
 	if not bool(metadata.get("exists", false)):
 		pending_delete_slot_id = ""
 		_update_delete_button_labels()
-		var missing: String = "妲戒綅鏆傛棤瀛樟。"
+		var missing: String = "该槽位暂无存档。"
 		set_status(missing)
 		return {
 			"ok": false,
 			"missing": true,
 			"error": missing,
+			"slot_id": slot_id
+		}
+	if not bool(metadata.get("compatible", true)):
+		pending_delete_slot_id = ""
+		_update_delete_button_labels()
+		emit_signal("delete_slot_requested", slot_id)
+		return {
+			"ok": true,
+			"emitted": true,
 			"slot_id": slot_id
 		}
 	if pending_delete_slot_id != slot_id:
@@ -161,30 +175,24 @@ func request_delete_slot(slot_id: String) -> Dictionary:
 
 func _add_slot_row(metadata: Dictionary) -> void:
 	var slot_id: String = str(metadata.get("slot_id", "quick"))
-	var panel: PanelContainer = PanelContainer.new()
-	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	slots_box.add_child(panel)
-
-	var margin: MarginContainer = MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 10)
-	margin.add_theme_constant_override("margin_top", 8)
-	margin.add_theme_constant_override("margin_right", 10)
-	margin.add_theme_constant_override("margin_bottom", 8)
-	panel.add_child(margin)
-
 	var row: HBoxContainer = HBoxContainer.new()
+	row.set_meta("tianming_save_slot_row", true)
+	row.set_meta("tianming_save_slot_id", slot_id)
 	row.add_theme_constant_override("separation", 10)
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	margin.add_child(row)
+	slots_box.add_child(TianmingUiScript.create_content_panel(row, Vector4(10, 8, 10, 8)))
 
 	var info: VBoxContainer = VBoxContainer.new()
 	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(info)
-	info.add_child(_make_label(_slot_title(slot_id), 16, Color(0.90, 0.82, 0.64)))
-	info.add_child(_make_label(_slot_desc(metadata), 13, Color(0.78, 0.72, 0.62)))
+	info.add_child(TianmingUiScript.create_log_strip("槽位", _slot_title(slot_id), "gold" if bool(metadata.get("exists", false)) else "muted"))
+	info.add_child(TianmingUiScript.create_log_strip("进度", _slot_desc(metadata), "gold" if bool(metadata.get("exists", false)) else "muted"))
+	var status_chip: PanelContainer = TianmingUiScript.create_status_chip(_slot_status_text(metadata), _slot_status_tone(metadata))
+	status_chip.set_meta("tianming_save_slot_status_chip", true)
+	info.add_child(status_chip)
 	var summary_text: String = str(metadata.get("summary_text", ""))
 	if not summary_text.is_empty():
-		info.add_child(_make_label(summary_text, 12, Color(0.66, 0.74, 0.62)))
+		info.add_child(TianmingUiScript.create_log_strip("概览", summary_text, "muted"))
 
 	var save_button: Button = _make_button("保存")
 	save_button.pressed.connect(func() -> void:
@@ -231,6 +239,20 @@ func _update_delete_button_labels() -> void:
 			continue
 		button.text = "确认删除" if slot_id == pending_delete_slot_id else "删除"
 
+func _slot_status_text(metadata: Dictionary) -> String:
+	if not bool(metadata.get("exists", false)):
+		return "空"
+	if not bool(metadata.get("compatible", true)):
+		return "不兼容"
+	return "可读取"
+
+func _slot_status_tone(metadata: Dictionary) -> String:
+	if not bool(metadata.get("exists", false)):
+		return "muted"
+	if not bool(metadata.get("compatible", true)):
+		return "gold"
+	return "jade"
+
 func _slot_desc(metadata: Dictionary) -> String:
 	if not bool(metadata.get("exists", false)):
 		return "空槽位"
@@ -256,8 +278,7 @@ func _slot_desc(metadata: Dictionary) -> String:
 	]
 
 func _make_button(text: String) -> Button:
-	var button: Button = Button.new()
-	button.text = text
+	var button: Button = TianmingUiScript.create_command_button(text, 30)
 	button.custom_minimum_size = Vector2(64, 30)
 	return button
 

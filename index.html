@@ -65,6 +65,19 @@
 <script src="map-display.js?v=2026042816"></script>
 <script src="map-editor-to-game.js?v=2026050601"></script>
 <script>/* cache-buster: 如发现 js 未更新，改变 v 值强制重载 */ window._TM_CACHE_V = '20260519-remote-changelog';</script>
+<script>
+/* 界面字号·早期应用（2026-06-10·治玩家双端「字太小」）。档位存 localStorage（设备本地偏好·
+   不进存档），设置面板「界面显示」可调。--text-* token 全是 rem → 改 html 根字号即全局生效。
+   在 head 同步应用，避免首屏先渲染小字再跳大。
+   未设置时出厂默认 1.2「大」（owner 2026-06-10 二次拍板再调大）；玩家显式选回「标准」存 1。 */
+(function(){
+  try {
+    var s = parseFloat(localStorage.getItem('tm.uiFontScale'));
+    if (!s || s < 0.8 || s > 1.6) s = 1.2;
+    if (s !== 1) document.documentElement.style.fontSize = (16 * s) + 'px';
+  } catch (_) {}
+})();
+</script>
 </head>
 <body>
 
@@ -211,7 +224,7 @@
   </div>
   <!-- 底部栏 -->
   <div class="home-foot">
-    <div class="f-ver">天 命　测试版 1.2.2.0</div>
+    <div class="f-ver">天 命　测试版 1.3.3.5</div>
     <div class="f-mid" id="home-foot-mid">春 分<span class="dot">◆</span>太 平<span class="dot">◆</span>河 清 海 晏</div>
     <div class="f-right">
       <span class="lt-dibao-btn" style="cursor:pointer;" onclick="if(window.TM_Changelog)TM_Changelog.show();" title="查看更新公告"><kbd>报</kbd> 邸 报<span class="tm-cl-dot" id="tm-cl-dot" style="display:none;"></span></span>
@@ -609,6 +622,9 @@ console.log('天命游戏脚本开始加载...');
 <script src="tm-endturn-validity.js?v=2026051701"></script>
 <script src="tm-endturn-pipeline-steps.js?v=20260523-1251"></script>
 <script src="tm-endturn-render.js?v=2026052310"></script>
+<!-- 过回合进度拍表引擎 + 电影化加载层·2026-06-10·见 web/docs/endturn-progress-precision-backlog.md -->
+<script src="tm-endturn-progress.js?v=2026061001"></script>
+<script src="tm-endturn-loading.js?v=2026061001"></script>
 <script src="tm-theme-font.js?v=20260520-theme-font-scopes"></script>
 <script src="tm-patches.js?v=2026052310"></script>
 <!-- R17-R22: 从 tm-patches.js 抽离的子模块（加载在 patches 之后覆盖原版） -->

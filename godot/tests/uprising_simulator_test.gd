@@ -51,6 +51,7 @@ func _fail(message: String) -> void:
 
 func _finish(exit_code: int) -> void:
 	print("[TianmingGodotTest] uprising scene test exit_code=%d" % exit_code)
+	get_tree().quit(exit_code)
 
 func _uprising_count(factions: Array) -> int:
 	var count: int = 0

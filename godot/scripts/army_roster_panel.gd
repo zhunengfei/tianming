@@ -2,16 +2,21 @@ extends PanelContainer
 
 class_name ArmyRosterPanel
 
+const TianmingUiScript := preload("res://scripts/tianming_ui.gd")
+
 signal army_commander_requested(army_id: String, character_id: String)
 signal army_action_requested(army_id: String, action_id: String)
 signal army_redeploy_requested(army_id: String, target_region_id: String)
 
 var list_box: VBoxContainer
 var detail_label: Label
+var detail_box: VBoxContainer
 var candidates_box: VBoxContainer
 var actions_box: VBoxContainer
 var target_regions_box: VBoxContainer
 var history_label: Label
+var history_box: VBoxContainer
+var history_empty_state: PanelContainer
 var assign_button: Button
 var selected_army_id: String = ""
 var selected_candidate_id: String = ""
@@ -40,10 +45,19 @@ func _ready() -> void:
 	root.add_theme_constant_override("separation", 12)
 	margin.add_child(root)
 
-	var scroll: ScrollContainer = ScrollContainer.new()
-	scroll.custom_minimum_size.x = 380
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_child(scroll)
+	var left: VBoxContainer = VBoxContainer.new()
+	left.custom_minimum_size.x = 380
+	left.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left.add_theme_constant_override("separation", 8)
+	var left_panel: PanelContainer = TianmingUiScript.create_content_panel(left, Vector4(10, 10, 10, 10))
+	left_panel.custom_minimum_size.x = 400
+	left_panel.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	root.add_child(left_panel)
+
+	left.add_child(TianmingUiScript.create_panel_header("军队", _make_label("军势、统帅与调防", 13, Color(0.72, 0.64, 0.50))))
+
+	var scroll: ScrollContainer = TianmingUiScript.create_scroll_area()
+	left.add_child(scroll)
 
 	list_box = VBoxContainer.new()
 	list_box.add_theme_constant_override("separation", 5)
@@ -53,50 +67,55 @@ func _ready() -> void:
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right.add_theme_constant_override("separation", 8)
-	root.add_child(right)
+	root.add_child(TianmingUiScript.create_content_panel(right, Vector4(10, 10, 10, 10)))
 
 	detail_label = _make_label("选择军队查看详情。", 14, Color(0.86, 0.78, 0.64))
 	detail_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	detail_label.visible = false
 	right.add_child(detail_label)
 
-	right.add_child(_make_label("候选统帅", 13, Color(0.72, 0.62, 0.44)))
-	var candidate_scroll: ScrollContainer = ScrollContainer.new()
-	candidate_scroll.custom_minimum_size.y = 180
-	candidate_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	candidate_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right.add_child(TianmingUiScript.create_section_title("军队详情"))
+	detail_box = VBoxContainer.new()
+	detail_box.add_theme_constant_override("separation", 6)
+	right.add_child(detail_box)
+
+	right.add_child(TianmingUiScript.create_section_title("候选统帅"))
+	var candidate_scroll: ScrollContainer = TianmingUiScript.create_scroll_area(null, Vector2(0, 180))
 	right.add_child(candidate_scroll)
 	candidates_box = VBoxContainer.new()
 	candidates_box.add_theme_constant_override("separation", 5)
 	candidate_scroll.add_child(candidates_box)
 
-	assign_button = Button.new()
+	assign_button = TianmingUiScript.create_command_button("", 34, true)
 	assign_button.text = "任命统帅"
 	assign_button.custom_minimum_size.y = 34
 	assign_button.pressed.connect(_on_assign_pressed)
 	right.add_child(assign_button)
 
-	right.add_child(_make_label("军务处置", 13, Color(0.72, 0.62, 0.44)))
-	var action_scroll: ScrollContainer = ScrollContainer.new()
-	action_scroll.custom_minimum_size.y = 150
-	action_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	action_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right.add_child(TianmingUiScript.create_section_title("军务处置"))
+	var action_scroll: ScrollContainer = TianmingUiScript.create_scroll_area(null, Vector2(0, 150))
 	right.add_child(action_scroll)
 	actions_box = VBoxContainer.new()
 	actions_box.add_theme_constant_override("separation", 5)
 	action_scroll.add_child(actions_box)
 
-	right.add_child(_make_label("调防目标", 13, Color(0.72, 0.62, 0.44)))
-	var region_scroll: ScrollContainer = ScrollContainer.new()
-	region_scroll.custom_minimum_size.y = 150
-	region_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	region_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right.add_child(TianmingUiScript.create_section_title("调防目标"))
+	var region_scroll: ScrollContainer = TianmingUiScript.create_scroll_area(null, Vector2(0, 150))
 	right.add_child(region_scroll)
 	target_regions_box = VBoxContainer.new()
 	target_regions_box.add_theme_constant_override("separation", 5)
 	region_scroll.add_child(target_regions_box)
 
+	right.add_child(TianmingUiScript.create_section_title("军队记录"))
+	history_empty_state = TianmingUiScript.create_empty_state("军队记录：无", "muted")
+	right.add_child(history_empty_state)
 	history_label = _make_label("", 12, Color(0.62, 0.58, 0.50))
+	history_label.visible = false
 	right.add_child(history_label)
+	history_box = VBoxContainer.new()
+	history_box.add_theme_constant_override("separation", 8)
+	history_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right.add_child(history_box)
 	set_data([])
 
 func set_data(armies: Array, characters: Array = [], command_history: Array = [], action_points: int = 0, action_rows: Array = [], army_action_history: Array = [], regions: Array = [], redeployment_history: Array = []) -> void:
@@ -122,7 +141,8 @@ func set_data(armies: Array, characters: Array = [], command_history: Array = []
 		var army_id: String = str(army.get("id", ""))
 		if army_id.is_empty():
 			continue
-		var button: Button = Button.new()
+		var button: Button = TianmingUiScript.create_list_row_button("army", 58)
+		button.set_meta("tianming_army_row_id", army_id)
 		button.text = "%s\n%s  兵员%s  士气%d  统制%d" % [
 			str(army.get("name", "")),
 			str(army.get("commander", "未定")),
@@ -132,7 +152,7 @@ func set_data(armies: Array, characters: Array = [], command_history: Array = []
 		]
 		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		button.modulate = Color(1.0, 0.86, 0.55, 1.0) if army_id == selected_army_id else Color.WHITE
+		TianmingUiScript.set_list_row_button_selected(button, army_id == selected_army_id)
 		button.pressed.connect(func() -> void:
 			selected_army_id = army_id
 			set_data(current_armies, current_characters, current_history, current_action_points, current_action_rows, current_army_action_history, current_regions, current_redeployment_history)
@@ -144,6 +164,7 @@ func set_data(armies: Array, characters: Array = [], command_history: Array = []
 	_update_detail()
 	if history_label != null:
 		history_label.text = "%s\n%s\n%s" % [_history_text(current_history), _army_action_history_text(current_army_action_history), _redeployment_history_text(current_redeployment_history)]
+		_refresh_history_surface()
 	if assign_button != null:
 		assign_button.disabled = selected_army_id.is_empty() or selected_candidate_id.is_empty() or current_action_points <= 0
 
@@ -156,6 +177,49 @@ func visible_text() -> String:
 		"" if detail_label == null else detail_label.text,
 		"" if history_label == null else history_label.text
 	]
+
+func _refresh_history_surface() -> void:
+	if history_label == null:
+		return
+	_clear_box(history_box)
+	var is_empty: bool = current_history.is_empty() and current_army_action_history.is_empty() and current_redeployment_history.is_empty()
+	history_label.visible = false
+	if history_box != null:
+		history_box.visible = not is_empty
+	if history_empty_state != null:
+		history_empty_state.visible = is_empty
+	if is_empty:
+		return
+	for raw in current_history:
+		_add_commander_history_row(_dict(raw))
+	for raw in current_army_action_history:
+		_add_army_action_history_row(_dict(raw))
+	for raw in current_redeployment_history:
+		_add_redeployment_history_row(_dict(raw))
+
+func _add_commander_history_row(record: Dictionary) -> void:
+	var box: VBoxContainer = _add_history_card()
+	box.add_child(TianmingUiScript.create_log_strip("统帅", _commander_history_heading(record), "gold"))
+	box.add_child(TianmingUiScript.create_log_strip("变更", _commander_change_text(record), "jade"))
+
+func _add_army_action_history_row(record: Dictionary) -> void:
+	var box: VBoxContainer = _add_history_card()
+	box.add_child(TianmingUiScript.create_log_strip("军务", _army_action_history_heading(record), "gold"))
+	var detail: String = _army_action_history_detail(record)
+	if not detail.is_empty():
+		box.add_child(TianmingUiScript.create_log_strip("目标", detail, "neutral"))
+
+func _add_redeployment_history_row(record: Dictionary) -> void:
+	var box: VBoxContainer = _add_history_card()
+	box.add_child(TianmingUiScript.create_log_strip("调防", _redeployment_history_heading(record), "gold"))
+	box.add_child(TianmingUiScript.create_log_strip("路线", _redeployment_route_text(record), "neutral"))
+
+func _add_history_card() -> VBoxContainer:
+	var box: VBoxContainer = VBoxContainer.new()
+	box.add_theme_constant_override("separation", 5)
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	history_box.add_child(TianmingUiScript.create_content_panel(box, Vector4(8, 7, 8, 7)))
+	return box
 
 func select_army(army_id: String) -> void:
 	if _army_by_id(current_armies, army_id).is_empty():
@@ -178,38 +242,85 @@ func select_target_region(region_id: String) -> void:
 func _update_detail() -> void:
 	if detail_label == null:
 		return
+	_clear_box(detail_box)
 	var army: Dictionary = _army_by_id(current_armies, selected_army_id)
 	if army.is_empty():
 		detail_label.text = "暂无军队数据。"
+		if detail_box != null:
+			detail_box.add_child(TianmingUiScript.create_empty_state("暂无军队数据。", "muted"))
 		return
+	var soldiers_text: String = str(army.get("soldiers_text", _big(_num(army.get("soldiers", 0)))))
+	var commander_text: String = _commander_text(army)
+	var garrison_text: String = _fallback_text(army.get("garrison", army.get("location", "")), "未定")
+	var army_type_text: String = _fallback_text(army.get("army_type", ""), "未详")
+	var quality_text: String = _fallback_text(army.get("quality", ""), "未详")
+	var composition_text: String = _fallback_text(army.get("composition_text", ""), "未详")
+	var salary_text: String = _fallback_text(army.get("salary_text", ""), "未详")
+	var equipment_text: String = _fallback_text(army.get("equipment_text", ""), "未详")
+	var activity_text: String = _fallback_text(army.get("activity", ""), "待命")
+	var description_text: String = _fallback_text(army.get("description", ""), "暂无军情说明")
 	detail_label.text = "%s\n兵员：%s\n统帅：%s\n驻地：%s\n类型：%s / %s\n士气：%d  训练：%d  忠诚：%d  统制：%d\n欠饷：%d 月  哗变风险：%d\n活动：%s\n兵种：%s\n军饷：%s\n装备：%s\n%s" % [
 		str(army.get("name", "")),
-		str(army.get("soldiers_text", _big(_num(army.get("soldiers", 0))))),
-		_commander_text(army),
-		str(army.get("garrison", army.get("location", ""))),
-		str(army.get("army_type", "")),
-		str(army.get("quality", "")),
+		soldiers_text,
+		commander_text,
+		garrison_text,
+		army_type_text,
+		quality_text,
 		int(_num(army.get("morale", 0))),
 		int(_num(army.get("training", 0))),
 		int(_num(army.get("loyalty", 0))),
 		int(_num(army.get("control", army.get("control_level", 0)))),
 		int(_num(army.get("pay_arrears_months", 0))),
 		int(_num(army.get("mutiny_risk", 0))),
-		str(army.get("activity", "")),
-		str(army.get("composition_text", "")),
-		str(army.get("salary_text", "")),
-		str(army.get("equipment_text", "")),
-		str(army.get("description", ""))
+		activity_text,
+		composition_text,
+		salary_text,
+		equipment_text,
+		description_text
 	]
+	if detail_box == null:
+		return
+	detail_box.add_child(TianmingUiScript.create_log_strip("军队", "%s · %s / %s" % [
+		str(army.get("name", "")),
+		army_type_text,
+		quality_text
+	], "gold"))
+	detail_box.add_child(TianmingUiScript.create_log_strip("统帅", commander_text, "jade" if commander_text != "未定" else "muted"))
+	detail_box.add_child(TianmingUiScript.create_log_strip("兵员", "%s · 驻地 %s" % [
+		soldiers_text,
+		garrison_text
+	], "neutral"))
+	detail_box.add_child(TianmingUiScript.create_log_strip("战备", "士气%d · 训练%d · 忠诚%d · 统制%d" % [
+		int(_num(army.get("morale", 0))),
+		int(_num(army.get("training", 0))),
+		int(_num(army.get("loyalty", 0))),
+		int(_num(army.get("control", army.get("control_level", 0))))
+	], "jade"))
+	detail_box.add_child(TianmingUiScript.create_log_strip("军纪", "欠饷%d月 · 哗变风险%d" % [
+		int(_num(army.get("pay_arrears_months", 0))),
+		int(_num(army.get("mutiny_risk", 0)))
+	], "gold" if int(_num(army.get("pay_arrears_months", 0))) > 0 or int(_num(army.get("mutiny_risk", 0))) > 0 else "neutral"))
+	detail_box.add_child(TianmingUiScript.create_log_strip("编制", "%s · %s" % [
+		composition_text,
+		salary_text
+	], "neutral"))
+	detail_box.add_child(TianmingUiScript.create_log_strip("装备", equipment_text, "neutral"))
+	detail_box.add_child(TianmingUiScript.create_log_strip("活动", "%s · %s" % [
+		activity_text,
+		description_text
+	], "muted"))
 
 func _update_candidates() -> void:
 	_clear_box(candidates_box)
+	var shown_candidates: int = 0
 	for raw in _commander_candidates(current_characters):
 		var character: Dictionary = _dict(raw)
 		var character_id: String = str(character.get("id", ""))
 		if character_id.is_empty():
 			continue
-		var button: Button = Button.new()
+		shown_candidates += 1
+		var button: Button = TianmingUiScript.create_list_row_button("army_commander_candidate", 58)
+		button.set_meta("tianming_army_commander_candidate_id", character_id)
 		button.text = "%s  武%d  勇%d  忠%d\n%s" % [
 			str(character.get("name", "")),
 			int(_num(character.get("military", 0))),
@@ -219,21 +330,25 @@ func _update_candidates() -> void:
 		]
 		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		button.modulate = Color(1.0, 0.86, 0.55, 1.0) if character_id == selected_candidate_id else Color.WHITE
+		TianmingUiScript.set_list_row_button_selected(button, character_id == selected_candidate_id)
 		button.pressed.connect(func() -> void:
 			selected_candidate_id = character_id
 			set_data(current_armies, current_characters, current_history, current_action_points, current_action_rows, current_army_action_history, current_regions, current_redeployment_history)
 		)
 		candidates_box.add_child(button)
+	if shown_candidates == 0:
+		candidates_box.add_child(TianmingUiScript.create_empty_state("暂无候选统帅。", "muted"))
 
 func _update_actions() -> void:
 	_clear_box(actions_box)
+	var shown_actions: int = 0
 	for raw in current_action_rows:
 		var action: Dictionary = _dict(raw)
 		var action_id: String = str(action.get("id", ""))
 		if action_id.is_empty():
 			continue
-		var button: Button = Button.new()
+		shown_actions += 1
+		var button: Button = TianmingUiScript.create_command_button("", 48)
 		button.text = "%s  / %s  行动点%d\n%s" % [
 			str(action.get("name", action_id)),
 			str(action.get("category", "")),
@@ -247,15 +362,20 @@ func _update_actions() -> void:
 			emit_signal("army_action_requested", selected_army_id, action_id)
 		)
 		actions_box.add_child(button)
+	if shown_actions == 0:
+		actions_box.add_child(TianmingUiScript.create_empty_state("暂无军务处置。", "muted"))
 
 func _update_target_regions() -> void:
 	_clear_box(target_regions_box)
+	var shown_regions: int = 0
 	for raw in current_regions:
 		var region: Dictionary = _dict(raw)
 		var region_id: String = str(region.get("id", ""))
 		if region_id.is_empty():
 			continue
-		var button: Button = Button.new()
+		shown_regions += 1
+		var button: Button = TianmingUiScript.create_list_row_button("army_target_region", 58)
+		button.set_meta("tianming_army_target_region_id", region_id)
 		button.text = "调防至 %s\n兵力 %s / 兵压 %d / 控制 %s" % [
 			str(region.get("name", region_id)),
 			_big(_num(region.get("troops", 0))),
@@ -264,13 +384,25 @@ func _update_target_regions() -> void:
 		]
 		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		button.modulate = Color(1.0, 0.86, 0.55, 1.0) if region_id == selected_target_region_id else Color.WHITE
+		TianmingUiScript.set_list_row_button_selected(button, region_id == selected_target_region_id)
 		button.disabled = selected_army_id.is_empty() or current_action_points <= 0
 		button.pressed.connect(func() -> void:
 			selected_target_region_id = region_id
+			_refresh_target_region_selected_rows()
 			emit_signal("army_redeploy_requested", selected_army_id, region_id)
 		)
 		target_regions_box.add_child(button)
+	if shown_regions == 0:
+		target_regions_box.add_child(TianmingUiScript.create_empty_state("暂无调防目标。", "muted"))
+
+func _refresh_target_region_selected_rows() -> void:
+	if target_regions_box == null:
+		return
+	for child in target_regions_box.get_children():
+		if child is Button \
+			and bool(child.get_meta("tianming_list_row_button", false)) \
+			and str(child.get_meta("tianming_list_row_button_kind", "")) == "army_target_region":
+			TianmingUiScript.set_list_row_button_selected(child as Button, str(child.get_meta("tianming_army_target_region_id", "")) == selected_target_region_id)
 
 func _on_assign_pressed() -> void:
 	emit_signal("army_commander_requested", selected_army_id, selected_candidate_id)
@@ -360,13 +492,23 @@ func _history_text(history: Array) -> String:
 	var lines: PackedStringArray = PackedStringArray()
 	for raw in history:
 		var record: Dictionary = _dict(raw)
-		lines.append("T%d %s / %s → %s" % [
-			int(_num(record.get("turn", 0))),
-			str(record.get("army", "")),
-			str(record.get("old_commander", "未定")),
-			str(record.get("commander", ""))
+		lines.append("%s / %s" % [
+			_commander_history_heading(record),
+			_commander_change_text(record)
 		])
 	return "近期统帅更易：%s" % "；".join(lines)
+
+func _commander_history_heading(record: Dictionary) -> String:
+	return "T%d %s" % [
+		int(_num(record.get("turn", 0))),
+		str(record.get("army", ""))
+	]
+
+func _commander_change_text(record: Dictionary) -> String:
+	return "%s → %s" % [
+		str(record.get("old_commander", "未定")),
+		str(record.get("commander", ""))
+	]
 
 func _army_action_history_text(history: Array) -> String:
 	if history.is_empty():
@@ -374,28 +516,33 @@ func _army_action_history_text(history: Array) -> String:
 	var lines: PackedStringArray = PackedStringArray()
 	for raw in history:
 		var record: Dictionary = _dict(raw)
-		var detail: String = str(record.get("target_region", ""))
-		var control: Dictionary = _dict(record.get("region_control", {}))
-		if not control.is_empty() and bool(control.get("ok", false)):
-			var transfer_text: String = "%s → %s" % [
-				str(control.get("before_controller", control.get("before_controller_id", ""))),
-				str(control.get("after_controller", control.get("after_controller_id", "")))
-			]
-			detail = "%s / %s" % [detail, transfer_text] if not detail.is_empty() else transfer_text
+		var detail: String = _army_action_history_detail(record)
 		if detail.is_empty():
-			lines.append("T%d %s / %s" % [
-				int(_num(record.get("turn", 0))),
-				str(record.get("army", "")),
-				str(record.get("name", ""))
-			])
+			lines.append(_army_action_history_heading(record))
 			continue
-		lines.append("T%d %s / %s / %s" % [
-			int(_num(record.get("turn", 0))),
-			str(record.get("army", "")),
-			str(record.get("name", "")),
+		lines.append("%s / %s" % [
+			_army_action_history_heading(record),
 			detail
 		])
 	return "近期军务处置：%s" % "；".join(lines)
+
+func _army_action_history_heading(record: Dictionary) -> String:
+	return "T%d %s / %s" % [
+		int(_num(record.get("turn", 0))),
+		str(record.get("army", "")),
+		str(record.get("name", ""))
+	]
+
+func _army_action_history_detail(record: Dictionary) -> String:
+	var detail: String = str(record.get("target_region", ""))
+	var control: Dictionary = _dict(record.get("region_control", {}))
+	if not control.is_empty() and bool(control.get("ok", false)):
+		var transfer_text: String = "%s → %s" % [
+			str(control.get("before_controller", control.get("before_controller_id", ""))),
+			str(control.get("after_controller", control.get("after_controller_id", "")))
+		]
+		detail = "%s / %s" % [detail, transfer_text] if not detail.is_empty() else transfer_text
+	return detail
 
 func _redeployment_history_text(history: Array) -> String:
 	if history.is_empty():
@@ -403,14 +550,24 @@ func _redeployment_history_text(history: Array) -> String:
 	var lines: PackedStringArray = PackedStringArray()
 	for raw in history:
 		var record: Dictionary = _dict(raw)
-		lines.append("T%d %s / %s：%s → %s" % [
-			int(_num(record.get("turn", 0))),
-			str(record.get("army", "")),
-			str(record.get("name", "")),
-			str(record.get("source_region", "")),
-			str(record.get("target_region", ""))
+		lines.append("%s：%s" % [
+			_redeployment_history_heading(record),
+			_redeployment_route_text(record)
 		])
 	return "近期军队调防：%s" % "；".join(lines)
+
+func _redeployment_history_heading(record: Dictionary) -> String:
+	return "T%d %s / %s" % [
+		int(_num(record.get("turn", 0))),
+		str(record.get("army", "")),
+		str(record.get("name", ""))
+	]
+
+func _redeployment_route_text(record: Dictionary) -> String:
+	return "%s → %s" % [
+		str(record.get("source_region", "")),
+		str(record.get("target_region", ""))
+	]
 
 func _first_candidate_id(candidates: Array) -> String:
 	for raw in candidates:
@@ -476,6 +633,12 @@ func _big(value: float) -> String:
 	if absf(value) >= 10000.0:
 		return "%.1f万" % (value / 10000.0)
 	return "%d" % roundi(value)
+
+func _fallback_text(value: Variant, fallback: String) -> String:
+	var text: String = str(value)
+	if text.strip_edges().is_empty():
+		return fallback
+	return text
 
 func _num(value: Variant) -> float:
 	if typeof(value) == TYPE_INT or typeof(value) == TYPE_FLOAT:

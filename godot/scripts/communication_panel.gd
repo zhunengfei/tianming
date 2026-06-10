@@ -2,11 +2,14 @@ extends PanelContainer
 
 class_name CommunicationPanel
 
+const TianmingUiScript := preload("res://scripts/tianming_ui.gd")
+
 signal communication_process_requested(communication_id: String, action: String)
 
 var count_label: Label
 var inbox_box: VBoxContainer
-var archive_label: Label
+var archive_box: VBoxContainer
+var archive_empty_state: PanelContainer
 var last_items: Array = []
 var last_archive: Array = []
 
@@ -27,14 +30,10 @@ func _ready() -> void:
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	margin.add_child(root)
 
-	var title: Label = _make_label("奏疏来文", 21, Color(0.88, 0.72, 0.42))
-	root.add_child(title)
 	count_label = _make_label("", 13, Color(0.72, 0.64, 0.50))
-	root.add_child(count_label)
+	root.add_child(TianmingUiScript.create_panel_header("奏疏来文", count_label))
 
-	var scroll: ScrollContainer = ScrollContainer.new()
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var scroll: ScrollContainer = TianmingUiScript.create_scroll_area()
 	root.add_child(scroll)
 
 	inbox_box = VBoxContainer.new()
@@ -42,8 +41,13 @@ func _ready() -> void:
 	inbox_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(inbox_box)
 
-	archive_label = _make_label("", 12, Color(0.62, 0.58, 0.50))
-	root.add_child(archive_label)
+	root.add_child(TianmingUiScript.create_section_title("已归档"))
+	archive_empty_state = TianmingUiScript.create_empty_state("已归档：无", "muted")
+	root.add_child(archive_empty_state)
+	archive_box = VBoxContainer.new()
+	archive_box.add_theme_constant_override("separation", 8)
+	archive_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.add_child(archive_box)
 	set_data([], [])
 
 func set_data(items: Array, archive: Array) -> void:
@@ -54,13 +58,27 @@ func set_data(items: Array, archive: Array) -> void:
 	count_label.text = "待阅 %d 件 · 已归档 %d 件" % [last_items.size(), last_archive.size()]
 	_clear_items()
 	if last_items.is_empty():
-		inbox_box.add_child(_make_label("暂无奏疏来文。", 14, Color(0.82, 0.78, 0.68)))
+		inbox_box.add_child(TianmingUiScript.create_section_title("待阅来文"))
+		inbox_box.add_child(TianmingUiScript.create_empty_state("暂无奏疏来文。", "muted"))
 	else:
-		inbox_box.add_child(_make_label("奏疏", 16, Color(0.86, 0.72, 0.46)))
-		_add_kind_items("memorial")
-		inbox_box.add_child(_make_label("来文", 16, Color(0.66, 0.76, 0.88)))
-		_add_kind_items("letter")
-	archive_label.text = _archive_text()
+		inbox_box.add_child(TianmingUiScript.create_section_title("奏疏"))
+		_add_kind_items("memorial", "暂无奏疏。")
+		inbox_box.add_child(TianmingUiScript.create_section_title("来文"))
+		_add_kind_items("letter", "暂无来文。")
+	_refresh_archive_surface()
+
+func _refresh_archive_surface() -> void:
+	if archive_box == null:
+		return
+	_clear_archive_items()
+	var is_empty: bool = last_archive.is_empty()
+	archive_box.visible = not is_empty
+	if archive_empty_state != null:
+		archive_empty_state.visible = is_empty
+	if is_empty:
+		return
+	for raw in last_archive:
+		_add_archive_item(_dict(raw))
 
 func visible_text() -> String:
 	var lines: PackedStringArray = PackedStringArray()
@@ -77,7 +95,7 @@ func visible_text() -> String:
 	lines.append(_archive_text())
 	return "\n".join(lines)
 
-func _add_kind_items(kind: String) -> void:
+func _add_kind_items(kind: String, empty_text: String) -> void:
 	var added: bool = false
 	for raw in last_items:
 		var item: Dictionary = _dict(raw)
@@ -86,42 +104,29 @@ func _add_kind_items(kind: String) -> void:
 		_add_item(item)
 		added = true
 	if not added:
-		inbox_box.add_child(_make_label("无", 13, Color(0.62, 0.58, 0.50)))
+		inbox_box.add_child(TianmingUiScript.create_empty_state(empty_text, "muted"))
 
 func _add_item(item: Dictionary) -> void:
-	var panel: PanelContainer = PanelContainer.new()
-	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	inbox_box.add_child(panel)
-
-	var margin: MarginContainer = MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 10)
-	margin.add_theme_constant_override("margin_top", 8)
-	margin.add_theme_constant_override("margin_right", 10)
-	margin.add_theme_constant_override("margin_bottom", 8)
-	panel.add_child(margin)
-
 	var item_root: HBoxContainer = HBoxContainer.new()
 	item_root.add_theme_constant_override("separation", 10)
 	item_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	margin.add_child(item_root)
+	inbox_box.add_child(TianmingUiScript.create_content_panel(item_root, Vector4(10, 8, 10, 8)))
 
 	var sender_texture: Texture2D = _load_portrait_texture(str(item.get("sender_portrait_path", "")))
 	if sender_texture != null:
 		var portrait_rect: TextureRect = TextureRect.new()
 		portrait_rect.texture = sender_texture
-		portrait_rect.custom_minimum_size = Vector2(72, 96)
-		portrait_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
-		portrait_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		portrait_rect.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		item_root.add_child(portrait_rect)
+		item_root.add_child(TianmingUiScript.create_portrait_frame(portrait_rect, Vector2(72, 96)))
 
 	var box: VBoxContainer = VBoxContainer.new()
 	box.add_theme_constant_override("separation", 5)
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	item_root.add_child(box)
 
-	box.add_child(_make_label(_item_heading(item), 15, Color(0.90, 0.78, 0.52)))
-	box.add_child(_make_label(str(item.get("body", "")), 13, Color(0.88, 0.84, 0.74)))
+	box.add_child(TianmingUiScript.create_log_strip(_item_surface_title(item), _item_heading(item), "gold"))
+	var body: String = str(item.get("body", "")).strip_edges()
+	if not body.is_empty():
+		box.add_child(TianmingUiScript.create_log_strip("正文", body, "neutral"))
 
 	var row: HBoxContainer = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
@@ -130,14 +135,26 @@ func _add_item(item: Dictionary) -> void:
 	_add_action_button(row, "存档", str(item.get("id", "")), "archive")
 
 func _add_action_button(parent: HBoxContainer, label: String, communication_id: String, action: String) -> void:
-	var button: Button = Button.new()
-	button.text = label
-	button.custom_minimum_size.y = 28
+	var button: Button = TianmingUiScript.create_command_button(label, 28)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.pressed.connect(func() -> void:
 		emit_signal("communication_process_requested", communication_id, action)
 	)
 	parent.add_child(button)
+
+func _add_archive_item(item: Dictionary) -> void:
+	var box: VBoxContainer = VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	archive_box.add_child(TianmingUiScript.create_content_panel(box, Vector4(10, 8, 10, 8)))
+
+	box.add_child(TianmingUiScript.create_log_strip("归档", _item_heading(item), "gold"))
+	var body: String = str(item.get("body", "")).strip_edges()
+	if not body.is_empty():
+		box.add_child(TianmingUiScript.create_log_strip("正文", body, "neutral"))
+	var status: String = _processed_status_value(item)
+	if not status.is_empty():
+		box.add_child(TianmingUiScript.create_log_strip("处理", status, "muted"))
 
 func _item_heading(item: Dictionary) -> String:
 	var sender_text: String = str(item.get("sender", ""))
@@ -150,6 +167,12 @@ func _item_heading(item: Dictionary) -> String:
 		str(item.get("title", "")),
 		int(_num(item.get("priority", 0)))
 	]
+
+func _item_surface_title(item: Dictionary) -> String:
+	var kind: String = str(item.get("kind", ""))
+	if kind == "memorial":
+		return "奏疏"
+	return "来文"
 
 func _load_portrait_texture(path: String) -> Texture2D:
 	if path.is_empty() or not FileAccess.file_exists(path):
@@ -186,19 +209,27 @@ func _archived_item_text(item: Dictionary) -> String:
 	return "\n".join(parts)
 
 func _processed_status_text(item: Dictionary) -> String:
+	var value: String = _processed_status_value(item)
+	return "处理：%s" % value if not value.is_empty() else ""
+
+func _processed_status_value(item: Dictionary) -> String:
 	var action: String = str(item.get("processed_action", "")).strip_edges()
 	var status: String = str(item.get("status", "")).strip_edges()
 	if action == "recommend" or status == "recommended":
 		var recommendation_id: String = str(item.get("created_recommendation_id", "")).strip_edges()
-		return "处理：已纳入议事%s" % ("（%s）" % recommendation_id if not recommendation_id.is_empty() else "")
+		return "已纳入议事%s" % ("（%s）" % recommendation_id if not recommendation_id.is_empty() else "")
 	if action == "archive" or status == "archived":
-		return "处理：已存档"
+		return "已存档"
 	return ""
 
 func _clear_items() -> void:
 	if inbox_box == null:
 		return
 	for child in inbox_box.get_children():
+		child.queue_free()
+
+func _clear_archive_items() -> void:
+	for child in archive_box.get_children():
 		child.queue_free()
 
 func _make_label(text: String, font_size: int, color: Color) -> Label:

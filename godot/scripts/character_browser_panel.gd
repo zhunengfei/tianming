@@ -3,6 +3,7 @@ extends MarginContainer
 class_name CharacterBrowserPanel
 
 const CharacterDetailPanelScript := preload("res://scripts/character_detail_panel.gd")
+const TianmingUiScript := preload("res://scripts/tianming_ui.gd")
 
 signal character_action_requested(character_id: String, action_id: String)
 
@@ -15,6 +16,7 @@ var current_characters: Array = []
 var current_actions: Array = []
 var current_history: Array = []
 var current_action_points: int = 0
+var portrait_texture_cache: Dictionary = {}
 
 func _ready() -> void:
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -30,11 +32,18 @@ func _ready() -> void:
 	layout.add_theme_constant_override("separation", 12)
 	add_child(layout)
 
-	var scroll: ScrollContainer = ScrollContainer.new()
-	scroll.custom_minimum_size.x = 520
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	layout.add_child(scroll)
+	var left: VBoxContainer = VBoxContainer.new()
+	left.custom_minimum_size.x = 520
+	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left.add_theme_constant_override("separation", 8)
+	layout.add_child(TianmingUiScript.create_content_panel(left, Vector4(10, 10, 10, 10)))
+
+	left.add_child(TianmingUiScript.create_panel_header("人物", _make_cell("官员名录与人物处置", 260, true, true)))
+
+	left.add_child(TianmingUiScript.create_section_title("人物名录"))
+	var scroll: ScrollContainer = TianmingUiScript.create_scroll_area()
+	left.add_child(scroll)
 
 	character_list_box = VBoxContainer.new()
 	character_list_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -76,51 +85,64 @@ func visible_text() -> String:
 func _refresh_rows() -> void:
 	_clear_box(character_list_box)
 	character_row_buttons.clear()
-	var header: HBoxContainer = HBoxContainer.new()
-	header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(_make_cell("人物", 98, true, true))
-	header.add_child(_make_cell("身份", 188, true, true))
-	header.add_child(_make_cell("党派", 78, false, true))
-	header.add_child(_make_cell("忠", 38, false, true))
-	header.add_child(_make_cell("智", 38, false, true))
-	header.add_child(_make_cell("政", 38, false, true))
-	header.add_child(_make_cell("武", 38, false, true))
-	character_list_box.add_child(header)
+	character_list_box.add_child(TianmingUiScript.create_log_strip("名录", "点击人物查看档案与处置", "muted"))
+	var shown_rows: int = 0
 	for raw in current_characters:
 		var character: Dictionary = _dict(raw)
 		var character_id: String = str(character.get("id", ""))
 		if character_id.is_empty():
 			continue
+		shown_rows += 1
 		var button: Button = _make_character_button(character)
 		character_row_buttons[character_id] = button
 		character_list_box.add_child(button)
 		button.pressed.connect(func() -> void:
 			select_character(character_id)
 		)
+	if shown_rows == 0:
+		character_list_box.add_child(TianmingUiScript.create_empty_state("暂无人物记录。", "muted"))
 	_update_selected_button()
 
 func _make_character_button(character: Dictionary) -> Button:
-	var button: Button = Button.new()
-	button.flat = true
+	var button: Button = TianmingUiScript.create_list_row_button("character", 104)
+	button.set_meta("tianming_browser_list_row", true)
+	button.set_meta("tianming_browser_list_row_kind", "character")
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	button.custom_minimum_size.y = 28
+	button.custom_minimum_size.y = 104
 	button.tooltip_text = "%s · %s" % [str(character.get("name", "")), str(character.get("title", ""))]
-	var row: HBoxContainer = HBoxContainer.new()
-	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var row: Control = Control.new()
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.set_anchors_preset(Control.PRESET_FULL_RECT)
 	row.offset_left = 8
-	row.offset_top = 2
+	row.offset_top = 7
 	row.offset_right = -8
-	row.offset_bottom = -2
+	row.offset_bottom = -7
 	button.add_child(row)
-	row.add_child(_make_cell(str(character.get("name", "")), 98, true, false))
-	row.add_child(_make_cell(str(character.get("official_title", character.get("title", ""))), 188, true, false))
-	row.add_child(_make_cell(str(character.get("party", "")), 78, false, false))
-	row.add_child(_make_cell(str(character.get("loyalty", "")), 38, false, false))
-	row.add_child(_make_cell(str(character.get("intelligence", "")), 38, false, false))
-	row.add_child(_make_cell(str(character.get("administration", "")), 38, false, false))
-	row.add_child(_make_cell(str(character.get("valor", "")), 38, false, false))
+
+	var texture: Texture2D = _load_portrait_texture(str(character.get("portrait_path", "")))
+	var info_left_offset: float = 0.0
+	if texture != null:
+		var portrait_rect: TextureRect = TextureRect.new()
+		portrait_rect.texture = texture
+		var frame: PanelContainer = TianmingUiScript.create_portrait_frame(portrait_rect, Vector2(54, 72))
+		frame.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		frame.offset_left = 0
+		frame.offset_top = 0
+		row.add_child(frame)
+		info_left_offset = 76.0
+
+	var info_box: VBoxContainer = VBoxContainer.new()
+	info_box.set_anchors_preset(Control.PRESET_FULL_RECT)
+	info_box.offset_left = info_left_offset
+	info_box.offset_top = 0
+	info_box.offset_right = 0
+	info_box.offset_bottom = 0
+	info_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	info_box.add_theme_constant_override("separation", 4)
+	row.add_child(info_box)
+	info_box.add_child(TianmingUiScript.create_log_strip("人物", _character_row_identity(character), "gold"))
+	info_box.add_child(TianmingUiScript.create_log_strip("资质", _character_row_metrics(character), "neutral"))
+	_set_mouse_filter_ignore(row)
 	return button
 
 func _update_selected_button() -> void:
@@ -131,7 +153,7 @@ func _update_selected_button() -> void:
 		if button == null:
 			continue
 		var selected: bool = character_id == selected_character_id
-		button.modulate = Color(1.0, 0.86, 0.55, 1.0) if selected else Color.WHITE
+		TianmingUiScript.set_list_row_button_selected(button, selected)
 		if selected:
 			selected_character_button = button
 
@@ -184,7 +206,55 @@ func _make_cell(text: String, width: float, expand: bool, bold: bool) -> Label:
 		label.add_theme_color_override("font_color", Color(0.82, 0.78, 0.68))
 	return label
 
+func _character_row_identity(character: Dictionary) -> String:
+	return _join_nonempty([
+		character.get("name", ""),
+		character.get("official_title", character.get("title", ""))
+	], "未命名人物")
+
+func _character_row_metrics(character: Dictionary) -> String:
+	return "忠%d · 智%d · 政%d · 武%d" % [
+		int(_num(character.get("loyalty", 0))),
+		int(_num(character.get("intelligence", 0))),
+		int(_num(character.get("administration", 0))),
+		int(_num(character.get("valor", 0)))
+	]
+
+func _load_portrait_texture(path: String) -> Texture2D:
+	if path.is_empty():
+		return null
+	if portrait_texture_cache.has(path):
+		return portrait_texture_cache[path] as Texture2D
+	var image: Image = Image.new()
+	var err: Error = image.load(path)
+	if err != OK:
+		push_warning("Failed to load character browser list portrait %s error=%d" % [path, err])
+		return null
+	var texture: Texture2D = ImageTexture.create_from_image(image)
+	portrait_texture_cache[path] = texture
+	return texture
+
+func _join_nonempty(values: Array, fallback: String) -> String:
+	var parts: PackedStringArray = PackedStringArray()
+	for raw in values:
+		var text: String = str(raw).strip_edges()
+		if not text.is_empty():
+			parts.append(text)
+	if parts.is_empty():
+		return fallback
+	return " · ".join(parts)
+
+func _set_mouse_filter_ignore(root: Control) -> void:
+	if root == null:
+		return
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for child in root.get_children():
+		if child is Control:
+			_set_mouse_filter_ignore(child as Control)
+
 func _clear_box(box: BoxContainer) -> void:
+	if box == null:
+		return
 	for child in box.get_children():
 		child.queue_free()
 

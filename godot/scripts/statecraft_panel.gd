@@ -2,12 +2,17 @@ extends PanelContainer
 
 class_name StatecraftPanel
 
+const TianmingUiScript := preload("res://scripts/tianming_ui.gd")
+
 signal statecraft_action_requested(variable_name: String, action_id: String)
 
 var variables_box: VBoxContainer
+var detail_box: VBoxContainer
 var actions_box: VBoxContainer
 var detail_label: Label
 var history_label: Label
+var history_box: VBoxContainer
+var history_empty_state: PanelContainer
 var selected_variable_name: String = ""
 var current_variables: Array = []
 var current_actions: Array = []
@@ -32,12 +37,13 @@ func _ready() -> void:
 	var left: VBoxContainer = VBoxContainer.new()
 	left.custom_minimum_size.x = 430
 	left.add_theme_constant_override("separation", 8)
-	root.add_child(left)
+	var left_panel: PanelContainer = TianmingUiScript.create_content_panel(left, Vector4(10, 10, 10, 10))
+	left_panel.custom_minimum_size.x = 450
+	left_panel.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	root.add_child(left_panel)
 
-	left.add_child(_make_label("国政态势", 20, Color(0.88, 0.72, 0.42)))
-	var scroll: ScrollContainer = ScrollContainer.new()
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left.add_child(TianmingUiScript.create_panel_header("国政态势", _make_label("变量检视与国政整饬", 13, Color(0.72, 0.64, 0.50))))
+	var scroll: ScrollContainer = TianmingUiScript.create_scroll_area()
 	left.add_child(scroll)
 	variables_box = VBoxContainer.new()
 	variables_box.add_theme_constant_override("separation", 4)
@@ -47,17 +53,30 @@ func _ready() -> void:
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right.add_theme_constant_override("separation", 8)
-	root.add_child(right)
+	root.add_child(TianmingUiScript.create_content_panel(right, Vector4(10, 10, 10, 10)))
 
 	detail_label = _make_label("选择变量后执行国政整饬。", 14, Color(0.86, 0.78, 0.64))
+	detail_label.visible = false
 	right.add_child(detail_label)
-	right.add_child(_make_label("整饬动作", 15, Color(0.88, 0.72, 0.42)))
+	right.add_child(TianmingUiScript.create_section_title("态势详情"))
+	detail_box = VBoxContainer.new()
+	detail_box.add_theme_constant_override("separation", 6)
+	right.add_child(detail_box)
+	right.add_child(TianmingUiScript.create_section_title("整饬动作"))
 	actions_box = VBoxContainer.new()
 	actions_box.add_theme_constant_override("separation", 6)
 	right.add_child(actions_box)
+	right.add_child(TianmingUiScript.create_section_title("整饬记录"))
+	history_empty_state = TianmingUiScript.create_empty_state("国政态势记录：无", "muted")
+	right.add_child(history_empty_state)
 	history_label = _make_label("国政态势记录：无", 12, Color(0.68, 0.62, 0.50))
+	history_label.visible = false
 	history_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right.add_child(history_label)
+	history_box = VBoxContainer.new()
+	history_box.add_theme_constant_override("separation", 8)
+	history_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right.add_child(history_box)
 	set_data([], [], [], 0)
 
 func set_data(variable_rows: Array, actions: Array, history: Array, action_points: int) -> void:
@@ -84,8 +103,9 @@ func select_variable(variable_name: String) -> void:
 	_refresh_detail()
 
 func visible_text() -> String:
-	return "国政态势\n%s\n%s" % [
+	return "国政态势\n%s\n%s\n%s" % [
 		selected_variable_name,
+		detail_label.text if detail_label != null else "",
 		_history_text()
 	]
 
@@ -96,7 +116,8 @@ func _refresh_variables() -> void:
 		var variable_name: String = str(variable.get("name", ""))
 		if variable_name.is_empty():
 			continue
-		var button: Button = Button.new()
+		var button: Button = TianmingUiScript.create_list_row_button("statecraft_variable", 58)
+		button.set_meta("tianming_statecraft_variable_name", variable_name)
 		button.text = "%s  %s\n%s · %s · %s" % [
 			variable_name,
 			str(variable.get("value", "")),
@@ -106,7 +127,7 @@ func _refresh_variables() -> void:
 		]
 		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		button.modulate = Color(1.0, 0.86, 0.55, 1.0) if variable_name == selected_variable_name else Color.WHITE
+		TianmingUiScript.set_list_row_button_selected(button, variable_name == selected_variable_name)
 		button.pressed.connect(func() -> void:
 			selected_variable_name = variable_name
 			_refresh_variables()
@@ -116,10 +137,13 @@ func _refresh_variables() -> void:
 
 func _refresh_detail() -> void:
 	_clear_box(actions_box)
+	_clear_box(detail_box)
 	var variable: Dictionary = _selected_variable()
 	if variable.is_empty():
 		detail_label.text = "选择变量后执行国政整饬。"
+		detail_box.add_child(TianmingUiScript.create_empty_state("选择变量后执行国政整饬。", "muted"))
 		history_label.text = "国政态势记录：无"
+		_refresh_history_surface()
 		return
 	detail_label.text = "%s\n当前 %s · 范围 %s-%s · 类别 %s\n%s" % [
 		str(variable.get("name", "")),
@@ -129,6 +153,17 @@ func _refresh_detail() -> void:
 		str(variable.get("category", "")),
 		str(variable.get("desc", ""))
 	]
+	detail_box.add_child(TianmingUiScript.create_log_strip("当前", "%s · %s · %s · %s" % [
+		str(variable.get("name", "")),
+		str(variable.get("value", "")),
+		str(variable.get("category", "")),
+		str(variable.get("status", "平"))
+	], "gold"))
+	detail_box.add_child(TianmingUiScript.create_log_strip("范围", "%s-%s" % [
+		str(variable.get("min", "")),
+		str(variable.get("max", ""))
+	], "jade"))
+	detail_box.add_child(TianmingUiScript.create_log_strip("说明", str(variable.get("desc", "")), "neutral"))
 	var shown_actions: int = 0
 	for raw in current_actions:
 		var action: Dictionary = _dict(raw)
@@ -137,7 +172,7 @@ func _refresh_detail() -> void:
 		if action_id.is_empty() or target_variable != selected_variable_name:
 			continue
 		shown_actions += 1
-		var button: Button = Button.new()
+		var button: Button = TianmingUiScript.create_command_button("", 48)
 		button.text = "%s · %s · 耗行动点 %d\n%s" % [
 			str(action.get("name", action_id)),
 			str(action.get("category", "")),
@@ -152,9 +187,9 @@ func _refresh_detail() -> void:
 		)
 		actions_box.add_child(button)
 	if shown_actions == 0:
-		var empty: Label = _make_label("此项暂无直接整饬动作。", 13, Color(0.68, 0.62, 0.50))
-		actions_box.add_child(empty)
+		actions_box.add_child(TianmingUiScript.create_empty_state("此项暂无直接整饬动作。", "muted"))
 	history_label.text = _history_text()
+	_refresh_history_surface()
 
 func _selected_variable() -> Dictionary:
 	for raw in current_variables:
@@ -165,10 +200,7 @@ func _selected_variable() -> Dictionary:
 
 func _history_text() -> String:
 	var lines: PackedStringArray = PackedStringArray()
-	for raw in current_history:
-		var record: Dictionary = _dict(raw)
-		if not selected_variable_name.is_empty() and str(record.get("target_variable", "")) != selected_variable_name:
-			continue
+	for record in _selected_history_records():
 		lines.append("第%d回合 %s：%s" % [
 			int(_num(record.get("turn", 0))),
 			str(record.get("action", "")),
@@ -178,7 +210,51 @@ func _history_text() -> String:
 		return "国政态势记录：无"
 	return "国政态势记录：\n%s" % "\n".join(lines)
 
+func _refresh_history_surface() -> void:
+	if history_label == null:
+		return
+	_clear_box(history_box)
+	var rows: Array = _selected_history_records()
+	var is_empty: bool = rows.is_empty()
+	history_label.visible = false
+	if history_box != null:
+		history_box.visible = not is_empty
+	if history_empty_state != null:
+		history_empty_state.visible = is_empty
+	if is_empty:
+		return
+	for raw in rows:
+		_add_history_row(_dict(raw))
+
+func _selected_history_records() -> Array:
+	var rows: Array = []
+	for raw in current_history:
+		var record: Dictionary = _dict(raw)
+		if not selected_variable_name.is_empty() and str(record.get("target_variable", "")) != selected_variable_name:
+			continue
+		rows.append(record)
+	return rows
+
+func _add_history_row(record: Dictionary) -> void:
+	var box: VBoxContainer = VBoxContainer.new()
+	box.add_theme_constant_override("separation", 5)
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	history_box.add_child(TianmingUiScript.create_content_panel(box, Vector4(8, 7, 8, 7)))
+
+	box.add_child(TianmingUiScript.create_log_strip("整饬", _history_record_heading(record), "gold"))
+	var outcome: String = str(record.get("outcome", record.get("description", ""))).strip_edges()
+	if not outcome.is_empty():
+		box.add_child(TianmingUiScript.create_log_strip("结果", outcome, "neutral"))
+
+func _history_record_heading(record: Dictionary) -> String:
+	return "第%d回合 %s" % [
+		int(_num(record.get("turn", 0))),
+		str(record.get("action", ""))
+	]
+
 func _clear_box(box: BoxContainer) -> void:
+	if box == null:
+		return
 	for child in box.get_children():
 		box.remove_child(child)
 		child.queue_free()

@@ -18,6 +18,21 @@ func _ready() -> void:
 	if game_state == null:
 		_fail("Main scene did not initialize GameState")
 		return
+	if not main.has_method("select_runtime_panel"):
+		_fail("Main scene does not expose select_runtime_panel")
+		return
+	if not bool(main.call("select_runtime_panel", "edict_panel")):
+		_fail("Main scene could not activate the edict panel")
+		return
+	await get_tree().process_frame
+	if not bool(main.call("select_runtime_panel", "military_order_panel")):
+		_fail("Main scene could not activate the military order panel")
+		return
+	await get_tree().process_frame
+	if not bool(main.call("select_runtime_panel", "diplomacy_panel")):
+		_fail("Main scene could not activate the diplomacy panel")
+		return
+	await get_tree().process_frame
 
 	var removed_edict_id: String = str(edict_panel.get("selected_edict_id"))
 	var removed_order_id: String = str(military_panel.get("selected_order_id"))

@@ -395,8 +395,17 @@
     return c;
   }
 
+  // perf round6 (2026-06-10): 归一化结果 memo·载档/回合末地图刷新对同一批字符串
+  // 反复 trim+regex+lower 数百万次·见 _admIdxCache 注释
+  var _rknCache = new Map();
   function regionKeyNorm(v){
-    return String(v === undefined || v === null ? '' : v).trim().replace(/\s+/g, '').toLowerCase();
+    var s = String(v === undefined || v === null ? '' : v);
+    var hit = _rknCache.get(s);
+    if (hit !== undefined) return hit;
+    var out = s.trim().replace(/\s+/g, '').toLowerCase();
+    if (_rknCache.size > 20000) _rknCache.clear();
+    _rknCache.set(s, out);
+    return out;
   }
 
   function pushUniqueValue(list, value){
@@ -488,40 +497,66 @@
     return null;
   }
 
-  function findLiveAdminDivision(r){
-    var wanted = regionNameKeys(r).map(regionKeyNorm).filter(Boolean);
-    if (!wanted.length) return null;
-    var roots = [];
-    if (window.GM && GM.adminHierarchy) roots.push(GM.adminHierarchy);
-    if (window.P && P.adminHierarchy) roots.push(P.adminHierarchy);
-    var found = null;
-    var seen = [];
+  // perf round6 (2026-06-10): 原版对每个地块全树深走两棵 adminHierarchy
+  // (seen 还是数组 indexOf=节点级 O(n²)·每节点 14 字段 regex 归一化)·
+  // 大档实测 = 载档后单个 12s 长任务(walk 6.4s + regionKeyNorm 3.2s)。
+  // 改为同一遍历序一次建 normKey→{node,seq} 索引·查询取 seq 最小者
+  // (= 原版「walk 序第一个命中任一 wanted 键的节点」语义)·
+  // 按 (GM根引用, P根引用, 回合) 失效·回合内字段级变更经引用仍可见。
+  var _admIdxCache = { gmRoot: null, pRoot: null, turn: -1, map: null };
+  function _buildAdminIndex(gmRoot, pRoot){
+    var map = new Map();
+    var seen = new Set();
+    var seq = 0;
+    function reg(key, kind, node, objectKey){
+      if (!key) return;
+      if (!map.has(key)) map.set(key, { kind: kind, node: node, objectKey: objectKey, seq: seq++ });
+      else seq++;
+    }
     function walk(node, objectKey){
-      if (found || !node || typeof node !== 'object') return;
-      if (seen.indexOf(node) >= 0) return;
-      seen.push(node);
+      if (!node || typeof node !== 'object') return;
+      if (seen.has(node)) return;
+      seen.add(node);
       if (Array.isArray(node)) {
         node.forEach(function(item){ walk(item, objectKey); });
         return;
       }
-      var fields = regionMatchFields(node, objectKey).map(regionKeyNorm).filter(Boolean);
-      if (fields.some(function(x){ return wanted.indexOf(x) >= 0; })) {
-        found = objectKey && !node.name ? Object.assign({ name: objectKey }, node) : node;
-        return;
+      var fields = regionMatchFields(node, objectKey);
+      for (var i = 0; i < fields.length; i += 1) {
+        reg(regionKeyNorm(fields[i]), 'field', node, objectKey);
       }
       Object.keys(node).forEach(function(k){
-        if (found) return;
         var child = node[k];
         if (!child || typeof child !== 'object') return;
-        if (wanted.indexOf(regionKeyNorm(k)) >= 0) {
-          found = Object.assign({ name: k }, child);
-          return;
-        }
+        reg(regionKeyNorm(k), 'key', child, k);
         walk(child, k);
       });
     }
-    roots.forEach(function(root){ walk(root, ''); });
-    return found;
+    if (gmRoot) walk(gmRoot, '');
+    if (pRoot) walk(pRoot, '');
+    return map;
+  }
+  function findLiveAdminDivision(r){
+    var wanted = regionNameKeys(r).map(regionKeyNorm).filter(Boolean);
+    if (!wanted.length) return null;
+    var gmRoot = (window.GM && GM.adminHierarchy) || null;
+    var pRoot = (window.P && P.adminHierarchy) || null;
+    if (!gmRoot && !pRoot) return null;
+    var turn = (window.GM && GM.turn) || 0;
+    if (_admIdxCache.map === null || _admIdxCache.gmRoot !== gmRoot || _admIdxCache.pRoot !== pRoot || _admIdxCache.turn !== turn) {
+      _admIdxCache.gmRoot = gmRoot;
+      _admIdxCache.pRoot = pRoot;
+      _admIdxCache.turn = turn;
+      _admIdxCache.map = _buildAdminIndex(gmRoot, pRoot);
+    }
+    var best = null;
+    for (var i = 0; i < wanted.length; i += 1) {
+      var hit = _admIdxCache.map.get(wanted[i]);
+      if (hit && (best === null || hit.seq < best.seq)) best = hit;
+    }
+    if (!best) return null;
+    if (best.kind === 'key') return Object.assign({ name: best.objectKey }, best.node);
+    return best.objectKey && !best.node.name ? Object.assign({ name: best.objectKey }, best.node) : best.node;
   }
 
   function liveOwnerFromProvinceMap(r){
@@ -2834,6 +2869,9 @@
   bridge.map.findFaction = findFaction;
   bridge.map.dossierRows = dossierRows;
   bridge.map.fmtNum = fmtNum;
+  // perf round6: 测试柄·供等价性验证脚本对照新旧 findLiveAdminDivision
+  bridge.map.__findLiveAdminDivision = findLiveAdminDivision;
+  bridge.map.__regionNameKeys = regionNameKeys;
 
   // ── re-attach bridge exposes that previously came from bridge.js ──
   bridge._ownerKey = ownerKey;

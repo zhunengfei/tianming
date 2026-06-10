@@ -2,6 +2,8 @@ extends PanelContainer
 
 class_name ChroniclePanel
 
+const TianmingUiScript := preload("res://scripts/tianming_ui.gd")
+
 var count_label: Label
 var entries_box: VBoxContainer
 var last_entries: Array = []
@@ -23,14 +25,10 @@ func _ready() -> void:
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	margin.add_child(root)
 
-	var title: Label = _make_label("史官实录", 21, Color(0.88, 0.72, 0.42))
-	root.add_child(title)
 	count_label = _make_label("", 13, Color(0.72, 0.64, 0.50))
-	root.add_child(count_label)
+	root.add_child(TianmingUiScript.create_panel_header("史官实录", count_label))
 
-	var scroll: ScrollContainer = ScrollContainer.new()
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var scroll: ScrollContainer = TianmingUiScript.create_scroll_area()
 	root.add_child(scroll)
 
 	entries_box = VBoxContainer.new()
@@ -45,8 +43,9 @@ func set_entries(entries: Array) -> void:
 		return
 	count_label.text = "共 %d 条实录" % last_entries.size()
 	_clear_entries()
+	entries_box.add_child(TianmingUiScript.create_section_title("实录条目"))
 	if last_entries.is_empty():
-		entries_box.add_child(_make_label("尚无已结算回合或政务记录。", 14, Color(0.82, 0.78, 0.68)))
+		entries_box.add_child(TianmingUiScript.create_empty_state("尚无已结算回合或政务记录。", "muted"))
 		return
 	for i in range(last_entries.size() - 1, -1, -1):
 		_add_entry(_dict(last_entries[i]))
@@ -64,27 +63,16 @@ func visible_text() -> String:
 	return "\n".join(lines)
 
 func _add_entry(entry: Dictionary) -> void:
-	var panel: PanelContainer = PanelContainer.new()
-	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	entries_box.add_child(panel)
-
-	var margin: MarginContainer = MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 10)
-	margin.add_theme_constant_override("margin_top", 8)
-	margin.add_theme_constant_override("margin_right", 10)
-	margin.add_theme_constant_override("margin_bottom", 8)
-	panel.add_child(margin)
-
 	var box: VBoxContainer = VBoxContainer.new()
 	box.add_theme_constant_override("separation", 4)
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	margin.add_child(box)
+	entries_box.add_child(TianmingUiScript.create_content_panel(box, Vector4(10, 8, 10, 8)))
 
-	box.add_child(_make_label(_entry_heading(entry), 15, Color(0.90, 0.78, 0.52)))
-	box.add_child(_make_label(str(entry.get("summary", "")), 13, Color(0.88, 0.84, 0.74)))
+	box.add_child(TianmingUiScript.create_log_strip("实录", _entry_heading(entry), "gold"))
+	box.add_child(TianmingUiScript.create_log_strip("摘要", str(entry.get("summary", "")), "neutral"))
 	var details: String = str(entry.get("details", ""))
 	if not details.strip_edges().is_empty():
-		box.add_child(_make_label(details, 12, Color(0.70, 0.66, 0.58)))
+		box.add_child(TianmingUiScript.create_log_strip("详情", details, "muted"))
 
 func _entry_text(entry: Dictionary) -> String:
 	var parts: PackedStringArray = PackedStringArray()

@@ -3093,6 +3093,8 @@
       turn: GM.turn || 1,
       source: 'phase8-right-issue'
     });
+    // 性能·2026-06-10·写入端封顶(与 tm-wendui 主路径同口径):防长局单人问对史无界膨胀
+    if (GM.wenduiHistory[name].length > 400) GM.wenduiHistory[name] = GM.wenduiHistory[name].slice(-400);
     try {
       if (window.TM && TM.MinxinPressureActions && typeof TM.MinxinPressureActions.recordPlayerResponse === 'function') {
         TM.MinxinPressureActions.recordPlayerResponse(GM, {

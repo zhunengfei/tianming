@@ -11,6 +11,10 @@ func _ready() -> void:
 	if panel == null:
 		_fail("Main scene does not expose the army roster panel")
 		return
+	if not main.has_method("select_runtime_panel") or not bool(main.call("select_runtime_panel", "army_roster_panel")):
+		_fail("Main scene could not open the army roster panel by stable key")
+		return
+	await get_tree().process_frame
 	var text: String = str(panel.call("visible_text"))
 	if not text.contains("关宁军主力") or not text.contains("红衣大炮"):
 		_fail("Main army roster panel did not display official army details")

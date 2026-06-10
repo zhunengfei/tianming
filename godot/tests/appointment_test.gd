@@ -63,3 +63,4 @@ func _fail(message: String) -> void:
 
 func _finish(exit_code: int) -> void:
 	print("[TianmingGodotTest] appointment scene test exit_code=%d" % exit_code)
+	get_tree().quit(exit_code)

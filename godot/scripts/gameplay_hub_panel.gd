@@ -2,6 +2,8 @@ extends PanelContainer
 
 class_name GameplayHubPanel
 
+const TianmingUiScript := preload("res://scripts/tianming_ui.gd")
+
 signal advance_month_requested
 signal tab_requested(tab_name: String)
 signal save_requested
@@ -10,6 +12,7 @@ signal load_requested
 var date_label: Label
 var resource_label: Label
 var authority_label: Label
+var status_row: HBoxContainer
 var agenda_box: VBoxContainer
 var report_label: Label
 var history_label: Label
@@ -32,15 +35,15 @@ func _ready() -> void:
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	margin.add_child(root)
 
-	var title: Label = _make_label("御览总纲", 23, Color(0.88, 0.72, 0.42))
-	root.add_child(title)
-
 	date_label = _make_label("", 15, Color(0.90, 0.84, 0.70))
-	resource_label = _make_label("", 14, Color(0.84, 0.78, 0.66))
-	authority_label = _make_label("", 14, Color(0.84, 0.72, 0.60))
-	root.add_child(date_label)
-	root.add_child(resource_label)
-	root.add_child(authority_label)
+	root.add_child(TianmingUiScript.create_panel_header("御览总纲", date_label))
+
+	status_row = HBoxContainer.new()
+	status_row.add_theme_constant_override("separation", 8)
+	status_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.add_child(status_row)
+	resource_label = _add_status_chip(status_row, "jade")
+	authority_label = _add_status_chip(status_row, "red")
 
 	var split: HBoxContainer = HBoxContainer.new()
 	split.add_theme_constant_override("separation", 14)
@@ -48,22 +51,8 @@ func _ready() -> void:
 	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_child(split)
 
-	var agenda_panel: PanelContainer = PanelContainer.new()
-	agenda_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	agenda_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	split.add_child(agenda_panel)
-
-	var agenda_margin: MarginContainer = MarginContainer.new()
-	agenda_margin.add_theme_constant_override("margin_left", 12)
-	agenda_margin.add_theme_constant_override("margin_top", 10)
-	agenda_margin.add_theme_constant_override("margin_right", 12)
-	agenda_margin.add_theme_constant_override("margin_bottom", 10)
-	agenda_panel.add_child(agenda_margin)
-
-	var agenda_scroll: ScrollContainer = ScrollContainer.new()
-	agenda_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	agenda_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	agenda_margin.add_child(agenda_scroll)
+	var agenda_scroll: ScrollContainer = TianmingUiScript.create_scroll_area()
+	split.add_child(TianmingUiScript.create_content_panel(agenda_scroll, Vector4(12, 10, 12, 10)))
 
 	agenda_box = VBoxContainer.new()
 	agenda_box.add_theme_constant_override("separation", 7)
@@ -71,88 +60,69 @@ func _ready() -> void:
 	agenda_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	agenda_scroll.add_child(agenda_box)
 
-	var command_panel: PanelContainer = PanelContainer.new()
-	command_panel.custom_minimum_size.x = 245
-	command_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	split.add_child(command_panel)
-
-	var command_margin: MarginContainer = MarginContainer.new()
-	command_margin.add_theme_constant_override("margin_left", 12)
-	command_margin.add_theme_constant_override("margin_top", 10)
-	command_margin.add_theme_constant_override("margin_right", 12)
-	command_margin.add_theme_constant_override("margin_bottom", 10)
-	command_panel.add_child(command_margin)
-
-	var command_scroll: ScrollContainer = ScrollContainer.new()
-	command_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	command_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	command_margin.add_child(command_scroll)
+	var command_scroll: ScrollContainer = TianmingUiScript.create_scroll_area(null, Vector2(245, 0))
+	split.add_child(TianmingUiScript.create_content_panel(command_scroll, Vector4(12, 10, 12, 10)))
 
 	var command_box: VBoxContainer = VBoxContainer.new()
 	command_box.add_theme_constant_override("separation", 8)
 	command_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	command_scroll.add_child(command_box)
-	command_box.add_child(_make_label("政务入口", 16, Color(0.88, 0.72, 0.42)))
-	_add_tab_button(command_box, "本月行动", "court_action_panel")
-	_add_tab_button(command_box, "御前会议", "court_meeting_panel")
-	_add_tab_button(command_box, "诏令", "edict_panel")
-	_add_tab_button(command_box, "军令", "military_order_panel")
-	_add_tab_button(command_box, "军队", "army_roster_panel")
-	_add_tab_button(command_box, "外交", "diplomacy_panel")
-	_add_tab_button(command_box, "任免", "appointment_panel")
-	_add_tab_button(command_box, "问对", "audience_panel")
-	_add_tab_button(command_box, "奏疏来文", "communication_panel")
-	_add_tab_button(command_box, "史官实录", "chronicle_panel")
-	_add_tab_button(command_box, "事件", "event_queue_panel")
-	_add_tab_button(command_box, "天下图", "world_map_panel")
-	_add_tab_button(command_box, "地块", "region_governance_panel")
-	_add_tab_button(command_box, "人物", "character_browser_panel")
-	_add_tab_button(command_box, "势力", "faction_browser_panel")
-	_add_tab_button(command_box, "关系", "relationship_panel")
-	_add_tab_button(command_box, "月报", "monthly_report_panel")
-	_add_tab_button(command_box, "变量", "statecraft_panel")
-	_add_tab_button(command_box, "存档", "save_slot_panel")
-	_add_tab_button(command_box, "系统", "system_panel")
+	command_box.add_child(TianmingUiScript.create_section_title("政务入口"))
+
+	var court_section: VBoxContainer = _add_command_section(command_box, "朝廷政务")
+	_add_tab_button(court_section, "本月行动", "court_action_panel")
+	_add_tab_button(court_section, "御前会议", "court_meeting_panel")
+	_add_tab_button(court_section, "诏令", "edict_panel")
+	_add_tab_button(court_section, "任免", "appointment_panel")
+	_add_tab_button(court_section, "问对", "audience_panel")
+
+	var world_section: VBoxContainer = _add_command_section(command_box, "天下军政")
+	_add_tab_button(world_section, "军令", "military_order_panel")
+	_add_tab_button(world_section, "军队", "army_roster_panel")
+	_add_tab_button(world_section, "外交", "diplomacy_panel")
+	_add_tab_button(world_section, "事件", "event_queue_panel")
+	_add_tab_button(world_section, "天下图", "world_map_panel")
+	_add_tab_button(world_section, "地块", "region_governance_panel")
+
+	var people_section: VBoxContainer = _add_command_section(command_box, "人物势力")
+	_add_tab_button(people_section, "人物", "character_browser_panel")
+	_add_tab_button(people_section, "势力", "faction_browser_panel")
+	_add_tab_button(people_section, "关系", "relationship_panel")
+	_add_tab_button(people_section, "变量", "statecraft_panel")
+
+	var archive_section: VBoxContainer = _add_command_section(command_box, "档案系统")
+	_add_tab_button(archive_section, "奏疏来文", "communication_panel")
+	_add_tab_button(archive_section, "史官实录", "chronicle_panel")
+	_add_tab_button(archive_section, "月报", "monthly_report_panel")
+	_add_tab_button(archive_section, "存档", "save_slot_panel")
+	_add_tab_button(archive_section, "系统", "system_panel")
 
 	var save_row: HBoxContainer = HBoxContainer.new()
 	save_row.add_theme_constant_override("separation", 8)
-	command_box.add_child(save_row)
+	archive_section.add_child(save_row)
 
-	var save_button: Button = Button.new()
-	save_button.text = "暂存"
-	save_button.custom_minimum_size.y = 30
-	save_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var save_button: Button = TianmingUiScript.create_command_button("暂存")
 	save_button.pressed.connect(func() -> void:
 		emit_signal("save_requested")
 	)
 	save_row.add_child(save_button)
 
-	quick_load_button = Button.new()
-	quick_load_button.text = "读取"
-	quick_load_button.custom_minimum_size.y = 30
-	quick_load_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	quick_load_button = TianmingUiScript.create_command_button("读取")
 	quick_load_button.disabled = true
 	quick_load_button.pressed.connect(func() -> void:
 		emit_signal("load_requested")
 	)
 	save_row.add_child(quick_load_button)
 
-	var next_button: Button = Button.new()
-	next_button.text = "下一月"
-	next_button.custom_minimum_size.y = 34
-	next_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var time_section: VBoxContainer = _add_command_section(command_box, "时序处置")
+	var next_button: Button = TianmingUiScript.create_command_button("下一月", 34, true)
 	next_button.pressed.connect(func() -> void:
 		emit_signal("advance_month_requested")
 	)
-	command_box.add_child(next_button)
+	time_section.add_child(next_button)
 
-	report_label = _make_label("", 13, Color(0.76, 0.68, 0.54))
-	report_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root.add_child(report_label)
-
-	history_label = _make_label("", 12, Color(0.62, 0.58, 0.50))
-	history_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root.add_child(history_label)
+	report_label = _add_log_strip(root, "月报", "gold")
+	history_label = _add_log_strip(root, "近期", "muted")
 	set_snapshot({})
 
 func set_snapshot(snapshot: Dictionary) -> void:
@@ -162,11 +132,15 @@ func set_snapshot(snapshot: Dictionary) -> void:
 		date_label.text = "未载入"
 		resource_label.text = ""
 		authority_label.text = ""
+		if status_row != null:
+			status_row.visible = false
 		_set_agenda([])
 		report_label.text = ""
 		history_label.text = ""
 		_set_quick_load_enabled(false)
 		return
+	if status_row != null:
+		status_row.visible = true
 
 	date_label.text = "%s  ·  行动点 %d" % [
 		str(snapshot.get("date", "")),
@@ -213,12 +187,13 @@ func visible_text() -> String:
 func _set_agenda(items: Array) -> void:
 	for child in agenda_box.get_children():
 		child.queue_free()
-	agenda_box.add_child(_make_label("本回合待办", 16, Color(0.88, 0.72, 0.42)))
+	agenda_box.add_child(TianmingUiScript.create_section_title("本回合待办"))
 	if items.is_empty():
-		agenda_box.add_child(_make_label("暂无紧急奏报。", 14, Color(0.82, 0.78, 0.68)))
+		agenda_box.add_child(TianmingUiScript.create_notice_row("暂无紧急奏报。", "success"))
 		return
 	for raw in items:
-		agenda_box.add_child(_make_label("· %s" % str(raw), 14, Color(0.86, 0.80, 0.68)))
+		var text: String = str(raw)
+		agenda_box.add_child(TianmingUiScript.create_notice_row(text, _notice_tone_for_text(text)))
 
 func _set_quick_load_enabled(enabled: bool) -> void:
 	if quick_load_button != null:
@@ -237,14 +212,35 @@ func _node_text(node: Node) -> String:
 	return "\n".join(lines)
 
 func _add_tab_button(parent: VBoxContainer, button_text: String, panel_key: String) -> void:
-	var button: Button = Button.new()
-	button.text = button_text
-	button.custom_minimum_size.y = 30
-	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var button: Button = TianmingUiScript.create_command_button(button_text)
 	button.pressed.connect(func() -> void:
 		emit_signal("tab_requested", panel_key)
 	)
 	parent.add_child(button)
+
+func _add_command_section(parent: VBoxContainer, title_text: String) -> VBoxContainer:
+	var section: PanelContainer = TianmingUiScript.create_command_section(title_text)
+	parent.add_child(section)
+	return section.find_child("CommandSectionBody", true, false) as VBoxContainer
+
+func _add_status_chip(parent: Control, tone: String) -> Label:
+	var chip: PanelContainer = TianmingUiScript.create_status_chip("", tone)
+	parent.add_child(chip)
+	return chip.find_child("StatusChipLabel", true, false) as Label
+
+func _add_log_strip(parent: Control, title_text: String, tone: String) -> Label:
+	var strip: PanelContainer = TianmingUiScript.create_log_strip(title_text, "", tone)
+	parent.add_child(strip)
+	return strip.find_child("LogStripValue", true, false) as Label
+
+func _notice_tone_for_text(text: String) -> String:
+	if text.contains("告急") or text.contains("紧急") or text.contains("起义") or text.contains("军饷") or text.contains("流民") or text.contains("叛") or text.contains("警"):
+		return "danger"
+	if text.contains("待议") or text.contains("建议") or text.contains("奏疏") or text.contains("来文"):
+		return "important"
+	if text.contains("暂存") or text.contains("行动点"):
+		return "success"
+	return "neutral"
 
 func _make_label(text: String, font_size: int, color: Color) -> Label:
 	var label: Label = Label.new()

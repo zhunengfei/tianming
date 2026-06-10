@@ -28,6 +28,12 @@ func _ready() -> void:
 	if not bool(load_result.get("missing", false)):
 		_fail("Load request on an empty slot did not report missing")
 		return
+	if str(load_result.get("error", "")) != "该槽位暂无存档。":
+		_fail("Load request on an empty slot returned unreadable missing-slot text")
+		return
+	if not str(panel.call("visible_text")).contains("该槽位暂无存档。"):
+		_fail("Load request missing-slot status was not visible")
+		return
 	if not loaded_slots.is_empty():
 		_fail("Load request on an empty slot emitted a load signal")
 		return
@@ -39,6 +45,12 @@ func _ready() -> void:
 		return
 	if not bool(delete_result.get("missing", false)):
 		_fail("Delete request on an empty slot did not report missing")
+		return
+	if str(delete_result.get("error", "")) != "该槽位暂无存档。":
+		_fail("Delete request on an empty slot returned unreadable missing-slot text")
+		return
+	if not str(panel.call("visible_text")).contains("该槽位暂无存档。"):
+		_fail("Delete request missing-slot status was not visible")
 		return
 	if not deleted_slots.is_empty():
 		_fail("Delete request on an empty slot emitted a delete signal")

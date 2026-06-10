@@ -2,6 +2,8 @@ extends PanelContainer
 
 class_name EventQueuePanel
 
+const TianmingUiScript := preload("res://scripts/tianming_ui.gd")
+
 signal event_resolve_requested(event_id: String, choice_index: int)
 
 var events_box: VBoxContainer
@@ -9,8 +11,11 @@ var title_label: Label
 var meta_label: Label
 var body_label: Label
 var effect_label: Label
+var detail_box: VBoxContainer
 var choices_box: VBoxContainer
 var history_label: Label
+var history_box: VBoxContainer
+var history_empty_state: PanelContainer
 var selected_event_id: String = ""
 var current_event_queue: Array = []
 var current_resolved_events: Array = []
@@ -33,11 +38,12 @@ func _ready() -> void:
 	var left: VBoxContainer = VBoxContainer.new()
 	left.custom_minimum_size.x = 360
 	left.add_theme_constant_override("separation", 8)
-	root.add_child(left)
-	left.add_child(_make_text_label("待议事件", 20, Color(0.88, 0.72, 0.42)))
-	var event_scroll: ScrollContainer = ScrollContainer.new()
-	event_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	event_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var left_panel: PanelContainer = TianmingUiScript.create_content_panel(left, Vector4(10, 10, 10, 10))
+	left_panel.custom_minimum_size.x = 380
+	left_panel.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	root.add_child(left_panel)
+	left.add_child(TianmingUiScript.create_panel_header("待议事件", _make_text_label("事件队列与处置选项", 13, Color(0.72, 0.64, 0.50))))
+	var event_scroll: ScrollContainer = TianmingUiScript.create_scroll_area()
 	left.add_child(event_scroll)
 	events_box = VBoxContainer.new()
 	events_box.add_theme_constant_override("separation", 4)
@@ -47,22 +53,39 @@ func _ready() -> void:
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right.add_theme_constant_override("separation", 9)
-	root.add_child(right)
+	root.add_child(TianmingUiScript.create_content_panel(right, Vector4(10, 10, 10, 10)))
 
 	title_label = _make_label(21, Color(0.88, 0.72, 0.42))
+	title_label.visible = false
 	right.add_child(title_label)
 	meta_label = _make_label(13, Color(0.72, 0.62, 0.44))
+	meta_label.visible = false
 	right.add_child(meta_label)
 	body_label = _make_label(14, Color(0.90, 0.86, 0.75))
 	body_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body_label.visible = false
 	right.add_child(body_label)
 	effect_label = _make_label(13, Color(0.82, 0.76, 0.64))
+	effect_label.visible = false
 	right.add_child(effect_label)
+	right.add_child(TianmingUiScript.create_section_title("事件详情"))
+	detail_box = VBoxContainer.new()
+	detail_box.add_theme_constant_override("separation", 6)
+	right.add_child(detail_box)
+	right.add_child(TianmingUiScript.create_section_title("处置选项"))
 	choices_box = VBoxContainer.new()
 	choices_box.add_theme_constant_override("separation", 6)
 	right.add_child(choices_box)
+	right.add_child(TianmingUiScript.create_section_title("处置记录"))
+	history_empty_state = TianmingUiScript.create_empty_state("已处理：无", "muted")
+	right.add_child(history_empty_state)
 	history_label = _make_label(12, Color(0.62, 0.58, 0.50))
+	history_label.visible = false
 	right.add_child(history_label)
+	history_box = VBoxContainer.new()
+	history_box.add_theme_constant_override("separation", 8)
+	history_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right.add_child(history_box)
 	set_events([], [])
 
 func set_events(event_queue: Array, resolved_events: Array) -> void:
@@ -88,9 +111,11 @@ func select_event(event_id: String) -> void:
 
 func visible_text() -> String:
 	var event: Dictionary = _selected_event()
-	return "事件\n%s\n%s\n%s" % [
+	return "事件\n%s\n%s\n%s\n%s\n%s" % [
 		str(event.get("name", "")),
+		_event_meta_text(event),
 		str(event.get("narrative", event.get("description", ""))),
+		_event_effect_text(event),
 		_history_text()
 	]
 
@@ -99,14 +124,15 @@ func _refresh_event_list() -> void:
 		return
 	_clear_box(events_box)
 	if current_event_queue.is_empty():
-		events_box.add_child(_make_text_label("暂无待议事件", 14, Color(0.72, 0.66, 0.52)))
+		events_box.add_child(TianmingUiScript.create_empty_state("暂无待议事件。", "muted"))
 		return
 	for raw in current_event_queue:
 		var event: Dictionary = _dict(raw)
 		var event_id: String = str(event.get("id", ""))
 		if event_id.is_empty():
 			continue
-		var button: Button = Button.new()
+		var button: Button = TianmingUiScript.create_list_row_button("event_queue_event", 58)
+		button.set_meta("tianming_event_queue_event_id", event_id)
 		button.text = "%s\n%s · %s · 第%d回合" % [
 			str(event.get("name", "未命名事件")),
 			str(event.get("source", "")),
@@ -115,7 +141,7 @@ func _refresh_event_list() -> void:
 		]
 		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		button.modulate = Color(1.0, 0.86, 0.55, 1.0) if event_id == selected_event_id else Color.WHITE
+		TianmingUiScript.set_list_row_button_selected(button, event_id == selected_event_id)
 		button.pressed.connect(func() -> void:
 			select_event(event_id)
 		)
@@ -125,24 +151,31 @@ func _refresh_detail() -> void:
 	if choices_box == null:
 		return
 	_clear_box(choices_box)
+	_clear_box(detail_box)
 	var event: Dictionary = _selected_event()
 	if event.is_empty():
 		title_label.text = "事件"
 		meta_label.text = "暂无待议事件"
 		body_label.text = "推进月份后，到期的天象、政务、军务、灾异等事件会进入这里。"
 		effect_label.text = ""
+		if detail_box != null:
+			detail_box.add_child(TianmingUiScript.create_empty_state("暂无待议事件。", "muted"))
+			detail_box.add_child(TianmingUiScript.create_log_strip("提示", body_label.text, "muted"))
+		choices_box.add_child(TianmingUiScript.create_empty_state("暂无处置选项。", "muted"))
 		history_label.text = _history_text()
+		_refresh_history_surface()
 		return
 
 	var event_id: String = str(event.get("id", ""))
 	title_label.text = str(event.get("name", "未命名事件"))
-	meta_label.text = "%s · %s · 第%d回合入队" % [
-		str(event.get("source", "")),
-		str(event.get("type", "")),
-		int(_num(event.get("queued_turn", 0)))
-	]
+	meta_label.text = _event_meta_text(event)
 	body_label.text = str(event.get("narrative", event.get("description", "")))
-	effect_label.text = "效果：%s" % str(event.get("effect", ""))
+	effect_label.text = _event_effect_text(event)
+	if detail_box != null:
+		detail_box.add_child(TianmingUiScript.create_log_strip("事件", title_label.text, "gold"))
+		detail_box.add_child(TianmingUiScript.create_log_strip("来源", meta_label.text, "neutral"))
+		detail_box.add_child(TianmingUiScript.create_log_strip("影响", effect_label.text, "jade" if not effect_label.text.is_empty() else "muted"))
+		detail_box.add_child(TianmingUiScript.create_log_strip("正文", body_label.text, "muted"))
 
 	var choices: Array = _array(event.get("choices", []))
 	if choices.is_empty():
@@ -154,11 +187,39 @@ func _refresh_detail() -> void:
 			var effect_text: String = str(choice.get("effect", ""))
 			_add_choice_button("%s  %s" % [text, effect_text], event_id, i)
 	history_label.text = _history_text()
+	_refresh_history_surface()
+
+func _refresh_history_surface() -> void:
+	if history_label == null:
+		return
+	_clear_box(history_box)
+	var is_empty: bool = current_resolved_events.is_empty()
+	history_label.visible = false
+	if history_box != null:
+		history_box.visible = not is_empty
+	if history_empty_state != null:
+		history_empty_state.visible = is_empty
+	if is_empty:
+		return
+	for raw in current_resolved_events:
+		_add_history_row(_dict(raw))
+
+func _add_history_row(event: Dictionary) -> void:
+	var box: VBoxContainer = VBoxContainer.new()
+	box.add_theme_constant_override("separation", 5)
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	history_box.add_child(TianmingUiScript.create_content_panel(box, Vector4(8, 7, 8, 7)))
+
+	box.add_child(TianmingUiScript.create_log_strip("事件", _resolved_event_heading(event), "gold"))
+	var choice_text: String = str(event.get("choice_text", "")).strip_edges()
+	if not choice_text.is_empty():
+		box.add_child(TianmingUiScript.create_log_strip("选择", choice_text, "jade"))
+	var effect_text: String = _applied_effects_text(_dict(event.get("applied_effects", {})))
+	if not effect_text.is_empty():
+		box.add_child(TianmingUiScript.create_log_strip("影响", effect_text, "neutral"))
 
 func _add_choice_button(text: String, event_id: String, choice_index: int) -> void:
-	var button: Button = Button.new()
-	button.text = text
-	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var button: Button = TianmingUiScript.create_command_button(text, 34, true)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.pressed.connect(func() -> void:
 		emit_signal("event_resolve_requested", event_id, choice_index)
@@ -168,6 +229,21 @@ func _add_choice_button(text: String, event_id: String, choice_index: int) -> vo
 func _selected_event() -> Dictionary:
 	return _event_by_id(selected_event_id)
 
+func _event_meta_text(event: Dictionary) -> String:
+	if event.is_empty():
+		return ""
+	return "%s · %s · 第%d回合入队" % [
+		str(event.get("source", "")),
+		str(event.get("type", "")),
+		int(_num(event.get("queued_turn", 0)))
+	]
+
+func _event_effect_text(event: Dictionary) -> String:
+	if event.is_empty():
+		return ""
+	var text: String = str(event.get("effect", "")).strip_edges()
+	return text if not text.is_empty() else "暂无直接影响"
+
 func _event_by_id(event_id: String) -> Dictionary:
 	for raw in current_event_queue:
 		var event: Dictionary = _dict(raw)
@@ -176,6 +252,8 @@ func _event_by_id(event_id: String) -> Dictionary:
 	return {}
 
 func _clear_box(box: BoxContainer) -> void:
+	if box == null:
+		return
 	for child in box.get_children():
 		box.remove_child(child)
 		child.queue_free()
@@ -192,10 +270,7 @@ func _history_text() -> String:
 
 func _resolved_event_text(event: Dictionary) -> String:
 	var parts: PackedStringArray = PackedStringArray()
-	parts.append("第%d回合 · %s" % [
-		int(_num(event.get("resolved_turn", event.get("queued_turn", 0)))),
-		str(event.get("name", event.get("id", "已处理事件")))
-	])
+	parts.append(_resolved_event_heading(event))
 	var choice_text: String = str(event.get("choice_text", "")).strip_edges()
 	if not choice_text.is_empty():
 		parts.append("选择：%s" % choice_text)
@@ -203,6 +278,12 @@ func _resolved_event_text(event: Dictionary) -> String:
 	if not effect_text.is_empty():
 		parts.append("影响：%s" % effect_text)
 	return "\n".join(parts)
+
+func _resolved_event_heading(event: Dictionary) -> String:
+	return "第%d回合 · %s" % [
+		int(_num(event.get("resolved_turn", event.get("queued_turn", 0)))),
+		str(event.get("name", event.get("id", "已处理事件")))
+	]
 
 func _applied_effects_text(applied_effects: Dictionary) -> String:
 	var parts: PackedStringArray = PackedStringArray()

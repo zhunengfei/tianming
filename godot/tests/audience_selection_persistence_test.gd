@@ -22,6 +22,11 @@ func _ready() -> void:
 	if character_select == null or topic_select == null:
 		_fail("Audience panel does not expose character and topic selectors")
 		return
+	if main.has_method("select_runtime_panel"):
+		if not bool(main.call("select_runtime_panel", "audience_panel")):
+			_fail("Main scene rejected audience panel selection")
+			return
+		await get_tree().process_frame
 	if character_select.item_count < 2 or topic_select.item_count < 2:
 		_fail("Audience selection persistence test requires at least two characters and two topics")
 		return

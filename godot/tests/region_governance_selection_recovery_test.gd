@@ -17,6 +17,11 @@ func _ready() -> void:
 		_fail("Main scene did not initialize GameState")
 		return
 
+	if not bool(main.call("select_runtime_panel", "region_governance_panel")):
+		_fail("Main scene could not activate the region governance panel")
+		return
+	await get_tree().process_frame
+
 	var removed_region_id: String = str(panel.get("selected_region_id"))
 	if removed_region_id.is_empty():
 		_fail("Region governance panel did not select an initial region")
