@@ -951,11 +951,11 @@ function openWentian() {
     + '<button class="bt bsm" onclick="_wtImportDoc()" title="\u5BFC\u5165\u6587\u6863\u4F5C\u4E3A\u63A8\u6F14\u4E0A\u4E0B\u6587">\u5BFC\u5165\u6587\u6863</button>'
     + '<button class="bt bsm" onclick="_wtImportMemory()" title="\u5BFC\u5165\u5BF9\u8BDD\u8BB0\u5F55\u4F5C\u4E3ANPC\u8BB0\u5FC6">\u6CE8\u5165\u8BB0\u5FC6</button>'
     + '<button class="bt bsm" style="color:var(--vermillion-400);" onclick="_wtClearDirectives()" title="\u6E05\u9664\u6240\u6709\u73A9\u5BB6\u6307\u4EE4">\u6E05\u9664\u6307\u4EE4</button>'
-    + '<span style="margin-left:auto;font-size:0.6rem;color:var(--ink-300);">\u6307\u4EE4' + GM._playerDirectives.length + ' \u8BB0\u5FC6' + GM._importedMemories.length + '</span>'
+    + '<span style="margin-left:auto;font-size:0.66rem;color:var(--ink-300);">\u6307\u4EE4' + GM._playerDirectives.length + ' \u8BB0\u5FC6' + GM._importedMemories.length + '</span>'
     + '</div>'
     // 类别选择器（6 按钮·单选·默认自动）
     + '<div id="wt-cat-bar" style="display:flex;gap:4px;margin-bottom:var(--space-1);flex-wrap:wrap;">'
-    + '<span style="font-size:0.6rem;color:var(--ink-300);align-self:center;margin-right:2px;">\u5206\u7C7B\uFF1A</span>'
+    + '<span style="font-size:0.66rem;color:var(--ink-300);align-self:center;margin-right:2px;">\u5206\u7C7B\uFF1A</span>'
     + '<button class="wt-cat-btn" data-cat="" onclick="_wtPickCat(\'\')" title="\u9ED8\u8BA4\u7531 AI \u81EA\u52A8\u5224\u5B9A">\u81EA\u52A8</button>'
     + '<button class="wt-cat-btn" data-cat="narrative" onclick="_wtPickCat(\'narrative\')" title="\u53D9\u4E8B\u63A7\u5236\uFF1A\u4FDD\u62A4\u67D0\u4EBA\u00B7\u4FC3\u67D0\u4E8B\u00B7AI \u884C\u4E3A\u7EA6\u675F">\u53D9\u4E8B</button>'
     + '<button class="wt-cat-btn" data-cat="setting" onclick="_wtPickCat(\'setting\')" title="\u80CC\u666F\u8BBE\u5B9A\uFF1A\u6CE8\u5165\u5267\u672C\u80CC\u666F\u6216\u72B6\u6001">\u8BBE\u5B9A</button>'
@@ -973,7 +973,7 @@ function openWentian() {
   if (!_cStyle) {
     _cStyle = document.createElement('style');
     _cStyle.id = '_wtCatStyle';
-    _cStyle.textContent = '.wt-cat-btn{padding:2px 8px;font-size:0.62rem;background:rgba(184,154,83,0.06);border:1px solid rgba(184,154,83,0.25);color:var(--ink-300);border-radius:3px;cursor:pointer;font-family:inherit;letter-spacing:0.05em;transition:all 0.15s;}'
+    _cStyle.textContent = '.wt-cat-btn{padding:2px 8px;font-size:0.68rem;background:rgba(184,154,83,0.06);border:1px solid rgba(184,154,83,0.25);color:var(--ink-300);border-radius:3px;cursor:pointer;font-family:inherit;letter-spacing:0.05em;transition:all 0.15s;}'
       + '.wt-cat-btn:hover{border-color:var(--gold-400);color:var(--gold-300);}'
       + '.wt-cat-btn.sel{background:linear-gradient(135deg,rgba(184,154,83,0.22),rgba(140,109,43,0.12));border-color:var(--gold-400);color:var(--gold-300);box-shadow:inset 0 0 6px rgba(184,154,83,0.15);}'
       + '.wt-cat-btn[data-cat="absolute"].sel{background:linear-gradient(135deg,#8e6aa8,#b08bc8);border-color:#b08bc8;color:#fff;}'
@@ -1009,19 +1009,19 @@ function _wtRenderHistory() {
   html += '<div style="text-align:center;font-size:0.72rem;color:var(--ink-300);padding:0.5rem;margin-bottom:0.5rem;">\u95EE\u5929\u7CFB\u7EDF\u2014\u2014AI \u4F1A\u89E3\u8BFB\u4F60\u7684\u6307\u4EE4\u00B7\u786E\u8BA4\u540E\u5165\u5E93\u00B7\u6BCF\u56DE\u5408\u56DE\u62A5\u6267\u884C\u72B6\u51B5</div>';
   // 已有指令（带状态 chip）
   if (GM._playerDirectives && GM._playerDirectives.length > 0) {
-    html += '<div style="font-size:0.65rem;color:var(--gold-400);margin-bottom:var(--space-1);">\u6D3B\u8DC3\u6307\u4EE4 (' + GM._playerDirectives.length + ')</div>';
+    html += '<div style="font-size:0.7rem;color:var(--gold-400);margin-bottom:var(--space-1);">\u6D3B\u8DC3\u6307\u4EE4 (' + GM._playerDirectives.length + ')</div>';
     GM._playerDirectives.forEach(function(d, i) {
       var statusChip = '';
-      if (d._lastStatus === 'followed') statusChip = '<span style="display:inline-block;padding:1px 5px;background:rgba(126,184,167,0.2);color:var(--celadon-400);border-radius:2px;font-size:0.55rem;margin-left:4px;">\u5DF2\u9075</span>';
-      else if (d._lastStatus === 'partial') statusChip = '<span style="display:inline-block;padding:1px 5px;background:rgba(201,168,76,0.2);color:var(--amber-400);border-radius:2px;font-size:0.55rem;margin-left:4px;" title="' + escHtml(d._lastReason||'') + '">\u90E8\u5206</span>';
-      else if (d._lastStatus === 'ignored') statusChip = '<span style="display:inline-block;padding:1px 5px;background:rgba(192,64,48,0.25);color:#fef4e8;border-radius:2px;font-size:0.55rem;margin-left:4px;" title="' + escHtml(d._lastReason||'') + '">\u2757\u5FFD\u7565\u00D7' + (d._ignoredCount||1) + '</span>';
-      else if (d._lastStatus === 'unchecked') statusChip = '<span style="display:inline-block;padding:1px 5px;background:rgba(157,145,125,0.15);color:var(--ink-300);border-radius:2px;font-size:0.55rem;margin-left:4px;">\u672A\u6838</span>';
-      else statusChip = '<span style="display:inline-block;padding:1px 5px;background:rgba(184,154,83,0.12);color:var(--gold-300);border-radius:2px;font-size:0.55rem;margin-left:4px;">\u65B0\u5F55</span>';
+      if (d._lastStatus === 'followed') statusChip = '<span style="display:inline-block;padding:1px 5px;background:rgba(126,184,167,0.2);color:var(--celadon-400);border-radius:2px;font-size:0.62rem;margin-left:4px;">\u5DF2\u9075</span>';
+      else if (d._lastStatus === 'partial') statusChip = '<span style="display:inline-block;padding:1px 5px;background:rgba(201,168,76,0.2);color:var(--amber-400);border-radius:2px;font-size:0.62rem;margin-left:4px;" title="' + escHtml(d._lastReason||'') + '">\u90E8\u5206</span>';
+      else if (d._lastStatus === 'ignored') statusChip = '<span style="display:inline-block;padding:1px 5px;background:rgba(192,64,48,0.25);color:#fef4e8;border-radius:2px;font-size:0.62rem;margin-left:4px;" title="' + escHtml(d._lastReason||'') + '">\u2757\u5FFD\u7565\u00D7' + (d._ignoredCount||1) + '</span>';
+      else if (d._lastStatus === 'unchecked') statusChip = '<span style="display:inline-block;padding:1px 5px;background:rgba(157,145,125,0.15);color:var(--ink-300);border-radius:2px;font-size:0.62rem;margin-left:4px;">\u672A\u6838</span>';
+      else statusChip = '<span style="display:inline-block;padding:1px 5px;background:rgba(184,154,83,0.12);color:var(--gold-300);border-radius:2px;font-size:0.62rem;margin-left:4px;">\u65B0\u5F55</span>';
       var borderCol = d._absolute ? '#b08bc8' : d._lastStatus === 'ignored' ? 'var(--vermillion-400)' : d._lastStatus === 'partial' ? 'var(--amber-400)' : d._lastStatus === 'followed' ? 'var(--celadon-400)' : 'var(--gold-400)';
-      var absChip = d._absolute ? '<span style="display:inline-block;padding:1px 6px;background:linear-gradient(135deg,#8e6aa8,#b08bc8);color:#fff;border-radius:2px;font-size:0.55rem;margin-left:4px;font-weight:700;">\u2605\u5929\u610F</span>' : '';
+      var absChip = d._absolute ? '<span style="display:inline-block;padding:1px 6px;background:linear-gradient(135deg,#8e6aa8,#b08bc8);color:#fff;border-radius:2px;font-size:0.62rem;margin-left:4px;font-weight:700;">\u2605\u5929\u610F</span>' : '';
       html += '<div style="display:flex;justify-content:flex-end;margin-bottom:0.4rem;">';
       html += '<div style="max-width:85%;background:var(--color-accent-subtle);border-right:3px solid ' + borderCol + ';border-radius:var(--radius-md) 2px 2px var(--radius-md);padding:0.4rem 0.6rem;font-size:var(--text-xs);">';
-      html += '<div style="font-size:0.6rem;color:var(--gold-400);margin-bottom:2px;">T' + (d.turn||'?') + ' ' + (d.type === 'rule' ? '\u89C4\u5219' : d.type === 'correction' ? '\u7EA0\u6B63' : d.type === 'content' ? '\u5185\u5BB9' : '\u6307\u4EE4') + absChip + statusChip + '</div>';
+      html += '<div style="font-size:0.66rem;color:var(--gold-400);margin-bottom:2px;">T' + (d.turn||'?') + ' ' + (d.type === 'rule' ? '\u89C4\u5219' : d.type === 'correction' ? '\u7EA0\u6B63' : d.type === 'content' ? '\u5185\u5BB9' : '\u6307\u4EE4') + absChip + statusChip + '</div>';
       html += escHtml(d.content);
       if (d.structured) {
         var sParts = [];
@@ -1029,20 +1029,20 @@ function _wtRenderHistory() {
         if (d.structured.action) sParts.push('\u52A8\u4F5C:' + d.structured.action);
         if (d.structured.scope) sParts.push('\u8303\u56F4:' + d.structured.scope);
         if (d.structured.forbidden) sParts.push('\u7981:' + d.structured.forbidden);
-        if (sParts.length > 0) html += '<div style="font-size:0.55rem;color:var(--ink-300);margin-top:2px;font-style:italic;">' + escHtml(sParts.join(' \u00B7 ')) + '</div>';
+        if (sParts.length > 0) html += '<div style="font-size:0.62rem;color:var(--ink-300);margin-top:2px;font-style:italic;">' + escHtml(sParts.join(' \u00B7 ')) + '</div>';
       }
-      if (d._lastEvidence) html += '<div style="font-size:0.55rem;color:var(--celadon-400);margin-top:2px;">\u4E0A\u56DE\u5408\u6267\u884C\uFF1A' + escHtml(d._lastEvidence.slice(0, 60)) + '</div>';
-      html += '<button style="font-size:0.55rem;color:var(--vermillion-400);background:none;border:none;cursor:pointer;margin-left:4px;" onclick="GM._playerDirectives.splice(' + i + ',1);_wtRenderHistory();">\u2715</button>';
+      if (d._lastEvidence) html += '<div style="font-size:0.62rem;color:var(--celadon-400);margin-top:2px;">\u4E0A\u56DE\u5408\u6267\u884C\uFF1A' + escHtml(d._lastEvidence.slice(0, 60)) + '</div>';
+      html += '<button style="font-size:0.62rem;color:var(--vermillion-400);background:none;border:none;cursor:pointer;margin-left:4px;" onclick="GM._playerDirectives.splice(' + i + ',1);_wtRenderHistory();">\u2715</button>';
       html += '</div></div>';
     });
   }
   // 已导入记忆
   if (GM._importedMemories && GM._importedMemories.length > 0) {
-    html += '<div style="font-size:0.65rem;color:var(--celadon-400);margin-bottom:var(--space-1);">\u5DF2\u5BFC\u5165\u8BB0\u5FC6 (' + GM._importedMemories.length + ')</div>';
+    html += '<div style="font-size:0.7rem;color:var(--celadon-400);margin-bottom:var(--space-1);">\u5DF2\u5BFC\u5165\u8BB0\u5FC6 (' + GM._importedMemories.length + ')</div>';
     GM._importedMemories.forEach(function(m, i) {
-      html += '<div style="font-size:0.65rem;color:var(--color-foreground-muted);padding:2px 6px;background:var(--color-elevated);border-radius:3px;margin-bottom:2px;display:flex;justify-content:space-between;">';
+      html += '<div style="font-size:0.7rem;color:var(--color-foreground-muted);padding:2px 6px;background:var(--color-elevated);border-radius:3px;margin-bottom:2px;display:flex;justify-content:space-between;">';
       html += '<span>' + escHtml((m.title||'').slice(0,40) || m.content.slice(0,40)) + '\u2026</span>';
-      html += '<button style="font-size:0.55rem;color:var(--vermillion-400);background:none;border:none;cursor:pointer;" onclick="GM._importedMemories.splice(' + i + ',1);_wtRenderHistory();">\u2715</button>';
+      html += '<button style="font-size:0.62rem;color:var(--vermillion-400);background:none;border:none;cursor:pointer;" onclick="GM._importedMemories.splice(' + i + ',1);_wtRenderHistory();">\u2715</button>';
       html += '</div>';
     });
   }
@@ -1184,8 +1184,8 @@ function _wtShowPendingConfirmation() {
   box.style.cssText = 'display:flex;margin-bottom:0.5rem;';
   var h = '<div style="max-width:90%;background:linear-gradient(135deg,rgba(184,154,83,0.08),var(--color-elevated));border-left:3px solid ' + cat.color + ';border-radius:2px var(--radius-md) var(--radius-md) 2px;padding:0.5rem 0.7rem;font-size:var(--text-xs);">';
   var origin = p._forcedByPlayer ? '\u73A9\u5BB6\u6307\u5B9A' : 'AI\u81EA\u52A8';
-  h += '<div style="font-size:0.6rem;margin-bottom:4px;"><span style="color:var(--gold-400);">AI \u89E3\u8BFB \u00B7 </span><span style="color:' + cat.color + ';font-weight:700;">' + escHtml(cat.label) + '</span><span style="color:var(--ink-300);"> \u00B7 ' + escHtml(typeLabel) + ' \u00B7 ' + origin + '</span></div>';
-  h += '<div style="font-size:0.58rem;color:var(--ink-300);margin-bottom:4px;font-style:italic;">' + cat.hint + '</div>';
+  h += '<div style="font-size:0.66rem;margin-bottom:4px;"><span style="color:var(--gold-400);">AI \u89E3\u8BFB \u00B7 </span><span style="color:' + cat.color + ';font-weight:700;">' + escHtml(cat.label) + '</span><span style="color:var(--ink-300);"> \u00B7 ' + escHtml(typeLabel) + ' \u00B7 ' + origin + '</span></div>';
+  h += '<div style="font-size:0.64rem;color:var(--ink-300);margin-bottom:4px;font-style:italic;">' + cat.hint + '</div>';
   h += '<div style="color:var(--color-foreground);margin-bottom:6px;">' + escHtml(p.interpretation) + '</div>';
   // 结构化
   var sParts = [];
@@ -1197,34 +1197,34 @@ function _wtShowPendingConfirmation() {
     if (p.structured.measurable) sParts.push('<b>\u8BC4\u5224</b>\uFF1A' + escHtml(p.structured.measurable));
     if (p.structured.condition) sParts.push('<b>\u6761\u4EF6</b>\uFF1A' + escHtml(p.structured.condition));
   }
-  if (sParts.length > 0) h += '<div style="font-size:0.62rem;color:var(--ink-200);padding:4px 6px;background:rgba(10,9,8,0.35);border-radius:3px;margin-bottom:4px;">' + sParts.join('\u3000') + '</div>';
+  if (sParts.length > 0) h += '<div style="font-size:0.68rem;color:var(--ink-200);padding:4px 6px;background:rgba(10,9,8,0.35);border-radius:3px;margin-bottom:4px;">' + sParts.join('\u3000') + '</div>';
   // hardChange 预览
   if ((p.category === 'hardChange' || p.category === 'absolute') && p.hardChange && p.hardChange.path) {
     var hc = p.hardChange;
-    h += '<div style="font-size:0.62rem;color:var(--vermillion-300);padding:4px 6px;background:rgba(192,64,48,0.1);border:1px solid rgba(192,64,48,0.3);border-radius:3px;margin-bottom:4px;font-family:monospace;">\u2696\ufe0e <b>' + escHtml(hc.path) + '</b> <span style="color:var(--ink-200);">' + escHtml(hc.op||'set') + '</span> <b>' + escHtml(String(hc.value)) + '</b></div>';
+    h += '<div style="font-size:0.68rem;color:var(--vermillion-300);padding:4px 6px;background:rgba(192,64,48,0.1);border:1px solid rgba(192,64,48,0.3);border-radius:3px;margin-bottom:4px;font-family:monospace;">\u2696\ufe0e <b>' + escHtml(hc.path) + '</b> <span style="color:var(--ink-200);">' + escHtml(hc.op||'set') + '</span> <b>' + escHtml(String(hc.value)) + '</b></div>';
   }
   // edictText 预览
   if (p.category === 'edictSubstitute' && p.edictText) {
     var chLabel = {pol:'\u653F\u4E8B',mil:'\u519B\u4E8B',dip:'\u5916\u4EA4',eco:'\u7ECF\u6D4E',oth:'\u5176\u4ED6'}[p.edictChannel] || '\u653F\u4E8B';
-    h += '<div style="font-size:0.62rem;color:var(--amber-400);padding:4px 6px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);border-radius:3px;margin-bottom:4px;">\u8BCF\u4EE4\u8349\u7A3F\u00B7' + escHtml(chLabel) + '\uFF1A<span style="color:var(--color-foreground);">\u300C' + escHtml(p.edictText) + '\u300D</span></div>';
+    h += '<div style="font-size:0.68rem;color:var(--amber-400);padding:4px 6px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);border-radius:3px;margin-bottom:4px;">\u8BCF\u4EE4\u8349\u7A3F\u00B7' + escHtml(chLabel) + '\uFF1A<span style="color:var(--color-foreground);">\u300C' + escHtml(p.edictText) + '\u300D</span></div>';
   }
   // 歧义
   if (p.ambiguity && p.ambiguity.length > 0) {
-    h += '<div style="font-size:0.62rem;color:var(--amber-400);margin-bottom:4px;">\u26A0 \u6709\u6B67\u4E49\uFF1A';
+    h += '<div style="font-size:0.68rem;color:var(--amber-400);margin-bottom:4px;">\u26A0 \u6709\u6B67\u4E49\uFF1A';
     p.ambiguity.forEach(function(q){ h += '<div>\u00B7 ' + escHtml(q) + '</div>'; });
     h += '</div>';
   }
-  if (p.plan) h += '<div style="font-size:0.62rem;color:var(--celadon-400);margin-bottom:6px;font-style:italic;">\u2192 ' + escHtml(p.plan) + '</div>';
+  if (p.plan) h += '<div style="font-size:0.68rem;color:var(--celadon-400);margin-bottom:6px;font-style:italic;">\u2192 ' + escHtml(p.plan) + '</div>';
   // 按钮
   h += '<div style="display:flex;gap:6px;">';
   var confirmLbl = p.category === 'absolute' ? '\u964D \u4E0B \u5929 \u610F' : p.category === 'hardChange' ? '\u7ACB \u5373 \u5199 \u5165' : p.category === 'edictSubstitute' ? '\u586B \u5165 \u8BCF \u4EE4' : '\u786E \u8BA4 \u5165 \u5E93';
-  h += '<button class="bt bp bsm" onclick="_wtConfirmPending()" style="font-size:0.65rem;' + (p.category==='absolute'?'background:linear-gradient(135deg,#8e6aa8,#b08bc8);color:#fff;':'') + '">' + confirmLbl + '</button>';
+  h += '<button class="bt bp bsm" onclick="_wtConfirmPending()" style="font-size:0.7rem;' + (p.category==='absolute'?'background:linear-gradient(135deg,#8e6aa8,#b08bc8);color:#fff;':'') + '">' + confirmLbl + '</button>';
   // 手动升级到"至高"的开关（只在非 absolute 时显示）
   if (p.category !== 'absolute') {
-    h += '<button class="bt bsm" onclick="_wtPromoteAbsolute()" style="font-size:0.6rem;color:#b08bc8;border-color:#8e6aa8;" title="\u6807\u4E3A\u5929\u610F\u00B7\u4E16\u754C\u6CD5\u5219\u5F3A\u5236\u751F\u6548">\u2605\u6807\u4E3A\u81F3\u9AD8</button>';
+    h += '<button class="bt bsm" onclick="_wtPromoteAbsolute()" style="font-size:0.66rem;color:#b08bc8;border-color:#8e6aa8;" title="\u6807\u4E3A\u5929\u610F\u00B7\u4E16\u754C\u6CD5\u5219\u5F3A\u5236\u751F\u6548">\u2605\u6807\u4E3A\u81F3\u9AD8</button>';
   }
-  h += '<button class="bt bs bsm" onclick="_wtReviseFromPending()" style="font-size:0.65rem;">\u518D \u8BAE</button>';
-  h += '<button class="bt bs bsm" onclick="_wtCancelPending()" style="font-size:0.65rem;color:var(--vermillion-400);">\u53D6 \u6D88</button>';
+  h += '<button class="bt bs bsm" onclick="_wtReviseFromPending()" style="font-size:0.7rem;">\u518D \u8BAE</button>';
+  h += '<button class="bt bs bsm" onclick="_wtCancelPending()" style="font-size:0.7rem;color:var(--vermillion-400);">\u53D6 \u6D88</button>';
   h += '</div></div>';
   box.innerHTML = h;
   chat.appendChild(box);
@@ -2044,7 +2044,7 @@ function showCharPopup(charName, evt) {
     html += '<div style="font-size:0.78rem;color:var(--gold-400);font-weight:700;">' + escHtml(_offInfo.current.dept) + ' · ' + escHtml(_offInfo.current.pos);
     if (_offInfo.current.rank) html += ' <span style="color:' + (_rkI ? _rkI.color : 'var(--ink-300)') + ';">（' + escHtml(_offInfo.current.rank) + '）</span>';
     html += '</div>';
-    html += '<div style="font-size:0.65rem;color:var(--color-foreground-muted);">任期' + _offInfo.current.tenure + '回合';
+    html += '<div style="font-size:0.7rem;color:var(--color-foreground-muted);">任期' + _offInfo.current.tenure + '回合';
     if (_offInfo.lastEval) html += ' · 考评：' + escHtml(_offInfo.lastEval.grade||'');
     if (_offInfo.satisfaction) html += ' · ' + escHtml(_offInfo.satisfaction.label);
     html += '</div>';
@@ -2056,7 +2056,7 @@ function showCharPopup(charName, evt) {
   }
   // 仕途按钮
   if (_offInfo && _offInfo.career.length > 0) {
-    html += '<div style="margin:4px 0;"><button class="bt bsm" style="font-size:0.65rem;" onclick="_offShowCareer(\'' + escHtml(charName).replace(/'/g,"\\'") + '\')">\u67E5\u770B\u5B8C\u6574\u4ED5\u9014</button></div>';
+    html += '<div style="margin:4px 0;"><button class="bt bsm" style="font-size:0.7rem;" onclick="_offShowCareer(\'' + escHtml(charName).replace(/'/g,"\\'") + '\')">\u67E5\u770B\u5B8C\u6574\u4ED5\u9014</button></div>';
   }
   // 所在地
   if (ch.location) {

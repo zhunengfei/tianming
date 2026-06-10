@@ -778,7 +778,7 @@ function renderExaminerSelectStage(container) {
   candidates.forEach(function(c) {
     var partyTag = c.party && c.party !== '\u65E0\u515A\u6D3E' ? ' <span style="font-size:0.7rem;color:var(--purple,#8a5cf5);">\u515A:' + c.party + '</span>' : '';
     var recTag = '';
-    Object.entries(_partyRecs).forEach(function(e){ if(e[1]===c.name) recTag=' <span style="font-size:0.65rem;background:var(--purple,#8a5cf5);color:#fff;padding:0 3px;border-radius:2px;">'+e[0]+'\u63A8\u8350</span>'; });
+    Object.entries(_partyRecs).forEach(function(e){ if(e[1]===c.name) recTag=' <span style="font-size:0.7rem;background:var(--purple,#8a5cf5);color:#fff;padding:0 3px;border-radius:2px;">'+e[0]+'\u63A8\u8350</span>'; });
     html += '<div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.6rem;margin-bottom:0.3rem;background:var(--bg-3);border-radius:4px;cursor:pointer;" onclick="selectExaminer(\'' + escHtml(c.name).replace(/'/g,"\\'") + '\')">';
     html += '<strong style="flex:1;">' + escHtml(c.name) + recTag + '</strong>';
     html += '<span style="font-size:0.8rem;color:var(--txt-d);">' + (c.officialTitle||c.title||'') + ' \u667A' + (c.intelligence||0) + ' \u6CBB' + (c.administration||0) + partyTag + '</span>';

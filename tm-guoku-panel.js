@@ -55,7 +55,7 @@ function openGuokuPanel() {
   try { renderGuokuPanel(); } catch(_re) {
     console.error('[openGuokuPanel] renderGuokuPanel threw:', _re);
     var body = document.getElementById('guoku-body');
-    if (body) body.innerHTML = '<div style="padding:1rem;color:var(--vermillion-400);font-size:0.78rem;">渲染失败：' + (_re.message||_re) + '</div><pre style="font-size:0.62rem;color:var(--color-foreground-muted);white-space:pre-wrap;padding:0.5rem;">' + (_re.stack||'') + '</pre>';
+    if (body) body.innerHTML = '<div style="padding:1rem;color:var(--vermillion-400);font-size:0.78rem;">渲染失败：' + (_re.message||_re) + '</div><pre style="font-size:0.68rem;color:var(--color-foreground-muted);white-space:pre-wrap;padding:0.5rem;">' + (_re.stack||'') + '</pre>';
   }
 }
 
@@ -305,7 +305,7 @@ function renderGuokuPanel() {
         } else if (ctMeta.nominalAmount != null) {
           nominalDesc = '法定 ' + _guokuFmt(ctMeta.nominalAmount) + '/年';
         }
-        html += '<div class="tr-flow-tops" style="font-size:0.66rem;color:var(--txt-d);padding-left:14px;">'+
+        html += '<div class="tr-flow-tops" style="font-size:0.7rem;color:var(--txt-d);padding-left:14px;">'+
                   '<span style="color:var(--gold-d);">' + nominalDesc + '</span>' +
                   '<span style="color:var(--vermillion-400);margin:0 6px;">▸ 侵占 ' + occPct + '%</span>' +
                   '<span style="color:var(--celadon-400);">▸ 实收 ' + _guokuFmt(val) + '</span>' +
@@ -527,7 +527,7 @@ function renderGuokuPanel() {
       }
     });
     if (blocked.length > 0) {
-      html += '<details style="margin-top:4px;font-size:0.66rem;color:var(--ink-300);">' +
+      html += '<details style="margin-top:4px;font-size:0.7rem;color:var(--ink-300);">' +
         '<summary style="cursor:pointer;letter-spacing:0.05em;">未达条件 (' + blocked.length + ')</summary>';
       blocked.forEach(function(b) {
         var r = GuokuEngine.FISCAL_REFORMS[b.id];
@@ -612,21 +612,21 @@ function renderGuokuPanel() {
       html += '</div>';
       if (y.byRegion && Object.keys(y.byRegion).length > 0) {
         html += '<div id="' + yId + '" style="display:none;padding:4px 10px 8px;background:rgba(0,0,0,0.12);border-radius:0 0 4px 4px;margin-top:-4px;margin-bottom:4px;">';
-        html += '<div style="font-size:0.66rem;color:var(--ink-300);padding:3px 0;letter-spacing:0.05em;">地域分账（本年累计）</div>';
+        html += '<div style="font-size:0.7rem;color:var(--ink-300);padding:3px 0;letter-spacing:0.05em;">地域分账（本年累计）</div>';
         var regionList = Object.keys(y.byRegion).map(function(rid) {
           return { id: rid, data: y.byRegion[rid] };
         }).sort(function(a, b) { return (b.data.net || 0) - (a.data.net || 0); });
         regionList.slice(0, 8).forEach(function(r) {
           var d = r.data;
           var rNetCls = d.net >= 0 ? 'delta-up' : 'delta-down';
-          html += '<div style="display:flex;justify-content:space-between;font-size:0.66rem;padding:2px 4px;color:var(--ink-200);">'+
+          html += '<div style="display:flex;justify-content:space-between;font-size:0.7rem;padding:2px 4px;color:var(--ink-200);">'+
             '<span>' + _escHtml(d.name || r.id) + '</span>'+
             '<span style="color:var(--ink-300);">入 ' + _guokuFmt(d.cumIn) + ' · 出 ' + _guokuFmt(d.cumOut) + '</span>'+
             '<span class="' + rNetCls + '">' + (d.net >= 0 ? '+' : '') + _guokuFmt(d.net) + '</span>'+
             '</div>';
         });
         if (regionList.length > 8) {
-          html += '<div style="font-size:0.6rem;color:var(--ink-400);text-align:center;margin-top:2px;">… 另 ' + (regionList.length - 8) + ' 区</div>';
+          html += '<div style="font-size:0.66rem;color:var(--ink-400);text-align:center;margin-top:2px;">… 另 ' + (regionList.length - 8) + ' 区</div>';
         }
         html += '</div>';
       }

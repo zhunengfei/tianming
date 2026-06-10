@@ -1888,14 +1888,14 @@ function renderBattleConfigEditor(containerId) {
 
   // 兵种定义
   html += '<div class="cd" style="margin-top:10px"><h4>🗡 兵种定义</h4>';
-  html += '<div style="font-size:11px;color:var(--txt-d);margin-bottom:6px">自定义本朝代兵种。留空则使用默认7兵种（步兵/骑兵/弓箭手/长矛兵/弩兵/重骑兵/攻城器械）</div>';
+  html += '<div style="font-size:12px;color:var(--txt-d);margin-bottom:6px">自定义本朝代兵种。留空则使用默认7兵种（步兵/骑兵/弓箭手/长矛兵/弩兵/重骑兵/攻城器械）</div>';
 
   var units = bc.unitTypes || [];
   if (units.length > 0) {
     units.forEach(function(u, i) {
       html += '<div style="border:1px solid var(--bg-4);border-radius:4px;padding:6px 8px;margin-bottom:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">';
       html += '<b style="min-width:60px">' + escHtml(u.name||u.id) + '</b>';
-      html += '<span style="font-size:11px;color:var(--txt-d)">攻'+( u.attack||0)+' 防'+(u.defense||0)+' 速'+(u.speed||0)+' 攻城'+(u.siegeValue||0)+' 费'+(u.baseCost||0)+'</span>';
+      html += '<span style="font-size:12px;color:var(--txt-d)">攻'+( u.attack||0)+' 防'+(u.defense||0)+' 速'+(u.speed||0)+' 攻城'+(u.siegeValue||0)+' 费'+(u.baseCost||0)+'</span>';
       html += '<button class="bd bsm" onclick="editBattleUnitType('+i+')">编辑</button>';
       html += '<button class="bd bsm" onclick="deleteBattleUnitType('+i+')">删</button>';
       html += '</div>';
@@ -1908,7 +1908,7 @@ function renderBattleConfigEditor(containerId) {
 
   // 地形修正配置
   html += '<div class="cd" style="margin-top:10px"><h4>🏔 地形战斗修正</h4>';
-  html += '<div style="font-size:11px;color:var(--txt-d);margin-bottom:6px">自定义地形对攻守方的修正系数。留空则使用默认值。攻方修正<1.0表示进攻不利，守方修正>1.0表示防守有利。</div>';
+  html += '<div style="font-size:12px;color:var(--txt-d);margin-bottom:6px">自定义地形对攻守方的修正系数。留空则使用默认值。攻方修正<1.0表示进攻不利，守方修正>1.0表示防守有利。</div>';
   var tm = bc.terrainModifiers || {};
   var defaultTerrains = [
     {id:'plains', name:'平原', aDef:1.0, dDef:1.0},
@@ -1930,14 +1930,14 @@ function renderBattleConfigEditor(containerId) {
     html += '</tr>';
   });
   html += '</table>';
-  html += '<div style="font-size:11px;color:var(--txt-d);margin-top:4px">无地图时：AI根据剧本地理知识自动判断战场地形类型</div>';
+  html += '<div style="font-size:12px;color:var(--txt-d);margin-top:4px">无地图时：AI根据剧本地理知识自动判断战场地形类型</div>';
   html += '</div>';
 
   // 行军配置
   var mcfg = bc.marchConfig || {};
   html += '<div class="cd" style="margin-top:10px"><h4>🚩 行军系统</h4>';
   html += '<div class="toggle-wrap"><label class="toggle"><input type="checkbox" '+(mcfg.enabled?'checked':'')+' onchange="if(!scriptData.battleConfig.marchConfig)scriptData.battleConfig.marchConfig={};scriptData.battleConfig.marchConfig.enabled=this.checked;if(typeof autoSave===\'function\')autoSave()"><span class="toggle-slider"></span></label><div>启用行军距离系统（军队移动需要时间，非瞬间到达）</div></div>';
-  html += '<div style="font-size:11px;color:var(--txt-d);margin:4px 0">有地图：A*寻路计算距离。无地图：AI查询历史地理知识（地理志、距离、地形、驿道）估算行军时间。</div>';
+  html += '<div style="font-size:12px;color:var(--txt-d);margin:4px 0">有地图：A*寻路计算距离。无地图：AI查询历史地理知识（地理志、距离、地形、驿道）估算行军时间。</div>';
   html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">';
   var bs = mcfg.baseSpeeds || {};
   html += '<label style="font-size:12px">步兵速度(领地/月)<input type="number" step="0.5" value="'+(bs.infantry||1)+'" style="width:45px" onchange="if(!scriptData.battleConfig.marchConfig)scriptData.battleConfig.marchConfig={};if(!scriptData.battleConfig.marchConfig.baseSpeeds)scriptData.battleConfig.marchConfig.baseSpeeds={};scriptData.battleConfig.marchConfig.baseSpeeds.infantry=parseFloat(this.value)||1"></label>';
@@ -1961,14 +1961,14 @@ function renderBattleConfigEditor(containerId) {
   html += '<label style="font-size:12px">守军月损耗<input type="number" step="0.01" value="'+(sgc.defenderAttritionRate||0.03)+'" style="width:45px" onchange="scriptData.battleConfig.siegeConfig.defenderAttritionRate=parseFloat(this.value)||0.03"></label>';
   html += '<label style="font-size:12px">投降士气阈值<input type="number" value="'+(sgc.surrenderMoraleThreshold||10)+'" style="width:45px" onchange="scriptData.battleConfig.siegeConfig.surrenderMoraleThreshold=parseInt(this.value)||10"></label>';
   html += '</div>';
-  html += '<div style="font-size:11px;color:var(--txt-d);margin-top:4px">无地图时城防等级由AI据史料判断（如"潼关"→5级雄关，"许昌"→2级平原城镇）</div>';
+  html += '<div style="font-size:12px;color:var(--txt-d);margin-top:4px">无地图时城防等级由AI据史料判断（如"潼关"→5级雄关，"许昌"→2级平原城镇）</div>';
   html += '</div>';
 
   // 后勤/补给配置
   var sc = bc.supplyConfig || {};
   html += '<div class="cd" style="margin-top:10px"><h4>📦 后勤补给</h4>';
   html += '<div class="toggle-wrap"><label class="toggle"><input type="checkbox" '+(sc.enabled?'checked':'')+' onchange="if(!scriptData.battleConfig.supplyConfig)scriptData.battleConfig.supplyConfig={};scriptData.battleConfig.supplyConfig.enabled=this.checked;if(typeof autoSave===\'function\')autoSave()"><span class="toggle-slider"></span></label><div>启用补给消耗系统（军队消耗粮草武器，断供导致士气崩溃）</div></div>';
-  html += '<div style="font-size:11px;color:var(--txt-d);margin:4px 0">天命已内置完整补给系统（生产/消耗/运输/断供惩罚）。开启后军队每回合自动消耗补给，断粮会导致兵变。</div>';
+  html += '<div style="font-size:12px;color:var(--txt-d);margin:4px 0">天命已内置完整补给系统（生产/消耗/运输/断供惩罚）。开启后军队每回合自动消耗补给，断粮会导致兵变。</div>';
   html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">';
   html += '<label style="font-size:12px">低补给士气损失/月<input type="number" value="'+(sc.lowSupplyMoraleLoss||10)+'" style="width:45px" onchange="if(!scriptData.battleConfig.supplyConfig)scriptData.battleConfig.supplyConfig={};scriptData.battleConfig.supplyConfig.lowSupplyMoraleLoss=parseInt(this.value)||10"></label>';
   html += '<label style="font-size:12px">断粮士气损失/月<input type="number" value="'+(sc.starvationMoraleLoss||20)+'" style="width:45px" onchange="if(!scriptData.battleConfig.supplyConfig)scriptData.battleConfig.supplyConfig={};scriptData.battleConfig.supplyConfig.starvationMoraleLoss=parseInt(this.value)||20"></label>';

@@ -562,9 +562,9 @@ function _peStackBar(parts, height) {
 function _peStatCard(title, main, sub, color) {
   var _clr = color || 'var(--gold-400)';
   return '<div style="background:rgba(184,154,83,0.04);border:1px solid rgba(184,154,83,0.15);border-left:3px solid ' + _clr + ';border-radius:4px;padding:6px 10px;">' +
-    '<div style="font-size:0.64rem;color:var(--color-foreground-muted);letter-spacing:0.05em;">' + title + '</div>' +
+    '<div style="font-size:0.7rem;color:var(--color-foreground-muted);letter-spacing:0.05em;">' + title + '</div>' +
     '<div style="font-size:0.95rem;color:' + _clr + ';font-weight:700;margin-top:2px;">' + main + '</div>' +
-    (sub ? '<div style="font-size:0.62rem;color:var(--color-foreground-muted);margin-top:2px;">' + sub + '</div>' : '') +
+    (sub ? '<div style="font-size:0.68rem;color:var(--color-foreground-muted);margin-top:2px;">' + sub + '</div>' : '') +
     '</div>';
 }
 
@@ -638,28 +638,28 @@ function _renderDivisionNode(div, depth) {
     html += '<span style="width:12px;display:inline-block;"></span>';
   }
   html += '<span style="font-family:var(--font-serif);font-size:' + (depth === 0 ? '1.05rem' : '0.95rem') + ';font-weight:700;color:var(--color-foreground);letter-spacing:0.08em;">' + escHtml(territory) + '</span>';
-  if (div.level) html += '<span style="font-size:0.62rem;color:' + _levelClr + ';background:rgba(184,154,83,0.08);padding:2px 6px;border-radius:3px;letter-spacing:0.05em;">' + escHtml(div.level) + '</span>';
-  if (!isLeaf) html += '<span style="font-size:0.65rem;color:var(--color-foreground-muted);">\u8F96' + agg.count + '\u533A</span>';
+  if (div.level) html += '<span style="font-size:0.68rem;color:' + _levelClr + ';background:rgba(184,154,83,0.08);padding:2px 6px;border-radius:3px;letter-spacing:0.05em;">' + escHtml(div.level) + '</span>';
+  if (!isLeaf) html += '<span style="font-size:0.7rem;color:var(--color-foreground-muted);">\u8F96' + agg.count + '\u533A</span>';
   // regionType 标签
   if (div.regionType && div.regionType !== 'normal') {
     var _rtL = { jimi:{t:'羁縻',c:'var(--celadon-400)'}, tusi:{t:'土司',c:'var(--celadon-400)'}, fanbang:{t:'藩属',c:'var(--amber-400)'}, imperial_clan:{t:'宗藩王封',c:'var(--indigo-400,#7986cb)'} };
     var _rti = _rtL[div.regionType] || { t:div.regionType, c:'var(--gold-400)' };
-    html += '<span style="font-size:0.62rem;color:' + _rti.c + ';background:rgba(255,255,255,0.04);padding:2px 6px;border:1px dashed ' + _rti.c + ';border-radius:3px;">' + _rti.t + '</span>';
+    html += '<span style="font-size:0.68rem;color:' + _rti.c + ';background:rgba(255,255,255,0.04);padding:2px 6px;border:1px dashed ' + _rti.c + ';border-radius:3px;">' + _rti.t + '</span>';
   }
-  if (div.terrain) html += '<span style="font-size:0.62rem;color:var(--color-foreground-muted);">' + escHtml(div.terrain) + '</span>';
-  if (div.specialResources) html += '<span style="font-size:0.62rem;color:var(--gold-400);">\u4EA7' + escHtml(div.specialResources) + '</span>';
+  if (div.terrain) html += '<span style="font-size:0.68rem;color:var(--color-foreground-muted);">' + escHtml(div.terrain) + '</span>';
+  if (div.specialResources) html += '<span style="font-size:0.68rem;color:var(--gold-400);">\u4EA7' + escHtml(div.specialResources) + '</span>';
   // 警示
-  if (_envLoad > 0.9) html += '<span style="margin-left:auto;font-size:0.62rem;color:var(--vermillion-400);">\u26A0 \u627F\u8F7D' + (_envLoad*100).toFixed(0) + '%</span>';
-  else if (_fug > 0) html += '<span style="margin-left:auto;font-size:0.62rem;color:var(--amber-400);">\u9003\u6237 ' + _fug + '</span>';
+  if (_envLoad > 0.9) html += '<span style="margin-left:auto;font-size:0.68rem;color:var(--vermillion-400);">\u26A0 \u627F\u8F7D' + (_envLoad*100).toFixed(0) + '%</span>';
+  else if (_fug > 0) html += '<span style="margin-left:auto;font-size:0.68rem;color:var(--amber-400);">\u9003\u6237 ' + _fug + '</span>';
   html += '</div>';
 
   // 主官栏（天命风：印鉴色）
   if (gov) {
     html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(184,154,83,0.06);border-radius:4px;margin-bottom:8px;">';
-    html += '<span style="font-size:0.66rem;color:var(--color-foreground-muted);letter-spacing:0.08em;">' + escHtml(div.officialPosition||'主官') + '</span>';
+    html += '<span style="font-size:0.7rem;color:var(--color-foreground-muted);letter-spacing:0.08em;">' + escHtml(div.officialPosition||'主官') + '</span>';
     html += '<span style="font-size:0.82rem;color:var(--gold-400);font-weight:600;cursor:pointer;text-decoration:underline dotted;" onclick="if(typeof showCharPopup===\'function\')showCharPopup(\'' + escHtml(gov).replace(/'/g,"\\'") + '\',event)">' + escHtml(gov) + '</span>';
     if (govCh) {
-      html += '<div style="display:flex;gap:4px;font-size:0.6rem;color:var(--color-foreground-muted);">';
+      html += '<div style="display:flex;gap:4px;font-size:0.66rem;color:var(--color-foreground-muted);">';
       html += '<span title="忠诚">\u5FE0' + (govCh.loyalty||50) + '</span>';
       html += '<span title="廉节">\u5EC9' + (govCh.integrity||50) + '</span>';
       html += '<span title="智能">\u667A' + (govCh.intelligence||50) + '</span>';
@@ -704,38 +704,38 @@ function _renderDivisionNode(div, depth) {
     if (div.bySettlement) {
       var bs = div.bySettlement;
       _popGrid += '<div>';
-      _popGrid += '<div style="font-size:0.62rem;color:var(--color-foreground-muted);margin-bottom:3px;">\u5C45\u6240</div>';
+      _popGrid += '<div style="font-size:0.68rem;color:var(--color-foreground-muted);margin-bottom:3px;">\u5C45\u6240</div>';
       _popGrid += _peStackBar([
         {value:(bs.fang||{}).mouths||0, color:'var(--gold-400)', label:'坊(城内)'},
         {value:(bs.shi||{}).mouths||0, color:'var(--amber-400)', label:'市(市集)'},
         {value:(bs.zhen||{}).mouths||0, color:'var(--celadon-400)', label:'镇'},
         {value:(bs.cun||{}).mouths||0, color:'var(--indigo-400,#7986cb)', label:'村'}
       ], 8);
-      _popGrid += '<div style="font-size:0.58rem;color:var(--color-foreground-muted);margin-top:3px;">\u574A' + _peN((bs.fang||{}).mouths) + ' \u00B7 \u5E02' + _peN((bs.shi||{}).mouths) + ' \u00B7 \u9547' + _peN((bs.zhen||{}).mouths) + ' \u00B7 \u6751' + _peN((bs.cun||{}).mouths) + '</div>';
+      _popGrid += '<div style="font-size:0.64rem;color:var(--color-foreground-muted);margin-top:3px;">\u574A' + _peN((bs.fang||{}).mouths) + ' \u00B7 \u5E02' + _peN((bs.shi||{}).mouths) + ' \u00B7 \u9547' + _peN((bs.zhen||{}).mouths) + ' \u00B7 \u6751' + _peN((bs.cun||{}).mouths) + '</div>';
       _popGrid += '</div>';
     }
     // 性别
     if (div.byGender) {
       _popGrid += '<div>';
-      _popGrid += '<div style="font-size:0.62rem;color:var(--color-foreground-muted);margin-bottom:3px;">\u7537\u5973 (\u6BD4 ' + (div.byGender.sexRatio||1.04).toFixed(2) + ')</div>';
+      _popGrid += '<div style="font-size:0.68rem;color:var(--color-foreground-muted);margin-bottom:3px;">\u7537\u5973 (\u6BD4 ' + (div.byGender.sexRatio||1.04).toFixed(2) + ')</div>';
       _popGrid += _peStackBar([
         {value:div.byGender.male||0, color:'var(--indigo-400,#7986cb)', label:'男'},
         {value:div.byGender.female||0, color:'#e48a8a', label:'女'}
       ], 8);
-      _popGrid += '<div style="font-size:0.58rem;color:var(--color-foreground-muted);margin-top:3px;">\u7537' + _peN(div.byGender.male) + ' \u00B7 \u5973' + _peN(div.byGender.female) + '</div>';
+      _popGrid += '<div style="font-size:0.64rem;color:var(--color-foreground-muted);margin-top:3px;">\u7537' + _peN(div.byGender.male) + ' \u00B7 \u5973' + _peN(div.byGender.female) + '</div>';
       _popGrid += '</div>';
     }
     // 年龄
     if (div.byAge) {
       var ba = div.byAge;
       _popGrid += '<div>';
-      _popGrid += '<div style="font-size:0.62rem;color:var(--color-foreground-muted);margin-bottom:3px;">\u5E74\u9F84\u7ED3\u6784</div>';
+      _popGrid += '<div style="font-size:0.68rem;color:var(--color-foreground-muted);margin-bottom:3px;">\u5E74\u9F84\u7ED3\u6784</div>';
       _popGrid += _peStackBar([
         {value:((ba.young||{}).count)||0, color:'var(--celadon-400)', label:'幼'},
         {value:((ba.ding||{}).count)||0, color:'var(--gold-400)', label:'丁'},
         {value:((ba.old||{}).count)||0, color:'var(--ink-300)', label:'老'}
       ], 8);
-      _popGrid += '<div style="font-size:0.58rem;color:var(--color-foreground-muted);margin-top:3px;">\u5E7C' + ((ba.young||{}).ratio||0.3).toFixed(2) + ' \u00B7 \u4E01' + ((ba.ding||{}).ratio||0.55).toFixed(2) + ' \u00B7 \u8001' + ((ba.old||{}).ratio||0.15).toFixed(2) + '</div>';
+      _popGrid += '<div style="font-size:0.64rem;color:var(--color-foreground-muted);margin-top:3px;">\u5E7C' + ((ba.young||{}).ratio||0.3).toFixed(2) + ' \u00B7 \u4E01' + ((ba.ding||{}).ratio||0.55).toFixed(2) + ' \u00B7 \u8001' + ((ba.old||{}).ratio||0.15).toFixed(2) + '</div>';
       _popGrid += '</div>';
     }
     // 族群
@@ -743,9 +743,9 @@ function _renderDivisionNode(div, depth) {
       var _ePalette = ['var(--gold-400)','var(--celadon-400)','var(--indigo-400,#7986cb)','var(--amber-400)','var(--vermillion-400)','var(--ink-300)'];
       var _eParts = Object.keys(div.byEthnicity).map(function(k,i){return {value: div.byEthnicity[k]*_mo, color:_ePalette[i%_ePalette.length], label:k};});
       _popGrid += '<div>';
-      _popGrid += '<div style="font-size:0.62rem;color:var(--color-foreground-muted);margin-bottom:3px;">\u65CF\u7FA4</div>';
+      _popGrid += '<div style="font-size:0.68rem;color:var(--color-foreground-muted);margin-bottom:3px;">\u65CF\u7FA4</div>';
       _popGrid += _peStackBar(_eParts, 8);
-      _popGrid += '<div style="font-size:0.58rem;color:var(--color-foreground-muted);margin-top:3px;">' + Object.keys(div.byEthnicity).map(function(k){return k+(div.byEthnicity[k]*100).toFixed(0)+'%';}).join('·') + '</div>';
+      _popGrid += '<div style="font-size:0.64rem;color:var(--color-foreground-muted);margin-top:3px;">' + Object.keys(div.byEthnicity).map(function(k){return k+(div.byEthnicity[k]*100).toFixed(0)+'%';}).join('·') + '</div>';
       _popGrid += '</div>';
     }
     // 信仰
@@ -753,9 +753,9 @@ function _renderDivisionNode(div, depth) {
       var _fPalette = ['var(--gold-400)','var(--celadon-400)','var(--indigo-400,#7986cb)','var(--amber-400)','var(--ink-300)'];
       var _fParts = Object.keys(div.byFaith).map(function(k,i){return {value: div.byFaith[k]*_mo, color:_fPalette[i%_fPalette.length], label:k};});
       _popGrid += '<div>';
-      _popGrid += '<div style="font-size:0.62rem;color:var(--color-foreground-muted);margin-bottom:3px;">\u4FE1\u4EF0</div>';
+      _popGrid += '<div style="font-size:0.68rem;color:var(--color-foreground-muted);margin-bottom:3px;">\u4FE1\u4EF0</div>';
       _popGrid += _peStackBar(_fParts, 8);
-      _popGrid += '<div style="font-size:0.58rem;color:var(--color-foreground-muted);margin-top:3px;">' + Object.keys(div.byFaith).map(function(k){return k+(div.byFaith[k]*100).toFixed(0)+'%';}).join('·') + '</div>';
+      _popGrid += '<div style="font-size:0.64rem;color:var(--color-foreground-muted);margin-top:3px;">' + Object.keys(div.byFaith).map(function(k){return k+(div.byFaith[k]*100).toFixed(0)+'%';}).join('·') + '</div>';
       _popGrid += '</div>';
     }
     // 保甲
@@ -763,18 +763,18 @@ function _renderDivisionNode(div, depth) {
       var _regAcc = (div.baojia.registerAccuracy||0)*100;
       var _regClr = _regAcc > 75 ? '#6aa88a' : _regAcc > 50 ? 'var(--gold-400)' : 'var(--vermillion-400)';
       _popGrid += '<div>';
-      _popGrid += '<div style="font-size:0.62rem;color:var(--color-foreground-muted);margin-bottom:3px;">\u4FDD\u7532\u7CFB\u7EDF</div>';
-      _popGrid += '<div style="font-size:0.68rem;color:var(--color-foreground);">\u4FDD' + _peN(div.baojia.baoCount) + ' \u00B7 \u7532' + _peN(div.baojia.jiaCount) + ' \u00B7 \u724C' + _peN(div.baojia.paiCount) + '</div>';
-      _popGrid += '<div style="font-size:0.58rem;color:' + _regClr + ';margin-top:2px;">\u518C\u51C6 ' + _regAcc.toFixed(0) + '%</div>';
+      _popGrid += '<div style="font-size:0.68rem;color:var(--color-foreground-muted);margin-bottom:3px;">\u4FDD\u7532\u7CFB\u7EDF</div>';
+      _popGrid += '<div style="font-size:0.71rem;color:var(--color-foreground);">\u4FDD' + _peN(div.baojia.baoCount) + ' \u00B7 \u7532' + _peN(div.baojia.jiaCount) + ' \u00B7 \u724C' + _peN(div.baojia.paiCount) + '</div>';
+      _popGrid += '<div style="font-size:0.64rem;color:' + _regClr + ';margin-top:2px;">\u518C\u51C6 ' + _regAcc.toFixed(0) + '%</div>';
       _popGrid += '</div>';
     }
     // 逃隐户
     if (_fug > 0 || _hid > 0) {
       _popGrid += '<div>';
-      _popGrid += '<div style="font-size:0.62rem;color:var(--color-foreground-muted);margin-bottom:3px;">\u6D41\u5931\u4EBA\u53E3</div>';
-      _popGrid += '<div style="font-size:0.68rem;color:var(--amber-400);">\u9003\u6237 ' + _peN(_fug) + ' \u00B7 \u9690\u6237 ' + _peN(_hid) + '</div>';
+      _popGrid += '<div style="font-size:0.68rem;color:var(--color-foreground-muted);margin-bottom:3px;">\u6D41\u5931\u4EBA\u53E3</div>';
+      _popGrid += '<div style="font-size:0.71rem;color:var(--amber-400);">\u9003\u6237 ' + _peN(_fug) + ' \u00B7 \u9690\u6237 ' + _peN(_hid) + '</div>';
       var _lossPct = _mo > 0 ? ((_fug+_hid)/(_mo+_fug+_hid)*100) : 0;
-      _popGrid += '<div style="font-size:0.58rem;color:var(--color-foreground-muted);margin-top:2px;">\u5931\u518C\u7387 ' + _lossPct.toFixed(1) + '%</div>';
+      _popGrid += '<div style="font-size:0.64rem;color:var(--color-foreground-muted);margin-top:2px;">\u5931\u518C\u7387 ' + _lossPct.toFixed(1) + '%</div>';
       _popGrid += '</div>';
     }
     _popGrid += '</div>';
@@ -785,10 +785,10 @@ function _renderDivisionNode(div, depth) {
   if (div.fiscal && (div.fiscal.claimedRevenue || div.fiscal.actualRevenue || div.fiscal.remittedToCenter)) {
     var f = div.fiscal;
     var _fb = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:6px;">';
-    _fb += '<div><div style="font-size:0.58rem;color:var(--color-foreground-muted);">\u540D\u4E49</div><div style="font-size:0.76rem;color:var(--ink-300);">' + _peN(f.claimedRevenue||0) + _U.money + '</div></div>';
-    _fb += '<div><div style="font-size:0.58rem;color:var(--color-foreground-muted);">\u5B9E\u5F81</div><div style="font-size:0.76rem;color:var(--gold-400);">' + _peN(f.actualRevenue||0) + _U.money + '</div></div>';
-    _fb += '<div><div style="font-size:0.58rem;color:var(--color-foreground-muted);">\u4E0A\u89E3</div><div style="font-size:0.76rem;color:var(--celadon-400);">' + _peN(f.remittedToCenter||0) + _U.money + '</div></div>';
-    _fb += '<div><div style="font-size:0.58rem;color:var(--color-foreground-muted);">\u7559\u5B58</div><div style="font-size:0.76rem;color:var(--amber-400);">' + _peN(f.retainedBudget||0) + _U.money + '</div></div>';
+    _fb += '<div><div style="font-size:0.64rem;color:var(--color-foreground-muted);">\u540D\u4E49</div><div style="font-size:0.76rem;color:var(--ink-300);">' + _peN(f.claimedRevenue||0) + _U.money + '</div></div>';
+    _fb += '<div><div style="font-size:0.64rem;color:var(--color-foreground-muted);">\u5B9E\u5F81</div><div style="font-size:0.76rem;color:var(--gold-400);">' + _peN(f.actualRevenue||0) + _U.money + '</div></div>';
+    _fb += '<div><div style="font-size:0.64rem;color:var(--color-foreground-muted);">\u4E0A\u89E3</div><div style="font-size:0.76rem;color:var(--celadon-400);">' + _peN(f.remittedToCenter||0) + _U.money + '</div></div>';
+    _fb += '<div><div style="font-size:0.64rem;color:var(--color-foreground-muted);">\u7559\u5B58</div><div style="font-size:0.76rem;color:var(--amber-400);">' + _peN(f.retainedBudget||0) + _U.money + '</div></div>';
     _fb += '</div>';
     // 流量条（名义→实征→上解 的损耗可视化）
     if ((f.claimedRevenue||0) > 0) {
@@ -799,7 +799,7 @@ function _renderDivisionNode(div, depth) {
         {value: Math.max(0, (f.actualRevenue||0) - (f.remittedToCenter||0) - (f.retainedBudget||0)), color:'var(--vermillion-400)', label:'漂没'},
         {value: Math.max(0, (f.claimedRevenue||0) - (f.actualRevenue||0)), color:'var(--ink-300)', label:'不征(灾/免/战乱)'}
       ], 10);
-      _fb += '<div style="display:flex;gap:8px;font-size:0.56rem;color:var(--color-foreground-muted);margin-top:3px;flex-wrap:wrap;">';
+      _fb += '<div style="display:flex;gap:8px;font-size:0.64rem;color:var(--color-foreground-muted);margin-top:3px;flex-wrap:wrap;">';
       _fb += '<span><span style="color:var(--celadon-400);">\u25A0</span> \u4E0A\u89E3</span>';
       _fb += '<span><span style="color:var(--amber-400);">\u25A0</span> \u7559\u5B58</span>';
       _fb += '<span><span style="color:var(--vermillion-400);">\u25A0</span> \u6F02\u6CA1</span>';
@@ -824,15 +824,15 @@ function _renderDivisionNode(div, depth) {
       var _label = { money:'\u94F6', grain:'\u7CAE', cloth:'\u5E03' }[k];
       var _clr = { money:'var(--gold-400)', grain:'var(--celadon-400)', cloth:'var(--amber-400)' }[k];
       _pb += '<div style="padding:6px 8px;background:rgba(255,255,255,0.03);border-left:2px solid ' + _clr + ';border-radius:3px;">';
-      _pb += '<div style="font-size:0.62rem;color:var(--color-foreground-muted);">' + _label + '\u8D26</div>';
+      _pb += '<div style="font-size:0.68rem;color:var(--color-foreground-muted);">' + _label + '\u8D26</div>';
       _pb += '<div style="font-size:0.82rem;color:' + _clr + ';font-weight:600;">' + _peN(led.stock||0) + ' ' + _unit + '</div>';
-      if (led.quota) _pb += '<div style="font-size:0.56rem;color:var(--color-foreground-muted);">\u989D ' + _peN(led.quota) + '</div>';
-      if (led.deficit > 0) _pb += '<div style="font-size:0.58rem;color:var(--vermillion-400);">\u4E8F ' + _peN(led.deficit) + '</div>';
+      if (led.quota) _pb += '<div style="font-size:0.64rem;color:var(--color-foreground-muted);">\u989D ' + _peN(led.quota) + '</div>';
+      if (led.deficit > 0) _pb += '<div style="font-size:0.64rem;color:var(--vermillion-400);">\u4E8F ' + _peN(led.deficit) + '</div>';
       _pb += '</div>';
     });
     _pb += '</div>';
-    if (pt.currentHead) _pb += '<div style="font-size:0.62rem;color:var(--color-foreground-muted);margin-top:6px;">\u73B0\u638C\u5E93\uFF1A<span style="color:var(--gold-400);">' + escHtml(pt.currentHead) + '</span>' + (pt.previousHead ? ' \u00B7 \u524D\u4EFB\uFF1A' + escHtml(pt.previousHead):'') + '</div>';
-    if (pt.handoverLog && pt.handoverLog.length) _pb += '<div style="font-size:0.58rem;color:var(--color-foreground-muted);margin-top:2px;">\u4EA4\u63A5\u6848\u5377 ' + pt.handoverLog.length + ' \u6761</div>';
+    if (pt.currentHead) _pb += '<div style="font-size:0.68rem;color:var(--color-foreground-muted);margin-top:6px;">\u73B0\u638C\u5E93\uFF1A<span style="color:var(--gold-400);">' + escHtml(pt.currentHead) + '</span>' + (pt.previousHead ? ' \u00B7 \u524D\u4EFB\uFF1A' + escHtml(pt.previousHead):'') + '</div>';
+    if (pt.handoverLog && pt.handoverLog.length) _pb += '<div style="font-size:0.64rem;color:var(--color-foreground-muted);margin-top:2px;">\u4EA4\u63A5\u6848\u5377 ' + pt.handoverLog.length + ' \u6761</div>';
     _detailHtml += _peSection('\u{1F3DB}', '\u516C\u5E93\u4E09\u8D26', _pb);
   }
 
@@ -842,14 +842,14 @@ function _renderDivisionNode(div, depth) {
     var _eb = '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;">';
     var _loadClr = _envLoad > 0.9 ? 'var(--vermillion-400)' : _envLoad > 0.75 ? 'var(--amber-400)' : '#6aa88a';
     _eb += '<div>' + _peGauge(_envLoad*100, 100, _loadClr, '\u8F7D\u7387') + '</div>';
-    _eb += '<div style="font-size:0.66rem;color:var(--color-foreground-muted);">';
+    _eb += '<div style="font-size:0.7rem;color:var(--color-foreground-muted);">';
     if (env.arableLand) _eb += '\u8015\u5730 ' + _peN(env.arableLand) + ' \u4EA9';
     if (env.waterCapacity) _eb += ' \u00B7 \u6C34 ' + _peN(env.waterCapacity);
     if (env.carryingRegime) _eb += ' \u00B7 ' + env.carryingRegime;
     _eb += '</div>';
     _eb += '</div>';
     if (env.ecoScars && Object.keys(env.ecoScars).length) {
-      _eb += '<div style="font-size:0.6rem;color:var(--amber-400);margin-top:4px;">\u751F\u6001\u75A4\u75D5\uFF1A' + Object.keys(env.ecoScars).join('\u3001') + '</div>';
+      _eb += '<div style="font-size:0.66rem;color:var(--amber-400);margin-top:4px;">\u751F\u6001\u75A4\u75D5\uFF1A' + Object.keys(env.ecoScars).join('\u3001') + '</div>';
     }
     _detailHtml += _peSection('\u{1F33E}', '\u627F\u8F7D\u529B', _eb);
   }
@@ -865,7 +865,7 @@ function _renderDivisionNode(div, depth) {
         _ab += '<div style="margin-bottom:6px;">';
         exp.discretionary.slice(-8).forEach(function(act) {
           var _ti = _typeLabels[act.type] || { t:act.type, i:'\u00B7', c:'var(--gold-400)' };
-          _ab += '<div style="display:flex;align-items:center;gap:6px;padding:3px 8px;background:rgba(255,255,255,0.02);border-left:2px solid ' + _ti.c + ';border-radius:2px;margin-bottom:2px;font-size:0.66rem;">';
+          _ab += '<div style="display:flex;align-items:center;gap:6px;padding:3px 8px;background:rgba(255,255,255,0.02);border-left:2px solid ' + _ti.c + ';border-radius:2px;margin-bottom:2px;font-size:0.7rem;">';
           _ab += '<span style="color:' + _ti.c + ';">' + _ti.i + '</span>';
           _ab += '<span style="color:' + _ti.c + ';font-weight:600;">' + _ti.t + '</span>';
           _ab += '<span style="color:var(--color-foreground);">' + _peN(act.amount||0) + _U.money + '</span>';
@@ -876,15 +876,15 @@ function _renderDivisionNode(div, depth) {
         _ab += '</div>';
       }
       if (exp.illicit && exp.illicit.length) {
-        _ab += '<div style="padding:4px 8px;background:rgba(192,64,48,0.08);border-left:2px solid var(--vermillion-400);border-radius:2px;font-size:0.64rem;color:var(--vermillion-400);">';
+        _ab += '<div style="padding:4px 8px;background:rgba(192,64,48,0.08);border-left:2px solid var(--vermillion-400);border-radius:2px;font-size:0.7rem;color:var(--vermillion-400);">';
         _ab += '\u2716 \u79C1\u5F0A ' + exp.illicit.length + ' \u8D77 \u00B7 \u6324\u6D3E\u4E2D\u98FD ' + _peN(exp.illicit.reduce(function(s,x){return s+(x.amount||0);},0)) + _U.money;
         _ab += '</div>';
       }
       if (exp.fixed && exp.fixed.length) {
-        _ab += '<div style="font-size:0.6rem;color:var(--color-foreground-muted);margin-top:4px;">\u56FA\u5B9A\u652F\u51FA \u00B7 ' + exp.fixed.length + ' \u9879（俸禄/兵饷/驿站 等）</div>';
+        _ab += '<div style="font-size:0.66rem;color:var(--color-foreground-muted);margin-top:4px;">\u56FA\u5B9A\u652F\u51FA \u00B7 ' + exp.fixed.length + ' \u9879（俸禄/兵饷/驿站 等）</div>';
       }
       if (exp.imperial && exp.imperial.length) {
-        _ab += '<div style="font-size:0.6rem;color:var(--gold-400);margin-top:2px;">\u4E2D\u592E\u547D\u6D3E \u00B7 ' + exp.imperial.length + ' \u9879</div>';
+        _ab += '<div style="font-size:0.66rem;color:var(--gold-400);margin-top:2px;">\u4E2D\u592E\u547D\u6D3E \u00B7 ' + exp.imperial.length + ' \u9879</div>';
       }
       _detailHtml += _peSection('\u{1F4DC}', '\u672C\u56DE\u5408\u5730\u65B9\u6CBB\u884C', _ab);
     }
@@ -896,9 +896,9 @@ function _renderDivisionNode(div, depth) {
     if (_blds.length > 0) {
       var _bb = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px;">';
       _blds.forEach(function(b) {
-        _bb += '<div style="padding:4px 8px;background:rgba(255,255,255,0.03);border-left:2px solid var(--gold-400);border-radius:2px;font-size:0.66rem;">';
+        _bb += '<div style="padding:4px 8px;background:rgba(255,255,255,0.03);border-left:2px solid var(--gold-400);border-radius:2px;font-size:0.7rem;">';
         _bb += '<div style="color:var(--gold-400);font-weight:600;">' + escHtml(b.name) + '</div>';
-        if (b.level) _bb += '<div style="font-size:0.58rem;color:var(--color-foreground-muted);">Lv' + b.level + (b.status?' \u00B7 ' + b.status:'') + '</div>';
+        if (b.level) _bb += '<div style="font-size:0.64rem;color:var(--color-foreground-muted);">Lv' + b.level + (b.status?' \u00B7 ' + b.status:'') + '</div>';
         _bb += '</div>';
       });
       _bb += '</div>';
@@ -912,15 +912,15 @@ function _renderDivisionNode(div, depth) {
     var _ob = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;">';
     _inRegion.slice(0,12).forEach(function(c) {
       var _loyClr = (c.loyalty||50) > 70 ? '#6aa88a' : (c.loyalty||50) < 30 ? 'var(--vermillion-400)' : 'var(--gold-400)';
-      _ob += '<div style="padding:4px 8px;background:rgba(255,255,255,0.03);border-radius:2px;font-size:0.66rem;cursor:pointer;" onclick="if(typeof showCharPopup===\'function\')showCharPopup(\'' + escHtml(c.name).replace(/'/g,"\\'") + '\',event)">';
+      _ob += '<div style="padding:4px 8px;background:rgba(255,255,255,0.03);border-radius:2px;font-size:0.7rem;cursor:pointer;" onclick="if(typeof showCharPopup===\'function\')showCharPopup(\'' + escHtml(c.name).replace(/'/g,"\\'") + '\',event)">';
       _ob += '<div style="color:var(--color-foreground);font-weight:600;">' + escHtml(c.name) + '</div>';
-      if (c.officialTitle) _ob += '<div style="font-size:0.58rem;color:var(--color-foreground-muted);">' + escHtml(c.officialTitle) + '</div>';
-      _ob += '<div style="display:flex;gap:3px;font-size:0.56rem;color:var(--color-foreground-muted);margin-top:2px;">';
+      if (c.officialTitle) _ob += '<div style="font-size:0.64rem;color:var(--color-foreground-muted);">' + escHtml(c.officialTitle) + '</div>';
+      _ob += '<div style="display:flex;gap:3px;font-size:0.64rem;color:var(--color-foreground-muted);margin-top:2px;">';
       _ob += '<span style="color:' + _loyClr + ';">\u5FE0' + (c.loyalty||50) + '</span>';
       _ob += '<span>\u5EC9' + (c.integrity||50) + '</span>';
       _ob += '</div></div>';
     });
-    if (_inRegion.length > 12) _ob += '<div style="font-size:0.6rem;color:var(--color-foreground-muted);padding:4px;">\u2026\u8FD8\u6709 ' + (_inRegion.length-12) + ' \u4EBA</div>';
+    if (_inRegion.length > 12) _ob += '<div style="font-size:0.66rem;color:var(--color-foreground-muted);padding:4px;">\u2026\u8FD8\u6709 ' + (_inRegion.length-12) + ' \u4EBA</div>';
     _ob += '</div>';
     _detailHtml += _peSection('\u{1F468}', '\u9A7B\u5730\u5B98\u5458 (' + _inRegion.length + ')', _ob);
   }
@@ -928,12 +928,12 @@ function _renderDivisionNode(div, depth) {
   // ★ 详情体存到 div 临时字段·供 modal 读取（卡片不再嵌入展示·UI 改造）
   div._cachedDetailBody = _detailHtml;
   // 卡片底部·提示点击查看详情
-  html += '<div style="text-align:center;font-size:0.6rem;color:var(--gold-d);letter-spacing:0.15em;padding-top:6px;margin-top:4px;border-top:1px dashed rgba(184,154,83,0.15);">点 击 卡 片 查 看 详 情 ▸</div>';
+  html += '<div style="text-align:center;font-size:0.66rem;color:var(--gold-d);letter-spacing:0.15em;padding-top:6px;margin-top:4px;border-top:1px dashed rgba(184,154,83,0.15);">点 击 卡 片 查 看 详 情 ▸</div>';
 
   // 旧详情折叠（保留作 fallback·display:none）
   if (_detailHtml && false) {
     html += '<details style="margin-top:4px;">';
-    html += '<summary style="cursor:pointer;font-size:0.68rem;color:var(--gold-400);letter-spacing:0.08em;padding:4px 0;list-style:none;">\u25BE \u5C55\u5F00\u5168\u8C8C</summary>';
+    html += '<summary style="cursor:pointer;font-size:0.71rem;color:var(--gold-400);letter-spacing:0.08em;padding:4px 0;list-style:none;">\u25BE \u5C55\u5F00\u5168\u8C8C</summary>';
     html += '<div style="padding:6px 2px;">' + _detailHtml + '</div>';
     html += '</details>';
   }
@@ -1087,9 +1087,9 @@ function _peRenderEconomyBase(div) {
   var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;">';
   visibleRows.forEach(function(r) {
     html += '<div style="padding:6px 9px;background:rgba(255,255,255,0.03);border-left:2px solid ' + r.color + ';border-radius:3px;">';
-    html += '<div style="font-size:0.6rem;color:var(--color-foreground-muted);">' + r.label + '</div>';
+    html += '<div style="font-size:0.66rem;color:var(--color-foreground-muted);">' + r.label + '</div>';
     html += '<div style="font-size:0.85rem;color:' + r.color + ';font-weight:600;">' + _peN(r.value) + '</div>';
-    if (r.sub) html += '<div style="font-size:0.58rem;color:var(--color-foreground-muted);margin-top:2px;">' + r.sub + '</div>';
+    if (r.sub) html += '<div style="font-size:0.64rem;color:var(--color-foreground-muted);margin-top:2px;">' + r.sub + '</div>';
     html += '</div>';
   });
   html += '</div>';
@@ -1104,13 +1104,13 @@ function _peRenderImperialAssets(div) {
   var ia = eb.imperialAssets || {};
   var html = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">';
   html += '<div style="padding:6px 9px;background:rgba(192,64,48,0.06);border-left:2px solid var(--vermillion-400);border-radius:3px;">';
-  html += '<div style="font-size:0.6rem;color:var(--color-foreground-muted);">皇庄亩数</div>';
+  html += '<div style="font-size:0.66rem;color:var(--color-foreground-muted);">皇庄亩数</div>';
   html += '<div style="font-size:0.85rem;color:var(--vermillion-400);font-weight:600;">' + _peN(eb.imperialFarmland || 0) + '</div>';
   html += '</div>';
   ['zhizao', 'kuangchang', 'yuyao'].forEach(function(k) {
     var labelMap = { zhizao: '织造局', kuangchang: '矿场', yuyao: '御窑' };
     html += '<div style="padding:6px 9px;background:rgba(192,64,48,0.06);border-left:2px solid var(--vermillion-400);border-radius:3px;">';
-    html += '<div style="font-size:0.6rem;color:var(--color-foreground-muted);">' + labelMap[k] + '</div>';
+    html += '<div style="font-size:0.66rem;color:var(--color-foreground-muted);">' + labelMap[k] + '</div>';
     html += '<div style="font-size:0.85rem;color:var(--vermillion-400);font-weight:600;">' + (ia[k] || 0) + ' 处</div>';
     html += '</div>';
   });
@@ -1127,24 +1127,24 @@ function _peRenderInfrastructure(div) {
   var html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">';
   // 驿站数
   html += '<div style="padding:7px 10px;background:rgba(255,255,255,0.03);border-left:2px solid var(--indigo-400,#7986cb);border-radius:3px;">';
-  html += '<div style="font-size:0.6rem;color:var(--color-foreground-muted);">驿站数</div>';
-  html += '<div style="font-size:0.95rem;color:var(--indigo-400,#7986cb);font-weight:700;">' + _peN(eb.postRelays || 0) + ' <span style="font-size:0.55rem;font-weight:400;">驿</span></div>';
-  html += '<div style="font-size:0.55rem;color:var(--ink-400);margin-top:2px;">驿递站银</div>';
+  html += '<div style="font-size:0.66rem;color:var(--color-foreground-muted);">驿站数</div>';
+  html += '<div style="font-size:0.95rem;color:var(--indigo-400,#7986cb);font-weight:700;">' + _peN(eb.postRelays || 0) + ' <span style="font-size:0.62rem;font-weight:400;">驿</span></div>';
+  html += '<div style="font-size:0.62rem;color:var(--ink-400);margin-top:2px;">驿递站银</div>';
   html += '</div>';
   // 道路质量·新
   html += '<div style="padding:7px 10px;background:rgba(255,255,255,0.03);border-left:2px solid ' + rqClr + ';border-radius:3px;">';
-  html += '<div style="font-size:0.6rem;color:var(--color-foreground-muted);">道路质量 · ' + rqLabel + '</div>';
+  html += '<div style="font-size:0.66rem;color:var(--color-foreground-muted);">道路质量 · ' + rqLabel + '</div>';
   html += '<div style="display:flex;align-items:center;gap:6px;margin-top:3px;">';
   html += '<div style="flex:1;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;"><div style="width:' + Math.min(100, rq) + '%;height:100%;background:' + rqClr + ';"></div></div>';
   html += '<div style="font-size:0.85rem;color:' + rqClr + ';font-weight:700;font-variant-numeric:tabular-nums;">' + Math.round(rq) + '</div>';
   html += '</div>';
-  html += '<div style="font-size:0.55rem;color:var(--ink-400);margin-top:3px;">商旅/军调/驿递成本</div>';
+  html += '<div style="font-size:0.62rem;color:var(--ink-400);margin-top:3px;">商旅/军调/驿递成本</div>';
   html += '</div>';
   // 科举解额
   html += '<div style="padding:7px 10px;background:rgba(255,255,255,0.03);border-left:2px solid var(--gold-400);border-radius:3px;">';
-  html += '<div style="font-size:0.6rem;color:var(--color-foreground-muted);">科举解额</div>';
-  html += '<div style="font-size:0.95rem;color:var(--gold-400);font-weight:700;">' + _peN(eb.kejuQuota || 0) + ' <span style="font-size:0.55rem;font-weight:400;">名</span></div>';
-  html += '<div style="font-size:0.55rem;color:var(--ink-400);margin-top:2px;">教育/科举费</div>';
+  html += '<div style="font-size:0.66rem;color:var(--color-foreground-muted);">科举解额</div>';
+  html += '<div style="font-size:0.95rem;color:var(--gold-400);font-weight:700;">' + _peN(eb.kejuQuota || 0) + ' <span style="font-size:0.62rem;font-weight:400;">名</span></div>';
+  html += '<div style="font-size:0.62rem;color:var(--ink-400);margin-top:2px;">教育/科举费</div>';
   html += '</div>';
   html += '</div>';
   return html;
@@ -1206,7 +1206,7 @@ function _peRenderHero(div) {
 
   // 特产
   if (div.specialResources) {
-    idHtml += '<div style="font-size:0.66rem;color:var(--gold-400);letter-spacing:0.05em;">▣ 特产 · ' + escHtml(div.specialResources) + '</div>';
+    idHtml += '<div style="font-size:0.7rem;color:var(--gold-400);letter-spacing:0.05em;">▣ 特产 · ' + escHtml(div.specialResources) + '</div>';
   }
 
   // tags 徽章
@@ -2064,7 +2064,7 @@ function _peBuiltContent() {
   html += '<div style="background:var(--bg-2);padding:0.7rem;border-radius:6px;text-align:center;">';
   html += '<div style="font-size:0.72rem;color:var(--txt-d);">\u603B\u53E3</div>';
   html += '<div style="font-size:1.1rem;color:var(--gold);font-weight:700;">' + formatNumber(totalMouths) + '</div>';
-  html += '<div style="font-size:0.66rem;color:var(--txt-d);">' + formatNumber(totalHH) + '\u6237 \u00B7 ' + formatNumber(totalDing) + '\u4E01</div>';
+  html += '<div style="font-size:0.7rem;color:var(--txt-d);">' + formatNumber(totalHH) + '\u6237 \u00B7 ' + formatNumber(totalDing) + '\u4E01</div>';
   html += '</div>';
   html += '<div style="background:var(--bg-2);padding:0.7rem;border-radius:6px;text-align:center;">';
   html += '<div style="font-size:0.72rem;color:var(--txt-d);">\u4E0A\u89E3\u5165\u4E2D\u592E</div>';
@@ -2073,7 +2073,7 @@ function _peBuiltContent() {
   html += '<div style="background:var(--bg-2);padding:0.7rem;border-radius:6px;text-align:center;">';
   html += '<div style="font-size:0.72rem;color:var(--txt-d);">\u5730\u65B9\u516C\u5E93</div>';
   html += '<div style="font-size:1.1rem;color:var(--gold);font-weight:700;">' + formatNumber(totalPubMoney) + _UU.money + '</div>';
-  if (totalPubGrain > 0 || totalPubCloth > 0) html += '<div style="font-size:0.66rem;color:var(--txt-d);">' + formatNumber(totalPubGrain) + _UU.grain + ' \u00B7 ' + formatNumber(totalPubCloth) + _UU.cloth + '</div>';
+  if (totalPubGrain > 0 || totalPubCloth > 0) html += '<div style="font-size:0.7rem;color:var(--txt-d);">' + formatNumber(totalPubGrain) + _UU.grain + ' \u00B7 ' + formatNumber(totalPubCloth) + _UU.cloth + '</div>';
   html += '</div>';
   html += '<div style="background:var(--bg-2);padding:0.7rem;border-radius:6px;text-align:center;">';
   html += '<div style="font-size:0.72rem;color:var(--txt-d);">\u6240\u8F96\u533A\u5212</div>';
@@ -2089,7 +2089,7 @@ function _peBuiltContent() {
       // 未结算过（罕见——新游戏载入/endTurn 都会自动跑一次；若仍未跑说明 adminHierarchy 未就绪）
       html += '<div style="padding:0.5rem 0.8rem;background:var(--bg-2);border-left:3px solid var(--amber-400);border-radius:4px;margin-bottom:0.8rem;font-size:0.72rem;color:var(--txt-d);">';
       html += '\u203B \u7A0E\u6536\u5C1A\u672A\u7ED3\u7B97\u3002\u6BCF\u56DE\u5408 endTurn \u65F6\u4F1A\u81EA\u52A8\u7ED3\u7B97\uFF0C\u65B0\u6E38\u620F\u8F7D\u5165\u65F6\u4E5F\u4F1A\u5373\u523B\u7ED3\u7B97\u4E00\u6B21\u3002';
-      html += '<button class="bt bp bsm" style="margin-left:10px;font-size:0.65rem;" onclick="_peTriggerCascadeNow()" title="立即执行一次税收级联结算">\u7ACB\u5373\u7ED3\u7B97</button>';
+      html += '<button class="bt bp bsm" style="margin-left:10px;font-size:0.7rem;" onclick="_peTriggerCascadeNow()" title="立即执行一次税收级联结算">\u7ACB\u5373\u7ED3\u7B97</button>';
       html += '</div>';
     } else {
       // 已结算——显示状态行：上次结算回合 + 本回合累计数 + 手动再结算按钮
@@ -2114,7 +2114,7 @@ function _peBuiltContent() {
       if (_lossPct) html += '<span style="color:var(--amber-400);">' + _lossPct + '</span>';
       if (_skimPct) html += '<span style="color:var(--vermillion-400);">' + _skimPct + '</span>';
       html += '\u3002\u6BCF\u56DE\u5408 endTurn \u81EA\u52A8\u7ED3\u7B97\u3002</span>';
-      html += '<button class="bt bsm" style="margin-left:auto;font-size:0.65rem;" onclick="_peTriggerCascadeNow()" title="手动再结算一次（覆盖本回合）">\u91CD\u65B0\u7ED3\u7B97</button>';
+      html += '<button class="bt bsm" style="margin-left:auto;font-size:0.7rem;" onclick="_peTriggerCascadeNow()" title="手动再结算一次（覆盖本回合）">\u91CD\u65B0\u7ED3\u7B97</button>';
       html += '</div>';
     }
   }

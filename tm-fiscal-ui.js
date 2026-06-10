@@ -481,7 +481,7 @@
         var r = G.environment.byRegion[rid];
         var v = (r.carrying && r.carrying[dim]) || (r[dim + 'Support']) || 0.5;
         var color = v >= 1.0 ? 'var(--celadon-500)' : v >= 0.7 ? 'var(--celadon-300)' : v >= 0.5 ? 'var(--gold-400)' : v >= 0.3 ? 'var(--vermillion-400)' : 'var(--vermillion-500)';
-        body += '<div style="padding:4px 6px;background:' + color + ';border-radius:3px;color:#fff;font-size:0.68rem;">';
+        body += '<div style="padding:4px 6px;background:' + color + ';border-radius:3px;color:#fff;font-size:0.71rem;">';
         body += rid + '<br>' + (v*100).toFixed(0) + '%';
         body += '</div>';
       });

@@ -141,7 +141,7 @@ function showScnSelect(){
     "<div style=\"font-family:'STKaiti','KaiTi','楷体',serif;font-size:12px;color:var(--ink-400);letter-spacing:0.3em;text-align:center;margin-top:8px;margin-bottom:16px;font-style:italic;\">\u2014\u2014 \u62E9\u4E00\u6BB5\u65F6\u65E5\uFF0C\u5165\u5176\u4E16\u754C \u2014\u2014</div>"+
     "<div class=\"scn-grid\">"+
     P.scenarios.map(function(s){
-      var srcBadge = s._workshopPackId ? "<div style=\"position:absolute;right:0.55rem;top:0.55rem;border:1px solid var(--gold-d);color:var(--gold);background:rgba(0,0,0,0.35);font-size:0.65rem;padding:0.08rem 0.35rem;letter-spacing:0.08em;\">工坊</div>" : "";
+      var srcBadge = s._workshopPackId ? "<div style=\"position:absolute;right:0.55rem;top:0.55rem;border:1px solid var(--gold-d);color:var(--gold);background:rgba(0,0,0,0.35);font-size:0.7rem;padding:0.08rem 0.35rem;letter-spacing:0.08em;\">工坊</div>" : "";
       return "<div class=\"scn-card\" style=\"position:relative;\" onclick=\"previewScenario('"+escHtml(s.id)+"')\">"+
         srcBadge+
         "<div class=\"scn-era\">"+escHtml(s.era)+"</div>"+
@@ -162,12 +162,15 @@ function previewScenario(sid) {
   var charCount = (P.characters||[]).filter(function(c){return c.sid===sid;}).length;
   var facCount = (P.factions||[]).filter(function(f){return f.sid===sid;}).length;
   var partyCount = (P.parties||[]).filter(function(p){return p.sid===sid;}).length;
-  var eventCount = 0;
-  if (sc.events) { ['historical','random','conditional','story','chain'].forEach(function(k){ eventCount += (sc.events[k]||[]).length; }); }
+  var eventCount = (P.events||[]).filter(function(e){return e && e.sid===sid;}).length;
+  if (!eventCount && sc.events) {
+    if (Array.isArray(sc.events)) eventCount = sc.events.length;
+    else ['historical','random','conditional','story','chain'].forEach(function(k){ eventCount += (sc.events[k]||[]).length; });
+  }
   var pi = sc.playerInfo || {};
   var contradictions = pi.coreContradictions || [];
 
-  var h = '<div style="position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,0.88);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);animation:fi 0.2s ease;" id="_scnPreview" onclick="if(event.target===this)this.remove();">';
+  var h = '<div style="position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;animation:fi 0.2s ease;" id="_scnPreview" onclick="if(event.target===this)this.remove();">';
   h += '<div class="scn-preview-modal" onclick="event.stopPropagation();">';
 
   // 顶部金线装饰
@@ -273,7 +276,7 @@ function _startWithDifficulty(sid) {
  * 地图模式选择弹窗
  */
 function _showMapModeChoice(sid, hasMapData) {
-  var h = '<div style="position:fixed;inset:0;z-index:1300;background:rgba(0,0,0,0.88);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);animation:fi 0.2s ease;" id="_mapModeChoice">';
+  var h = '<div style="position:fixed;inset:0;z-index:1300;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;animation:fi 0.2s ease;" id="_mapModeChoice">';
   h += '<div class="scn-preview-modal" style="max-width:480px;text-align:center;" onclick="event.stopPropagation();">';
 
   h += '<div style="height:2px;background:linear-gradient(90deg,transparent,var(--gold-500),transparent);margin-bottom:var(--space-4);"></div>';
@@ -348,7 +351,7 @@ function _showGameSetupModal(sid) {
 
   _pendingGameMode = 'yanyi';
 
-  var h = '<div style="position:fixed;inset:0;z-index:1300;background:rgba(0,0,0,0.88);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);animation:fi 0.2s ease;" id="_gameSetupModal">';
+  var h = '<div style="position:fixed;inset:0;z-index:1300;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;animation:fi 0.2s ease;" id="_gameSetupModal">';
   h += '<div class="scn-preview-modal" style="max-width:560px;" onclick="event.stopPropagation();">';
 
   // 顶部金线

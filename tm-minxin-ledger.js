@@ -448,9 +448,17 @@
     if (affected.length) applyToMatrix(root, signal, affected.map(function(a) {
       return leaves.filter(function(div) { return regionIdOf(div) === a.regionId; })[0] || { id: a.regionId, name: a.region, minxin: a.after };
     }));
-    aggregateTrue(root);
-    rebuildMatrix(root, { preserveExisting: true, source: options.source || signal.sourceSystem });
-    updatePerception(root, options);
+    if (options.deferFinalize === true) {
+      // 2026-06-10·性能:批量路径下整体级收口(aggregateTrue/rebuildMatrix/updatePerception)挪到批末
+      // finalizeBatch 一次。原先每笔 apply 都全量重建 叶子×阶层 矩阵+两次全树聚合——真存档实测
+      // applyPending 107 笔×59ms = 6.7s 主线程冻结(与 1.3.3.1 rebuildMirrors 逐项重建同病同治)。
+      // 叶子写入/封顶/矩阵触点(applyToMatrix)仍逐笔做·只有派生缓存收口推迟·欠账由 WeakMap 标脏。
+      if (_deferredFinalize) _deferredFinalize.set(root, true);
+    } else {
+      aggregateTrue(root);
+      rebuildMatrix(root, { preserveExisting: true, source: options.source || signal.sourceSystem });
+      updatePerception(root, options);
+    }
     signal.applied = true;
     signal.appliedTurn = Number(options.turn != null ? options.turn : root.turn) || signal.turn || 0;
     signal.appliedSource = options.source || 'minxin-ledger';
@@ -463,6 +471,21 @@
     var signal = record(root, raw);
     var result = apply(root, signal, options || {});
     return { recorded: signal, applied: result.applied, result: result };
+  }
+
+  // 2026-06-10·批量收口:与 apply({deferFinalize:true}) 配对。无欠账时 no-op(幂等·调多无害)。
+  // 不持久化欠账标记(WeakMap·会话内有效)——即便批中途异常漏收口,叶子真值已写对,
+  // 派生缓存(trueIndex/matrix/perception)至迟在下一笔非 defer 的 apply 或回合末聚合时追平。
+  var _deferredFinalize = (typeof WeakMap === 'function') ? new WeakMap() : null;
+  function finalizeBatch(root, options) {
+    root = pickRoot(root);
+    options = options || {};
+    if (_deferredFinalize && _deferredFinalize.get(root) !== true && options.force !== true) return false;
+    aggregateTrue(root);
+    rebuildMatrix(root, { preserveExisting: true, source: options.source || 'minxin-ledger-batch' });
+    updatePerception(root, options);
+    if (_deferredFinalize) _deferredFinalize.delete(root);
+    return true;
   }
 
   function regionalVariantSatisfaction(cls, div) {
@@ -887,6 +910,7 @@
     record: record,
     apply: apply,
     recordAndApply: recordAndApply,
+    finalizeBatch: finalizeBatch,
     regularizeSourceCaps: regularizeSourceCaps,
     maintain: maintain,
     rebuildMatrix: rebuildMatrix,

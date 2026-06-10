@@ -38,12 +38,12 @@
       '#' + PANEL_ID + ' .mem-nav{display:flex;flex-wrap:wrap;padding:6px;background:#221912;',
       'border-bottom:1px solid #4a3525;}',
       '#' + PANEL_ID + ' .mem-nav button{margin:2px;padding:3px 8px;background:transparent;',
-      'color:#a89878;border:1px solid #4a3525;cursor:pointer;font-size:11px;}',
+      'color:#a89878;border:1px solid #4a3525;cursor:pointer;font-size:12px;}',
       '#' + PANEL_ID + ' .mem-nav button.active{background:#5a4025;color:#fff8e0;border-color:#9a7855;}',
       '#' + PANEL_ID + ' .mem-nav button:hover{background:#3a2a1f;}',
       '#' + PANEL_ID + ' .mem-body{flex:1;overflow:auto;padding:10px;}',
       '#' + PANEL_ID + ' .mem-meta{margin-bottom:8px;padding:6px;background:#251a13;',
-      'border-left:3px solid #9a7855;font-size:11px;color:#a89878;}',
+      'border-left:3px solid #9a7855;font-size:12px;color:#a89878;}',
       '#' + PANEL_ID + ' table.mem-tbl{width:100%;border-collapse:collapse;font-size:12px;}',
       '#' + PANEL_ID + ' table.mem-tbl th{background:#3a2a1f;color:#e3cb95;padding:4px 6px;',
       'text-align:left;border:1px solid #4a3525;}',
@@ -57,9 +57,9 @@
       '#' + PANEL_ID + ' td.editable:hover{background:#3a2a1f;}',
       '#' + PANEL_ID + ' .mem-empty{padding:20px;text-align:center;color:#7a6855;font-style:italic;}',
       '#' + PANEL_ID + ' .mem-foot{padding:6px 12px;background:#221912;border-top:1px solid #4a3525;',
-      'display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#a89878;}',
+      'display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#a89878;}',
       '#' + PANEL_ID + ' .mem-foot button{margin-left:6px;background:#3a2a1f;color:#d4c5a9;',
-      'border:1px solid #6a5635;padding:3px 10px;cursor:pointer;font-size:11px;}',
+      'border:1px solid #6a5635;padding:3px 10px;cursor:pointer;font-size:12px;}',
       '#' + PANEL_ID + ' .mem-foot button.alert{background:#5a1a1a;color:#fff;animation:mem-shake 0.5s infinite alternate;}',
       '@keyframes mem-shake{0%{transform:translateX(0);}100%{transform:translateX(2px);}}',
       '#' + PANEL_ID + ' .sentinel-info{color:#5a8a5a;}',
@@ -235,7 +235,7 @@
   function _renderImperialEditor(def, t) {
     var html = '<div class="imperial-editor">';
     html += '<div style="margin-bottom:8px;color:#d4a85a;font-weight:bold;">📜 皇命专用 · AI 永读不写·每回合必投</div>';
-    html += '<div style="font-size:11px;color:#a89878;margin-bottom:8px;">玩家在此处添加的钉子条目（如"祖训不可改""礼部尚书必由王某担任"）会被注入到每回合 sc1 prompt 顶部·AI 严格遵循。<b>勾选"天机"</b>则为隐藏伏笔·仅 sc1 可见 sc15/sc2 不见。</div>';
+    html += '<div style="font-size:12px;color:#a89878;margin-bottom:8px;">玩家在此处添加的钉子条目（如"祖训不可改""礼部尚书必由王某担任"）会被注入到每回合 sc1 prompt 顶部·AI 严格遵循。<b>勾选"天机"</b>则为隐藏伏笔·仅 sc1 可见 sc15/sc2 不见。</div>';
     html += '<table class="mem-tbl"><thead><tr><th>#</th><th>优先级</th><th>皇命内容</th><th>生效条件</th><th>颁布回合</th><th>天机</th><th>操作</th></tr></thead><tbody>';
     t.rows.forEach(function(r, i) {
       var isSecret = (r[4] === 'true' || r[4] === true || r[4] === '是' || r[4] === '1');
@@ -257,7 +257,7 @@
     if (pending.length > 0) {
       html += '<div style="margin-top:16px;padding:8px;background:#1a2a3a;border-left:3px solid #6b9eff;">';
       html += '<div style="margin-bottom:6px;color:#9bbfff;font-weight:bold;">🔍 AI 推断的皇命候选 (待审 ' + pending.length + ' 条·KokoroMemo auto_review 范式)</div>';
-      html += '<div style="font-size:11px;color:#a89878;margin-bottom:8px;">sc25 后台推断的"应有皇命"·importance≥0.8 && confidence≥0.85 的已自动批准·imp<0.3 的已自动拒绝·中间态在此等审。</div>';
+      html += '<div style="font-size:12px;color:#a89878;margin-bottom:8px;">sc25 后台推断的"应有皇命"·importance≥0.8 && confidence≥0.85 的已自动批准·imp<0.3 的已自动拒绝·中间态在此等审。</div>';
       html += '<table class="mem-tbl"><thead><tr><th>内容</th><th>优先</th><th>条件</th><th>imp</th><th>conf</th><th>提议回合</th><th>操作</th></tr></thead><tbody>';
       pending.forEach(function(c, i) {
         html += '<tr>';

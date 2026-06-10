@@ -1197,7 +1197,7 @@ var TyrantActivitySystem = {
       if (_eKey && GM.vars[_eKey]) _resItems.push(_eKey + ':' + Math.round(GM.vars[_eKey].value));
       if (_mKey && GM.vars[_mKey]) _resItems.push(_mKey + ':' + Math.round(GM.vars[_mKey].value));
       if (_resItems.length > 0) {
-        h += '<div style="font-size:0.65rem;color:var(--txt-d);text-align:center;margin-bottom:0.3rem;">' + _resItems.join(' | ') + '</div>';
+        h += '<div style="font-size:0.7rem;color:var(--txt-d);text-align:center;margin-bottom:0.3rem;">' + _resItems.join(' | ') + '</div>';
       }
     }
 

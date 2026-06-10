@@ -210,7 +210,7 @@ function _endTurn_render(shizhengji, zhengwen, playerStatus, playerInner, edicts
       suggestHtml+=escHtml(_text);
       suggestHtml+='</div>';
     });
-    suggestHtml+='<div style="font-size:0.68rem;color:var(--txt-d);text-align:center;margin-top:0.2rem;">\u70B9\u51FB\u5EFA\u8BAE\u53EF\u91C7\u7EB3\u5230\u4E0B\u56DE\u5408\u8BCF\u4EE4</div>';
+    suggestHtml+='<div style="font-size:0.71rem;color:var(--txt-d);text-align:center;margin-top:0.2rem;">\u70B9\u51FB\u5EFA\u8BAE\u53EF\u91C7\u7EB3\u5230\u4E0B\u56DE\u5408\u8BCF\u4EE4</div>';
     suggestHtml+='</div></div>';
   }
 
@@ -848,7 +848,7 @@ function _endTurn_render(shizhengji, zhengwen, playerStatus, playerInner, edicts
           battleVisHtml += '<td style="padding:4px;">' + escHtml(armyName) + '</td>';
           battleVisHtml += '<td style="padding:4px;color:' + fateColor + ';">' + escHtml(fate || '在阵') + '</td>';
           battleVisHtml += '<td style="padding:4px;">' + ((Number(casualty) || 0).toLocaleString()) + '</td>';
-          battleVisHtml += '<td style="padding:4px;"><span style="padding:2px 6px;border-radius:3px;font-size:11px;background:' + attrBg + ';">' + escHtml(attrLabel) + '</span></td>';
+          battleVisHtml += '<td style="padding:4px;"><span style="padding:2px 6px;border-radius:3px;font-size:12px;background:' + attrBg + ';">' + escHtml(attrLabel) + '</span></td>';
           battleVisHtml += '<td style="padding:4px;color:var(--text-dim,#999);">' + escHtml(commanderName || '') + '</td>';
           battleVisHtml += '</tr>';
         });
@@ -1151,7 +1151,7 @@ function _endTurn_render(shizhengji, zhengwen, playerStatus, playerInner, edicts
         tinyiReviewHtml += '<div style="margin-bottom:0.5rem;padding:0.5rem 0.7rem;background:rgba(0,0,0,0.12);border-radius:3px;border-left:2px solid '+c+';font-size:0.8rem;">'
           + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;">'
           + '<span><span style="color:'+c+';font-weight:600;">' + g + ' ' + escHtml(rv.histLabel || rv.label || '') + '</span>'
-          + (rv.venueType ? '<span style="margin-left:0.4em;padding:1px 6px;background:rgba(0,0,0,0.18);border-radius:2px;font-size:0.66rem;color:'+venueClr+';">'+escHtml(rv.venueType)+'</span>' : '')
+          + (rv.venueType ? '<span style="margin-left:0.4em;padding:1px 6px;background:rgba(0,0,0,0.18);border-radius:2px;font-size:0.7rem;color:'+venueClr+';">'+escHtml(rv.venueType)+'</span>' : '')
           + '</span>'
           + (rv.delayTurns ? '<span style="color:var(--txt-d);font-size:0.72rem;">' + rv.delayTurns + ' 回合前议</span>' : '')
           + '</div>'

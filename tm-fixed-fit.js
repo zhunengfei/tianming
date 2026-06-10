@@ -22,12 +22,27 @@
   'use strict';
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
-  var VW = 1920, VH = 1080;   // 虚拟设计分辨率（16:9·御案全尺寸）
+  // 虚拟舞台分辨率（设置·界面显示·「渲染分辨率」存 tm.fitResolution='WxH'）。舞台越小 → fit 缩放
+  // 因子越大 → 整个 UI（字/图/钮）等比变大，代价是单屏信息密度降低。
+  // 未设置时：APK 出厂默认 1477×831「标准」（owner 拍板·1920 原生舞台在手机上 scale≈0.37 字太小）；
+  // 桌面/网页默认不进 fit（自适应窗口），仅当玩家在设置里显式选定分辨率才走固定舞台（P社式语义：
+  // 选低于窗口的分辨率 = 界面整体放大）。CSSOM 舞台归一化不可逆 → 改档由设置面板触发整页重载生效。
+  var VW = 1477, VH = 831;
+  try {
+    var _res = localStorage.getItem('tm.fitResolution');
+    if (_res && /^\d{3,4}x\d{3,4}$/.test(_res)) {
+      var _p = _res.split('x');
+      VW = +_p[0]; VH = +_p[1];
+    }
+  } catch (_) {}
 
   function shouldFit() {
     try {
       if (location.search.indexOf('fit=1') >= 0) return true;            // 测试强制
       if (window.TM && window.TM.platform && window.TM.platform.kind === 'capacitor') return true; // APK
+      // 桌面/网页:玩家显式选定了固定分辨率 → 进 fit 舞台
+      var r = localStorage.getItem('tm.fitResolution');
+      if (r && /^\d{3,4}x\d{3,4}$/.test(r)) return true;
     } catch (_) {}
     return false;
   }

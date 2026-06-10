@@ -44,7 +44,7 @@ function _offRenderPickerList() {
         +     '\u5E9C\u5E93\u4EBA\u624D\u65B9\u4E1A\u4E4F\u7ED9\uFF0C\u7329\u529B\u5FE0\u8BDA\u4E4B\u58EB\u96BE\u8FC5\u5C31\u9644\u3002<br>\u53EF\u4E0B\u8BCF\u5FB4\u53EC\u65B0\u4EBA\uFF0C\u53D7\u547D\u4E4B\u540E\u518D\u884C\u6388\u804C\u3002'
         +   '</div>'
         +   '<button onclick="_offRecruitNewForPost()" class="bt" style="padding:8px 20px;background:linear-gradient(180deg,rgba(184,154,83,0.25),rgba(184,154,83,0.1));border:1px solid var(--gold-400);color:var(--gold-300);font-size:0.82rem;letter-spacing:0.15em;border-radius:var(--radius-sm);cursor:pointer;">\u2767 \u4E0B\u8BCF\u5FB4\u53EC \u2767</button>'
-        +   '<div style="font-size:0.66rem;color:var(--ink-400);margin-top:0.6rem;">AI \u5C06\u6839\u636E\u6B64\u804C\u9700\u6C42\u751F\u6210\u5019\u9009\u4EBA\u7269</div>'
+        +   '<div style="font-size:0.7rem;color:var(--ink-400);margin-top:0.6rem;">AI \u5C06\u6839\u636E\u6B64\u804C\u9700\u6C42\u751F\u6210\u5019\u9009\u4EBA\u7269</div>'
         + '</div>';
     } else {
       // 筛选后空·但池非空——提示调整过滤
@@ -84,12 +84,12 @@ function _offPickerRowHtml(c) {
   var medalBg = '';
   var recommendRibbon = '';
   if (c._pickerRank === 1) {
-    medal = '<span style="display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;background:linear-gradient(135deg,#c9a045,#d4b45a);color:#1a1510;font-size:11px;font-weight:700;border-radius:50%;box-shadow:0 0 8px rgba(201,168,95,0.5);margin-right:6px;">\u51A0</span>';
+    medal = '<span style="display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;background:linear-gradient(135deg,#c9a045,#d4b45a);color:#1a1510;font-size:12px;font-weight:700;border-radius:50%;box-shadow:0 0 8px rgba(201,168,95,0.5);margin-right:6px;">\u51A0</span>';
     medalBg = 'linear-gradient(to right,rgba(201,168,95,0.08),transparent 60%)';
     recommendRibbon = '<span class="off-pk-recommend-ribbon">\u9996 \u8350</span>';
   }
-  else if (c._pickerRank === 2) { medal = '<span style="display:inline-block;width:20px;height:20px;line-height:20px;text-align:center;background:linear-gradient(135deg,#8c8c8c,#b0b0b0);color:#1a1510;font-size:10px;font-weight:700;border-radius:50%;margin-right:6px;">\u4E9A</span>'; medalBg = 'linear-gradient(to right,rgba(160,160,160,0.06),transparent 60%)'; }
-  else if (c._pickerRank === 3) { medal = '<span style="display:inline-block;width:20px;height:20px;line-height:20px;text-align:center;background:linear-gradient(135deg,#8b5a2b,#a67440);color:#1a1510;font-size:10px;font-weight:700;border-radius:50%;margin-right:6px;">\u5B63</span>'; medalBg = 'linear-gradient(to right,rgba(139,90,43,0.05),transparent 60%)'; }
+  else if (c._pickerRank === 2) { medal = '<span style="display:inline-block;width:20px;height:20px;line-height:20px;text-align:center;background:linear-gradient(135deg,#8c8c8c,#b0b0b0);color:#1a1510;font-size:11px;font-weight:700;border-radius:50%;margin-right:6px;">\u4E9A</span>'; medalBg = 'linear-gradient(to right,rgba(160,160,160,0.06),transparent 60%)'; }
+  else if (c._pickerRank === 3) { medal = '<span style="display:inline-block;width:20px;height:20px;line-height:20px;text-align:center;background:linear-gradient(135deg,#8b5a2b,#a67440);color:#1a1510;font-size:11px;font-weight:700;border-radius:50%;margin-right:6px;">\u5B63</span>'; medalBg = 'linear-gradient(to right,rgba(139,90,43,0.05),transparent 60%)'; }
 
   // 四象雷达·智政军忠 → 上右下左·范围 0-100 映射到 radius 0-28（中心 40,40）
   var _rInt = Math.max(0, Math.min(100, c.intelligence||50));
@@ -116,17 +116,17 @@ function _offPickerRowHtml(c) {
     + '</svg>';
 
   var tags = [];
-  if (c.officialTitle) tags.push('<span style="font-size:0.68rem;padding:1px 6px;border-radius:3px;background:rgba(184,154,83,0.12);color:var(--gold-400);">\u73B0\u4EFB ' + escHtml(c.officialTitle) + '</span>');
-  else tags.push('<span style="font-size:0.68rem;padding:1px 6px;border-radius:3px;background:rgba(121,175,135,0.12);color:var(--celadon-400);">\u5E03\u8863</span>');
+  if (c.officialTitle) tags.push('<span style="font-size:0.71rem;padding:1px 6px;border-radius:3px;background:rgba(184,154,83,0.12);color:var(--gold-400);">\u73B0\u4EFB ' + escHtml(c.officialTitle) + '</span>');
+  else tags.push('<span style="font-size:0.71rem;padding:1px 6px;border-radius:3px;background:rgba(121,175,135,0.12);color:var(--celadon-400);">\u5E03\u8863</span>');
   if (c.location && !_isSameLocation(c.location, GM._capital||'京城')) {
     var _td = c._pickerTravelDays > 0 ? ('\u00B7\u8D74\u4EFB ' + c._pickerTravelDays + ' \u65E5') : '';
-    tags.push('<span style="font-size:0.68rem;padding:1px 6px;border-radius:3px;background:rgba(192,64,48,0.1);color:var(--vermillion-400);">\u5728 ' + escHtml(c.location) + _td + '</span>');
+    tags.push('<span style="font-size:0.71rem;padding:1px 6px;border-radius:3px;background:rgba(192,64,48,0.1);color:var(--vermillion-400);">\u5728 ' + escHtml(c.location) + _td + '</span>');
   }
-  if (c.party && c.party !== '\u65E0\u515A') tags.push('<span style="font-size:0.68rem;padding:1px 6px;border-radius:3px;background:rgba(107,93,79,0.2);color:var(--ink-300);">' + escHtml(c.party) + '</span>');
-  if (c.hometown) tags.push('<span style="font-size:0.68rem;color:var(--ink-300);">\u7C4D\uFF1A' + escHtml(c.hometown) + '</span>');
+  if (c.party && c.party !== '\u65E0\u515A') tags.push('<span style="font-size:0.71rem;padding:1px 6px;border-radius:3px;background:rgba(107,93,79,0.2);color:var(--ink-300);">' + escHtml(c.party) + '</span>');
+  if (c.hometown) tags.push('<span style="font-size:0.71rem;color:var(--ink-300);">\u7C4D\uFF1A' + escHtml(c.hometown) + '</span>');
   // 警示标签
   (c._pickerWarnings||[]).forEach(function(w){
-    tags.push('<span style="font-size:0.68rem;padding:1px 6px;border-radius:3px;background:rgba(192,64,48,0.18);color:var(--vermillion-400);border:1px solid rgba(192,64,48,0.35);">\u26A0 ' + escHtml(w) + '</span>');
+    tags.push('<span style="font-size:0.71rem;padding:1px 6px;border-radius:3px;background:rgba(192,64,48,0.18);color:var(--vermillion-400);border:1px solid rgba(192,64,48,0.35);">\u26A0 ' + escHtml(w) + '</span>');
   });
 
   return ''
@@ -152,7 +152,7 @@ function _offPickerRowHtml(c) {
     +       '<div style="margin-top:3px;height:4px;background:rgba(107,93,79,0.15);border-radius:2px;overflow:hidden;">'
     +         '<div style="height:100%;width:' + match + '%;background:' + matchClr + ';transition:width 0.3s;"></div>'
     +       '</div>'
-    +       '<div style="font-size:0.64rem;color:' + matchClr + ';letter-spacing:0.1em;margin-top:3px;">' + matchLbl + '</div>'
+    +       '<div style="font-size:0.7rem;color:' + matchClr + ';letter-spacing:0.1em;margin-top:3px;">' + matchLbl + '</div>'
     +     '</div>'
     +   '</div>'
     + '</div>';
@@ -533,7 +533,7 @@ function _offRecruitNewForPost() {
     +   '<label style="display:block;font-size:0.72rem;color:var(--ink-300);margin-bottom:0.2rem;">\u53EC\u964D\u4E4B\u4EBA\u59D3\u540D</label>'
     +   '<input id="recruit-name-input" type="text" placeholder="\u4F8B\uFF1A\u8881\u5D07\u7115\u00B7\u6216\u7559\u7A7A\u8BA9 AI \u81EA\u751F" maxlength="20" '
     +     'style="width:100%;padding:6px 10px;font-size:0.88rem;background:var(--color-elevated);border:1px solid var(--color-border);border-radius:var(--radius-sm);color:var(--color-foreground);margin-bottom:0.3rem;"/>'
-    +   '<div style="font-size:0.66rem;color:var(--ink-400);line-height:1.5;margin-bottom:0.8rem;">\u00B7 \u8F93\u5165\u5386\u53F2\u540D\u81E3\u5C06 AI \u751F\u6210\u5B9E\u5386\u5B66\u5BD8\u00B7 \u7559\u7A7A\u5219 AI \u81EA\u62DF\u540D</div>'
+    +   '<div style="font-size:0.7rem;color:var(--ink-400);line-height:1.5;margin-bottom:0.8rem;">\u00B7 \u8F93\u5165\u5386\u53F2\u540D\u81E3\u5C06 AI \u751F\u6210\u5B9E\u5386\u5B66\u5BD8\u00B7 \u7559\u7A7A\u5219 AI \u81EA\u62DF\u540D</div>'
     +   '<div style="display:flex;gap:0.6rem;justify-content:flex-end;">'
     +     '<button class="bt bsm" onclick="this.closest(\'div[style*=fixed]\').remove();">\u53D6\u6D88</button>'
     +     '<button class="bt bsm" style="background:var(--gold-500);color:#1a1510;border-color:var(--gold-500);" onclick="_offRecruitSubmit()">\u4E0B \u8BCF</button>'
@@ -969,18 +969,18 @@ function _offTingTui(pathArr, deptName, posName, pos) {
       html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
       html += '<div>';
       html += '<span style="font-size:var(--text-sm);font-weight:var(--weight-bold);' + (isTop ? 'color:var(--gold-400);' : '') + '">' + escHtml(name) + '</span>';
-      if (ch && ch.title) html += '<span style="font-size:0.65rem;color:var(--ink-300);margin-left:4px;">' + escHtml(ch.title) + '</span>';
-      html += '<div style="font-size:0.65rem;color:var(--color-foreground-muted);">';
+      if (ch && ch.title) html += '<span style="font-size:0.7rem;color:var(--ink-300);margin-left:4px;">' + escHtml(ch.title) + '</span>';
+      html += '<div style="font-size:0.7rem;color:var(--color-foreground-muted);">';
       if (ch) { var _f1=(typeof _fmtNum1==='function')?_fmtNum1:function(v){return v;}; html += '\u667A' + _f1(ch.intelligence||50) + ' \u653F' + _f1(ch.administration||50) + ' \u519B' + _f1(ch.military||50) + ' \u5FE0' + _f1(ch.loyalty||50); }
       html += '</div>';
       html += '</div>';
       html += '<div style="text-align:right;">';
       html += '<div style="font-size:var(--text-sm);color:var(--gold-400);font-weight:var(--weight-bold);">' + v.votes + '\u7968</div>';
-      html += '<div style="font-size:0.6rem;color:var(--ink-300);">' + v.from.join('、') + '</div>';
+      html += '<div style="font-size:0.66rem;color:var(--ink-300);">' + v.from.join('、') + '</div>';
       html += '</div></div></div>';
     });
   }
-  html += '<div style="font-size:0.65rem;color:var(--color-foreground-muted);text-align:center;margin-top:var(--space-2);">\u70B9\u51FB\u5019\u9009\u4EBA\u7EB3\u5165\u8BCF\u4E66\u5EFA\u8BAE\u5E93\uFF0C\u6216\u81EA\u884C\u4E0B\u65E8\u4EFB\u547D\u4ED6\u4EBA</div>';
+  html += '<div style="font-size:0.7rem;color:var(--color-foreground-muted);text-align:center;margin-top:var(--space-2);">\u70B9\u51FB\u5019\u9009\u4EBA\u7EB3\u5165\u8BCF\u4E66\u5EFA\u8BAE\u5E93\uFF0C\u6216\u81EA\u884C\u4E0B\u65E8\u4EFB\u547D\u4ED6\u4EBA</div>';
   html += '<div style="text-align:center;margin-top:var(--space-2);"><button class="bt" onclick="this.closest(\'div[style*=fixed]\').remove();">\u5173\u95ED</button></div>';
   html += '</div>';
   bg.innerHTML = html;
@@ -1035,17 +1035,17 @@ function _offRenderCareerHTML(charName) {
     html += '<div style="font-size:var(--text-sm);color:var(--color-foreground);">' + escHtml(info.current.dept) + ' · ' + escHtml(info.current.pos);
     if (info.current.rank) html += ' <span style="color:' + (_rkInfo ? _rkInfo.color : 'var(--ink-300)') + ';">（' + escHtml(info.current.rank) + '）</span>';
     html += '</div>';
-    html += '<div style="font-size:0.65rem;color:var(--color-foreground-muted);margin-top:2px;">';
+    html += '<div style="font-size:0.7rem;color:var(--color-foreground-muted);margin-top:2px;">';
     html += '\u4EFB\u671F ' + info.current.tenure + ' \u56DE\u5408';
     if (info.current.tenure > 12) html += ' <span style="color:var(--amber-400);">\u26A0\u8D85\u671F</span>';
     html += '</div>';
     if (info.lastEval) {
       var _ec = {'\u5353\u8D8A':'var(--gold-400)','\u79F0\u804C':'var(--celadon-400)','\u5E73\u5EB8':'var(--ink-300)','\u5931\u804C':'var(--vermillion-400)'};
-      html += '<div style="font-size:0.65rem;margin-top:2px;">\u8003\u8BC4\uFF08' + escHtml(info.lastEval.evaluator||'') + '\uFF09\uFF1A<span style="color:' + (_ec[info.lastEval.grade]||'var(--ink-300)') + ';">' + escHtml(info.lastEval.grade||'') + '</span> ' + escHtml(info.lastEval.comment||'') + '</div>';
+      html += '<div style="font-size:0.7rem;margin-top:2px;">\u8003\u8BC4\uFF08' + escHtml(info.lastEval.evaluator||'') + '\uFF09\uFF1A<span style="color:' + (_ec[info.lastEval.grade]||'var(--ink-300)') + ';">' + escHtml(info.lastEval.grade||'') + '</span> ' + escHtml(info.lastEval.comment||'') + '</div>';
     }
     if (info.satisfaction) {
       var _sc2 = info.satisfaction.score;
-      html += '<div style="font-size:0.65rem;color:' + (_sc2 < 35 ? 'var(--vermillion-400)' : _sc2 < 55 ? 'var(--amber-400)' : 'var(--celadon-400)') + ';margin-top:2px;">\u5FC3\u6001\uFF1A' + escHtml(info.satisfaction.label) + '</div>';
+      html += '<div style="font-size:0.7rem;color:' + (_sc2 < 35 ? 'var(--vermillion-400)' : _sc2 < 55 ? 'var(--amber-400)' : 'var(--celadon-400)') + ';margin-top:2px;">\u5FC3\u6001\uFF1A' + escHtml(info.satisfaction.label) + '</div>';
     }
     html += '</div>';
   } else if (info.mourning) {
@@ -1064,7 +1064,7 @@ function _offRenderCareerHTML(charName) {
       var toDate = c.current ? '\u5728\u4EFB' : (c.to ? ((typeof getTSText === 'function') ? getTSText(c.to) : 'T' + c.to) : '?');
       html += '<div style="padding:2px var(--space-2);border-left:2px solid ' + (c.current ? 'var(--gold-400)' : 'var(--color-border-subtle)') + ';margin-bottom:2px;">';
       html += '<div style="font-size:0.7rem;font-weight:' + (c.current ? 'var(--weight-bold)' : 'normal') + ';color:' + (c.current ? 'var(--gold-400)' : 'var(--color-foreground)') + ';">' + escHtml(c.dept) + ' · ' + escHtml(c.pos) + (c.rank ? ' (' + escHtml(c.rank) + ')' : '') + '</div>';
-      html += '<div style="font-size:0.6rem;color:var(--color-foreground-muted);">' + fromDate + ' → ' + toDate + (c.reason ? ' · ' + escHtml(c.reason) : '') + '</div>';
+      html += '<div style="font-size:0.66rem;color:var(--color-foreground-muted);">' + fromDate + ' → ' + toDate + (c.reason ? ' · ' + escHtml(c.reason) : '') + '</div>';
       html += '</div>';
     });
     html += '</div>';
@@ -1536,7 +1536,7 @@ function confirmEndTurn(){
     msg = '\u8BCF\u4EE4\u5DF2\u62DF\uFF0C\u662F\u5426\u9881\u884C\u5929\u4E0B\uFF1F';
   }
   var bg=document.createElement('div');
-  bg.style.cssText='position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+  bg.style.cssText='position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;';
   bg.innerHTML='<div style="background:var(--bg-1);border:1px solid var(--gold-d);border-radius:14px;padding:2rem 2.2rem;max-width:400px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.5);animation:modal-in 0.3s ease;">'+
     '<div style="font-size:1.3rem;color:var(--gold);margin-bottom:0.4rem;letter-spacing:0.15em;">⏳</div>'+
     '<div style="font-size:1rem;color:var(--txt);margin-bottom:0.8rem;line-height:1.6;">'+msg+'</div>'+
@@ -1568,7 +1568,7 @@ function renderOfficeDeptV2(dept,path){
     var _namedArr = _ah.filter(function(h){return h && h.name && h.generated!==false;});
     var _placeholderCount = _ah.filter(function(h){return h && h.generated===false;}).length;
     // 三栏标签
-    var _triBar = '<div style="display:inline-flex;gap:4px;font-size:0.6rem;margin-left:4px;">'
+    var _triBar = '<div style="display:inline-flex;gap:4px;font-size:0.66rem;margin-left:4px;">'
       + '<span style="background:rgba(107,93,79,0.2);color:var(--ink-300);padding:0 4px;border-radius:2px;" title="编制">\u7F16'+_est+'</span>'
       + (_vac>0 ? '<span style="background:rgba(192,64,48,0.15);color:var(--vermillion-400);padding:0 4px;border-radius:2px;" title="缺员(史料记载)">\u7F3A'+_vac+'</span>' : '')
       + '<span style="background:rgba(87,142,126,0.15);color:var(--celadon-400);padding:0 4px;border-radius:2px;" title="实际在职">\u5728'+_occ+'</span>'
@@ -1582,9 +1582,9 @@ function renderOfficeDeptV2(dept,path){
       var _n = parseFloat(String(_perSalary).replace(/[^\d.]/g,'')) || 0;
       var _unit = String(_perSalary).replace(/[\d.]/g,'').trim();
       if (_n > 0) {
-        _salaryBar = '<span style="font-size:0.6rem;color:var(--ink-300);margin-left:6px;" title="理论总俸=单俸×编制；实际支出=单俸×(编制-缺员)">俸'+_perSalary+'/人 · 理论'+(_n*_est)+_unit+' · 实支'+(_n*_occ)+_unit+'</span>';
+        _salaryBar = '<span style="font-size:0.66rem;color:var(--ink-300);margin-left:6px;" title="理论总俸=单俸×编制；实际支出=单俸×(编制-缺员)">俸'+_perSalary+'/人 · 理论'+(_n*_est)+_unit+' · 实支'+(_n*_occ)+_unit+'</span>';
       } else {
-        _salaryBar = '<span style="font-size:0.6rem;color:var(--ink-300);margin-left:6px;">俸'+_perSalary+'/人</span>';
+        _salaryBar = '<span style="font-size:0.66rem;color:var(--ink-300);margin-left:6px;">俸'+_perSalary+'/人</span>';
       }
     }
     // ── 在任者信息（按 actualHolders 显示所有具名任职者） ──
@@ -1597,12 +1597,12 @@ function renderOfficeDeptV2(dept,path){
           var _loyC = _loy > 70 ? 'var(--celadon-400)' : _loy < 30 ? 'var(--vermillion-400)' : 'var(--color-foreground-secondary)';
           var _portraitImg = _hch.portrait?'<img src="'+escHtml(_hch.portrait)+'" style="width:14px;height:14px;object-fit:cover;border-radius:50%;vertical-align:middle;margin-right:2px;">':'';
           return _portraitImg + '<span style="color:var(--celadon-400);">' + escHtml(h.name) + '</span>'
-            + '<span style="font-size:0.6rem;color:' + _loyC + ';margin-left:2px;">\u5FE0' + _loy + '</span>'
-            + (h.spawnedTurn ? '<span style="font-size:0.55rem;color:var(--amber-400);margin-left:2px;" title="由 AI 推演实体化">\u2605</span>' : '');
+            + '<span style="font-size:0.66rem;color:' + _loyC + ';margin-left:2px;">\u5FE0' + _loy + '</span>'
+            + (h.spawnedTurn ? '<span style="font-size:0.62rem;color:var(--amber-400);margin-left:2px;" title="由 AI 推演实体化">\u2605</span>' : '');
         }
         return '<span style="color:var(--gold-400);">' + escHtml(h.name) + '</span>';
       }).join('、');
-      holderInfo = _nameLine + (_namedArr.length > 3 ? '<span style="font-size:0.6rem;color:var(--ink-300);">…等'+_namedArr.length+'人</span>' : '');
+      holderInfo = _nameLine + (_namedArr.length > 3 ? '<span style="font-size:0.66rem;color:var(--ink-300);">…等'+_namedArr.length+'人</span>' : '');
       // 主任职者详情（第一个）
       var _hch0 = findCharByName(_namedArr[0].name);
       if (_hch0) {
@@ -1610,14 +1610,14 @@ function renderOfficeDeptV2(dept,path){
         var _lastEval = (pos._evaluations && pos._evaluations.length > 0) ? pos._evaluations[pos._evaluations.length-1] : null;
         if (_lastEval) {
           var _evalColors = {'\u5353\u8D8A':'var(--gold-400)','\u79F0\u804C':'var(--celadon-400)','\u5E73\u5EB8':'var(--ink-300)','\u5931\u804C':'var(--vermillion-400)'};
-          holderInfo += '<span style="font-size:0.6rem;color:' + (_evalColors[_lastEval.grade]||'var(--ink-300)') + ';margin-left:3px;">' + escHtml(_lastEval.grade||'') + '</span>';
+          holderInfo += '<span style="font-size:0.66rem;color:' + (_evalColors[_lastEval.grade]||'var(--ink-300)') + ';margin-left:3px;">' + escHtml(_lastEval.grade||'') + '</span>';
         }
         holderDetail = '<div style="font-size:0.7rem;color:var(--color-foreground-muted);margin-top:var(--space-1);padding:var(--space-1) 0;">';
         holderDetail += '\u80FD\u529B\uFF1A\u667A' + (_hch0.intelligence||50) + ' \u653F' + (_hch0.administration||50) + ' \u519B' + (_hch0.military||50);
         if (_hch0.location && !_isSameLocation(_hch0.location, GM._capital||'\u4EAC\u57CE')) holderDetail += ' <span style="color:var(--amber-400);">[\u8FDC\u65B9:' + escHtml(_hch0.location) + ']</span>';
         holderDetail += '</div>';
         if (_lastEval) {
-          holderDetail += '<div style="font-size:0.65rem;color:var(--color-foreground-muted);padding:2px 0;border-top:1px solid var(--color-border-subtle);">';
+          holderDetail += '<div style="font-size:0.7rem;color:var(--color-foreground-muted);padding:2px 0;border-top:1px solid var(--color-border-subtle);">';
           holderDetail += '\u8003\u8BC4\uFF08' + escHtml(_lastEval.evaluator||'\u5417\u90E8') + '\uFF09\uFF1A' + escHtml(_lastEval.comment||'');
           holderDetail += '</div>';
         }
@@ -1629,19 +1629,19 @@ function renderOfficeDeptV2(dept,path){
     } else {
       holderInfo = '<span style="color:var(--vermillion-400);">\u7A7A\u7F3A</span>';
     }
-    var rankTag = pos.rank ? '<span style="font-size:0.6rem;color:var(--ink-300);margin-left:3px;">(' + escHtml(pos.rank) + ')</span>' : '';
-    var dutyLine = (pos.desc || pos.duties) ? '<div style="font-size:0.68rem;color:var(--color-foreground-muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:350px;">' + escHtml((pos.desc || pos.duties || '').slice(0, 60)) + '</div>' : '';
+    var rankTag = pos.rank ? '<span style="font-size:0.66rem;color:var(--ink-300);margin-left:3px;">(' + escHtml(pos.rank) + ')</span>' : '';
+    var dutyLine = (pos.desc || pos.duties) ? '<div style="font-size:0.71rem;color:var(--color-foreground-muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:350px;">' + escHtml((pos.desc || pos.duties || '').slice(0, 60)) + '</div>' : '';
     // 操作按钮——不再直接任命，改为荐贤/免职→写入诏令
     var actionBtns = '';
     if (!pos.holder) {
-      actionBtns = '<button class="bt bp bsm" onclick="_offRecommend('+ppS+',\'' + escHtml(dept.name).replace(/'/g,"\\'") + '\',\'' + escHtml(pos.name).replace(/'/g,"\\'") + '\')" style="font-size:0.65rem;">\u8350\u8D24</button>';
+      actionBtns = '<button class="bt bp bsm" onclick="_offRecommend('+ppS+',\'' + escHtml(dept.name).replace(/'/g,"\\'") + '\',\'' + escHtml(pos.name).replace(/'/g,"\\'") + '\')" style="font-size:0.7rem;">\u8350\u8D24</button>';
     } else {
-      actionBtns = '<button class="bt bsm" onclick="_offDismissToEdict(\'' + escHtml(pos.holder).replace(/'/g,"\\'") + '\',\'' + escHtml(dept.name).replace(/'/g,"\\'") + '\',\'' + escHtml(pos.name).replace(/'/g,"\\'") + '\')" style="font-size:0.65rem;color:var(--vermillion-400);">\u514D\u804C</button>';
+      actionBtns = '<button class="bt bsm" onclick="_offDismissToEdict(\'' + escHtml(pos.holder).replace(/'/g,"\\'") + '\',\'' + escHtml(dept.name).replace(/'/g,"\\'") + '\',\'' + escHtml(pos.name).replace(/'/g,"\\'") + '\')" style="font-size:0.7rem;color:var(--vermillion-400);">\u514D\u804C</button>';
     }
     // 历任记录
     var histLine = '';
     if (pos._history && pos._history.length > 0) {
-      histLine = '<div style="font-size:0.6rem;color:var(--ink-300);margin-top:2px;">\u5386\u4EFB\uFF1A' + pos._history.map(function(h){ return escHtml(h.holder||'?'); }).join(' → ') + '</div>';
+      histLine = '<div style="font-size:0.66rem;color:var(--ink-300);margin-top:2px;">\u5386\u4EFB\uFF1A' + pos._history.map(function(h){ return escHtml(h.holder||'?'); }).join(' → ') + '</div>';
     }
     return '<div class="office-node"><div class="office-header" onclick="var d=_$(\''+ppId+'\');if(d)d.style.display=d.style.display===\'block\'?\'none\':\'block\';">'
       +'<div style="flex:1;"><span>'+escHtml(pos.name)+'</span>'+rankTag+_triBar+_salaryBar+'<div style="margin-top:2px;">'+holderInfo+'</div></div>'
@@ -1652,7 +1652,7 @@ function renderOfficeDeptV2(dept,path){
       +'</div></div>';
   }).join("");
   // 部门头——职能标签+编制/缺员/在职/已名聚合统计
-  var fnTags = (dept.functions||[]).map(function(f){ return '<span style="font-size:0.6rem;background:rgba(184,154,83,0.15);color:var(--gold-400);padding:1px 4px;border-radius:3px;">' + escHtml(f) + '</span>'; }).join(' ');
+  var fnTags = (dept.functions||[]).map(function(f){ return '<span style="font-size:0.66rem;background:rgba(184,154,83,0.15);color:var(--gold-400);padding:1px 4px;border-radius:3px;">' + escHtml(f) + '</span>'; }).join(' ');
   var deptDesc = dept.desc || dept.description || '';
   var _deptEst = 0, _deptVac = 0, _deptOcc = 0, _deptNamed = 0, _deptPH = 0;
   (dept.positions||[]).forEach(function(p) {
@@ -1665,7 +1665,7 @@ function renderOfficeDeptV2(dept,path){
     _deptNamed += ah.filter(function(h){return h && h.name && h.generated!==false;}).length;
     _deptPH += ah.filter(function(h){return h && h.generated===false;}).length;
   });
-  var vacantTag = '<span style="display:inline-flex;gap:3px;font-size:0.6rem;margin-left:4px;">'
+  var vacantTag = '<span style="display:inline-flex;gap:3px;font-size:0.66rem;margin-left:4px;">'
     + '<span style="background:rgba(107,93,79,0.2);color:var(--ink-300);padding:0 4px;border-radius:2px;" title="部门编制总额">\u7F16'+_deptEst+'</span>'
     + (_deptVac>0?'<span style="background:rgba(192,64,48,0.15);color:var(--vermillion-400);padding:0 4px;border-radius:2px;" title="缺员总数">\u7F3A'+_deptVac+'</span>':'')
     + '<span style="background:rgba(87,142,126,0.15);color:var(--celadon-400);padding:0 4px;border-radius:2px;" title="实际在职总数">\u5728'+_deptOcc+'</span>'
@@ -1677,6 +1677,6 @@ function renderOfficeDeptV2(dept,path){
   return '<div class="office-node"><div class="office-header"><div style="flex:1;"><span style="font-weight:700;">'+escHtml(dept.name)+'</span>'+vacantTag
     +(fnTags?' <span style="margin-left:4px;">'+fnTags+'</span>':'')
     +'</div><div><button class="office-expand" onclick="addOffPos('+ps+')">+\u5B98</button><button class="office-expand" onclick="addOffSub('+ps+')">+\u5C40</button></div></div>'
-    +(deptDesc?'<div style="font-size:0.68rem;color:var(--color-foreground-muted);padding:0 0.5rem;margin-bottom:2px;">'+escHtml(deptDesc).slice(0,100)+'</div>':'')
+    +(deptDesc?'<div style="font-size:0.71rem;color:var(--color-foreground-muted);padding:0 0.5rem;margin-bottom:2px;">'+escHtml(deptDesc).slice(0,100)+'</div>':'')
     +'<div class="office-children">'+posH+subH+'</div></div>';
 }

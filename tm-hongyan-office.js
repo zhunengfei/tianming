@@ -413,10 +413,10 @@ function _ltRenderLetterCard(l, target) {
     html += '<div class="reply-label">\u56DE \u4E66 \u00B7 ' + escHtml(l.to||target) + (replyDate ? '\u00B7' + escHtml(replyDate) : '') + '</div>';
     html += escHtml(l.reply);
     if (l._isForged && (GM._letterSuspects||[]).indexOf(l.id) >= 0) {
-      html += '<div style="font-size:11px;color:var(--amber-400);margin-top:4px;font-style:normal;">\u26A0 \u5DF2\u6807\u8BB0\u5B58\u7591\u2014\u2014\u6B64\u4FE1\u5185\u5BB9\u771F\u4F2A\u5F85\u6838</div>';
+      html += '<div style="font-size:12px;color:var(--amber-400);margin-top:4px;font-style:normal;">\u26A0 \u5DF2\u6807\u8BB0\u5B58\u7591\u2014\u2014\u6B64\u4FE1\u5185\u5BB9\u771F\u4F2A\u5F85\u6838</div>';
     }
     if (l._forgedRevealed) {
-      html += '<div style="font-size:11px;color:var(--vermillion-400);margin-top:4px;font-weight:bold;font-style:normal;">\u26A0 \u5DF2\u8BC1\u5B9E\u4E3A\u4F2A\u9020\uFF01</div>';
+      html += '<div style="font-size:12px;color:var(--vermillion-400);margin-top:4px;font-weight:bold;font-style:normal;">\u26A0 \u5DF2\u8BC1\u5B9E\u4E3A\u4F2A\u9020\uFF01</div>';
     }
     html += '</div>';
   }
@@ -456,7 +456,7 @@ function _ltRenderLetterCard(l, target) {
   // 信使状态条
   if (l.status === 'traveling' || l.status === 'delivered' || l.status === 'replying' || l.status === 'blocked') {
     var _cTxt = _ltGetStatusText(l);
-    html += '<div style="font-size:10.5px;color:var(--ink-300);margin-top:4px;font-style:italic;letter-spacing:0.08em;' + (isOutgoing?'text-align:right;':'') + '">\u21A3 ' + escHtml(_cTxt) + '</div>';
+    html += '<div style="font-size:11.5px;color:var(--ink-300);margin-top:4px;font-style:italic;letter-spacing:0.08em;' + (isOutgoing?'text-align:right;':'') + '">\u21A3 ' + escHtml(_cTxt) + '</div>';
   }
   html += '</div>'; // .hy-msg
   return html;
@@ -1693,6 +1693,56 @@ function getLocationPromptInjection() {
 }
 
 
+// 往期诏令档案体·懒构建(诏令面板 <details> 展开时调用·2026-06-10 性能·循环体自 renderGameState 原样迁出)
+function _renderEdictArchiveBody() {
+  var _bodyEl = _$('ed-archive-body');
+  if (!_bodyEl) return;
+  var _allEdicts = (GM._edictTracker || []).filter(function(e) { return e.turn < GM.turn; });
+  if (!_allEdicts.length) { _bodyEl.innerHTML = ''; return; }
+  var _edictByTurn = {};
+  _allEdicts.forEach(function(e) { if (!_edictByTurn[e.turn]) _edictByTurn[e.turn] = []; _edictByTurn[e.turn].push(e); });
+  var _edictTurns = Object.keys(_edictByTurn).sort(function(a,b){ return b-a; });
+  var _h = '';
+      _edictTurns.forEach(function(turn) {
+        var edicts = _edictByTurn[turn];
+        var _tsText = typeof getTSText === 'function' ? getTSText(parseInt(turn)) : 'T' + turn;
+        _h += '<div class="ed-archive-group">';
+        _h += '<div class="ed-archive-group-title">\u7B2C' + turn + '\u56DE\u5408 \u00B7 ' + _tsText + '</div>';
+        edicts.forEach(function(e) {
+          var _sc = e.status === 'completed' ? 'var(--celadon-400)' : e.status === 'obstructed' ? 'var(--vermillion-400)' : e.status === 'partial' ? '#e67e22' : e.status === 'pending_delivery' ? 'var(--amber-400)' : 'var(--ink-300)';
+          var _sl = {completed:'\u2705', obstructed:'\u274C', partial:'\u26A0\uFE0F', executing:'\u23F3', pending:'\u2B55', pending_delivery:'\uD83D\uDCE8'}[e.status] || '';
+          _h += '<div style="font-size:var(--text-xs);padding:2px 0;border-bottom:1px solid var(--color-border-subtle);">';
+          _h += '<span style="color:' + _sc + ';">' + _sl + '</span> ';
+          _h += '<span style="color:var(--color-foreground-muted);">' + escHtml(e.category) + '</span> ';
+          _h += escHtml(e.content);
+          if (e.assignee) _h += ' <span style="color:var(--ink-300);">[\u6267\u884C:' + escHtml(e.assignee) + ']</span>';
+          // 远方送达状态
+          if (e._remoteTargets && e._remoteTargets.length > 0) {
+            var _ltStatuses = (e._letterIds||[]).map(function(lid) {
+              var lt = (GM.letters||[]).find(function(l){ return l.id === lid; });
+              if (!lt) return null;
+              var _name = lt.to || '';
+              if (lt.status === 'traveling') return _name + ':信使在途';
+              if (lt.status === 'delivered' || lt.status === 'replying') return _name + ':已送达';
+              if (lt.status === 'returned') return _name + (lt._isForged ? ':⚠回函(伪)' : ':已送达且回函');
+              if (lt.status === 'intercepted') return _name + ':⚠信使失踪';
+              if (lt.status === 'intercepted_forging') return _name + ':⚠信使失踪(回函伪造中)';
+              if (lt.status === 'recalled') return _name + ':已追回';
+              if (lt.status === 'blocked') return _name + ':⚠中书阻挠未下达';
+              return _name + ':' + (lt.status||'?');
+            }).filter(Boolean);
+            if (_ltStatuses.length > 0) {
+              _h += '<div style="font-size:0.66rem;color:var(--amber-400);padding-left:1rem;">传书：' + _ltStatuses.join(' | ') + '</div>';
+            }
+          }
+          if (e.feedback) _h += '<div style="color:var(--color-foreground-secondary);padding-left:1rem;">' + escHtml(e.feedback) + '</div>';
+          _h += '</div>';
+        });
+        _h += '</div>';
+      });
+  _bodyEl.innerHTML = _h;
+}
+
 function renderGameState(){
   // ★ 财政三字段同步守卫·防 money/balance/ledgers.stock 跑偏导致顶栏与面板数值不一致
   try { if (typeof _syncFiscalScalars === 'function' && typeof GM !== 'undefined') _syncFiscalScalars(GM); } catch(_syE) { try { window.TM && TM.errors && TM.errors.captureSilent && TM.errors.captureSilent(_syE, 'renderGameState/sync'); } catch(__){} }
@@ -1854,7 +1904,7 @@ function renderGameState(){
     var _recentXl = GM.qijuHistory.filter(function(q) { return q.xinglu && q.turn < GM.turn; }).slice(-5).reverse();
     if (_recentXl.length > 0) {
       edictHTML += '<details class="ed-xinglu-hist">';
-      edictHTML += '<summary>\u8FD1\u671F\u884C\u6B62\u8BB0\u5F55 <span style="color:var(--ink-300);margin-left:6px;font-size:10px;">' + _recentXl.length + ' \u6761</span></summary>';
+      edictHTML += '<summary>\u8FD1\u671F\u884C\u6B62\u8BB0\u5F55 <span style="color:var(--ink-300);margin-left:6px;font-size:11px;">' + _recentXl.length + ' \u6761</span></summary>';
       edictHTML += '<div style="margin-top:10px;max-height:200px;overflow-y:auto;">';
       _recentXl.forEach(function(q) {
         edictHTML += '<div class="ed-xinglu-hist-item"><span class="turn">T' + q.turn + '</span>' + escHtml(q.xinglu) + '</div>';
@@ -1872,58 +1922,15 @@ function renderGameState(){
   edictHTML += '</div>';
   edictHTML += '<div id="tyrant-panel" style="display:none;max-height:300px;overflow-y:auto;padding:var(--space-2);margin-top:var(--space-2);"></div>';
   edictHTML += '</div>';
-  // 往期诏令档案
-  if (GM._edictTracker && GM._edictTracker.length > 0) {
-    var _allEdicts = GM._edictTracker.filter(function(e) { return e.turn < GM.turn; });
-    if (_allEdicts.length > 0) {
-      // 按回合分组
-      var _edictByTurn = {};
-      _allEdicts.forEach(function(e) { if (!_edictByTurn[e.turn]) _edictByTurn[e.turn] = []; _edictByTurn[e.turn].push(e); });
-      var _edictTurns = Object.keys(_edictByTurn).sort(function(a,b){ return b-a; });
-      edictHTML += '<details class="ed-archive">';
-      edictHTML += '<summary>\u5F80 \u671F \u8BCF \u4EE4 \u6863 \u6848 \u00B7 ' + _allEdicts.length + ' \u6761</summary>';
-      edictHTML += '<div style="margin-top:var(--space-2);max-height:400px;overflow-y:auto;">';
-      _edictTurns.forEach(function(turn) {
-        var edicts = _edictByTurn[turn];
-        var _tsText = typeof getTSText === 'function' ? getTSText(parseInt(turn)) : 'T' + turn;
-        edictHTML += '<div class="ed-archive-group">';
-        edictHTML += '<div class="ed-archive-group-title">\u7B2C' + turn + '\u56DE\u5408 \u00B7 ' + _tsText + '</div>';
-        edicts.forEach(function(e) {
-          var _sc = e.status === 'completed' ? 'var(--celadon-400)' : e.status === 'obstructed' ? 'var(--vermillion-400)' : e.status === 'partial' ? '#e67e22' : e.status === 'pending_delivery' ? 'var(--amber-400)' : 'var(--ink-300)';
-          var _sl = {completed:'\u2705', obstructed:'\u274C', partial:'\u26A0\uFE0F', executing:'\u23F3', pending:'\u2B55', pending_delivery:'\uD83D\uDCE8'}[e.status] || '';
-          edictHTML += '<div style="font-size:var(--text-xs);padding:2px 0;border-bottom:1px solid var(--color-border-subtle);">';
-          edictHTML += '<span style="color:' + _sc + ';">' + _sl + '</span> ';
-          edictHTML += '<span style="color:var(--color-foreground-muted);">' + escHtml(e.category) + '</span> ';
-          edictHTML += escHtml(e.content);
-          if (e.assignee) edictHTML += ' <span style="color:var(--ink-300);">[\u6267\u884C:' + escHtml(e.assignee) + ']</span>';
-          // 远方送达状态
-          if (e._remoteTargets && e._remoteTargets.length > 0) {
-            var _ltStatuses = (e._letterIds||[]).map(function(lid) {
-              var lt = (GM.letters||[]).find(function(l){ return l.id === lid; });
-              if (!lt) return null;
-              var _name = lt.to || '';
-              if (lt.status === 'traveling') return _name + ':信使在途';
-              if (lt.status === 'delivered' || lt.status === 'replying') return _name + ':已送达';
-              if (lt.status === 'returned') return _name + (lt._isForged ? ':⚠回函(伪)' : ':已送达且回函');
-              if (lt.status === 'intercepted') return _name + ':⚠信使失踪';
-              if (lt.status === 'intercepted_forging') return _name + ':⚠信使失踪(回函伪造中)';
-              if (lt.status === 'recalled') return _name + ':已追回';
-              if (lt.status === 'blocked') return _name + ':⚠中书阻挠未下达';
-              return _name + ':' + (lt.status||'?');
-            }).filter(Boolean);
-            if (_ltStatuses.length > 0) {
-              edictHTML += '<div style="font-size:0.6rem;color:var(--amber-400);padding-left:1rem;">传书：' + _ltStatuses.join(' | ') + '</div>';
-            }
-          }
-          if (e.feedback) edictHTML += '<div style="color:var(--color-foreground-secondary);padding-left:1rem;">' + escHtml(e.feedback) + '</div>';
-          edictHTML += '</div>';
-        });
-        edictHTML += '</div>';
-      });
-      edictHTML += '</div></details>';
-    }
+  // 往期诏令档案·性能 2026-06-10:档案体随回合无界增长(全量 _edictTracker 循环×每条再嵌 letters.find)·
+  // 而 <details> 默认折叠 99% 时间无人看——改为展开时才构建(每次展开重建·保持新鲜)
+  var _edArchCount = (GM._edictTracker || []).filter(function(e) { return e.turn < GM.turn; }).length;
+  if (_edArchCount > 0) {
+    edictHTML += '<details class="ed-archive" ontoggle="if(this.open&&typeof _renderEdictArchiveBody===\'function\')_renderEdictArchiveBody();">';
+    edictHTML += '<summary>\u5F80 \u671F \u8BCF \u4EE4 \u6863 \u6848 \u00B7 ' + _edArchCount + ' \u6761</summary>';
+    edictHTML += '<div style="margin-top:var(--space-2);max-height:400px;overflow-y:auto;" id="ed-archive-body"></div>';
+    edictHTML += '</details>';
   }
-
   // 结束回合按钮
   edictHTML += '<div class="ed-action-bar">';
   edictHTML += '<button class="bt bp" id="btn-end" onclick="confirmEndTurn()" style="padding:var(--space-3) var(--space-8);font-size:var(--text-md);letter-spacing:0.15em;border:2px solid var(--gold-400);box-shadow:0 2px 12px rgba(184,154,83,0.2);">'+_ei('end-turn',16)+' 诏付有司</button>';
@@ -2047,7 +2054,7 @@ function renderGameState(){
     +'</div>'
     +'<div class="og-tree-topbar">'
     +'<span class="title-bar">\u56FE \u4F8B</span>'
-    +'<span style="font-size:11px;color:var(--ink-300);letter-spacing:0.05em;display:inline-flex;align-items:center;gap:8px;">'
+    +'<span style="font-size:12px;color:var(--ink-300);letter-spacing:0.05em;display:inline-flex;align-items:center;gap:8px;">'
     +'<span style="display:inline-flex;align-items:center;gap:3px;"><span style="display:inline-block;width:3px;height:14px;background:#e4c579;border-radius:1px;"></span>\u6B63\u4E00\u54C1</span>'
     +'<span style="display:inline-flex;align-items:center;gap:3px;"><span style="display:inline-block;width:3px;height:14px;background:var(--gold-400);border-radius:1px;"></span>\u4E8C\u4E09\u54C1</span>'
     +'<span style="display:inline-flex;align-items:center;gap:3px;"><span style="display:inline-block;width:3px;height:14px;background:var(--celadon-400);border-radius:1px;"></span>\u56DB\u4E94\u54C1</span>'
@@ -2202,64 +2209,64 @@ function renderGameState(){
         var loyDisp = (typeof _fmtNum1==='function') ? _fmtNum1(loy) : loy;
         var stressTag='';
         if(ch.stress&&ch.stress>40){
-          stressTag=' <span style="font-size:0.62rem;padding:1px 4px;border-radius:3px;background:'+(ch.stress>60?'rgba(192,57,43,0.2)':'rgba(230,126,34,0.15)')+';color:'+(ch.stress>60?'var(--red)':'#e67e22')+';">'+(ch.stress>60?'\u5D29':'\u7126')+'</span>';
+          stressTag=' <span style="font-size:0.68rem;padding:1px 4px;border-radius:3px;background:'+(ch.stress>60?'rgba(192,57,43,0.2)':'rgba(230,126,34,0.15)')+';color:'+(ch.stress>60?'var(--red)':'#e67e22')+';">'+(ch.stress>60?'\u5D29':'\u7126')+'</span>';
         }
         // 心情标记（中国古典方括号）
         var moodIcon='';
         if(ch._mood&&ch._mood!=='\u5E73'){
           var _moodColors={'\u559C':'var(--color-success)','\u6012':'var(--vermillion-400)','\u5FE7':'#e67e22','\u60E7':'var(--indigo-400)','\u6068':'var(--vermillion-400)','\u656C':'var(--celadon-400)'};
-          moodIcon='<span style="font-size:0.6rem;color:'+(_moodColors[ch._mood]||'var(--txt-d)')+';">\u3014'+ch._mood+'\u3015</span> ';
+          moodIcon='<span style="font-size:0.66rem;color:'+(_moodColors[ch._mood]||'var(--txt-d)')+';">\u3014'+ch._mood+'\u3015</span> ';
         }
         // 野心标记
-        var ambTag=(ch.ambition||50)>75?'<span style="font-size:0.58rem;color:var(--purple,#9b59b6);">\u91CE</span>':'';
+        var ambTag=(ch.ambition||50)>75?'<span style="font-size:0.64rem;color:var(--purple,#9b59b6);">\u91CE</span>':'';
         // 后宫/配偶标记
         var spouseTag='';
         if(typeof _tmIsPlayerConsort === 'function' ? _tmIsPlayerConsort(ch) : ch.spouse === true){
           var _spIc = typeof getHaremRankIcon === 'function' ? getHaremRankIcon(ch.spouseRank) : '\u{1F490}';
-          spouseTag=' <span style="font-size:0.62rem;color:#e84393;">'+_spIc+'</span>';
+          spouseTag=' <span style="font-size:0.68rem;color:#e84393;">'+_spIc+'</span>';
         }
-        var factionTag=ch.faction?'<span style="font-size:0.62rem;color:var(--txt-d);">'+ch.faction+'</span>':'';
+        var factionTag=ch.faction?'<span style="font-size:0.68rem;color:var(--txt-d);">'+ch.faction+'</span>':'';
         // 立场/党派/学识标签
         var stancePartyTag='';
-        if(ch.stance&&ch.stance!=='中立') stancePartyTag+='<span style="font-size:0.55rem;padding:0 3px;border-radius:2px;border:1px solid '+(ch.stance==='改革'?'var(--celadon-400)':ch.stance==='保守'?'var(--indigo-400)':'var(--txt-d)')+';color:'+(ch.stance==='改革'?'var(--celadon-400)':ch.stance==='保守'?'var(--indigo-400)':'var(--txt-d)')+';margin-right:2px;">'+ch.stance+'</span>';
-        if(ch.party) stancePartyTag+='<span style="font-size:0.55rem;color:var(--txt-d);background:var(--bg-4);padding:0 3px;border-radius:3px;margin-right:2px;">'+escHtml(ch.party)+'</span>';
+        if(ch.stance&&ch.stance!=='中立') stancePartyTag+='<span style="font-size:0.62rem;padding:0 3px;border-radius:2px;border:1px solid '+(ch.stance==='改革'?'var(--celadon-400)':ch.stance==='保守'?'var(--indigo-400)':'var(--txt-d)')+';color:'+(ch.stance==='改革'?'var(--celadon-400)':ch.stance==='保守'?'var(--indigo-400)':'var(--txt-d)')+';margin-right:2px;">'+ch.stance+'</span>';
+        if(ch.party) stancePartyTag+='<span style="font-size:0.62rem;color:var(--txt-d);background:var(--bg-4);padding:0 3px;border-radius:3px;margin-right:2px;">'+escHtml(ch.party)+'</span>';
         var officeLine=ch.title?'<span style="font-size:0.7rem;color:var(--txt-d);">'+ch.title+'</span>':'';
-        var ageTag=ch.age?'<span style="font-size:0.62rem;color:var(--txt-d);">'+ch.age+'\u5C81</span>':'';
+        var ageTag=ch.age?'<span style="font-size:0.68rem;color:var(--txt-d);">'+ch.age+'\u5C81</span>':'';
         var _cap=GM._capital||'京城';
         var locTag='';
         if(ch._travelTo){
           var _rd5=(typeof ch._travelRemainingDays==='number'&&ch._travelRemainingDays>0)?ch._travelRemainingDays:0;
-          locTag='<span style="font-size:0.55rem;padding:0 3px;border-radius:2px;background:rgba(184,154,83,0.18);color:var(--gold-400);margin-left:2px;" title="\u5728\u9014">'+escHtml(ch._travelFrom||ch.location||'')+'\u2192'+escHtml(ch._travelTo)+(_rd5?'\u00B7'+_rd5+'\u65E5':'')+'</span>';
-        } else if(ch.location&&!_isSameLocation(ch.location,_cap)) locTag='<span style="font-size:0.55rem;padding:0 3px;border-radius:2px;background:rgba(184,154,83,0.1);color:var(--gold-400);margin-left:2px;">'+ch.location+'</span>';
+          locTag='<span style="font-size:0.62rem;padding:0 3px;border-radius:2px;background:rgba(184,154,83,0.18);color:var(--gold-400);margin-left:2px;" title="\u5728\u9014">'+escHtml(ch._travelFrom||ch.location||'')+'\u2192'+escHtml(ch._travelTo)+(_rd5?'\u00B7'+_rd5+'\u65E5':'')+'</span>';
+        } else if(ch.location&&!_isSameLocation(ch.location,_cap)) locTag='<span style="font-size:0.62rem;padding:0 3px;border-radius:2px;background:rgba(184,154,83,0.1);color:var(--gold-400);margin-left:2px;">'+ch.location+'</span>';
         // 性格特质缩写
         var traitBrief='';
         if(ch.traitIds&&ch.traitIds.length>0&&P.traitDefinitions){
           traitBrief=ch.traitIds.slice(0,2).map(function(tid){var d=P.traitDefinitions.find(function(t){return t.id===tid;});return d?d.name:'';}).filter(Boolean).join('\u00B7');
-          if(traitBrief) traitBrief='<span style="font-size:0.58rem;color:var(--txt-d);background:var(--bg-4);padding:0 3px;border-radius:3px;">'+traitBrief+'</span>';
+          if(traitBrief) traitBrief='<span style="font-size:0.64rem;color:var(--txt-d);background:var(--bg-4);padding:0 3px;border-radius:3px;">'+traitBrief+'</span>';
         }
         // 目标+满足度
         var goalBrief='';
         if(ch.personalGoal) {
           var _gsat = ch._goalSatisfaction !== undefined ? Math.round(ch._goalSatisfaction) : '';
           var _gsatColor = _gsat >= 60 ? 'var(--celadon-400)' : _gsat >= 30 ? 'var(--gold-400)' : 'var(--vermillion-400)';
-          goalBrief='<div style="font-size:0.6rem;color:var(--color-foreground-muted);margin-top:0.1rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;">\u5FD7\uFF1A'+escHtml(ch.personalGoal);
+          goalBrief='<div style="font-size:0.66rem;color:var(--color-foreground-muted);margin-top:0.1rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;">\u5FD7\uFF1A'+escHtml(ch.personalGoal);
           if(_gsat !== '') goalBrief += ' <span style="color:'+_gsatColor+';">'+_gsat+'%</span>';
           goalBrief += '</div>';
         }
         // 恩怨摘要（简短）
         var eyBrief='';
-        if(typeof EnYuanSystem!=='undefined'){var _eyt2=EnYuanSystem.getTextForChar(ch.name);if(_eyt2)eyBrief='<div style="font-size:0.55rem;color:var(--color-foreground-muted);margin-top:0.1rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;">'+_eyt2+'</div>';}
+        if(typeof EnYuanSystem!=='undefined'){var _eyt2=EnYuanSystem.getTextForChar(ch.name);if(_eyt2)eyBrief='<div style="font-size:0.62rem;color:var(--color-foreground-muted);margin-top:0.1rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;">'+_eyt2+'</div>';}
         // 五常/气质/面子（新增增强）
         var wcLine='';
         if(typeof calculateWuchang==='function'){
           var _wc=calculateWuchang(ch);
-          wcLine='<div style="font-size:0.6rem;color:var(--celadon-400);margin-top:0.15rem;letter-spacing:0.03em;">仁'+_wc.仁+' 义'+_wc.义+' 礼'+_wc.礼+' 智'+_wc.智+' 信'+_wc.信+' <span style="color:var(--gold-400);">'+_wc.气质+'</span></div>';
+          wcLine='<div style="font-size:0.66rem;color:var(--celadon-400);margin-top:0.15rem;letter-spacing:0.03em;">仁'+_wc.仁+' 义'+_wc.义+' 礼'+_wc.礼+' 智'+_wc.智+' 信'+_wc.信+' <span style="color:var(--gold-400);">'+_wc.气质+'</span></div>';
         }
         var faceLine='';
         if(typeof FaceSystem!=='undefined'&&ch._face!==undefined){
           var _fv=FaceSystem.getFace(ch);
           var _fc=_fv>=60?'var(--color-foreground-muted)':_fv>=40?'#e67e22':'var(--vermillion-400)';
-          faceLine=_fv<60?' <span style="font-size:0.55rem;padding:0 3px;border-radius:2px;border:1px solid '+_fc+';color:'+_fc+';">'+(_fv<20?'奇耻':_fv<40?'颜面尽失':'面子低落')+'</span>':'';
+          faceLine=_fv<60?' <span style="font-size:0.62rem;padding:0 3px;border-radius:2px;border:1px solid '+_fc+';color:'+_fc+';">'+(_fv<20?'奇耻':_fv<40?'颜面尽失':'面子低落')+'</span>':'';
         }
         // 特质色彩编码（增强）
         var traitTags='';
@@ -2268,7 +2275,7 @@ function renderGameState(){
             var d=P.traitDefinitions.find(function(t){return t.id===tid;});
             if(!d)return '';
             var _tc=(d.dims&&d.dims.boldness>0.2)?'var(--vermillion-400)':(d.dims&&d.dims.compassion>0.2)?'var(--celadon-400)':(d.dims&&d.dims.rationality>0.2)?'var(--indigo-400)':'var(--gold-400)';
-            return '<span style="font-size:0.55rem;padding:0 3px;border-radius:2px;border:1px solid '+_tc+';color:'+_tc+';margin-right:2px;">'+d.name+'</span>';
+            return '<span style="font-size:0.62rem;padding:0 3px;border-radius:2px;border:1px solid '+_tc+';color:'+_tc+';margin-right:2px;">'+d.name+'</span>';
           }).filter(Boolean).join('');
         }
         var _portraitThumb = ch.portrait ? '<img loading="lazy" decoding="async" src="'+escHtml(ch.portrait)+'" style="width:32px;height:32px;object-fit:cover;border-radius:4px;flex-shrink:0;margin-right:6px;">' : '';
@@ -2276,7 +2283,7 @@ function renderGameState(){
           +"<div style=\"display:flex;align-items:center;\">"+_portraitThumb
           +"<div style=\"flex:1;\"><div style=\"display:flex;justify-content:space-between;align-items:center;\">"
           +"<strong style=\"font-size:0.85rem;\">"+moodIcon+ch.name+locTag+spouseTag+faceLine+"</strong>"
-          +"<span style=\"font-size:0.68rem;\">"+ageTag+" <span class=\"stat-number\" style=\"color:"+loyColor+";\">忠"+loyDisp+"</span>"+ambTag+stressTag+"</span>"
+          +"<span style=\"font-size:0.71rem;\">"+ageTag+" <span class=\"stat-number\" style=\"color:"+loyColor+";\">忠"+loyDisp+"</span>"+ambTag+stressTag+"</span>"
           +"</div>"
           +"<div style=\"display:flex;justify-content:space-between;align-items:center;margin-top:0.1rem;\">"+officeLine+"<span>"+factionTag+"</span></div>"
           +(stancePartyTag?'<div style="margin-top:0.1rem;">'+stancePartyTag+'</div>':'')
@@ -2424,7 +2431,7 @@ function _renderEdictSuggestions() {
         else if (_sTurn > 0) _turnLabel = '\u7B2C ' + _sTurn + ' \u56DE\u5408';
         else _turnLabel = '\u5F80\u65E5';
         var _dateStr = (typeof getTSText === 'function' && _sTurn > 0) ? getTSText(_sTurn) : '';
-        html += '<div style="font-size:10.5px;color:var(--gold,#c9a84c);letter-spacing:0.3em;padding:6px 8px 3px;border-bottom:1px dashed rgba(201,168,76,0.2);margin-top:4px;font-family:var(--font-serif);">\u00B7 ' + _turnLabel + (_dateStr ? ' \u00B7 ' + escHtml(_dateStr) : '') + ' \u00B7</div>';
+        html += '<div style="font-size:11.5px;color:var(--gold,#c9a84c);letter-spacing:0.3em;padding:6px 8px 3px;border-bottom:1px dashed rgba(201,168,76,0.2);margin-top:4px;font-family:var(--font-serif);">\u00B7 ' + _turnLabel + (_dateStr ? ' \u00B7 ' + escHtml(_dateStr) : '') + ' \u00B7</div>';
       }
       html += '<div class="ed-sug-item ' + _srcCls + '" onclick="_showEdictAdoptMenu(event,' + _realIdx + ')">';
       html += '<div class="src">' + _srcLine + '</div>';
@@ -2433,20 +2440,20 @@ function _renderEdictSuggestions() {
       html += '<span class="act">\u6458\u5165</span>';
       // Phase G\u00b7F7\u00b7Path B wendui inline button\u00b7G2 enke / G3 wuju\u00b7click \u89e6\u672c\u90e8 wendui
       if (s._enkeSubtype && typeof window._kjG2OpenLibuEnkeWendui === 'function') {
-        html += '<button class="ed-sug-wendui" style="position:absolute;right:30px;top:6px;font-size:10px;padding:1px 6px;border:1px solid var(--celadon-400,#6a9);background:rgba(120,180,140,0.12);color:var(--celadon-400,#6a9);cursor:pointer;border-radius:2px;" onclick="event.stopPropagation();window._kjG2OpenLibuEnkeWendui();" title="\u4eb2\u95ee\u793c\u90e8\u00b7\u8c10\u5546\u5f00\u79d1">\u95ee\u793c\u90e8</button>';
+        html += '<button class="ed-sug-wendui" style="position:absolute;right:30px;top:6px;font-size:11px;padding:1px 6px;border:1px solid var(--celadon-400,#6a9);background:rgba(120,180,140,0.12);color:var(--celadon-400,#6a9);cursor:pointer;border-radius:2px;" onclick="event.stopPropagation();window._kjG2OpenLibuEnkeWendui();" title="\u4eb2\u95ee\u793c\u90e8\u00b7\u8c10\u5546\u5f00\u79d1">\u95ee\u793c\u90e8</button>';
       }
       if (s._wujuSubtype && typeof window._kjG3OpenBingbuWujuWendui === 'function') {
-        html += '<button class="ed-sug-wendui" style="position:absolute;right:30px;top:6px;font-size:10px;padding:1px 6px;border:1px solid var(--vermillion-400,#c87);background:rgba(200,120,100,0.12);color:var(--vermillion-400,#c87);cursor:pointer;border-radius:2px;" onclick="event.stopPropagation();window._kjG3OpenBingbuWujuWendui();" title="\u4eb2\u95ee\u5175\u90e8\u00b7\u8c10\u5546\u5f00\u6b66\u4e3e">\u95ee\u5175\u90e8</button>';
+        html += '<button class="ed-sug-wendui" style="position:absolute;right:30px;top:6px;font-size:11px;padding:1px 6px;border:1px solid var(--vermillion-400,#c87);background:rgba(200,120,100,0.12);color:var(--vermillion-400,#c87);cursor:pointer;border-radius:2px;" onclick="event.stopPropagation();window._kjG3OpenBingbuWujuWendui();" title="\u4eb2\u95ee\u5175\u90e8\u00b7\u8c10\u5546\u5f00\u6b66\u4e3e">\u95ee\u5175\u90e8</button>';
       }
       // Phase H\u00b7H5\u00b7Path B \u95ee\u5b66\u653f button (\u671d\u4ee3\u5dee\u5f02 label)
       if (s._schoolSubtype && typeof window._kjpHOpenLibuSchoolWendui === 'function') {
         var _xzLabel = typeof window._kjpHGetXuezhengLabel === 'function' ? window._kjpHGetXuezhengLabel() : '\u95ee\u5b66\u653f';
         var _xzShort = _xzLabel.length > 4 ? _xzLabel.slice(0, 4) : _xzLabel;
-        html += '<button class="ed-sug-wendui" style="position:absolute;right:30px;top:6px;font-size:10px;padding:1px 6px;border:1px solid var(--indigo-400,#779);background:rgba(120,140,200,0.12);color:var(--indigo-400,#779);cursor:pointer;border-radius:2px;" onclick="event.stopPropagation();window._kjpHOpenLibuSchoolWendui();" title="\u4eb2\u95ee ' + escHtml(_xzLabel) + '\u00b7\u8c10\u5546\u4e66\u9662">\u95ee' + escHtml(_xzShort) + '</button>';
+        html += '<button class="ed-sug-wendui" style="position:absolute;right:30px;top:6px;font-size:11px;padding:1px 6px;border:1px solid var(--indigo-400,#779);background:rgba(120,140,200,0.12);color:var(--indigo-400,#779);cursor:pointer;border-radius:2px;" onclick="event.stopPropagation();window._kjpHOpenLibuSchoolWendui();" title="\u4eb2\u95ee ' + escHtml(_xzLabel) + '\u00b7\u8c10\u5546\u4e66\u9662">\u95ee' + escHtml(_xzShort) + '</button>';
       }
       // G5 v2\u00b7\u7ae5\u5b50\u79d1\u00b7\u95ee\u793c\u90e8 button (audit Fix 2)
       if (s._tongziSubtype && typeof window._kjG5OpenLibuTongziWendui === 'function') {
-        html += '<button class="ed-sug-wendui" style="position:absolute;right:30px;top:6px;font-size:10px;padding:1px 6px;border:1px solid var(--rose-400,#c79);background:rgba(200,120,150,0.12);color:var(--rose-400,#c79);cursor:pointer;border-radius:2px;" onclick="event.stopPropagation();window._kjG5OpenLibuTongziWendui();" title="\u4eb2\u95ee\u793c\u90e8\u00b7\u8c10\u5546\u8350\u795e\u7ae5">\u95ee\u793c\u90e8</button>';
+        html += '<button class="ed-sug-wendui" style="position:absolute;right:30px;top:6px;font-size:11px;padding:1px 6px;border:1px solid var(--rose-400,#c79);background:rgba(200,120,150,0.12);color:var(--rose-400,#c79);cursor:pointer;border-radius:2px;" onclick="event.stopPropagation();window._kjG5OpenLibuTongziWendui();" title="\u4eb2\u95ee\u793c\u90e8\u00b7\u8c10\u5546\u8350\u795e\u7ae5">\u95ee\u793c\u90e8</button>';
       }
       html += '<button class="del" onclick="event.stopPropagation();GM._edictSuggestions[' + _realIdx + '].used=true;_renderEdictSuggestions();" title="\u5220\u9664">\u2715</button>';
       html += '</div>';

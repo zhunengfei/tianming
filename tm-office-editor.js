@@ -1564,18 +1564,18 @@ function renderOfficeTab(em) {
       nodesDivs +=
         '<div style="width:20px;height:20px;border-radius:3px;border:1px solid #2a4a24;'
         + 'background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;'
-        + 'font-size:10px;color:#6a9a50;flex-shrink:0">位</div>';
+        + 'font-size:11px;color:#6a9a50;flex-shrink:0">位</div>';
       nodesDivs += '<div style="flex:1;min-width:0">';
       var _svgSuccLabel = '';
       if (nd.succession) {
         var _svgSL = {appointment:'\u6D41',hereditary:'\u88AD',examination:'\u79D1',military:'\u519B',recommendation:'\u8350'};
-        _svgSuccLabel = _svgSL[nd.succession] ? '<span style="font-size:8px;background:#2a3a24;padding:0 2px;border-radius:2px;color:#7a9a60;margin-left:2px;">' + _svgSL[nd.succession] + '</span>' : '';
+        _svgSuccLabel = _svgSL[nd.succession] ? '<span style="font-size:9px;background:#2a3a24;padding:0 2px;border-radius:2px;color:#7a9a60;margin-left:2px;">' + _svgSL[nd.succession] + '</span>' : '';
       }
       nodesDivs +=
         '<div style="font-size:12px;color:#9ac870;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
         + (nd.name || '?') + _svgSuccLabel + '</div>';
       if (nd.rank || nd.holder) {
-        nodesDivs += '<div style="font-size:10px;color:#5a7a42;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">';
+        nodesDivs += '<div style="font-size:11px;color:#5a7a42;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">';
         if (nd.rank)   nodesDivs += nd.rank;
         if (nd.holder) nodesDivs += (nd.rank ? ' \u2013 ' : '') + nd.holder;
         nodesDivs += '</div>';
@@ -1587,10 +1587,10 @@ function renderOfficeTab(em) {
       var deptPath4 = fi.path.slice(0, fi.path.length - 2);
       var pi4 = fi.posIdx;
       nodesDivs +=
-        '<button class="bd" style="font-size:9px;padding:0 3px;line-height:15px" '
+        '<button class="bd" style="font-size:10px;padding:0 3px;line-height:15px" '
         + 'onclick="_officeEditPos(' + JSON.stringify(deptPath4) + ',' + pi4 + ')">✎</button>';
       nodesDivs +=
-        '<button class="bd" style="font-size:9px;padding:0 3px;line-height:15px" '
+        '<button class="bd" style="font-size:10px;padding:0 3px;line-height:15px" '
         + 'onclick="_officeDelPos(' + JSON.stringify(deptPath4) + ',' + pi4 + ')">×</button>';
       nodesDivs += '</div></div></div>';
 
@@ -1610,7 +1610,7 @@ function renderOfficeTab(em) {
       var canCollapse = (psCount + subCount > 0) && !isEmperor;
       var isCollapsed4 = fi.collapsed;
       var colBtn = canCollapse
-        ? '<button class="bd" style="font-size:9px;padding:0 3px;line-height:16px;margin-left:2px" '
+        ? '<button class="bd" style="font-size:10px;padding:0 3px;line-height:16px;margin-left:2px" '
           + 'onclick="_officeToggle(' + pathStr + ')" title="' + (isCollapsed4 ? '展开' : '折叠') + '">'
           + (isCollapsed4 ? '▼' : '▲') + '</button>'
         : '';
@@ -1627,20 +1627,20 @@ function renderOfficeTab(em) {
       nodesDivs +=
         '<div style="width:20px;height:20px;border-radius:3px;border:1px solid ' + borderC + ';'
         + 'background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;'
-        + 'font-size:11px;color:' + nameClr + ';flex-shrink:0">' + icon + '</div>';
+        + 'font-size:12px;color:' + nameClr + ';flex-shrink:0">' + icon + '</div>';
       nodesDivs +=
         '<span style="flex:1;font-size:12px;font-weight:bold;color:' + nameClr + ';'
         + 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (nd.name || '?') + '</span>';
       nodesDivs += colBtn;
       if (!isEmperor) {
         nodesDivs +=
-          '<button class="bd" style="font-size:8px;padding:0 2px;line-height:16px" '
+          '<button class="bd" style="font-size:9px;padding:0 2px;line-height:16px" '
           + 'onclick="_officeEditDept(' + pathStr + ')">✎</button>';
         nodesDivs +=
-          '<button class="bd" style="font-size:8px;padding:0 2px;line-height:16px" '
+          '<button class="bd" style="font-size:9px;padding:0 2px;line-height:16px" '
           + 'onclick="_officeAddSub(' + pathStr + ')">↓</button>';
         nodesDivs +=
-          '<button class="bd" style="font-size:8px;padding:0 2px;line-height:16px" '
+          '<button class="bd" style="font-size:9px;padding:0 2px;line-height:16px" '
           + 'onclick="_officeDelDept(' + pathStr + ')">×</button>';
       }
       nodesDivs += '</div>';
@@ -1651,14 +1651,14 @@ function renderOfficeTab(em) {
       if (psCount)  statsText4 += psCount + '位';
       if (subCount) statsText4 += (statsText4 ? ' ' : '') + subCount + '个子部';
       nodesDivs +=
-        '<div style="display:flex;align-items:center;gap:4px;padding:2px 5px;font-size:9px;color:#6a5020">';
+        '<div style="display:flex;align-items:center;gap:4px;padding:2px 5px;font-size:10px;color:#6a5020">';
       nodesDivs += (descText4
         ? '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + descText4 + '</span>'
         : '<span style="flex:1"></span>');
       if (statsText4)
         nodesDivs += '<span>' + statsText4 + '</span>';
       nodesDivs +=
-        '<button class="bt" style="font-size:8px;padding:0 3px;line-height:15px" '
+        '<button class="bt" style="font-size:9px;padding:0 3px;line-height:15px" '
         + 'onclick="_officeAddPos(' + pathStr + ')">+官词</button>';
       nodesDivs += '</div>';
 
@@ -1675,7 +1675,7 @@ function renderOfficeTab(em) {
     + '<h4 style="color:var(--gold);margin:0">官制树状图</h4>'
     + '<button class="bt bp" onclick="_officeAddTopDept()">＋ 顶层部门</button>'
     + '<button class="bai" onclick="aiGenOfficeEd()">&#x1F916; AI生成</button>'
-    + '<span style="font-size:11px;color:var(--txt-d);margin-left:auto">滚轮缩放 拖动平移</span>'
+    + '<span style="font-size:12px;color:var(--txt-d);margin-left:auto">滚轮缩放 拖动平移</span>'
     + '</div>'
     + _renderOfficeConfigCostPanel()
     + '<div id="' + wrapperId + '" style="overflow:hidden;border:1px solid #3a2a10;border-radius:8px;background:#0a0804;position:relative;height:520px;cursor:grab">'
@@ -1765,7 +1765,7 @@ function _renderOfficeDept(dept, path, depth) {
   var fnHTML = fns.length
     ? '<div style="padding:3px 8px 6px 8px;display:flex;flex-wrap:wrap;gap:4px">' +
       fns.map(function(fn, fi) {
-        return '<span style="background:var(--bg-4,#2a2a2a);color:var(--txt-d);font-size:11px;'
+        return '<span style="background:var(--bg-4,#2a2a2a);color:var(--txt-d);font-size:12px;'
           + 'padding:1px 6px;border-radius:10px;cursor:pointer" '
           + 'onclick="_officeFnDel(' + pathStr + ',' + fi + ')" title="点击删除">× ' + fn + '</span>';
       }).join('') + '</div>'
@@ -1774,11 +1774,11 @@ function _renderOfficeDept(dept, path, depth) {
     return '<div style="display:flex;align-items:center;gap:6px;padding:3px 8px;border-top:1px solid var(--bg-4,#333)">'
       + '<span style="flex:1;font-size:12px;color:var(--txt-s)">'
       + (p.name||'')
-      + (p.rank ? ' <span style="color:var(--txt-d);font-size:11px">('+p.rank+')</span>' : '')
-      + (function(){var _sl={appointment:'\u6D41',hereditary:'\u88AD',examination:'\u79D1',military:'\u519B',recommendation:'\u8350'};return p.succession&&_sl[p.succession]?' <span style="font-size:9px;background:var(--bg-4);padding:0 3px;border-radius:2px;color:var(--txt-d)">'+_sl[p.succession]+'</span>':'';})()
-      + (p.holder ? ' <span style="color:var(--gold);font-size:11px">&mdash;'+p.holder+'</span>' : '')
+      + (p.rank ? ' <span style="color:var(--txt-d);font-size:12px">('+p.rank+')</span>' : '')
+      + (function(){var _sl={appointment:'\u6D41',hereditary:'\u88AD',examination:'\u79D1',military:'\u519B',recommendation:'\u8350'};return p.succession&&_sl[p.succession]?' <span style="font-size:10px;background:var(--bg-4);padding:0 3px;border-radius:2px;color:var(--txt-d)">'+_sl[p.succession]+'</span>':'';})()
+      + (p.holder ? ' <span style="color:var(--gold);font-size:12px">&mdash;'+p.holder+'</span>' : '')
       + '</span>'
-      + '<span style="font-size:11px;color:var(--txt-d);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
+      + '<span style="font-size:12px;color:var(--txt-d);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
       + (p.desc||'') + '</span>'
       + '<button class="bd bsm" onclick="_officeEditPos(' + pathStr + ',' + pi + ')">✎</button>'
       + '<button class="bd bsm" onclick="_officeDelPos(' + pathStr + ',' + pi + ')">✕</button>'
@@ -1791,7 +1791,7 @@ function _renderOfficeDept(dept, path, depth) {
     + '<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:' + bgColor + '">'
     + '<strong style="flex:0 0 auto;color:var(--gold)">' + (depth===0?'▶':'▸') + ' ' + (dept.name||'') + '</strong>'
     + (dept.desc
-        ? '<span style="font-size:11px;color:var(--txt-d);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + dept.desc + '</span>'
+        ? '<span style="font-size:12px;color:var(--txt-d);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + dept.desc + '</span>'
         : '<span style="flex:1"></span>')
     + '<button class="bt bsm" onclick="_officeEditDept(' + pathStr + ')">✎ 编辑</button>'
     + '<button class="bt bsm" onclick="_officeAddFn(' + pathStr + ')">＋ 职能</button>'

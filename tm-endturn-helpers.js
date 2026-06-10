@@ -662,11 +662,11 @@ function _showEndgameScreen(type, failGoal) {
     h += (c.portrait ? '<img src="'+escHtml(c.portrait)+'" style="width:24px;height:24px;object-fit:cover;border-radius:50%;flex-shrink:0;">' : '');
     h += '<span style="font-weight:600;color:var(--color-foreground);width:50px;">' + escHtml(c.name) + '</span>';
     h += '<span style="color:var(--color-foreground-muted);flex:1;">' + escHtml(c.officialTitle || c.title || '') + '</span>';
-    h += '<span style="font-size:0.68rem;color:var(--color-foreground-muted);">\u5FE0' + Math.round(c.loyalty || 0) + '</span>';
-    if (!alive && c.deathReason) h += '<span style="font-size:0.65rem;color:var(--vermillion-400);"> ' + escHtml(c.deathReason) + '</span>';
+    h += '<span style="font-size:0.71rem;color:var(--color-foreground-muted);">\u5FE0' + Math.round(c.loyalty || 0) + '</span>';
+    if (!alive && c.deathReason) h += '<span style="font-size:0.7rem;color:var(--vermillion-400);"> ' + escHtml(c.deathReason) + '</span>';
     h += '</div>';
   });
-  if (_allChars.length > 20) h += '<div style="font-size:0.68rem;color:var(--color-foreground-muted);text-align:center;">\u2026\u53CA\u53E6\u5916' + (_allChars.length - 20) + '\u4EBA</div>';
+  if (_allChars.length > 20) h += '<div style="font-size:0.71rem;color:var(--color-foreground-muted);text-align:center;">\u2026\u53CA\u53E6\u5916' + (_allChars.length - 20) + '\u4EBA</div>';
   h += '</div>';
 
   // 关闭按钮
@@ -1258,7 +1258,7 @@ function _renderIssueCard(issue) {
     + (isPending ? '' : 'opacity:0.7;') + (issue.isOpening ? 'border-width:2px;box-shadow:0 0 12px rgba(201,168,76,0.15);' : '') + '">';
   // 开局要务徽标
   if (issue.isOpening) {
-    h += '<div style="position:absolute;top:-10px;right:-10px;background:linear-gradient(135deg,var(--vermillion-400),var(--vermillion-600,#8b2e25));color:#f4eadd;padding:3px 10px;border-radius:3px;font-size:0.68rem;letter-spacing:0.2em;box-shadow:0 2px 6px rgba(140,40,30,0.4);">开 局 要 务</div>';
+    h += '<div style="position:absolute;top:-10px;right:-10px;background:linear-gradient(135deg,var(--vermillion-400),var(--vermillion-600,#8b2e25));color:#f4eadd;padding:3px 10px;border-radius:3px;font-size:0.71rem;letter-spacing:0.2em;box-shadow:0 2px 6px rgba(140,40,30,0.4);">开 局 要 务</div>';
   }
   h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.4rem;">';
   h += '<div style="font-weight:700;font-size:0.95rem;color:var(--txt-l);line-height:1.3;">' + escHtml(issue.title) + '</div>';
@@ -1284,7 +1284,7 @@ function _renderIssueCard(issue) {
           var clr = v > 0 ? 'var(--celadon-400)' : v < 0 ? 'var(--vermillion-400)' : 'var(--txt-d)';
           return '<span style="color:'+clr+';">' + escHtml(k) + (v>0?'+':'') + v + '</span>';
         }).slice(0, 8).join(' · ');
-        if (effs) h += '<div style="font-size:0.66rem;">' + effs + '</div>';
+        if (effs) h += '<div style="font-size:0.7rem;">' + effs + '</div>';
       }
       h += '</button>';
     });
@@ -1300,7 +1300,7 @@ function _renderIssueCard(issue) {
     h += '</div></details>';
   }
   if (issue.historicalNote) {
-    h += '<div style="margin-top:0.4rem;font-size:0.68rem;color:var(--ink-400);font-style:italic;">史料：' + escHtml(issue.historicalNote.slice(0,100)) + '</div>';
+    h += '<div style="margin-top:0.4rem;font-size:0.71rem;color:var(--ink-400);font-style:italic;">史料：' + escHtml(issue.historicalNote.slice(0,100)) + '</div>';
   }
   h += '</div>';
   return h;

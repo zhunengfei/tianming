@@ -282,7 +282,7 @@ function renderNeitangPanel() {
     html +=   '<div class="tr-section-head"><span class="tr-section-name bad">宗室俸禄压力</span><span class="tr-section-badge bad">明末之累</span></div>';
     html +=   '<div class="tr-alert bad">';
     html +=     '<span class="ttl">⚠ 宗室人口 ' + (rc.population||0).toLocaleString() + '</span>';
-    html +=     '<div class="ds" style="display:grid;grid-template-columns:auto 1fr;gap:3px 14px;font-size:0.66rem;margin-top:4px;">';
+    html +=     '<div class="ds" style="display:grid;grid-template-columns:auto 1fr;gap:3px 14px;font-size:0.7rem;margin-top:4px;">';
     html +=       '<span style="color:var(--ink-300);">月俸成本</span><span style="color:var(--vermillion-300);">' + _neitangFmt(rcMonthly) + ' 两</span>';
     html +=       '<span style="color:var(--ink-300);">压库占年支</span><span style="color:var(--vermillion-300);">' + rcPctOfExp + '%</span>';
     html +=     '</div>';

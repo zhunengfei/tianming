@@ -960,15 +960,15 @@ function renderTaxThreeNumberBlock(nominal, opts) {
   html += '<div style="display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;font-size:0.78rem;">';
   html += '<span style="color:var(--txt-d);">应征（名义）</span>'+
           '<span style="color:var(--txt);text-align:right;">' + fmt(f.nominal) + ' ' + unit + '</span>'+
-          '<span style="color:var(--txt-d);font-size:0.68rem;">基准</span>';
+          '<span style="color:var(--txt-d);font-size:0.71rem;">基准</span>';
 
   html += '<span style="color:var(--txt-d);">官府实收</span>'+
           '<span style="color:var(--vermillion-400);text-align:right;">' + fmt(f.actualReceived) + ' ' + unit + '</span>'+
-          '<span style="color:var(--vermillion-400);font-size:0.68rem;">' + pct(f.actualReceived - f.nominal, f.nominal) + '</span>';
+          '<span style="color:var(--vermillion-400);font-size:0.71rem;">' + pct(f.actualReceived - f.nominal, f.nominal) + '</span>';
 
   html += '<span style="color:var(--txt-d);">民间实缴</span>'+
           '<span style="color:#c0603a;text-align:right;">' + fmt(f.peasantPaid) + ' ' + unit + '</span>'+
-          '<span style="color:#c0603a;font-size:0.68rem;">' + pct(f.peasantPaid - f.nominal, f.nominal) + '</span>';
+          '<span style="color:#c0603a;font-size:0.71rem;">' + pct(f.peasantPaid - f.nominal, f.nominal) + '</span>';
   html += '</div>';
 
   // 差额流向
@@ -989,7 +989,7 @@ function renderTaxThreeNumberBlock(nominal, opts) {
     var bar = function(label, val, color) {
       var pctW = val / maxVal * 100;
       return '<div style="margin-top:4px;">'+
-        '<div style="display:flex;justify-content:space-between;font-size:0.64rem;color:var(--txt-d);">'+
+        '<div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--txt-d);">'+
           '<span>' + label + '</span><span>' + fmt(val) + '</span></div>'+
         '<div style="height:5px;background:var(--bg-3);border-radius:2px;overflow:hidden;">'+
           '<div style="height:100%;width:' + pctW + '%;background:' + color + ';transition:width 0.4s;"></div>'+
@@ -1025,7 +1025,7 @@ function _lizhiIntegrityBadge(char) {
   // 若未被监察覆盖（即：监察力度极弱）则显示"未察"
   var sup = (GM.corruption && GM.corruption.supervision && GM.corruption.supervision.level) || 0;
   if (sup < 20) {
-    return '<span class="char-integrity-badge" style="margin-left:8px;padding:2px 6px;background:rgba(107,93,79,0.15);border:1px solid var(--ink-300);border-radius:3px;font-size:0.65rem;color:var(--ink-300);" title="未纳入监察覆盖">❓ 未察</span>';
+    return '<span class="char-integrity-badge" style="margin-left:8px;padding:2px 6px;background:rgba(107,93,79,0.15);border:1px solid var(--ink-300);border-radius:3px;font-size:0.7rem;color:var(--ink-300);" title="未纳入监察覆盖">❓ 未察</span>';
   }
 
   var integrity = char.integrity !== undefined ? char.integrity : 50;

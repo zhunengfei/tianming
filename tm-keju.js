@@ -694,7 +694,7 @@ function openDianshiDelegatePicker() {
     html += '<div class="delegate-row" data-name="'+escHtml(c.name)+'" style="padding:0.5rem 0.6rem;margin-bottom:3px;background:var(--bg-3);border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:8px;" onclick="_pickDianshiDelegate(\''+escHtml(c.name).replace(/\'/g,"\\'")+'\')">'+
       '<strong style="flex:1;">'+escHtml(c.name)+'</strong>'+
       '<span style="font-size:0.75rem;color:var(--txt-d);">'+escHtml(c.officialTitle||c.title||'')+'</span>'+
-      '<span style="font-size:0.68rem;background:'+lbl.color+';color:#fff;padding:1px 4px;border-radius:2px;">'+lbl.label+'</span>'+
+      '<span style="font-size:0.71rem;background:'+lbl.color+';color:#fff;padding:1px 4px;border-radius:2px;">'+lbl.label+'</span>'+
       '</div>';
   });
   html += '</div><div style="text-align:center;margin-top:0.6rem;"><button class="bt" onclick="this.closest(\'#dianshi-delegate-picker\').remove();">\u53D6\u6D88</button></div></div>';
