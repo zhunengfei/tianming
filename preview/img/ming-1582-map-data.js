@@ -2099,7 +2099,7 @@ window.MING_FACTION_SCENARIO_DATA={
   },
   "fac-portuguese-macau": {
     "name": "葡萄牙·澳门",
-    "leader": "Don Francisco Mascarenhas(澳门总督 1623-1626·继任 Dom Filipe Lobo da Silveira)",
+    "leader": "马士加路也(澳门总督 1623-1626·继任 罗保)",
     "color": "#8b4513",
     "type": "外国势力·欧洲",
     "factionType": "海上殖民+贸易",
@@ -2144,14 +2144,14 @@ window.MING_FACTION_SCENARIO_DATA={
     "strategy": "维护澳门现状。与明廷合作改善形象——铸炮、译历、传数学。与徐光启等明朝士大夫结盟抵制荷兰东进。若荷兰断海运则全力求与明廷结盟。",
     "foundYear": 1557,
     "leaderInfo": {
-      "name": "Don Francisco Mascarenhas",
+      "name": "马士加路也",
       "personality": "务实·商贸派",
       "age": "55",
       "gender": "男",
       "belief": "罗马天主教",
       "learning": "葡萄牙贵族·海事",
       "ethnicity": "葡萄牙",
-      "bio": "澳门总督 1623-1626 任内铸红衣炮输明。继任者 Dom Filipe Lobo da Silveira 1626-1630 继续对明合作政策。"
+      "bio": "澳门总督 1623-1626 任内铸红衣炮输明。继任者 罗保 1626-1630 继续对明合作政策。"
     },
     "heirInfo": {
       "name": "议事会(Loyal Senate)",
@@ -2350,7 +2350,7 @@ window.MING_FACTION_SCENARIO_DATA={
   },
   "fac-dutch-formosa": {
     "name": "荷兰·台海(东印度公司)",
-    "leader": "Gerard Frederikszoon de With(大员台湾长官·1625-1627 在任·Pieter Nuyts 1627-1629 将继)",
+    "leader": "德威特(大员台湾长官·1625-1627 在任·彼得·纳茨 1627-1629 将继)",
     "color": "#d2691e",
     "type": "外国势力·欧洲",
     "factionType": "特许公司+海上霸权",
@@ -2396,17 +2396,17 @@ window.MING_FACTION_SCENARIO_DATA={
     "strategy": "巩固热兰遮/普罗文西亚据点。进一步向福建/浙江沿海扩张。压郑氏海商。与日本争长崎。",
     "foundYear": 1624,
     "leaderInfo": {
-      "name": "Gerard Frederikszoon de With",
+      "name": "德威特",
       "personality": "商贸优先·避战",
       "age": "50",
       "gender": "男",
       "belief": "加尔文派",
       "learning": "阿姆斯特丹商学",
       "ethnicity": "荷兰",
-      "bio": "1625-1627 大员长官。Pieter Nuyts 1627-1629 将继，日后因滨田弥兵卫事件被日方扣押。"
+      "bio": "1625-1627 大员长官。彼得·纳茨 1627-1629 将继，日后因滨田弥兵卫事件被日方扣押。"
     },
     "heirInfo": {
-      "name": "Pieter Nuyts",
+      "name": "彼得·纳茨",
       "personality": "跋扈·外交无能",
       "age": "29",
       "gender": "男",
@@ -2437,7 +2437,7 @@ window.MING_FACTION_SCENARIO_DATA={
     },
     "succession": {
       "rule": "appointedByVOC",
-      "designatedHeir": "Pieter Nuyts",
+      "designatedHeir": "彼得·纳茨",
       "stability": 70
     },
     "historicalEvents": [
@@ -2478,7 +2478,7 @@ window.MING_FACTION_SCENARIO_DATA={
       },
       {
         "turn": 0,
-        "event": "1627 Nuyts 即将接任",
+        "event": "1627 纳茨 即将接任",
         "impact": "日荷关系紧张起点"
       }
     ],
@@ -2616,7 +2616,7 @@ window.MING_FACTION_SCENARIO_DATA={
   },
   "fac-spanish-manila": {
     "name": "西班牙·马尼拉",
-    "leader": "Juan Niño de Tabora(菲律宾总督·1626-1632 在任)",
+    "leader": "尼尼奥·德·塔沃拉(菲律宾总督·1626-1632 在任)",
     "color": "#b8860b",
     "type": "外国势力·欧洲",
     "factionType": "美洲银贸易中介·殖民帝国远东省",
@@ -2663,7 +2663,7 @@ window.MING_FACTION_SCENARIO_DATA={
     "strategy": "维持马尼拉-阿卡普尔科-月港银路。与澳门葡人协作。对华商既用又防。守基隆抗荷。",
     "foundYear": 1571,
     "leaderInfo": {
-      "name": "Juan Niño de Tabora",
+      "name": "尼尼奥·德·塔沃拉",
       "personality": "好战·扩张派·信天主教",
       "age": "58",
       "gender": "男",
@@ -154765,7 +154765,7 @@ window.MING_MAP_REGIONS=[
         "primary": "执行",
         "primaryValue": "39%",
         "secondary": "官员",
-        "secondaryValue": "Juan Niño de Tabora",
+        "secondaryValue": "尼尼奥·德·塔沃拉",
         "issue": "官守需整",
         "detail": "贪墨 49 · 自主 75% · 菲律宾总督府",
         "color": "#d08a4d",
@@ -154851,7 +154851,7 @@ window.MING_MAP_REGIONS=[
       "name": "菲律宾马尼拉总督区",
       "level": "province",
       "officialPosition": "菲律宾总督府",
-      "governor": "Juan Niño de Tabora",
+      "governor": "尼尼奥·德·塔沃拉",
       "description": "马尼拉、吕宋、宿务、北台湾基隆与摩洛边区压成一个殖民总督区。海外殖民势力只做一个省级大区。",
       "terrain": "沿海/群岛",
       "specialResources": "美洲银·大帆船·华商·船坞·基隆炮台",
@@ -163708,7 +163708,7 @@ window.MING_MAP_REGIONS=[
         "primary": "执行",
         "primaryValue": "52%",
         "secondary": "官员",
-        "secondaryValue": "Dom Filipe Lobo da Silveira",
+        "secondaryValue": "罗保",
         "issue": "官守尚稳",
         "detail": "贪墨 31 · 自主 75% · 澳门议事会与总督辖区",
         "color": "#dbac5a",
@@ -163794,7 +163794,7 @@ window.MING_MAP_REGIONS=[
       "name": "澳门葡人租居地",
       "level": "province",
       "officialPosition": "澳门议事会与总督辖区",
-      "governor": "Dom Filipe Lobo da Silveira",
+      "governor": "罗保",
       "description": "澳门半岛、炮厂、商馆和外港合并为一个租居港区。小港口不再拆成多区。",
       "terrain": "沿海",
       "specialResources": "红衣炮·耶稣会·中日转口贸易·船坞",
@@ -179184,7 +179184,7 @@ window.MING_MAP_REGIONS=[
         "primary": "执行",
         "primaryValue": "50%",
         "secondary": "官员",
-        "secondaryValue": "Gerard Frederikszoon de With",
+        "secondaryValue": "德威特",
         "issue": "官守尚稳",
         "detail": "贪墨 34 · 自主 75% · VOC 大员长官辖区",
         "color": "#d9a758",
@@ -179270,7 +179270,7 @@ window.MING_MAP_REGIONS=[
       "name": "大员荷兰商馆区",
       "level": "province",
       "officialPosition": "VOC 大员长官辖区",
-      "governor": "Gerard Frederikszoon de With",
+      "governor": "德威特",
       "description": "热兰遮、赤崁与台海舰队合并为一个公司殖民据点。它是商馆加要塞，不按省制拆细。",
       "terrain": "沿海/海域",
       "specialResources": "鹿皮·糖·转口贸易·火炮·武装商船",
