@@ -367,11 +367,11 @@
         body += '<div style="padding:8px;margin-bottom:4px;background:rgba(192,64,48,0.1);border-left:3px solid var(--vermillion-400);border-radius:4px;font-size:0.78rem;">';
         body += '<b>' + a.objector + '</b>：' + a.content;
         body += '<div style="margin-top:4px;display:flex;gap:4px;">';
-        body += '<button class="btn" style="font-size:0.68rem;padding:2px 8px;" onclick="_processAbduction(\'' + a.id + '\',\'accept\');this.parentNode.parentNode.parentNode.remove();">纳谏</button>';
-        body += '<button class="btn" style="font-size:0.68rem;padding:2px 8px;" onclick="_processAbduction(\'' + a.id + '\',\'reject\');this.parentNode.parentNode.parentNode.remove();">斥</button>';
-        body += '<button class="btn" style="font-size:0.68rem;padding:2px 8px;color:var(--vermillion-400);" onclick="_processAbduction(\'' + a.id + '\',\'punish\');this.parentNode.parentNode.parentNode.remove();">下狱</button>';
-        body += '<button class="btn" style="font-size:0.68rem;padding:2px 8px;color:var(--vermillion-500);" onclick="_processAbduction(\'' + a.id + '\',\'execute\');this.parentNode.parentNode.parentNode.remove();">诛</button>';
-        body += '<button class="btn" style="font-size:0.68rem;padding:2px 8px;" onclick="_processAbduction(\'' + a.id + '\',\'demote\');this.parentNode.parentNode.parentNode.remove();">贬</button>';
+        body += '<button class="btn" style="font-size:0.71rem;padding:2px 8px;" onclick="_processAbduction(\'' + a.id + '\',\'accept\');this.parentNode.parentNode.parentNode.remove();">纳谏</button>';
+        body += '<button class="btn" style="font-size:0.71rem;padding:2px 8px;" onclick="_processAbduction(\'' + a.id + '\',\'reject\');this.parentNode.parentNode.parentNode.remove();">斥</button>';
+        body += '<button class="btn" style="font-size:0.71rem;padding:2px 8px;color:var(--vermillion-400);" onclick="_processAbduction(\'' + a.id + '\',\'punish\');this.parentNode.parentNode.parentNode.remove();">下狱</button>';
+        body += '<button class="btn" style="font-size:0.71rem;padding:2px 8px;color:var(--vermillion-500);" onclick="_processAbduction(\'' + a.id + '\',\'execute\');this.parentNode.parentNode.parentNode.remove();">诛</button>';
+        body += '<button class="btn" style="font-size:0.71rem;padding:2px 8px;" onclick="_processAbduction(\'' + a.id + '\',\'demote\');this.parentNode.parentNode.parentNode.remove();">贬</button>';
         body += '</div></div>';
       });
     }

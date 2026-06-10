@@ -97,7 +97,7 @@
     }
     html += '</div>';
     if (nextMin) {
-      html += '<div style="font-size:0.66rem;color:var(--txt-d);margin-top:3px;">升第 ' + (stage+1) + ' 阶需 ' + nextMin + ' 点（' + progress + '%）</div>';
+      html += '<div style="font-size:0.7rem;color:var(--txt-d);margin-top:3px;">升第 ' + (stage+1) + ' 阶需 ' + nextMin + ' 点（' + progress + '%）</div>';
     }
     html += '</div>';
     return html;
@@ -153,7 +153,7 @@
       html += '<div style="margin-top:6px;padding:6px 10px;background:rgba(139,46,37,0.1);border-left:3px solid var(--vermillion-400);border-radius:3px;font-size:0.74rem;">'+
         '<span style="color:var(--vermillion-400);">⚠ 隐匿藏款</span> '+
         '<span style="color:var(--txt);">约 ' + fmtMoney(hiddenWealth) + ' ' + U.money + '</span>'+
-        '<span style="color:var(--txt-d);font-size:0.64rem;margin-left:4px;">（监察已察觉）</span>'+
+        '<span style="color:var(--txt-d);font-size:0.7rem;margin-left:4px;">（监察已察觉）</span>'+
         '</div>';
     }
     return html;
@@ -163,7 +163,7 @@
     var textColor = overrideColor || color;
     return '<div style="padding:5px 4px;background:var(--bg-2);border-radius:3px;text-align:center;border-top:2px solid ' + color + ';">'+
       '<div style="font-size:1.1rem;margin-bottom:2px;">' + icon + '</div>'+
-      '<div style="font-size:0.64rem;color:var(--txt-d);">' + label + '</div>'+
+      '<div style="font-size:0.7rem;color:var(--txt-d);">' + label + '</div>'+
       '<div style="font-size:0.74rem;color:' + textColor + ';font-weight:500;margin-top:2px;">' + value + '</div>'+
       '</div>';
   }
@@ -188,7 +188,7 @@
           renderWealthItem('🌾', _lblPrefix + '粮', fmtMoney(pt.grain || 0) + ' ' + U.grain, '#6aa88a') +
           renderWealthItem('🧵', _lblPrefix + '布', fmtMoney(pt.cloth || 0) + ' ' + U.cloth, '#a88a6a') +
         '</div>'+
-        '<div style="font-size:0.66rem;color:var(--txt-d);margin-top:4px;">' + _escHtml(_src) + '</div>'+
+        '<div style="font-size:0.7rem;color:var(--txt-d);margin-top:4px;">' + _escHtml(_src) + '</div>'+
         '</div>';
     }
     // 岗位公库
@@ -198,19 +198,19 @@
           '<span style="font-size:0.76rem;color:var(--gold);">官职公库（' + _escHtml(pt.linkedPost) + '）</span>'+
           '<span style="font-size:0.8rem;color:var(--txt);font-weight:500;">' + fmtMoney(pt.balance || 0) + ' ' + U.money + '</span>'+
         '</div>'+
-        '<div style="font-size:0.66rem;color:var(--txt-d);margin-top:2px;">只读镜像 · 岗位 publicTreasury</div>'+
+        '<div style="font-size:0.7rem;color:var(--txt-d);margin-top:2px;">只读镜像 · 岗位 publicTreasury</div>'+
         '</div>';
     }
     // 区域公库
     if (!pt.linkedRegion) return '';
     var deficitNote = pt.lastHandoverDeficit > 0 ?
-      '<div style="font-size:0.66rem;color:var(--vermillion-400);margin-top:2px;">⚠ 前任留空 ' + fmtMoney(pt.lastHandoverDeficit) + ' ' + U.money + '</div>' : '';
+      '<div style="font-size:0.7rem;color:var(--vermillion-400);margin-top:2px;">⚠ 前任留空 ' + fmtMoney(pt.lastHandoverDeficit) + ' ' + U.money + '</div>' : '';
     return '<div style="padding:6px 10px;background:rgba(184,154,83,0.08);border-left:3px solid var(--gold-d);border-radius:3px;margin-bottom:8px;">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;">'+
         '<span style="font-size:0.76rem;color:var(--gold);">公库（绑定：' + _escHtml(pt.linkedRegion) + '）</span>'+
         '<span style="font-size:0.8rem;color:var(--txt);font-weight:500;">' + fmtMoney(pt.balance || 0) + ' ' + U.money + '</span>'+
       '</div>'+
-      '<div style="font-size:0.66rem;color:var(--txt-d);margin-top:2px;">只读镜像 · 实际在地方 fiscal 中</div>'+
+      '<div style="font-size:0.7rem;color:var(--txt-d);margin-top:2px;">只读镜像 · 实际在地方 fiscal 中</div>'+
       deficitNote +
       '</div>';
   }

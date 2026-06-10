@@ -38,7 +38,7 @@ function _yq2_openSetup() {
 
   var html = '<div style="background:var(--color-surface);border:1px solid var(--gold-500);border-radius:var(--radius-lg);padding:1.3rem 1.7rem;max-width:540px;width:92%;max-height:85vh;overflow-y:auto;">';
   html += '<div style="text-align:center;font-size:var(--text-md);color:var(--gold-400);letter-spacing:0.12em;margin-bottom:0.9rem;">〔 御 前 会 议 · 筹 备 〕</div>';
-  html += '<div style="font-size:0.68rem;color:var(--ink-300);text-align:center;margin-bottom:0.8rem;">屏退宫人，与心腹重臣密议机要。</div>';
+  html += '<div style="font-size:0.71rem;color:var(--ink-300);text-align:center;margin-bottom:0.8rem;">屏退宫人，与心腹重臣密议机要。</div>';
   // 议题
   html += '<div class="fd" style="margin-bottom:0.7rem;"><label style="font-size:0.72rem;">议题（机密事项）</label>';
   html += '<input id="yq2-topic" placeholder="如：废太子议、罢某相、诛权阉、出兵略西域……" style="width:100%;padding:5px 8px;background:var(--color-elevated);border:1px solid var(--color-border);border-radius:var(--radius-sm);color:var(--color-foreground);">';
@@ -61,7 +61,7 @@ function _yq2_openSetup() {
     html += '<label style="display:flex;align-items:center;gap:5px;padding:3px 5px;font-size:0.7rem;cursor:pointer;">';
     html += '<input type="checkbox" class="yq2-advisor" value="' + escHtml(c.name) + '"' + (auto?' checked':'') + '>';
     html += '<span>' + escHtml(c.name) + '</span>';
-    html += '<span style="color:var(--ink-300);font-size:0.62rem;">' + escHtml(c.officialTitle||c.title||'') + ' 忠' + (typeof _fmtNum1==='function'?_fmtNum1(c.loyalty||50):(c.loyalty||50)) + ' 野' + (typeof _fmtNum1==='function'?_fmtNum1(c.ambition||40):(c.ambition||40)) + '</span>';
+    html += '<span style="color:var(--ink-300);font-size:0.68rem;">' + escHtml(c.officialTitle||c.title||'') + ' 忠' + (typeof _fmtNum1==='function'?_fmtNum1(c.loyalty||50):(c.loyalty||50)) + ' 野' + (typeof _fmtNum1==='function'?_fmtNum1(c.ambition||40):(c.ambition||40)) + '</span>';
     html += '</label>';
   });
   html += '</div>';
@@ -71,7 +71,7 @@ function _yq2_openSetup() {
   html += '<label style="font-size:0.72rem;"><input type="radio" name="yq2-record" value="keep" checked> 📜 记起居注（正常）</label>';
   html += '<label style="font-size:0.72rem;color:var(--vermillion-400);"><input type="radio" name="yq2-record" value="secret"> 🤐 不录（密议——泄密风险）</label>';
   html += '</div>';
-  html += '<div style="font-size:0.62rem;color:var(--ink-300);margin-bottom:0.8rem;">· 不录者：议事不入起居注/纪事；若事后泄密，则成大丑闻</div>';
+  html += '<div style="font-size:0.68rem;color:var(--ink-300);margin-bottom:0.8rem;">· 不录者：议事不入起居注/纪事；若事后泄密，则成大丑闻</div>';
   html += '<div style="text-align:center;display:flex;gap:var(--space-2);justify-content:center;">';
   html += '<button class="bt bp" onclick="_yq2_startSession()">开议</button>';
   html += '<button class="bt" onclick="this.closest(\'div[style*=fixed]\').remove();">取消</button>';
@@ -317,7 +317,7 @@ function _yq2_pickAdvisor() {
   CY._yq2.advisors.forEach(function(nm) {
     var op = CY._yq2.opinions[nm];
     html += '<button class="bt bsm" style="text-align:left;" onclick="_yq2_askAdvisor(\'' + escHtml(nm).replace(/\'/g,"\\'") + '\');this.closest(\'div[style*=fixed]\').remove();">' + escHtml(nm);
-    if (op) html += ' <span style="color:var(--ink-300);font-size:0.65rem;">(坦'+Math.round(op.candor)+')</span>';
+    if (op) html += ' <span style="color:var(--ink-300);font-size:0.7rem;">(坦'+Math.round(op.candor)+')</span>';
     html += '</button>';
   });
   html += '</div>';

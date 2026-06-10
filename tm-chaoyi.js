@@ -325,8 +325,8 @@ function _cy_modeCardHtml(mode, title, subtitle, desc, scale, energy) {
     + 'onmouseout="this.style.borderColor=\'var(--color-border)\';this.style.background=\'var(--color-surface)\'">'
     + '<div style="font-size:1rem;font-weight:700;color:var(--gold-400);margin-bottom:0.3rem;">' + title + '</div>'
     + '<div style="font-size:0.72rem;color:var(--color-foreground);margin-bottom:0.5rem;">' + subtitle + '</div>'
-    + '<div style="font-size:0.65rem;color:var(--color-foreground-muted);line-height:1.4;margin-bottom:0.5rem;">' + desc + '</div>'
-    + '<div style="font-size:0.62rem;color:var(--ink-300);">' + scale + ' · ' + energy + '</div>'
+    + '<div style="font-size:0.7rem;color:var(--color-foreground-muted);line-height:1.4;margin-bottom:0.5rem;">' + desc + '</div>'
+    + '<div style="font-size:0.68rem;color:var(--ink-300);">' + scale + ' · ' + energy + '</div>'
     + '</div>';
 }
 

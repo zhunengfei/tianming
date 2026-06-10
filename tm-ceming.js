@@ -624,7 +624,7 @@
       return true;
     });
     // 加结果计数提示
-    html += '<div style="font-size:11px;color:#888;margin-bottom:8px;">' + ids.length + ' / ' + Object.keys(profiles).length + ' 条' + (kw ? '·搜「'+(_dlgState.libraryKeyword||'')+'」' : '') + '</div>';
+    html += '<div style="font-size:12px;color:#888;margin-bottom:8px;">' + ids.length + ' / ' + Object.keys(profiles).length + ' 条' + (kw ? '·搜「'+(_dlgState.libraryKeyword||'')+'」' : '') + '</div>';
 
     if (ids.length === 0) {
       html += '<div style="text-align:center;padding:40px;color:#888;">此筛选下无人物</div>';
@@ -644,11 +644,11 @@
               'style="padding:10px;border:1px solid var(--border,#3a2c1a);border-radius:6px;background:rgba(0,0,0,0.15);' + dimStyle + 'transition:border-color 0.2s;" ' +
               'onmouseover="if(!this.style.opacity||this.style.opacity===\'1\')this.style.borderColor=\'var(--gold,#c89b4d)\'" ' +
               'onmouseout="this.style.borderColor=\'var(--border,#3a2c1a)\'">' +
-        '<div style="font-size:15px;font-weight:700;color:var(--gold,#c89b4d);">' + (p.name || '佚名') + (p.zi ? ' <span style="font-size:11px;color:#888;font-weight:400;">字 ' + p.zi + '</span>' : '') + '</div>' +
+        '<div style="font-size:15px;font-weight:700;color:var(--gold,#c89b4d);">' + (p.name || '佚名') + (p.zi ? ' <span style="font-size:12px;color:#888;font-weight:400;">字 ' + p.zi + '</span>' : '') + '</div>' +
         '<div style="font-size:12px;color:#aaa;margin-top:3px;">' + (p.dynasty || '') + (p.era ? ' · ' + p.era : '') + '</div>' +
-        '<div style="font-size:11px;color:#888;margin-top:3px;">' + (p.officialTitle || p.title || '') + '</div>' +
-        '<div style="font-size:10px;color:#666;margin-top:4px;">类型: ' + (roleLabels[p.role] || p.role || '?') + '</div>' +
-        (dimText ? '<div style="font-size:10px;color:#a55;margin-top:4px;">⚠ ' + dimText + '</div>' : '') +
+        '<div style="font-size:12px;color:#888;margin-top:3px;">' + (p.officialTitle || p.title || '') + '</div>' +
+        '<div style="font-size:11px;color:#666;margin-top:4px;">类型: ' + (roleLabels[p.role] || p.role || '?') + '</div>' +
+        (dimText ? '<div style="font-size:11px;color:#a55;margin-top:4px;">⚠ ' + dimText + '</div>' : '') +
       '</div>';
     });
     html += '</div>';
@@ -742,15 +742,15 @@
     var anchorsHtml = '';
     if (data.anchors && data.anchors.length > 0) {
       anchorsHtml = '<div style="margin-top:10px;padding:8px;background:rgba(192,154,83,0.08);border-left:2px solid #c89b4d;">' +
-        '<div style="font-size:11px;color:#c89b4d;font-weight:700;margin-bottom:4px;">【相似锚定】</div>' +
+        '<div style="font-size:12px;color:#c89b4d;font-weight:700;margin-bottom:4px;">【相似锚定】</div>' +
         data.anchors.map(function(a){
-          return '<div style="font-size:11px;color:#bbb;margin:2px 0;">◐ ' + (a.dimension || '风格近') + ' <span style="color:#d4a85a;">' + a.name + '</span>' + (a.reason ? '<span style="color:#888;">·' + a.reason + '</span>' : '') + '</div>';
+          return '<div style="font-size:12px;color:#bbb;margin:2px 0;">◐ ' + (a.dimension || '风格近') + ' <span style="color:#d4a85a;">' + a.name + '</span>' + (a.reason ? '<span style="color:#888;">·' + a.reason + '</span>' : '') + '</div>';
         }).join('') +
       '</div>';
     }
 
-    var ambiguityHtml = data.ambiguityNote ? '<div style="margin-top:8px;font-size:11px;color:#a87;">⚠ ' + data.ambiguityNote + '</div>' : '';
-    var confidenceHtml = (data.confidence === 'low') ? '<span style="margin-left:8px;font-size:10px;color:#a55;">存疑·待考</span>' : '';
+    var ambiguityHtml = data.ambiguityNote ? '<div style="margin-top:8px;font-size:12px;color:#a87;">⚠ ' + data.ambiguityNote + '</div>' : '';
+    var confidenceHtml = (data.confidence === 'low') ? '<span style="margin-left:8px;font-size:11px;color:#a55;">存疑·待考</span>' : '';
 
     var html = '<div style="padding:18px;border:1px solid #c89b4d;border-radius:6px;background:linear-gradient(180deg,rgba(192,154,83,0.08),rgba(0,0,0,0.1));">' +
       '<div style="font-size:18px;font-weight:700;color:var(--gold,#c89b4d);">〔' + (data.name || '佚名') + (data.zi ? '  ' + data.zi : '') + '〕' + confidenceHtml + '</div>' +
@@ -791,7 +791,7 @@
 
   TM.ceming._confirmSummon = async function(kind) {
     var body = document.getElementById('ceming-body');
-    if (body) body.innerHTML = '<div style="text-align:center;padding:60px;color:#c89b4d;font-size:14px;">史官撰其履历……<br><span style="font-size:11px;color:#888;">（请稍候，AI 正在生成完整属性）</span></div>';
+    if (body) body.innerHTML = '<div style="text-align:center;padding:60px;color:#c89b4d;font-size:14px;">史官撰其履历……<br><span style="font-size:12px;color:#888;">（请稍候，AI 正在生成完整属性）</span></div>';
 
     try {
       var result;

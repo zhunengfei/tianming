@@ -305,6 +305,14 @@ if(window.tianming&&window.tianming.isDesktop){
     _prepareDesktopStartScenario(scn, scn.name||scn.id);
   };
 
+  // 模式选择页「返回」：用内存中的 _pendingStartPayload 重建存档名面板。
+  // 正式库剧本（projectOnly）没有磁盘文件，按文件名重新 load 必报「加载失败」。
+  window.desktopBackToStartPanel=function(){
+    var p=window._pendingStartPayload;
+    if(p&&p.scn){_prepareDesktopStartScenario(p.scn,p.origName);}
+    else if(typeof showScnSelect==='function'){showScnSelect();}
+  };
+
   window.desktopConfirmStart=function(){
     var payload=window._pendingStartPayload;
     var scn=payload.scn;
@@ -339,7 +347,7 @@ if(window.tianming&&window.tianming.isDesktop){
     html+='</div>';
     html+='<div class="pnl-ft">';
     html+='<button class="bt bp" id="start-mode-btn" onclick="desktopDoStart()">▶ 开始</button>';
-    html+='<button class="bt bs" onclick="desktopStartScn(window._pendingStartPayload.origName)">返回</button>';
+    html+='<button class="bt bs" onclick="desktopBackToStartPanel()">返回</button>';
     html+='</div></div>';
     window._pendingStartMode='yanyi';
     window._pendingRefText='';

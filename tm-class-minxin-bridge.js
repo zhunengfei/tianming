@@ -430,7 +430,9 @@
           reason: payload.reason || payload.sourceSystem || 'class minxin pressure'
         }, {
           turn: payload.turn != null ? payload.turn : root.turn,
-          source: 'class-minxin-bridge'
+          source: 'class-minxin-bridge',
+          // 2026-06-10·批量信号路径(applyPending)逐笔跳过整体级收口·批末 finalizeBatch 一次
+          deferFinalize: payload.deferLedgerFinalize === true
         });
         if (ledgerResult && ledgerResult.result && Array.isArray(ledgerResult.result.affectedRegions)) {
           appliedRegions = ledgerResult.result.affectedRegions.map(function(x) {

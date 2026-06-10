@@ -83,9 +83,9 @@ function _ty2_openSetup() {
   html += '<div style="font-size:0.7rem;color:var(--color-foreground-muted);margin-bottom:0.35rem;">应召官员（三品以上自动）—— ' + defaultAttendees.length + ' 人</div>';
   html += '<div id="ty2-attendees" style="max-height:160px;overflow-y:auto;padding:6px;background:var(--color-elevated);border-radius:3px;margin-bottom:0.7rem;display:flex;flex-wrap:wrap;gap:3px;">';
   defaultAttendees.forEach(function(c) {
-    html += '<label style="font-size:0.68rem;padding:2px 5px;background:rgba(184,154,83,0.1);border-radius:2px;cursor:pointer;">'
+    html += '<label style="font-size:0.71rem;padding:2px 5px;background:rgba(184,154,83,0.1);border-radius:2px;cursor:pointer;">'
       + '<input type="checkbox" class="ty2-attendee" value="' + escHtml(c.name) + '" checked> ' + escHtml(c.name);
-    if (c.officialTitle || c.title) html += '<span style="color:var(--ink-300);font-size:0.6rem;"> ' + escHtml(c.officialTitle||c.title) + '</span>';
+    if (c.officialTitle || c.title) html += '<span style="color:var(--ink-300);font-size:0.66rem;"> ' + escHtml(c.officialTitle||c.title) + '</span>';
     html += '</label>';
   });
   html += '</div>';
@@ -100,7 +100,7 @@ function _ty2_openSetup() {
     html += '<details style="margin-bottom:0.8rem;font-size:0.72rem;"><summary style="cursor:pointer;color:var(--ink-300);">其他可召人员（' + extraPool.length + '，可多选）</summary>';
     html += '<div style="max-height:120px;overflow-y:auto;padding:6px;background:var(--color-elevated);border-radius:3px;margin-top:4px;display:flex;flex-wrap:wrap;gap:3px;">';
     extraPool.slice(0, 40).forEach(function(c) {
-      html += '<label style="font-size:0.66rem;padding:2px 5px;background:rgba(107,93,79,0.1);border-radius:2px;cursor:pointer;">'
+      html += '<label style="font-size:0.7rem;padding:2px 5px;background:rgba(107,93,79,0.1);border-radius:2px;cursor:pointer;">'
         + '<input type="checkbox" class="ty2-extra" value="' + escHtml(c.name) + '"> ' + escHtml(c.name) + '</label>';
     });
     html += '</div></details>';
@@ -211,7 +211,7 @@ function _ty2_render() {
   if (old) old.remove();
   if (!CY._ty2) return;
   var stances = CY._ty2.stances || {};
-  var html = '<div id="ty2-stance-board" style="position:sticky;top:0;z-index:10;background:var(--color-elevated);border:1px solid var(--color-border-subtle);border-radius:var(--radius-sm);padding:6px 10px;margin-bottom:6px;font-size:0.68rem;">';
+  var html = '<div id="ty2-stance-board" style="position:sticky;top:0;z-index:10;background:var(--color-elevated);border:1px solid var(--color-border-subtle);border-radius:var(--radius-sm);padding:6px 10px;margin-bottom:6px;font-size:0.71rem;">';
   html += '<div style="color:var(--gold-400);margin-bottom:3px;">〔 立 场 板 〕 第 ' + (CY._ty2.roundNum||0) + ' 轮</div>';
   // 聚合
   var counts = {};
@@ -230,7 +230,7 @@ function _ty2_render() {
   CY._ty2.attendees.forEach(function(n) {
     var st = stances[n] || {current:'待定'};
     var c = colors[st.current] || 'var(--ink-300)';
-    html += '<span style="padding:1px 5px;background:rgba(255,255,255,0.04);border-left:2px solid ' + c + ';font-size:0.62rem;">' + escHtml(n) + '<span style="color:' + c + ';"> ' + st.current + '</span></span>';
+    html += '<span style="padding:1px 5px;background:rgba(255,255,255,0.04);border-left:2px solid ' + c + ';font-size:0.68rem;">' + escHtml(n) + '<span style="color:' + c + ';"> ' + st.current + '</span></span>';
   });
   html += '</div>';
   html += '</div>';
@@ -1001,7 +1001,7 @@ function _cy_suggestBtnHtml(category) {
     var label = (category === '御前会议') ? '密 议 要 点' : '建 言 要 点';
     var tip = '由 AI 归总此' + (category||'议') + '中各家主张，便于裁断。';
     return '<button onclick="if(typeof _mzShowSummary===&quot;function&quot;)_mzShowSummary();" title="' + tip + '" '
-         + 'style="padding:4px 10px;font-size:11px;background:transparent;border:1px solid var(--color-border-subtle);'
+         + 'style="padding:4px 10px;font-size:12px;background:transparent;border:1px solid var(--color-border-subtle);'
          + 'color:var(--ink-500);border-radius:var(--radius-sm);cursor:pointer;letter-spacing:0.05em;">'
          + label + '</button>';
   } catch(_) { return ''; }

@@ -352,7 +352,7 @@
         ongoing.forEach(function(r) {
           body += '<div style="font-size:0.72rem;background:rgba(192,64,48,0.1);padding:4px 8px;margin:2px 0;">';
           body += (r.region||'某地') + ' · L' + r.level + ' · ' + (r.cause||'？');
-          body += '<button class="btn" style="font-size:0.68rem;padding:2px 6px;margin-left:6px;" onclick="PhaseD.openRevoltInterventionPanel(\''+r.id+'\')">干预</button>';
+          body += '<button class="btn" style="font-size:0.71rem;padding:2px 6px;margin-left:6px;" onclick="PhaseD.openRevoltInterventionPanel(\''+r.id+'\')">干预</button>';
           body += '</div>';
         });
       }
@@ -420,7 +420,7 @@
       body += '<div style="font-size:0.72rem;background:var(--bg-2);padding:6px;">';
       body += '御史可用 ' + (G.auditSystem.inspectorsAvailable||0) + ' / ' + '强度 ' + ((G.auditSystem.strength||0)*100).toFixed(0) + '%';
       body += ' · 查 ' + (G.auditSystem.totalAuditsCompleted||0) + ' 次 · 曝光 ' + (G.auditSystem.totalFraudExposed||0);
-      body += '<br><button class="btn" style="font-size:0.68rem;padding:3px 8px;margin-top:4px;" onclick="prompt(\'派往哪个区域 ID？\',\'default\')&&PhaseA.dispatchAudit(prompt.value||\'default\',\'normal\')">派御史</button>';
+      body += '<br><button class="btn" style="font-size:0.71rem;padding:3px 8px;margin-top:4px;" onclick="prompt(\'派往哪个区域 ID？\',\'default\')&&PhaseA.dispatchAudit(prompt.value||\'default\',\'normal\')">派御史</button>';
       body += '</div>';
     }
     body += '</div>';

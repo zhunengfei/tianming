@@ -1020,7 +1020,7 @@ GameHooks.on('renderGameState:after', function(){
   var existing=gl.querySelector("#mode-badge");
   if(!existing){
     var badge=document.createElement("div");badge.id="mode-badge";badge.style.cssText="text-align:center;margin-bottom:0.5rem;";
-    badge.innerHTML="<span style=\"font-size:0.65rem;padding:0.15rem 0.5rem;border-radius:10px;background:rgba(0,0,0,0.3);color:"+color+";border:1px solid "+color+";\">"+label+"</span>";
+    badge.innerHTML="<span style=\"font-size:0.7rem;padding:0.15rem 0.5rem;border-radius:10px;background:rgba(0,0,0,0.3);color:"+color+";border:1px solid "+color+";\">"+label+"</span>";
     gl.insertBefore(badge,gl.firstChild);
   }
   // 小地图

@@ -2910,7 +2910,7 @@ function showAIConfigModal() {
       <input id="ai-cfg-key" type="password" value="${escHtml(cfg.key)}" placeholder="sk-..." />
       <div style="font-size:12px;color:var(--ink-500);margin-bottom:4px;">模型名（如 gpt-4o-mini / claude-sonnet-4-5 / deepseek-chat 等）</div>
       <input id="ai-cfg-model" type="text" value="${escHtml(cfg.model || 'gpt-4o-mini')}" placeholder="gpt-4o-mini" />
-      <div style="font-size:11px;color:var(--ink-300);margin:8px 0;">注：CORS 限制下·部分官方端点（含 Anthropic）需经代理。已知可直连：兼容 OpenAI 协议的国产 API（DeepSeek/智谱/月之暗面等）和大多数代理端点。</div>
+      <div style="font-size:12px;color:var(--ink-300);margin:8px 0;">注：CORS 限制下·部分官方端点（含 Anthropic）需经代理。已知可直连：兼容 OpenAI 协议的国产 API（DeepSeek/智谱/月之暗面等）和大多数代理端点。</div>
       <div class="row">
         <button class="cy-btn muted" id="ai-cfg-cancel">取消</button>
         <button class="cy-btn" id="ai-cfg-test">⚡ 测试调用</button>
@@ -3110,7 +3110,7 @@ async function runOpening() {
     roster.className = 'absent-roster';
     let html = '<span class="lbl">〔 缺 朝 〕</span>';
     state.absents.forEach(a => {
-      html += '<span class="name">' + escHtml(a.name) + '</span><span style="color:var(--ink-300);font-size:11px;">（' + escHtml(a.reason) + '）</span>';
+      html += '<span class="name">' + escHtml(a.name) + '</span><span style="color:var(--ink-300);font-size:12px;">（' + escHtml(a.reason) + '）</span>';
     });
     roster.innerHTML = html;
     main.appendChild(roster);
@@ -4245,7 +4245,7 @@ function showSummary() {
       ${counts.skip ? `<span class="tally-pill tally-other">免 ${counts.skip}</span>` : ''}
     </div>
     ${(counts.admonish || counts.praise || counts.decree || counts.modify) ? `
-    <div style="text-align:center;font-size:11px;color:var(--ink-500);margin:8px 0;letter-spacing:0.15em;">
+    <div style="text-align:center;font-size:12px;color:var(--ink-500);margin:8px 0;letter-spacing:0.15em;">
       ${counts.modify ? `改批 ${counts.modify} · ` : ''}
       ${counts.admonish ? `训诫 ${counts.admonish} · ` : ''}
       ${counts.praise ? `嘉奖 ${counts.praise} · ` : ''}

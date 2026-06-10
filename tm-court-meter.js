@@ -157,7 +157,7 @@ function _showPostTurnCourtBanner() {
   var el = document.createElement('div');
   el.id = 'post-turn-court-banner';
   el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:4900;background:linear-gradient(90deg,rgba(184,154,83,0.18),rgba(184,154,83,0.08));border-top:2px solid var(--gold-d);padding:6px 14px;display:flex;align-items:center;gap:10px;font-size:0.76rem;color:var(--gold);';
-  el.innerHTML = '<span style="font-weight:700;">〔朔朝〕</span><span id="post-turn-court-banner-msg">有司推演中……本朝决议施于次回合</span><span style="margin-left:auto;font-size:0.68rem;color:var(--txt-d);">AI 后台推演</span>';
+  el.innerHTML = '<span style="font-weight:700;">〔朔朝〕</span><span id="post-turn-court-banner-msg">有司推演中……本朝决议施于次回合</span><span style="margin-left:auto;font-size:0.71rem;color:var(--txt-d);">AI 后台推演</span>';
   document.body.appendChild(el);
 }
 

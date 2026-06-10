@@ -174,7 +174,7 @@
     var modRows = Object.keys(summary).map(function(mod){
       var s = summary[mod];
       var topMsgs = Object.keys(s.messages).sort(function(a,b){ return s.messages[b]-s.messages[a]; }).slice(0,3);
-      var msgHtml = topMsgs.map(function(m){ return '<div style="font-size:11px;color:#888;margin-left:8px">· ' + _esc(m) + ' ×' + s.messages[m] + '</div>'; }).join('');
+      var msgHtml = topMsgs.map(function(m){ return '<div style="font-size:12px;color:#888;margin-left:8px">· ' + _esc(m) + ' ×' + s.messages[m] + '</div>'; }).join('');
       return '<div style="border-bottom:1px solid #2a2a2a;padding:6px 0"><b style="color:#e8c66e">' + _esc(mod) + '</b> <span style="color:#999">×' + s.count + '</span>' + msgHtml + '</div>';
     }).join('') || '<div style="color:#666;padding:10px">尚无捕获</div>';
 
@@ -187,14 +187,14 @@
         + ' <span style="color:#e8c66e">[' + _esc(e.module) + ']</span>'
         + ' <span style="color:#999">T' + (e.turn || 0) + '</span></div>'
         + '<div style="color:#ddd;margin:3px 0">' + _esc(msg) + '</div>'
-        + (hasStack ? '<details><summary style="cursor:pointer;color:#6a9;font-size:11px">stack</summary><pre style="background:#0a0a0a;padding:6px;font-size:10px;overflow:auto;max-height:200px;color:#c99">' + _esc(e.error.stack) + '</pre></details>' : '')
+        + (hasStack ? '<details><summary style="cursor:pointer;color:#6a9;font-size:12px">stack</summary><pre style="background:#0a0a0a;padding:6px;font-size:11px;overflow:auto;max-height:200px;color:#c99">' + _esc(e.error.stack) + '</pre></details>' : '')
         + '</div>';
     }).join('') || '<div style="color:#666;padding:10px">尚无捕获</div>';
 
     var valRows = validations.slice().reverse().slice(0, 20).map(function(v){
       var status = v.errors.length > 0 ? '✗' : (v.warnings.length > 0 ? '⚠' : '✓');
       var color = v.errors.length > 0 ? '#c66' : (v.warnings.length > 0 ? '#d99' : '#6a9');
-      return '<div style="font-size:11px;color:#bbb;border-bottom:1px solid #2a2a2a;padding:4px 0">'
+      return '<div style="font-size:12px;color:#bbb;border-bottom:1px solid #2a2a2a;padding:4px 0">'
         + '<span style="color:' + color + ';font-weight:bold;margin-right:6px">' + status + '</span>'
         + _fmtTime(v.timestamp) + ' '
         + '<b>' + _esc(v.tag) + '</b>'
@@ -206,11 +206,11 @@
     el.innerHTML =
       '<div style="display:flex;align-items:center;padding:10px 14px;border-bottom:1px solid #3a2a10;background:#1a1410">'
       + '<b style="color:#e8c66e;font-size:14px">诊断·错误与校验</b>'
-      + '<span style="color:#888;font-size:11px;margin-left:10px">Ctrl+Shift+E 关闭</span>'
+      + '<span style="color:#888;font-size:12px;margin-left:10px">Ctrl+Shift+E 关闭</span>'
       + '<div style="margin-left:auto;display:flex;gap:8px">'
-      +   '<button onclick="TM.errors.clear();TM._renderErrorsPanel();" style="background:#2a1a1a;color:#d99;border:1px solid #5a3a3a;padding:4px 10px;cursor:pointer;font-size:11px">清空</button>'
-      +   '<button onclick="TM._downloadErrorsJSON()" style="background:#1a1a2a;color:#9cd;border:1px solid #3a3a5a;padding:4px 10px;cursor:pointer;font-size:11px">下载 JSON</button>'
-      +   '<button onclick="TM._closeErrorsPanel()" style="background:#2a2a2a;color:#ccc;border:1px solid #4a4a4a;padding:4px 10px;cursor:pointer;font-size:11px">关闭</button>'
+      +   '<button onclick="TM.errors.clear();TM._renderErrorsPanel();" style="background:#2a1a1a;color:#d99;border:1px solid #5a3a3a;padding:4px 10px;cursor:pointer;font-size:12px">清空</button>'
+      +   '<button onclick="TM._downloadErrorsJSON()" style="background:#1a1a2a;color:#9cd;border:1px solid #3a3a5a;padding:4px 10px;cursor:pointer;font-size:12px">下载 JSON</button>'
+      +   '<button onclick="TM._closeErrorsPanel()" style="background:#2a2a2a;color:#ccc;border:1px solid #4a4a4a;padding:4px 10px;cursor:pointer;font-size:12px">关闭</button>'
       + '</div></div>'
       + '<div style="display:grid;grid-template-columns:1fr 1.5fr;gap:0;height:calc(100% - 50px)">'
       +   '<div style="border-right:1px solid #3a2a10;padding:10px;overflow:auto">'

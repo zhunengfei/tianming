@@ -38,7 +38,7 @@
 
   function _section(title, color, inner) {
     return '<div style="border:1px solid ' + color + ';border-radius:4px;padding:8px;margin-bottom:8px;background:rgba(' + _hexToRgba(color, 0.05) + ');">'
-      + '<div style="font-size:11px;font-weight:bold;color:' + color + ';margin-bottom:6px">' + title + '</div>'
+      + '<div style="font-size:12px;font-weight:bold;color:' + color + ';margin-bottom:6px">' + title + '</div>'
       + inner
       + '</div>';
   }
@@ -84,15 +84,15 @@
       + '</div>';
 
     // ─── Perf 栏 ───
-    var perfHtml = '<div style="color:#888;font-size:11px">TM.perf 未加载</div>';
+    var perfHtml = '<div style="color:#888;font-size:12px">TM.perf 未加载</div>';
     try {
       if (TM.perf) {
         var pr = TM.perf.report();
         var names = Object.keys(pr).sort(function(a,b){ return pr[b].p95 - pr[a].p95; }).slice(0, 10);
         if (names.length === 0) {
-          perfHtml = '<div style="color:#888;font-size:11px">尚无采样（玩 1 回合后再查看）</div>';
+          perfHtml = '<div style="color:#888;font-size:12px">尚无采样（玩 1 回合后再查看）</div>';
         } else {
-          perfHtml = '<table style="width:100%;font-size:11px;border-collapse:collapse">'
+          perfHtml = '<table style="width:100%;font-size:12px;border-collapse:collapse">'
             + '<tr style="color:#9ac870"><th style="text-align:left;padding:2px 4px">sample</th><th style="text-align:right">cnt</th><th style="text-align:right">p95</th></tr>'
             + names.map(function(n){
               var s = pr[n];
@@ -105,7 +105,7 @@
           var ths = TM.perf.getThresholds ? TM.perf.getThresholds() : {};
           var thNames = Object.keys(ths);
           if (thNames.length > 0) {
-            perfHtml += '<div style="font-size:10px;color:#888;margin-top:6px">阈值: ' + thNames.map(function(n){
+            perfHtml += '<div style="font-size:11px;color:#888;margin-top:6px">阈值: ' + thNames.map(function(n){
               var t = ths[n];
               return _esc(n) + '@' + t.ms + 'ms' + (t.triggeredCount ? '(×' + t.triggeredCount + ')' : '');
             }).join(' / ') + '</div>';
@@ -113,23 +113,23 @@
           // baseline
           if (TM.perf.getBaseline && TM.perf.getBaseline()) {
             var b = TM.perf.getBaseline();
-            perfHtml += '<div style="font-size:10px;color:#7a7;margin-top:4px">baseline: T' + b.turn + ' ' + b.when.slice(11, 19) + '</div>';
+            perfHtml += '<div style="font-size:11px;color:#7a7;margin-top:4px">baseline: T' + b.turn + ' ' + b.when.slice(11, 19) + '</div>';
           }
         }
       }
     } catch(e){ perfHtml = '<div style="color:#c66">perf 渲染异常</div>'; }
 
     // ─── State 栏 ───
-    var stateHtml = '<div style="color:#888;font-size:11px">TM.state 未加载</div>';
+    var stateHtml = '<div style="color:#888;font-size:12px">TM.state 未加载</div>';
     try {
       if (TM.state) {
         var snaps = TM.state.list();
         if (snaps.length === 0) {
-          stateHtml = '<div style="color:#888;font-size:11px">无快照</div>'
-            + '<button onclick="TM.state.snapshot(\'manual-\'+Date.now());TM.diag._render()" style="font-size:10px;padding:2px 6px;background:#2a1a1a;color:#e8c66e;border:1px solid #5a3a1a;cursor:pointer;margin-top:4px">立即快照</button>';
+          stateHtml = '<div style="color:#888;font-size:12px">无快照</div>'
+            + '<button onclick="TM.state.snapshot(\'manual-\'+Date.now());TM.diag._render()" style="font-size:11px;padding:2px 6px;background:#2a1a1a;color:#e8c66e;border:1px solid #5a3a1a;cursor:pointer;margin-top:4px">立即快照</button>';
         } else {
           stateHtml = snaps.slice(-8).reverse().map(function(s){
-            return '<div style="font-size:11px;border-bottom:1px solid #2a2a2a;padding:3px 0">'
+            return '<div style="font-size:12px;border-bottom:1px solid #2a2a2a;padding:3px 0">'
               + '<span style="color:#e8c66e">' + _esc(s.name) + '</span>'
               + ' <span style="color:#888">T' + s.turn + '</span>'
               + '</div>';
@@ -139,17 +139,17 @@
     } catch(e){ stateHtml = '<div style="color:#c66">state 渲染异常</div>'; }
 
     // ─── Hooks 栏 ───
-    var hooksHtml = '<div style="color:#888;font-size:11px">TM.hooks 未加载</div>';
+    var hooksHtml = '<div style="color:#888;font-size:12px">TM.hooks 未加载</div>';
     try {
       if (TM.hooks) {
         var hl = TM.hooks.list();
         if (hl.length === 0) {
-          hooksHtml = '<div style="color:#888;font-size:11px">未拦截到 hook（游戏可能未开局）</div>';
+          hooksHtml = '<div style="color:#888;font-size:12px">未拦截到 hook（游戏可能未开局）</div>';
         } else {
-          hooksHtml = '<div style="font-size:11px">共 ' + hl.length + ' 个 event / '
+          hooksHtml = '<div style="font-size:12px">共 ' + hl.length + ' 个 event / '
             + hl.reduce(function(s,x){return s+x.handlerCount;}, 0) + ' handler</div>'
             + hl.slice(0, 8).map(function(h){
-              return '<div style="font-size:10px;color:#bbb;padding:1px 0">'
+              return '<div style="font-size:11px;color:#bbb;padding:1px 0">'
                 + _esc(h.event) + ' <span style="color:#d99">×' + h.handlerCount + '</span>'
                 + '</div>';
             }).join('');
@@ -158,16 +158,16 @@
     } catch(e){ hooksHtml = '<div style="color:#c66">hooks 渲染异常</div>'; }
 
     // ─── Errors 栏 ───
-    var errorsHtml = '<div style="color:#888;font-size:11px">TM.errors 未加载</div>';
+    var errorsHtml = '<div style="color:#888;font-size:12px">TM.errors 未加载</div>';
     try {
       if (TM.errors) {
         var sum = TM.errors.getSummary();
         var modNames = Object.keys(sum);
         if (modNames.length === 0) {
-          errorsHtml = '<div style="color:#7a7;font-size:11px">✓ 无错误</div>';
+          errorsHtml = '<div style="color:#7a7;font-size:12px">✓ 无错误</div>';
         } else {
           errorsHtml = modNames.sort(function(a,b){ return sum[b].count - sum[a].count; }).slice(0, 8).map(function(m){
-            return '<div style="font-size:11px;border-bottom:1px solid #2a2a2a;padding:3px 0">'
+            return '<div style="font-size:12px;border-bottom:1px solid #2a2a2a;padding:3px 0">'
               + '<span style="color:#d99">' + _esc(m) + '</span>'
               + ' <span style="color:#c66">×' + sum[m].count + '</span>'
               + '</div>';
@@ -177,11 +177,11 @@
     } catch(e){ errorsHtml = '<div style="color:#c66">errors 渲染异常</div>'; }
 
     // ─── Guard 栏 ───
-    var guardHtml = '<div style="color:#888;font-size:11px">TM.guard 未加载</div>';
+    var guardHtml = '<div style="color:#888;font-size:12px">TM.guard 未加载</div>';
     try {
       if (TM.guard) {
         var gr = TM.guard.report();
-        guardHtml = '<div style="font-size:11px">'
+        guardHtml = '<div style="font-size:12px">'
           + 'window 可追踪: <b style="color:#e8c66e">' + gr.total + '</b><br>'
           + '累计新增: ' + gr.addCount + '<br>'
           + '覆盖警告: <b style="color:' + (gr.overrideCount > 0 ? '#c66' : '#7a7') + '">' + gr.overrideCount + '</b>'
@@ -190,7 +190,7 @@
     } catch(e){ guardHtml = '<div style="color:#c66">guard 渲染异常</div>'; }
 
     // ─── 整体布局 ───
-    var timingHtml = '<div style="color:#888;font-size:11px">暂无回合耗时记录</div>';
+    var timingHtml = '<div style="color:#888;font-size:12px">暂无回合耗时记录</div>';
     try {
       var timingSummary = null;
       if (TM.Endturn && TM.Endturn.Timing && typeof TM.Endturn.Timing.buildSummary === 'function') {
@@ -202,17 +202,17 @@
         var slowest = timingSummary.slowest || {};
         var topRows = (timingSummary.top || []).slice(0, 5).map(function(x){
           var color = x.level === 'critical' ? '#ff7777' : (x.level === 'high' ? '#f0a060' : (x.level === 'medium' ? '#e8c66e' : '#bbb'));
-          return '<div style="display:grid;grid-template-columns:1fr auto;gap:8px;font-size:11px;border-bottom:1px solid #2a2a2a;padding:2px 0;">'
+          return '<div style="display:grid;grid-template-columns:1fr auto;gap:8px;font-size:12px;border-bottom:1px solid #2a2a2a;padding:2px 0;">'
             + '<span style="color:#ddd">' + _esc(x.label || x.id || x.kind || '') + '</span>'
             + '<span style="color:' + color + '">' + _esc(x.text || '') + '</span>'
             + '</div>';
         }).join('');
-        timingHtml = '<div style="font-size:11px;line-height:1.7;">'
+        timingHtml = '<div style="font-size:12px;line-height:1.7;">'
           + '<div>总耗时：<b style="color:#e8c66e">' + _esc(timingSummary.totalText || '') + '</b>'
           + ' <span style="color:#888">T' + _esc(timingSummary.turn || 0) + ' · ' + _esc(timingSummary.status || '') + '</span></div>'
           + (slowest.label ? '<div>最慢：<span style="color:#d99">' + _esc(slowest.label) + '</span> <b style="color:#e8c66e">' + _esc(slowest.text || '') + '</b></div>' : '')
           + '<div style="margin-top:4px;">' + topRows + '</div>'
-          + '<button onclick="TM.Endturn&&TM.Endturn.Timing&&TM.Endturn.Timing.openDiagnostics&&TM.Endturn.Timing.openDiagnostics()" style="font-size:10px;padding:4px 8px;margin-top:6px;background:#2a1a1a;color:#e8c66e;border:1px solid #5a3a1a;cursor:pointer">打开耗时明细</button>'
+          + '<button onclick="TM.Endturn&&TM.Endturn.Timing&&TM.Endturn.Timing.openDiagnostics&&TM.Endturn.Timing.openDiagnostics()" style="font-size:11px;padding:4px 8px;margin-top:6px;background:#2a1a1a;color:#e8c66e;border:1px solid #5a3a1a;cursor:pointer">打开耗时明细</button>'
           + '</div>';
       }
     } catch(e){ timingHtml = '<div style="color:#c66">endturn timing 渲染异常</div>'; }
@@ -232,20 +232,20 @@
       + '<div>'
       +   _section('🐛 Errors (Ctrl+Shift+E 详情)', '#c66', errorsHtml)
       +   _section('📋 快速操作', '#e8c66e',
-          '<button onclick="TM.invariants.check();TM.diag._render()" style="font-size:10px;padding:4px 8px;margin:2px;background:#1a2a1a;color:#9c9;border:1px solid #3a5a3a;cursor:pointer">查 invariants</button>'
-        + '<button onclick="TM.state.snapshot(\'snap-\'+Date.now());TM.diag._render()" style="font-size:10px;padding:4px 8px;margin:2px;background:#2a2a1a;color:#e8c66e;border:1px solid #5a5a3a;cursor:pointer">快照</button>'
-        + '<button onclick="TM.perf.lockBaseline();TM.diag._render()" style="font-size:10px;padding:4px 8px;margin:2px;background:#1a1a2a;color:#9cd;border:1px solid #3a3a5a;cursor:pointer">锁 perf</button>'
-        + '<button onclick="TM.perf.print()" style="font-size:10px;padding:4px 8px;margin:2px;background:#2a1a2a;color:#d9c;border:1px solid #5a3a5a;cursor:pointer">perf 表</button>'
-        + '<button onclick="TM.test.run()" style="font-size:10px;padding:4px 8px;margin:2px;background:#2a2a1a;color:#dc9;border:1px solid #5a5a3a;cursor:pointer">跑测试</button>'
+          '<button onclick="TM.invariants.check();TM.diag._render()" style="font-size:11px;padding:4px 8px;margin:2px;background:#1a2a1a;color:#9c9;border:1px solid #3a5a3a;cursor:pointer">查 invariants</button>'
+        + '<button onclick="TM.state.snapshot(\'snap-\'+Date.now());TM.diag._render()" style="font-size:11px;padding:4px 8px;margin:2px;background:#2a2a1a;color:#e8c66e;border:1px solid #5a5a3a;cursor:pointer">快照</button>'
+        + '<button onclick="TM.perf.lockBaseline();TM.diag._render()" style="font-size:11px;padding:4px 8px;margin:2px;background:#1a1a2a;color:#9cd;border:1px solid #3a3a5a;cursor:pointer">锁 perf</button>'
+        + '<button onclick="TM.perf.print()" style="font-size:11px;padding:4px 8px;margin:2px;background:#2a1a2a;color:#d9c;border:1px solid #5a3a5a;cursor:pointer">perf 表</button>'
+        + '<button onclick="TM.test.run()" style="font-size:11px;padding:4px 8px;margin:2px;background:#2a2a1a;color:#dc9;border:1px solid #5a5a3a;cursor:pointer">跑测试</button>'
         )
       + '</div>'
       + '</div>'
-      + '<div style="padding:6px 12px;border-top:1px solid #3a2a10;background:#1a1410;font-size:10px;display:flex;align-items:center">'
+      + '<div style="padding:6px 12px;border-top:1px solid #3a2a10;background:#1a1410;font-size:11px;display:flex;align-items:center">'
       +   '<span style="color:#888">Ctrl+Shift+D 关闭 · E→errors · P→perf</span>'
       +   '<div style="margin-left:auto;display:flex;gap:6px">'
       +     '<label style="color:#888"><input type="checkbox" ' + (autoOn ? 'checked' : '') + ' onchange="TM.diag.setAutoRefresh(this.checked)"> 3s 自动刷新</label>'
-      +     '<button onclick="TM.diag._render()" style="font-size:10px;padding:2px 8px;background:#1a2a1a;color:#9c9;border:1px solid #3a5a3a;cursor:pointer">刷新</button>'
-      +     '<button onclick="TM.diag.close()" style="font-size:10px;padding:2px 8px;background:#2a2a2a;color:#ccc;border:1px solid #4a4a4a;cursor:pointer">关闭</button>'
+      +     '<button onclick="TM.diag._render()" style="font-size:11px;padding:2px 8px;background:#1a2a1a;color:#9c9;border:1px solid #3a5a3a;cursor:pointer">刷新</button>'
+      +     '<button onclick="TM.diag.close()" style="font-size:11px;padding:2px 8px;background:#2a2a2a;color:#ccc;border:1px solid #4a4a4a;cursor:pointer">关闭</button>'
       +   '</div>'
       + '</div>';
   }

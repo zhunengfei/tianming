@@ -177,11 +177,17 @@ var AudioSystem = {
   },
 
   // 播放音效
+  // perf round5 (2026-06-10): AudioContext 改共享单例——每次 new 一个上下文
+  // 在 Windows 上是 10-100ms 级重操作·且浏览器并发上限 ~6 个·超限后创建失败
   playSfx: function(soundName) {
     if (!this.enabled || !this.sounds[soundName]) return;
 
     try {
-      var audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      if (!this._sfxCtx || this._sfxCtx.state === 'closed') {
+        this._sfxCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      var audioContext = this._sfxCtx;
+      if (audioContext.state === 'suspended') { try { audioContext.resume(); } catch (_) {} }
       var oscillator = audioContext.createOscillator();
       var gainNode = audioContext.createGain();
 

@@ -1641,8 +1641,8 @@ function openMemoryAnchors() {
         html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem;">';
         html += '<span style="font-weight:700;color:' + (isHigh ? 'var(--gold)' : 'var(--txt-l)') + ';">' + escHtml(anchor.title || '') + '</span>';
         html += '<div style="display:flex;gap:0.4rem;align-items:center;">';
-        html += '<span style="font-size:0.68rem;color:' + tc + ';background:var(--bg-3);padding:1px 5px;border-radius:3px;">' + tl + '</span>';
-        html += '<span style="font-size:0.68rem;color:var(--txt-d);">T' + (anchor.turn || '?') + '</span>';
+        html += '<span style="font-size:0.71rem;color:' + tc + ';background:var(--bg-3);padding:1px 5px;border-radius:3px;">' + tl + '</span>';
+        html += '<span style="font-size:0.71rem;color:var(--txt-d);">T' + (anchor.turn || '?') + '</span>';
         html += '</div></div>';
 
         html += '<div style="font-size:0.82rem;color:var(--txt-s);line-height:1.5;">' + escHtml(anchor.content || '') + '</div>';
