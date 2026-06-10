@@ -17,6 +17,7 @@ const AdmZip = require('adm-zip');
 
 const WEB_ROOT = path.resolve(__dirname, '..');
 const APP_ROOT = path.resolve(WEB_ROOT, '..');
+const DEFAULT_MIN_APP_VERSION = '';
 
 const ALLOWED_EXTS = new Set([
   '.html', '.htm', '.js', '.mjs', '.css', '.json', '.geojson', '.png', '.jpg', '.jpeg', '.webp',
@@ -224,10 +225,13 @@ function walkAppPreloadImpl() {
 // 让 hot update 也能 ship scenarios 改动·不必等下个 installer
 function walkBundledScenarios() {
   const SCENARIOS_SRC = path.join(APP_ROOT, 'scenarios');
+  // 本地自用/测试剧本不入热更包(防夹带发给玩家)·文件名含这些子串的一律跳过·只 ship 官方剧本
+  const SKIP_SUBSTRINGS = ['111', '自用', '测试', '挽天倾', '崇祯'];
   const out = [];
   if (!fs.existsSync(SCENARIOS_SRC)) return out;
   fs.readdirSync(SCENARIOS_SRC, { withFileTypes: true }).forEach(entry => {
     if (!entry.isFile()) return;
+    if (SKIP_SUBSTRINGS.some(s => entry.name.includes(s))) return;
     const ext = path.extname(entry.name).toLowerCase();
     if (ext !== '.json') return;  // 只 ship 官方 JSON 剧本
     out.push({
@@ -238,15 +242,6 @@ function walkBundledScenarios() {
   return out;
 }
 
-function readPackageVersion() {
-  try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(APP_ROOT, 'package.json'), 'utf-8'));
-    return (pkg.build && pkg.build.buildVersion) || pkg.version || '0.0.0';
-  } catch (e) {
-    return '0.0.0';
-  }
-}
-
 function main() {
   const version = String(arg('version', '')).trim();
   if (!version) {
@@ -255,7 +250,7 @@ function main() {
   }
   const outDir = path.resolve(APP_ROOT, arg('out', 'release-hot'));
   const notes = String(arg('notes', '') || '');
-  const minAppVersion = String(arg('min-app-version', readPackageVersion()) || '');
+  const minAppVersion = String(arg('min-app-version', DEFAULT_MIN_APP_VERSION) || '');
   const packageName = arg('package-name', 'tianming-hot-' + version + '.zip');
   const packageUrl = arg('package-url', packageName);
   const includePreview = flag('include-preview');
@@ -350,11 +345,11 @@ function main() {
     type: 'tianming-hot-update',
     version,
     entry: 'index.html',
-    minAppVersion,
     generatedAt: new Date().toISOString(),
     files: finalManifestFiles,
     remove: []
   };
+  if (minAppVersion) manifest.minAppVersion = minAppVersion;
   zip.addFile('manifest.json', Buffer.from(JSON.stringify(manifest, null, 2), 'utf-8'));
   zip.writeZip(zipPath);
 

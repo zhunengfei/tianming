@@ -511,7 +511,7 @@
     html += '<div style="width:30%;background:var(--vermillion-400);"></div><div style="width:20%;background:var(--amber-400);"></div><div style="width:20%;background:var(--ink-500);"></div><div style="width:20%;background:#6aa88a;"></div><div style="width:10%;background:var(--vermillion-500);"></div>';
     html += '<div style="position:absolute;top:-2px;left:' + Math.max(0,Math.min(99,idx)) + '%;width:3px;height:20px;background:var(--gold);box-shadow:0 0 4px var(--gold);"></div>';
     html += '</div>';
-    html += '<div style="display:flex;justify-content:space-between;font-size:0.66rem;color:var(--txt-d);margin-top:2px;"><span>失威</span><span>衰微</span><span>常望</span><span>威严</span><span>暴君</span></div>';
+    html += '<div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--txt-d);margin-top:2px;"><span>失威</span><span>衰微</span><span>常望</span><span>威严</span><span>暴君</span></div>';
     html += '</section>';
 
     // § 四维
@@ -524,7 +524,7 @@
         var trs = tr==='rising'?' ↑':tr==='falling'?' ↓':'';
         var cc = v>=70?'#6aa88a':v>=50?'var(--gold)':v>=30?'var(--amber-400)':'var(--vermillion-400)';
         sh += '<div style="padding:6px;background:var(--bg-2);text-align:center;border-radius:3px;">' +
-          '<div style="font-size:0.66rem;color:var(--txt-d);">' + labels[k] + '</div>' +
+          '<div style="font-size:0.7rem;color:var(--txt-d);">' + labels[k] + '</div>' +
           '<div style="font-size:0.92rem;color:' + cc + ';font-weight:600;">' + Math.round(v) + trs + '</div>' +
         '</div>';
       });
@@ -567,7 +567,7 @@
       // 显示近 3 条过度执行
       if (ts.overExecutionLog && ts.overExecutionLog.length > 0) {
         ts.overExecutionLog.slice(-3).forEach(function(e) {
-          th += '<div style="font-size:0.68rem;color:var(--txt-d);padding-left:10px;">· T' + e.turn + ' ' + _esc(e.id||e.plan||'某诏') + ' 放大×' + (e.overScale||1.3) + '</div>';
+          th += '<div style="font-size:0.71rem;color:var(--txt-d);padding-left:10px;">· T' + e.turn + ' ' + _esc(e.id||e.plan||'某诏') + ' 放大×' + (e.overScale||1.3) + '</div>';
         });
       }
       var hd = ts.hiddenDamage || {};
@@ -584,7 +584,7 @@
       if (TRIG.length > 0) {
         th += '<div style="margin-top:6px;font-size:0.7rem;color:var(--gold);">五觉醒触发：</div>';
         TRIG.forEach(function(t) {
-          th += '<div style="font-size:0.66rem;color:var(--txt-d);padding-left:10px;">· ' + _esc(t.name) + '</div>';
+          th += '<div style="font-size:0.7rem;color:var(--txt-d);padding-left:10px;">· ' + _esc(t.name) + '</div>';
         });
       }
       th += '</div>';
@@ -615,7 +615,7 @@
         if (hi.pastHumiliations && hi.pastHumiliations.length) {
           hh += '<div style="color:var(--vermillion-400);padding:2px 0;">· 耻辱史 <b>' + hi.pastHumiliations.length + '</b> 件</div>';
           hi.pastHumiliations.slice(-5).forEach(function(p) {
-            hh += '<div style="font-size:0.68rem;color:var(--txt-d);padding-left:12px;">· ' + _esc(p.name||p.id||'耻辱') + '</div>';
+            hh += '<div style="font-size:0.71rem;color:var(--txt-d);padding-left:12px;">· ' + _esc(p.name||p.id||'耻辱') + '</div>';
           });
         }
         hh += '</div>';
@@ -669,7 +669,7 @@
     html += '<div style="width:35%;background:var(--amber-400);"></div><div style="width:35%;background:#6aa88a;"></div><div style="width:30%;background:var(--vermillion-300);"></div>';
     html += '<div style="position:absolute;top:-2px;left:' + Math.max(0,Math.min(99,idx)) + '%;width:3px;height:20px;background:var(--gold);box-shadow:0 0 4px var(--gold);"></div>';
     html += '</div>';
-    html += '<div style="display:flex;justify-content:space-between;font-size:0.66rem;color:var(--txt-d);margin-top:2px;"><span>权臣</span><span>制衡</span><span>专制</span></div>';
+    html += '<div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--txt-d);margin-top:2px;"><span>权臣</span><span>制衡</span><span>专制</span></div>';
     html += '</section>';
 
     // § 四维
@@ -680,7 +680,7 @@
         var v = (hq.subDims[k] && hq.subDims[k].value) || 0;
         var cc = v>=70?'#6aa88a':v>=50?'var(--gold)':v>=30?'var(--amber-400)':'var(--vermillion-400)';
         sh += '<div style="padding:6px;background:var(--bg-2);text-align:center;border-radius:3px;">' +
-          '<div style="font-size:0.66rem;color:var(--txt-d);">' + labels[k] + '</div>' +
+          '<div style="font-size:0.7rem;color:var(--txt-d);">' + labels[k] + '</div>' +
           '<div style="font-size:0.92rem;color:' + cc + ';font-weight:600;">' + Math.round(v) + '</div>' +
         '</div>';
       });
@@ -737,7 +737,7 @@
         mh += '<div style="color:var(--txt-d);line-height:1.5;">' + _esc((mm.draftText||'').slice(0,80)) + '…</div>';
         mh += '</div>';
       });
-      mh += '<div style="font-size:0.68rem;color:var(--txt-d);font-style:italic;">→ 朱批请切至【奏疏】标签页</div>';
+      mh += '<div style="font-size:0.71rem;color:var(--txt-d);font-style:italic;">→ 朱批请切至【奏疏】标签页</div>';
       html += '<section class="vd-section"><div class="vd-section-title" style="color:var(--amber-400);">奏疏待朱批 <span class="vd-badge">' + pendM.length + ' 本</span></div>' + mh + '</section>';
     }
 
@@ -751,14 +751,14 @@
           ah += '<b>' + _esc(a.objector||'某官') + '</b>：' + _esc((a.content||'').slice(0,80)) + '…';
           ah += '</div>';
         });
-        ah += '<div style="font-size:0.68rem;color:var(--txt-d);font-style:italic;">→ 处置请切至【奏疏】标签页</div>';
+        ah += '<div style="font-size:0.71rem;color:var(--txt-d);font-style:italic;">→ 处置请切至【奏疏】标签页</div>';
         html += '<section class="vd-section"><div class="vd-section-title" style="color:var(--vermillion-400);">抗疏 <span class="vd-badge">' + recentAb.length + '</span></div>' + ah + '</section>';
       }
     }
     // 抗疏 12 典范
     var ABDUCTION_CASES = (typeof global.PhaseG3 !== 'undefined' && global.PhaseG3.ABDUCTION_12_CASES) || [];
     if (ABDUCTION_CASES.length > 0) {
-      var ach = '<div style="max-height:100px;overflow-y:auto;background:var(--bg-2);padding:4px;font-size:0.68rem;">';
+      var ach = '<div style="max-height:100px;overflow-y:auto;background:var(--bg-2);padding:4px;font-size:0.71rem;">';
       ABDUCTION_CASES.forEach(function(c) {
         ach += '<div style="padding:1px 2px;">· <b>' + _esc(c.name) + '</b>（' + _esc(c.dynasty) + ' ' + c.year + '）→ ' + _esc(c.outcome||'') + '</div>';
       });
@@ -775,7 +775,7 @@
           ch += '<div style="padding:6px 8px;background:var(--bg-2);margin-bottom:4px;font-size:0.74rem;border-left:3px solid var(--amber-400);">';
           ch += '<div>诏："' + _esc((c.originalText||'').slice(0,60)) + '…"</div>';
           ch += '<div style="color:var(--txt-d);margin:2px 0;">' + _esc((c.questions && c.questions[0]) || '') + '</div>';
-          ch += '<div style="font-size:0.68rem;color:var(--txt-d);font-style:italic;margin-top:2px;">→ 答疑请切至【奏疏】或【问对】标签页</div>';
+          ch += '<div style="font-size:0.71rem;color:var(--txt-d);font-style:italic;margin-top:2px;">→ 答疑请切至【奏疏】或【问对】标签页</div>';
           ch += '</div>';
         });
         html += '<section class="vd-section"><div class="vd-section-title" style="color:var(--amber-400);">侍臣问疑 <span class="vd-badge">' + ac.length + '</span></div>' + ch + '</section>';
@@ -789,7 +789,7 @@
         var stCol = inst.stage === 'abolished' ? 'var(--vermillion-400)' : inst.stage === 'running' ? '#6aa88a' : 'var(--gold)';
         dh += '<div style="padding:5px 8px;background:var(--bg-2);border-left:3px solid ' + stCol + ';margin-bottom:3px;font-size:0.74rem;">';
         dh += '<b style="color:' + stCol + ';">' + _esc(inst.name) + '</b> · 品 ' + inst.rank + ' · ' + _esc(inst.stage) + ' · 员额 ' + (inst.staffSize||0) + ' · 岁支 ' + _fmt(inst.annualBudget||0);
-        if (inst.effectiveness !== undefined) dh += '<br><span style="font-size:0.66rem;color:var(--txt-d);">效率 ' + ((inst.effectiveness||0)*100).toFixed(0) + '% · 腐败 ' + Math.round(inst.corruption||0) + '</span>';
+        if (inst.effectiveness !== undefined) dh += '<br><span style="font-size:0.7rem;color:var(--txt-d);">效率 ' + ((inst.effectiveness||0)*100).toFixed(0) + '% · 腐败 ' + Math.round(inst.corruption||0) + '</span>';
         if (inst.stage !== 'abolished') {
           // 废除走诏令
         }
@@ -803,7 +803,7 @@
       var prh = '';
       G._permanentReforms.forEach(function(r) {
         prh += '<div style="font-size:0.74rem;padding:2px 0;">· <b>' + _esc(r.id) + '</b> 立于 ' + _esc(r.enactedDynasty||'某朝') + ' 第 ' + r.enactedTurn + ' 回合</div>';
-        if (r.effects && r.effects.memorialBurdenMult) prh += '<div style="font-size:0.68rem;color:var(--txt-d);padding-left:14px;">奏疏负担 ×' + r.effects.memorialBurdenMult + '</div>';
+        if (r.effects && r.effects.memorialBurdenMult) prh += '<div style="font-size:0.71rem;color:var(--txt-d);padding-left:14px;">奏疏负担 ×' + r.effects.memorialBurdenMult + '</div>';
       });
       html += _sec('永制 · 跨朝遗产', null, prh);
     }
@@ -811,7 +811,7 @@
     // § 历代权臣案例（供参考）
     var HC = (typeof global.PhaseG1 !== 'undefined' && global.PhaseG1.HISTORICAL_CASES) || {};
     if (HC.powerMinister && HC.powerMinister.length > 0) {
-      var hch = '<div style="max-height:110px;overflow-y:auto;background:var(--bg-2);padding:4px;font-size:0.68rem;">';
+      var hch = '<div style="max-height:110px;overflow-y:auto;background:var(--bg-2);padding:4px;font-size:0.71rem;">';
       HC.powerMinister.slice(0, 10).forEach(function(c) {
         hch += '<div style="padding:1px 2px;">· <b>' + _esc(c.name) + '</b>（' + _esc(c.dynasty) + ' ' + c.year + '）控 ' + ((c.control||0)*100).toFixed(0) + '% → ' + _esc(c.ending||'') + '</div>';
       });
@@ -859,7 +859,7 @@
     html += '<div style="width:20%;background:var(--vermillion-500);"></div><div style="width:20%;background:var(--vermillion-400);"></div><div style="width:20%;background:var(--amber-400);"></div><div style="width:20%;background:#6aa88a;"></div><div style="width:20%;background:var(--gold);"></div>';
     html += '<div style="position:absolute;top:-2px;left:' + Math.max(0,Math.min(99,trueIdx)) + '%;width:3px;height:20px;background:#fff;box-shadow:0 0 4px #fff;"></div>';
     html += '</div>';
-    html += '<div style="display:flex;justify-content:space-between;font-size:0.66rem;color:var(--txt-d);margin-top:2px;"><span>揭竿</span><span>窃盗</span><span>忍耐</span><span>安居</span><span>颂圣</span></div>';
+    html += '<div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--txt-d);margin-top:2px;"><span>揭竿</span><span>窃盗</span><span>忍耐</span><span>安居</span><span>颂圣</span></div>';
     html += '</section>';
 
     // § 14 源累积
@@ -910,7 +910,7 @@
           _meter(idx, 100, col) +
           '<span style="color:' + col + ';">' + Math.round(idx) + (cv.trend==='rising'?' ↑':cv.trend==='falling'?' ↓':'') + '</span>' +
         '</div>' +
-        (causeText ? '<div style="margin:0 0 5px 72px;padding:3px 6px;background:rgba(184,154,83,0.08);border-left:2px solid var(--gold-d);font-size:0.68rem;color:var(--txt-d);">近因 ' + _esc(causeText).slice(0, 160) + (regions ? '<br>牵动 ' + _esc(regions) : '') + '</div>' : '');
+        (causeText ? '<div style="margin:0 0 5px 72px;padding:3px 6px;background:rgba(184,154,83,0.08);border-left:2px solid var(--gold-d);font-size:0.71rem;color:var(--txt-d);">近因 ' + _esc(causeText).slice(0, 160) + (regions ? '<br>牵动 ' + _esc(regions) : '') + '</div>' : '');
       });
       html += _sec('分阶层 · 阶层民心', Object.keys(m.byClass).length + ' 层', ch);
     }
@@ -921,7 +921,7 @@
       Object.keys(m.byRegion).slice(0, 40).forEach(function(rid) {
         var r = m.byRegion[rid]; var v = r.index || 60;
         var col = v >= 80 ? '#6aa88a' : v >= 60 ? '#8fbb9e' : v >= 40 ? 'var(--gold)' : v >= 20 ? 'var(--amber-400)' : 'var(--vermillion-400)';
-        rh += '<div style="padding:4px 5px;background:' + col + ';border-radius:2px;color:#fff;font-size:0.68rem;">' + _esc(rid).slice(0,6) + ' ' + Math.round(v) + '</div>';
+        rh += '<div style="padding:4px 5px;background:' + col + ';border-radius:2px;color:#fff;font-size:0.71rem;">' + _esc(rid).slice(0,6) + ' ' + Math.round(v) + '</div>';
       });
       rh += '</div>';
       html += _sec('天下民情图', Object.keys(m.byRegion).length + ' 区', rh);
@@ -934,7 +934,7 @@
       LEVELS.forEach(function(lv) {
         var count = (m.revolts||[]).filter(function(r){return r.status==='ongoing' && r.level===lv.id;}).length;
         var act = count > 0 ? 'background:var(--vermillion-400);color:#fff;' : 'background:var(--bg-2);color:var(--txt-d);';
-        lh += '<div style="padding:4px;text-align:center;border-radius:2px;font-size:0.66rem;' + act + '">' +
+        lh += '<div style="padding:4px;text-align:center;border-radius:2px;font-size:0.7rem;' + act + '">' +
           '<div>' + _esc(lv.name) + '</div>' +
           '<div style="font-size:0.72rem;font-weight:600;">' + count + '</div>' +
         '</div>';
@@ -1004,7 +1004,7 @@
     // § 历代民变案例
     var HC = (typeof global.PhaseG1 !== 'undefined' && global.PhaseG1.HISTORICAL_CASES) || {};
     if (HC.rebellion && HC.rebellion.length > 0) {
-      var rch = '<div style="max-height:110px;overflow-y:auto;background:var(--bg-2);padding:4px;font-size:0.68rem;">';
+      var rch = '<div style="max-height:110px;overflow-y:auto;background:var(--bg-2);padding:4px;font-size:0.71rem;">';
       HC.rebellion.slice(0, 15).forEach(function(c) {
         var col = c.level >= 5 ? 'var(--vermillion-500)' : c.level >= 4 ? 'var(--vermillion-400)' : 'var(--amber-400)';
         rch += '<div style="padding:1px 2px;">· <b style="color:' + col + ';">[L' + c.level + ']</b> <b>' + _esc(c.name) + '</b>（' + _esc(c.dynasty) + ' ' + c.year + '）因 ' + _esc(c.cause||'') + ' → ' + _esc(c.result||'') + '</div>';
@@ -1270,7 +1270,7 @@
       var modeName = {tang_three:'唐三分（州留/道留/中央）',qiyun_cunliu:'明清起运存留',song_cash:'宋钱入中央',custom:'自定'}[preset||'qiyun_cunliu'];
       clh += '<div style="color:var(--txt-d);">' + _esc(modeName||'') + '</div>';
       // 表头
-      clh += '<table style="width:100%;margin-top:4px;font-size:0.68rem;"><tr style="color:var(--gold-500);"><td>省</td><td>名义</td><td>实征</td><td>留存</td><td>起运</td><td>合规</td></tr>';
+      clh += '<table style="width:100%;margin-top:4px;font-size:0.71rem;"><tr style="color:var(--gold-500);"><td>省</td><td>名义</td><td>实征</td><td>留存</td><td>起运</td><td>合规</td></tr>';
       rids.slice(0, 15).forEach(function(rid) {
         var r = G.fiscal.regions[rid];
         clh += '<tr><td>' + _esc(rid) + '</td>';
@@ -1414,7 +1414,7 @@
         // byAge.decade
         if (r.byAge && r.byAge.decade) {
           rh += '<div style="font-size:0.7rem;margin-top:3px;color:var(--txt-d);">年龄金字塔：</div>';
-          rh += '<div style="display:grid;grid-template-columns:repeat(9,1fr);gap:2px;font-size:0.66rem;">';
+          rh += '<div style="display:grid;grid-template-columns:repeat(9,1fr);gap:2px;font-size:0.7rem;">';
           ['0-9','10-19','20-29','30-39','40-49','50-59','60-69','70-79','80+'].forEach(function(k) {
             rh += '<div style="padding:2px;background:var(--bg-2);text-align:center;">' + k + '<br>' + _fmt(r.byAge.decade[k]||0) + '</div>';
           });
@@ -1464,7 +1464,7 @@
       }
     } catch(e){try{window.TM&&TM.errors&&TM.errors.captureSilent(e,'tm-var-drawers-final');}catch(_){}}
     if (GC.length > 0) {
-      var gch = '<details><summary style="cursor:pointer;font-size:0.72rem;color:var(--gold);">展 ' + GC.length + ' 大徭役历代预设</summary><div style="max-height:150px;overflow-y:auto;background:var(--bg-2);padding:4px;font-size:0.68rem;margin-top:4px;">';
+      var gch = '<details><summary style="cursor:pointer;font-size:0.72rem;color:var(--gold);">展 ' + GC.length + ' 大徭役历代预设</summary><div style="max-height:150px;overflow-y:auto;background:var(--bg-2);padding:4px;font-size:0.71rem;margin-top:4px;">';
       GC.forEach(function(p) {
         gch += '<div style="padding:1px 2px;">· <b>' + _esc(p.name||p.id) + '</b>（' + _esc(p.dynasty||'') + (p.year?' '+p.year:'') + '）' + (p.labor?' 丁 ' + _fmt(p.labor):'') + (p.deathRate?' 殁 ' + ((p.deathRate||0)*100).toFixed(0) + '%':'') + '</div>';
       });
@@ -1718,7 +1718,7 @@
       fh += '<div style="padding:4px;background:var(--bg-2);text-align:center;font-size:0.7rem;">' + e + '</div>';
     });
     fh += '</div>';
-    if (hq.index >= 70) fh += '<div style="font-size:0.68rem;color:var(--amber-400);margin-top:3px;">⚠ 当前专制段，缺要素将被侍臣请圣裁</div>';
+    if (hq.index >= 70) fh += '<div style="font-size:0.71rem;color:var(--amber-400);margin-top:3px;">⚠ 当前专制段，缺要素将被侍臣请圣裁</div>';
     html += _sec('诏书·五要素', '专制段硬检', fh);
 
     // § 四象限原型
@@ -1737,7 +1737,7 @@
       var col = active ? 'var(--gold)' : 'var(--txt-d)';
       qh += '<div style="padding:4px 6px;background:var(--bg-2);border-left:3px solid ' + col + ';font-size:0.7rem;">' +
         '<div style="color:' + col + ';">' + (active?'► ':'') + _esc(p.name) + '</div>' +
-        '<div style="font-size:0.66rem;color:var(--txt-d);">' + _esc(p.desc) + '</div>' +
+        '<div style="font-size:0.7rem;color:var(--txt-d);">' + _esc(p.desc) + '</div>' +
       '</div>';
     });
     qh += '</div>';
@@ -1775,7 +1775,7 @@
         '<td>' + (curr?'► ':'') + _esc(p.seg) + '</td>' +
         '<td>+' + p.add + '</td>' +
         '<td>×' + (curr?corrMult.toFixed(2):'?.??') + '</td>' +
-        '<td style="font-size:0.66rem;">' + _esc(p.note) + '</td></tr>';
+        '<td style="font-size:0.7rem;">' + _esc(p.note) + '</td></tr>';
     });
     ph += '</table>';
     html += _sec('粉饰公式 · 五段', '地方视野修饰', ph);
@@ -1795,7 +1795,7 @@
       emh += '<tr style="color:' + col + ';">' +
         '<td>' + (curr?'► ':'') + e.seg + '</td>' +
         '<td>×' + e.m.toFixed(2) + '</td>' +
-        '<td style="font-size:0.66rem;">' + e.desc + '</td></tr>';
+        '<td style="font-size:0.7rem;">' + e.desc + '</td></tr>';
     });
     emh += '</table>';
     html += _sec('执行度乘数表 · 五段', null, emh);
@@ -1805,12 +1805,12 @@
     if (G.dynasty && DAP[G.dynasty]) {
       var preset = DAP[G.dynasty];
       var dh = '<div style="font-size:0.7rem;">朝代 <b>' + _esc(G.dynasty) + '</b>：</div>';
-      dh += '<table style="width:100%;font-size:0.68rem;margin-top:3px;"><tr style="color:var(--gold-500);"><td>阶段</td><td>皇威</td><td>皇权</td><td>民心</td><td>腐败</td><td>典故</td></tr>';
+      dh += '<table style="width:100%;font-size:0.71rem;margin-top:3px;"><tr style="color:var(--gold-500);"><td>阶段</td><td>皇威</td><td>皇权</td><td>民心</td><td>腐败</td><td>典故</td></tr>';
       ['founding','peak','decline','collapse'].forEach(function(k) {
         var p = preset[k]; if (!p) return;
         dh += '<tr><td>' + ({founding:'开国',peak:'盛世',decline:'衰世',collapse:'末世'}[k]) + '</td>';
         dh += '<td>' + p.hw + '</td><td>' + p.hq + '</td><td>' + p.mx + '</td><td>' + p.corr + '</td>';
-        dh += '<td style="font-size:0.64rem;">' + _esc(p.name||'') + '</td></tr>';
+        dh += '<td style="font-size:0.7rem;">' + _esc(p.name||'') + '</td></tr>';
       });
       dh += '</table>';
       html += _sec('朝代预设 · 参考', _esc(G.dynasty), dh);

@@ -102,7 +102,10 @@ function _wdCanDirectAudience(ch) {
 /**
  * 渲染问对面板中的角色网格（仅在京臣子可点击）
  */
-function renderWenduiChars(){
+function renderWenduiChars(force){
+  // 性能·2026-06-10·与纪录类面板同范式:gt-wendui 隐藏时跳过(renderGameState 尾部无条件调它·
+  // 全名册数百卡+肖像重建纯浪费)·切到该页时 switchGTab 传 force=true 强制渲染
+  if(!force && typeof _gtTabVisible==='function' && !_gtTabVisible('gt-wendui')) return;
   var el=_$("wendui-chars");if(!el)return;
   var wenduiPeople = (GM.chars||[]).filter(function(c){ return _wdIsPlayerSideChar(c); });
   var atCap = wenduiPeople.filter(function(c){return _wdIsAtCapital(c);});
@@ -187,7 +190,7 @@ function renderWenduiChars(){
       }
       var _safeName = ch.name.replace(/'/g, "\\'");
       var _initial = escHtml(String(ch.name||'?').charAt(0));
-      var _portraitHtml = ch.portrait ? '<img src="'+escHtml(ch.portrait)+'">' : _initial;
+      var _portraitHtml = ch.portrait ? '<img src="'+escHtml(ch.portrait)+'" loading="lazy" decoding="async">' : _initial;
       html += '<div class="wdp-req-item">';
       html += '<div class="wdp-req-portrait">' + _portraitHtml + '</div>';
       html += '<div class="wdp-req-info"><div class="wdp-req-name">' + escHtml(ch.name) + '</div><div class="wdp-req-reason">' + reason + '</div></div>';
@@ -211,7 +214,7 @@ function renderWenduiChars(){
       var _hasHist = (GM.wenduiHistory && GM.wenduiHistory[ch.name] && GM.wenduiHistory[ch.name].length > 0);
       var _loyDisp = typeof _fmtNum1==='function' ? _fmtNum1(ch.loyalty) : (ch.loyalty||0);
       var _initial = escHtml(String(ch.name||'?').charAt(0));
-      var _portraitHtml = ch.portrait ? '<img src="'+escHtml(ch.portrait)+'">' : _initial;
+      var _portraitHtml = ch.portrait ? '<img src="'+escHtml(ch.portrait)+'" loading="lazy" decoding="async">' : _initial;
       var _spouseMark = _wdIsPlayerConsort(ch) ? '<span class="spouse">\u2766</span>' : '';
       html += '<div class="wdp-char-card ' + _cardCls + ' ' + _loyCls + (_hasHist?' has-hist':'') + '" onclick="openWenduiPick(\'' + ch.name.replace(/'/g,"") + '\')">';
       html += '<div class="wdp-char-top">';
@@ -270,7 +273,7 @@ function openWenduiPick(name) {
   var ch = findCharByName(name); if (!ch) return;
   var hist = GM.wenduiHistory && GM.wenduiHistory[name] && GM.wenduiHistory[name].length > 0;
   var _initial = escHtml(String(name||'?').charAt(0));
-  var _portraitHtml = ch.portrait ? '<img src="'+escHtml(ch.portrait)+'">' : _initial;
+  var _portraitHtml = ch.portrait ? '<img src="'+escHtml(ch.portrait)+'" loading="lazy" decoding="async">' : _initial;
   var _subTitle = escHtml((ch.officialTitle || ch.title || '').slice(0,20)) + (_wdIsPlayerConsort(ch) ? ' \u00B7 \u540E\u59C3' : '');
   var modal = document.createElement('div');
   modal.className = 'modal-bg show';
@@ -424,7 +427,7 @@ function openWenduiModal(name, mode, prefillMsg) {
     + '</div>'
     // 提示 + 情绪指示条
     + '<div class="wd-modal-hint"><span>\u5212\u51FA\u5927\u81E3\u8BF4\u7684\u8BDD\u52A0\u5165\u5EFA\u8BAE\u5E93</span>'
-    + '<span id="wd-emotion-bar" style="margin-left:var(--space-3);font-size:0.65rem;"><span style="color:var(--celadon-400);">\u955C\u5B9A</span> <span id="wd-emotion-dots">\u25CF\u25CF\u25CF\u25CB\u25CB</span> <span style="color:var(--vermillion-400);">\u7D27\u5F20</span></span>'
+    + '<span id="wd-emotion-bar" style="margin-left:var(--space-3);font-size:0.7rem;"><span style="color:var(--celadon-400);">\u955C\u5B9A</span> <span id="wd-emotion-dots">\u25CF\u25CF\u25CF\u25CB\u25CB</span> <span style="color:var(--vermillion-400);">\u7D27\u5F20</span></span>'
     + '</div>'
     // 推荐话题
     + '<div id="wd-topics" style="display:flex;gap:4px;flex-wrap:wrap;padding:2px 8px;"></div>'
@@ -471,7 +474,7 @@ function openWenduiModal(name, mode, prefillMsg) {
     // 通用
     if (_topics.length === 0) _topics.push('\u8FD1\u6765\u53EF\u6709\u4EC0\u4E48\u8981\u4E8B');
     _topicsEl.innerHTML = _topics.slice(0, 5).map(function(t) {
-      return '<button class="bt bsm" style="font-size:0.65rem;padding:1px 6px;color:var(--gold-400);border-color:var(--gold-500);" onclick="var i=_$(\'wd-modal-input\');if(i){i.value=\'' + t.replace(/'/g, '') + '\';i.focus();_wdUpdateCounter();}">' + t + '</button>';
+      return '<button class="bt bsm" style="font-size:0.7rem;padding:1px 6px;color:var(--gold-400);border-color:var(--gold-500);" onclick="var i=_$(\'wd-modal-input\');if(i){i.value=\'' + t.replace(/'/g, '') + '\';i.focus();_wdUpdateCounter();}">' + t + '</button>';
     }).join('');
   }
 
@@ -510,7 +513,7 @@ function openWenduiModal(name, mode, prefillMsg) {
     var chatEl = _$('wd-modal-chat');
     if (chatEl) {
       var recap = document.createElement('div');
-      recap.style.cssText = 'text-align:center;font-size:0.68rem;color:var(--ink-300);padding:4px 8px;margin-bottom:4px;background:var(--color-elevated);border-radius:4px;';
+      recap.style.cssText = 'text-align:center;font-size:0.71rem;color:var(--ink-300);padding:4px 8px;margin-bottom:4px;background:var(--color-elevated);border-radius:4px;';
       recap.textContent = '\u4E0A\u6B21\u95EE\u5BF9\u8981\u70B9\uFF1A' + (_lastReply.content || '').slice(0, 60) + (_lastReply.content && _lastReply.content.length > 60 ? '\u2026' : '');
       chatEl.insertBefore(recap, chatEl.firstChild);
     }
@@ -981,7 +984,7 @@ async function _wdNpcInitiateSpeak(name) {
   // 创建NPC气泡
   var div = document.createElement('div');
   div.className = 'wendui-npc';
-  div.innerHTML = (ch.portrait?'<img src="'+escHtml(ch.portrait)+'" style="width:28px;height:28px;object-fit:cover;border-radius:50%;flex-shrink:0;border:1.5px solid var(--gold-d);">':'<div style="width:28px;height:28px;border-radius:50%;background:var(--bg-4);display:flex;align-items:center;justify-content:center;font-size:0.8rem;border:1.5px solid var(--gold-d);flex-shrink:0;">\uD83D\uDC64</div>')
+  div.innerHTML = (ch.portrait?'<img src="'+escHtml(ch.portrait)+'" loading="lazy" decoding="async" style="width:28px;height:28px;object-fit:cover;border-radius:50%;flex-shrink:0;border:1.5px solid var(--gold-d);">':'<div style="width:28px;height:28px;border-radius:50%;background:var(--bg-4);display:flex;align-items:center;justify-content:center;font-size:0.8rem;border:1.5px solid var(--gold-d);flex-shrink:0;">\uD83D\uDC64</div>')
     + '<div style="flex:1;min-width:0;"><div class="wendui-npc-name">' + escHtml(name) + '</div>'
     + '<div class="wendui-npc-bubble wd-selectable" id="wd-init-bubble">\u2026</div></div>';
   chatEl.appendChild(div);
@@ -1039,17 +1042,30 @@ async function _wdNpcInitiateSpeak(name) {
     sysP += '      content="臣请陛下遣户部侍郎某某巡按江南，择苏松常三州先行清丈田亩，以三月为期。若豪右隐匿，许其自首减免，逾期则籍没半数。同时诏命漕运总督约束胥吏，不得骚扰民户。如此上体朝廷之公，下息百姓之怨"\n';
 
     var msgs = [{ role: 'system', content: sysP + '\n' + (typeof _aiDialogueWordHint==='function'?_aiDialogueWordHint("wd"):'') }];
+    var _wdInitPending = null, _wdInitRaf = 0;
+    var _wdInitFlush = function() {
+      _wdInitRaf = 0;
+      if (_wdInitPending == null) return;
+      var txt = _wdInitPending;
+      var bubble = _$('wd-init-bubble');
+      if (bubble) {
+        var visible = _wdVisibleReplyPreview(txt);
+        bubble.textContent = visible || '…';
+      }
+      var _nearBottom = (chatEl.scrollHeight - chatEl.scrollTop - chatEl.clientHeight) < 80;
+      if (_nearBottom) chatEl.scrollTop = chatEl.scrollHeight;
+    };
     var reply = await callAIMessagesStream(msgs, (typeof _aiDialogueTok==='function'?_aiDialogueTok("wd", 1):800), {
       tier: (typeof _useSecondaryTier === 'function' && _useSecondaryTier()) ? 'secondary' : undefined,  // M3·问对走次 API
       onChunk: function(txt) {
-        var bubble = _$('wd-init-bubble');
-        if (bubble) {
-          var visible = _wdVisibleReplyPreview(txt);
-          bubble.textContent = visible || '\u2026';
-        }
-        chatEl.scrollTop = chatEl.scrollHeight;
+        _wdInitPending = txt;
+        if (_wdInitRaf) return;
+        _wdInitRaf = (typeof requestAnimationFrame === 'function') ? requestAnimationFrame(_wdInitFlush) : (setTimeout(_wdInitFlush, 16), 1);
       }
     });
+    if (_wdInitRaf && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(_wdInitRaf);
+    _wdInitRaf = 0;
+    _wdInitFlush();
     var parsed = (typeof extractJSON === 'function') ? extractJSON(reply) : null;
     var replyText = _wdResolveAudienceReplyText(name, ch, parsed, reply);
     var _bubbleWrap = _wdCommitAudienceOpening(name, ch, replyText);
@@ -1103,7 +1119,7 @@ async function _wdNpcInitiateSpeak(name) {
           if (!_txt) return;
           _sugInner += '<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;gap:6px;">';
           _sugInner += '<span style="color:var(--color-foreground);flex:1;">\u2022 ' + escHtml(_txt) + '</span>';
-          _sugInner += '<span style="color:var(--celadon-400);font-size:0.65rem;opacity:0.7;white-space:nowrap;">\u2713\u5DF2\u5165\u5E93</span>';
+          _sugInner += '<span style="color:var(--celadon-400);font-size:0.7rem;opacity:0.7;white-space:nowrap;">\u2713\u5DF2\u5165\u5E93</span>';
           _sugInner += '</div>';
         });
         _sugBox.innerHTML = _sugInner;
@@ -1560,10 +1576,14 @@ function closeWenduiModal() {
   }
   // ★ 异步提取本次问对中的承诺（玩家指令→NPC应答），供推演使用
   if (_targetName) _wd_extractCommitments(_targetName);
-  // 刷新问对面板中的角色列表（更新历史记录标记）
-  renderWenduiChars();
-  // 刷新左面板精力条等状态
-  if (typeof renderLeftPanel === 'function') renderLeftPanel();
+  // 性能·2026-06-10·名册/左栏刷新推迟一帧:先让弹窗移除这帧立即上屏(点关闭手感即时)·
+  // 重建工作下一帧再做(renderWenduiChars 自带 gt-wendui 隐藏跳过 guard)
+  var _wdAfterCloseRefresh = function(){
+    try { renderWenduiChars(); } catch(_){}
+    try { if (typeof renderLeftPanel === 'function') renderLeftPanel(); } catch(_){}
+  };
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(function(){ requestAnimationFrame(_wdAfterCloseRefresh); });
+  else setTimeout(_wdAfterCloseRefresh, 16);
 }
 
 /** 问对结束后抽取承诺：AI 读本次对话，产出 NPC 承诺清单 */
@@ -1671,8 +1691,17 @@ function _wdRenderHistory(name, ch) {
   // 开场白气泡
   _wdAppendNpcBubble(chat, name, ch, _greeting);
 
-  // 历史对话
-  (GM.wenduiHistory[name] || []).forEach(function(msg) {
+  // 历史对话·性能 2026-06-10:只渲染最近 60 条(长期君臣的全量历史可达数百气泡·开窗即整列重排)·
+  // 数据不裁(wenduiHistory 原样保留·AI 上下文照常 slice(-10))·只是开窗渲染窗口化
+  var _wdAllHist = GM.wenduiHistory[name] || [];
+  var _wdHistWin = _wdAllHist.length > 60 ? _wdAllHist.slice(-60) : _wdAllHist;
+  if (_wdAllHist.length > _wdHistWin.length) {
+    var _wdElide = document.createElement('div');
+    _wdElide.style.cssText = 'text-align:center;font-size:0.71rem;color:var(--ink-300);padding:4px 8px;';
+    _wdElide.textContent = '（更早 ' + (_wdAllHist.length - _wdHistWin.length) + ' 条问对记录已收起）';
+    chat.appendChild(_wdElide);
+  }
+  _wdHistWin.forEach(function(msg) {
     if (msg.role === 'player') {
       _wdAppendPlayerBubble(chat, msg.content);
     } else {
@@ -1690,7 +1719,7 @@ function _wdAppendNpcBubble(chat, name, ch, text, loyaltyDelta) {
   var _lF = typeof _fmtNum1==='function' ? _fmtNum1 : function(x){return x;};
   if (loyaltyDelta && loyaltyDelta > 0) deltaTag = ' <span style="color:var(--green);font-size:0.7rem;">忠+' + _lF(loyaltyDelta) + '</span>';
   else if (loyaltyDelta && loyaltyDelta < 0) deltaTag = ' <span style="color:var(--red);font-size:0.7rem;">忠' + _lF(loyaltyDelta) + '</span>';
-  var _portrait = ch && ch.portrait ? '<img src="'+escHtml(ch.portrait)+'" style="width:28px;height:28px;object-fit:cover;border-radius:50%;flex-shrink:0;">' : '';
+  var _portrait = ch && ch.portrait ? '<img src="'+escHtml(ch.portrait)+'" loading="lazy" decoding="async" style="width:28px;height:28px;object-fit:cover;border-radius:50%;flex-shrink:0;">' : '';
   div.innerHTML = _portrait + '<div style="flex:1;min-width:0;"><div class="wendui-npc-name">' + escHtml(name) + deltaTag + '</div>'
     + '<div class="wendui-npc-bubble wd-selectable">' + escHtml(text) + '</div></div>';
   chat.appendChild(div);
@@ -1823,11 +1852,11 @@ async function sendWendui(){
     if (_state.turns > 10 && !_state.fatigued) {
       _state.fatigued = true;
       var _fChat = _$('wd-modal-chat');
-      if (_fChat) { var _fd = document.createElement('div'); _fd.style.cssText = 'text-align:center;font-size:0.68rem;color:var(--amber-400);padding:4px;'; _fd.textContent = '（对话已久，' + GM.wenduiTarget + '面露疲态。皇帝亦觉乏倦。精力额外消耗5。）'; _fChat.appendChild(_fd); }
+      if (_fChat) { var _fd = document.createElement('div'); _fd.style.cssText = 'text-align:center;font-size:0.71rem;color:var(--amber-400);padding:4px;'; _fd.textContent = '（对话已久，' + GM.wenduiTarget + '面露疲态。皇帝亦觉乏倦。精力额外消耗5。）'; _fChat.appendChild(_fd); }
       if (typeof _spendEnergy === 'function') _spendEnergy(5, '问对久谈');
     } else if (_state.turns === 6) {
       var _fChat2 = _$('wd-modal-chat');
-      if (_fChat2) { var _fd2 = document.createElement('div'); _fd2.style.cssText = 'text-align:center;font-size:0.68rem;color:var(--ink-300);padding:2px;'; _fd2.textContent = '（对话已有数轮，' + GM.wenduiTarget + '口渐干燥。）'; _fChat2.appendChild(_fd2); }
+      if (_fChat2) { var _fd2 = document.createElement('div'); _fd2.style.cssText = 'text-align:center;font-size:0.71rem;color:var(--ink-300);padding:2px;'; _fd2.textContent = '（对话已有数轮，' + GM.wenduiTarget + '口渐干燥。）'; _fChat2.appendChild(_fd2); }
     }
   }
   if(input)input.value='';_wdUpdateCounter();
@@ -1872,17 +1901,33 @@ async function sendWendui(){
       history.forEach(function(h){messages.push({role:h.role==='player'?'user':'assistant',content:h.content});});
 
       var streamBubble = _$('wd-stream-text');
+      // 性能·2026-06-10·流式合帧:原每 chunk 都「全文重提取+textContent 重排+scrollTop 强制布局」·快流 20-60 chunk/s 把聊天列每秒重排几十次。
+      // 改 rAF 合并:每帧至多一次 DOM 写·且仅当玩家贴近底部才跟滚(不打断回看·少一次强制布局)
+      var _wdStreamPending = null, _wdStreamRaf = 0;
+      var _wdStreamFlush = function() {
+        _wdStreamRaf = 0;
+        if (_wdStreamPending == null) return;
+        var txt = _wdStreamPending;
+        if (streamBubble && streamBubble.isConnected !== false) {
+          var visible = _wdVisibleReplyPreview(txt);
+          streamBubble.textContent = visible || '\u2026';
+          streamBubble.style.color = '';
+        }
+        var _nearBottom = (chat.scrollHeight - chat.scrollTop - chat.clientHeight) < 80;
+        if (_nearBottom) chat.scrollTop = chat.scrollHeight;
+      };
       var rawReply = await callAIMessagesStream(messages, (typeof _aiDialogueTok==='function'?_aiDialogueTok("wd", 1):800), {
         tier: (typeof _useSecondaryTier === 'function' && _useSecondaryTier()) ? 'secondary' : undefined,  // M3·问对走次 API
         onChunk: function(txt) {
-          if (streamBubble) {
-            var visible = _wdVisibleReplyPreview(txt);
-            streamBubble.textContent = visible || '\u2026';
-            streamBubble.style.color = '';
-          }
-          chat.scrollTop = chat.scrollHeight;
+          _wdStreamPending = txt;
+          if (_wdStreamRaf) return;
+          _wdStreamRaf = (typeof requestAnimationFrame === 'function') ? requestAnimationFrame(_wdStreamFlush) : (setTimeout(_wdStreamFlush, 16), 1);
         }
       });
+      // 流尾:确保最后一段已上屏(可能还压在未触发的 rAF 里)
+      if (_wdStreamRaf && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(_wdStreamRaf);
+      _wdStreamRaf = 0;
+      _wdStreamFlush();
 
       if(rawReply){
         var replyText = rawReply, loyaltyDelta = 0;
@@ -1930,7 +1975,7 @@ async function sendWendui(){
             var _dcChat = _$('wd-modal-chat');
             if (_dcChat) {
               var _dcD = document.createElement('div');
-              _dcD.style.cssText = 'text-align:center;font-size:0.68rem;color:var(--amber-400);font-style:italic;padding:2px;';
+              _dcD.style.cssText = 'text-align:center;font-size:0.71rem;color:var(--amber-400);font-style:italic;padding:2px;';
               _dcD.textContent = '⚠ 似有隐情：' + String(parsed.deception.tell || '神色微动，言语闪烁').slice(0, 60) + _dcCorrob;
               _dcChat.appendChild(_dcD); _dcChat.scrollTop = _dcChat.scrollHeight;
             }
@@ -1959,6 +2004,8 @@ async function sendWendui(){
           _wdEntry.ceduiParadigmDigest = window._kjpCurrentCeduiDigest;
         }
         GM.wenduiHistory[name].push(_wdEntry);
+        // 性能·2026-06-10·写入端封顶:单人 400 条(AI 上下文只用 slice(-10)·UI 只渲最近 60·起居注/纪事另有完整留痕)·防长局单人史无界膨胀存档
+        if (GM.wenduiHistory[name].length > 400) GM.wenduiHistory[name] = GM.wenduiHistory[name].slice(-400);
         // #4·君臣私交长弧：每次问对累积亲信度（私下更快·负面交流不涨·封顶100）
         if (ch) { var _rapGain = (loyaltyDelta < 0) ? 0 : ((_wenduiMode === 'private') ? 2 : 1); ch._rapport = Math.max(0, Math.min(100, ((typeof ch._rapport === 'number') ? ch._rapport : 50) + _rapGain)); }
         // NPC记忆——D3 优先使用 AI 返回的 memoryImpact，否则回退默认
@@ -1987,7 +2034,7 @@ async function sendWendui(){
           // 语气效果提示
           var _toneHtml = '';
           if (_toneEffect) {
-            _toneHtml = '<div style="margin-top:3px;font-size:0.68rem;color:var(--ink-300);font-style:italic;">\u3010' + escHtml(_toneEffect) + '\u3011</div>';
+            _toneHtml = '<div style="margin-top:3px;font-size:0.71rem;color:var(--ink-300);font-style:italic;">\u3010' + escHtml(_toneEffect) + '\u3011</div>';
           }
           var _sugHtml = '';
           if (_wdSuggestions.length > 0) {
@@ -2002,7 +2049,7 @@ async function sendWendui(){
               if (!_sgText) return;
               _sugHtml += '<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;gap:6px;">';
               _sugHtml += '<span style="color:var(--color-foreground);flex:1;">\u2022 ' + escHtml(_sgText) + '</span>';
-              _sugHtml += '<span style="color:var(--celadon-400);font-size:0.65rem;opacity:0.7;white-space:nowrap;">\u2713\u5DF2\u5165\u5E93</span>';
+              _sugHtml += '<span style="color:var(--celadon-400);font-size:0.7rem;opacity:0.7;white-space:nowrap;">\u2713\u5DF2\u5165\u5E93</span>';
               _sugHtml += '</div>';
             });
             _sugHtml += '</div>';
@@ -2023,7 +2070,7 @@ async function sendWendui(){
             var _crDiv = document.createElement('div');
             _crDiv.className = 'wendui-msg wendui-npc';
             _crDiv.innerHTML = '<div style="flex:1;min-width:0;"><div class="wendui-npc-name" style="color:var(--amber-400);">'
-              + escHtml(cr.name) + ' <span style="font-size:0.62rem;opacity:0.7;">·对质</span></div>'
+              + escHtml(cr.name) + ' <span style="font-size:0.68rem;opacity:0.7;">·对质</span></div>'
               + '<div class="wendui-npc-bubble wd-selectable">' + escHtml(_crText) + '</div></div>';
             chat.appendChild(_crDiv);
             if (!GM.wenduiHistory[cr.name]) GM.wenduiHistory[cr.name] = [];
@@ -2129,7 +2176,7 @@ async function sendWendui(){
             if (_lkChat) {
               var _lkNames = _leakedTo.slice(0, 4).join('、') + (_leakedTo.length > 4 ? ' 等' : '');
               var _lkD = document.createElement('div');
-              _lkD.style.cssText = 'text-align:center;font-size:0.66rem;color:var(--amber-400);font-style:italic;padding:2px;';
+              _lkD.style.cssText = 'text-align:center;font-size:0.7rem;color:var(--amber-400);font-style:italic;padding:2px;';
               _lkD.textContent = '〔此事恐已入 ' + _lkNames + ' 耳〕';
               _lkChat.appendChild(_lkD); _lkChat.scrollTop = _lkChat.scrollHeight;
             }
@@ -2924,7 +2971,7 @@ function renderJishi(force){
         var ch = findCharByName(ck);
         var title = _jishiCharTitle(ck);
         var _initial = escHtml(String(ck||'?').charAt(0));
-        var _portrait = (ch && ch.portrait) ? '<img src="'+escHtml(ch.portrait)+'">' : _initial;
+        var _portrait = (ch && ch.portrait) ? '<img src="'+escHtml(ch.portrait)+'" loading="lazy" decoding="async">' : _initial;
         h += '<details class="ji-char-block"' + (ckIdx===0?' open':'') + '>';
         h += '<summary class="ji-char-summary">';
         h += '<div class="ji-char-portrait">' + _portrait + '</div>';

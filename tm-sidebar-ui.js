@@ -41,8 +41,8 @@ function renderGameTech(){
     var costDesc=(t.costs||[]).map(function(c){var v=GM.vars[c.variable];var ok=v&&v.value>=c.amount;if(!ok)canUnlock=false;return "<span style=\"color:"+(ok?"var(--green)":"var(--red)")+";\">"+c.variable+":"+c.amount+(v?" ("+v.value+")":"")+"</span>";}).join(" ");
     if(t.prereqs)t.prereqs.forEach(function(pre){var pt=findTechByName(pre);if(!pt||!pt.unlocked)canUnlock=false;});
     var prereqDesc='';
-    if(t.prereqs&&t.prereqs.length>0&&!t.unlocked){prereqDesc='<div style="font-size:0.68rem;color:var(--txt-d);">\u524D\u7F6E: '+t.prereqs.map(function(p){var pt=findTechByName(p);return '<span style="color:'+(pt&&pt.unlocked?'var(--green)':'var(--red)')+';">'+escHtml(p)+'</span>';}).join(', ')+'</div>';}
-    return "<div class=\"cd\" style=\"border-left:3px solid "+(t.unlocked?"var(--green)":"var(--bdr)")+";\"><div style=\"display:flex;justify-content:space-between;\"><strong>"+t.name+(t.era?' <span style=\"font-size:0.68rem;color:var(--txt-d);\">['+t.era+']</span>':'')+"</strong>"+(t.unlocked?"<span class=\"tg\" style=\"background:rgba(39,174,96,0.2);color:var(--green);\">\u2705</span>":canUnlock?"<button class=\"bt bp bsm\" onclick=\"unlockTech("+i+")\">\u89E3\u9501</button>":"")+"</div><div style=\"font-size:0.78rem;color:var(--txt-s);\">"+(t.desc||t.description||'')+"</div>"+prereqDesc+(!t.unlocked&&costDesc?"<div style=\"font-size:0.72rem;margin-top:0.2rem;\">\u6D88\u8017: "+costDesc+"</div>":"")+"</div>";
+    if(t.prereqs&&t.prereqs.length>0&&!t.unlocked){prereqDesc='<div style="font-size:0.71rem;color:var(--txt-d);">\u524D\u7F6E: '+t.prereqs.map(function(p){var pt=findTechByName(p);return '<span style="color:'+(pt&&pt.unlocked?'var(--green)':'var(--red)')+';">'+escHtml(p)+'</span>';}).join(', ')+'</div>';}
+    return "<div class=\"cd\" style=\"border-left:3px solid "+(t.unlocked?"var(--green)":"var(--bdr)")+";\"><div style=\"display:flex;justify-content:space-between;\"><strong>"+t.name+(t.era?' <span style=\"font-size:0.71rem;color:var(--txt-d);\">['+t.era+']</span>':'')+"</strong>"+(t.unlocked?"<span class=\"tg\" style=\"background:rgba(39,174,96,0.2);color:var(--green);\">\u2705</span>":canUnlock?"<button class=\"bt bp bsm\" onclick=\"unlockTech("+i+")\">\u89E3\u9501</button>":"")+"</div><div style=\"font-size:0.78rem;color:var(--txt-s);\">"+(t.desc||t.description||'')+"</div>"+prereqDesc+(!t.unlocked&&costDesc?"<div style=\"font-size:0.72rem;margin-top:0.2rem;\">\u6D88\u8017: "+costDesc+"</div>":"")+"</div>";
   }).join("")||"<div style=\"color:var(--txt-d);\">\u65E0</div>";
 }
 function unlockTech(i){
@@ -69,7 +69,7 @@ function renderGameCivic(){
     var costDesc=(c.costs||[]).map(function(ct){var v=GM.vars[ct.variable];var ok=v&&v.value>=ct.amount;if(!ok)canAdopt=false;return "<span style=\"color:"+(ok?"var(--green)":"var(--red)")+";\">"+ct.variable+":"+ct.amount+"</span>";}).join(" ");
     var prereqDesc='';
     if(c.prereqs&&c.prereqs.length>0&&!c.adopted){
-      prereqDesc='<div style="font-size:0.68rem;color:var(--txt-d);">\u524D\u7F6E: '+c.prereqs.map(function(p){var pt=GM.civicTree.find(function(x){return x.name===p;});return '<span style="color:'+(pt&&pt.adopted?'var(--green)':'var(--red)')+';">'+escHtml(p)+'</span>';}).join(', ')+'</div>';
+      prereqDesc='<div style="font-size:0.71rem;color:var(--txt-d);">\u524D\u7F6E: '+c.prereqs.map(function(p){var pt=GM.civicTree.find(function(x){return x.name===p;});return '<span style="color:'+(pt&&pt.adopted?'var(--green)':'var(--red)')+';">'+escHtml(p)+'</span>';}).join(', ')+'</div>';
     }
     return "<div class=\"cd\" style=\"border-left:3px solid "+(c.adopted?"var(--green)":"var(--bdr)")+";\"><div style=\"display:flex;justify-content:space-between;\"><strong>"+c.name+"</strong>"+(c.adopted?"<span class=\"tg\" style=\"background:rgba(39,174,96,0.2);color:var(--green);\">\u2705</span>":canAdopt?"<button class=\"bt bp bsm\" onclick=\"adoptCivic("+i+")\">\u63A8\u884C</button>":"")+"</div><div style=\"font-size:0.78rem;color:var(--txt-s);\">"+(c.desc||c.description||'')+"</div>"+prereqDesc+(!c.adopted&&costDesc?"<div style=\"font-size:0.72rem;margin-top:0.2rem;\">\u6D88\u8017: "+costDesc+"</div>":"")+"</div>";
   }).join("")||"<div style=\"color:var(--txt-d);\">\u65E0</div>";
@@ -187,7 +187,7 @@ function openPartyDetailPanel() {
       var stances = Array.isArray(p.policyStance) ? p.policyStance : [p.policyStance];
       html += '<div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.3rem;">';
       stances.forEach(function(s) {
-        html += '<span class="tm-party-full tm-fulltext-source" ' + tmSidebarFullTextAttr(s, true) + ' style="font-size:0.68rem;background:var(--bg-3);color:var(--txt-s);padding:1px 6px;border-radius:3px;display:inline-block;max-width:100%;">' + escHtml(s) + '</span>';
+        html += '<span class="tm-party-full tm-fulltext-source" ' + tmSidebarFullTextAttr(s, true) + ' style="font-size:0.71rem;background:var(--bg-3);color:var(--txt-s);padding:1px 6px;border-radius:3px;display:inline-block;max-width:100%;">' + escHtml(s) + '</span>';
       });
       html += '</div>';
     }
@@ -230,10 +230,10 @@ function openMilitaryDetailPanel() {
 
   // ═══ 总览卡片 ═══
   html += '<div style="background:linear-gradient(135deg,rgba(184,154,83,0.15),rgba(139,46,37,0.1));border:1px solid var(--gold-d);border-radius:8px;padding:0.8rem;margin-bottom:1rem;display:grid;grid-template-columns:repeat(4,1fr);gap:0.6rem;">';
-  html += '<div><div style="font-size:0.64rem;color:var(--txt-d);">\u603B\u519B\u961F</div><div style="font-size:1.1rem;font-weight:700;color:var(--gold);">' + totalArmies + '</div></div>';
-  html += '<div><div style="font-size:0.64rem;color:var(--txt-d);">\u603B\u5175\u529B</div><div style="font-size:1.1rem;font-weight:700;color:var(--gold);">' + totalSoldiers.toLocaleString() + '</div></div>';
-  html += '<div><div style="font-size:0.64rem;color:var(--txt-d);">\u5E73\u5747\u58EB\u6C14</div><div style="font-size:1.1rem;font-weight:700;color:' + (avgMorale>65?'var(--green)':avgMorale<40?'var(--red)':'var(--gold)') + ';">' + Math.round(avgMorale) + '</div></div>';
-  html += '<div><div style="font-size:0.64rem;color:var(--txt-d);">\u5E73\u5747\u8BAD\u7EC3</div><div style="font-size:1.1rem;font-weight:700;color:' + (avgTraining>65?'var(--green)':avgTraining<40?'var(--red)':'var(--gold)') + ';">' + Math.round(avgTraining) + '</div></div>';
+  html += '<div><div style="font-size:0.7rem;color:var(--txt-d);">\u603B\u519B\u961F</div><div style="font-size:1.1rem;font-weight:700;color:var(--gold);">' + totalArmies + '</div></div>';
+  html += '<div><div style="font-size:0.7rem;color:var(--txt-d);">\u603B\u5175\u529B</div><div style="font-size:1.1rem;font-weight:700;color:var(--gold);">' + totalSoldiers.toLocaleString() + '</div></div>';
+  html += '<div><div style="font-size:0.7rem;color:var(--txt-d);">\u5E73\u5747\u58EB\u6C14</div><div style="font-size:1.1rem;font-weight:700;color:' + (avgMorale>65?'var(--green)':avgMorale<40?'var(--red)':'var(--gold)') + ';">' + Math.round(avgMorale) + '</div></div>';
+  html += '<div><div style="font-size:0.7rem;color:var(--txt-d);">\u5E73\u5747\u8BAD\u7EC3</div><div style="font-size:1.1rem;font-weight:700;color:' + (avgTraining>65?'var(--green)':avgTraining<40?'var(--red)':'var(--gold)') + ';">' + Math.round(avgTraining) + '</div></div>';
   html += '</div>';
 
   // ═══ 分组展示 ═══
@@ -243,7 +243,7 @@ function openMilitaryDetailPanel() {
     var icon = typeIcons[groupName] || '\u2694\uFE0F';
     html += '<div style="margin-bottom:0.8rem;">';
     html += '<div class="tm-army-full tm-fulltext-source" ' + tmSidebarFullTextAttr(groupName + ' (' + list.length + '\u652F\u00B7\u5408\u8BA1' + gTotal.toLocaleString() + ')', true) + ' style="font-size:0.82rem;font-weight:700;color:var(--gold-400);margin-bottom:0.5rem;padding:4px 8px;background:rgba(184,154,83,0.08);border-left:3px solid var(--gold-d);border-radius:3px;">';
-    html += icon + ' ' + escHtml(groupName) + ' <span style="font-size:0.68rem;color:var(--txt-d);font-weight:400;">(' + list.length + '\u652F\u00B7\u5408\u8BA1' + gTotal.toLocaleString() + ')</span>';
+    html += icon + ' ' + escHtml(groupName) + ' <span style="font-size:0.71rem;color:var(--txt-d);font-weight:400;">(' + list.length + '\u652F\u00B7\u5408\u8BA1' + gTotal.toLocaleString() + ')</span>';
     html += '</div>';
 
     list.forEach(function(a) {
@@ -262,11 +262,11 @@ function openMilitaryDetailPanel() {
       html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5rem;gap:0.5rem;">';
       html += '<div style="flex:1;min-width:0;">';
       html += '<div class="tm-army-full tm-fulltext-source" ' + tmSidebarFullTextAttr(a.name||'\u65E0\u540D', true) + ' style="font-weight:700;font-size:0.92rem;color:var(--gold);">' + escHtml(a.name||'\u65E0\u540D') + '</div>';
-      if (quality) html += '<div class="tm-army-full tm-fulltext-source" ' + tmSidebarFullTextAttr(quality, true) + ' style="font-size:0.68rem;color:' + qualClr + ';margin-top:2px;">' + escHtml(quality) + '</div>';
+      if (quality) html += '<div class="tm-army-full tm-fulltext-source" ' + tmSidebarFullTextAttr(quality, true) + ' style="font-size:0.71rem;color:' + qualClr + ';margin-top:2px;">' + escHtml(quality) + '</div>';
       html += '</div>';
       html += '<div style="text-align:right;flex-shrink:0;">';
       html += '<div style="font-size:1.05rem;font-weight:700;color:var(--gold);">' + sol.toLocaleString() + '</div>';
-      html += '<div style="font-size:0.6rem;color:var(--txt-d);">\u5175</div>';
+      html += '<div style="font-size:0.66rem;color:var(--txt-d);">\u5175</div>';
       html += '</div>';
       html += '</div>';
 
@@ -290,9 +290,9 @@ function openMilitaryDetailPanel() {
       html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:0.5rem;">';
       [['\u58EB\u6C14',mor,morClr],['\u8BAD\u7EC3',tra,traClr],['\u5FE0\u8BDA',loy,loyClr],['\u63A7\u5236',ctrl,ctrlClr]].forEach(function(s) {
         html += '<div style="text-align:center;">';
-        html += '<div style="font-size:0.62rem;color:var(--txt-d);">' + s[0] + '</div>';
+        html += '<div style="font-size:0.68rem;color:var(--txt-d);">' + s[0] + '</div>';
         html += '<div style="height:4px;background:var(--bg-3);border-radius:2px;margin:2px 0;overflow:hidden;"><div style="height:100%;width:' + s[1] + '%;background:' + s[2] + ';transition:width 0.3s;"></div></div>';
-        html += '<div style="font-size:0.68rem;color:' + s[2] + ';font-weight:600;">' + s[1] + '</div>';
+        html += '<div style="font-size:0.71rem;color:' + s[2] + ';font-weight:600;">' + s[1] + '</div>';
         html += '</div>';
       });
       html += '</div>';
@@ -300,11 +300,11 @@ function openMilitaryDetailPanel() {
       // 兵种构成
       if (Array.isArray(a.composition) && a.composition.length > 0) {
         html += '<div style="margin-bottom:0.5rem;">';
-        html += '<div style="font-size:0.64rem;color:var(--txt-d);margin-bottom:3px;">\u5175\u79CD\u6784\u6210</div>';
+        html += '<div style="font-size:0.7rem;color:var(--txt-d);margin-bottom:3px;">\u5175\u79CD\u6784\u6210</div>';
         html += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
         a.composition.forEach(function(c) {
           if (!c || !c.type) return;
-          html += '<div class="tm-army-full tm-fulltext-source" ' + tmSidebarFullTextAttr(c.type + ' ' + (c.count||0).toLocaleString(), true) + ' style="font-size:0.68rem;background:var(--bg-3);border:1px solid var(--gold-d);border-radius:10px;padding:2px 8px;">';
+          html += '<div class="tm-army-full tm-fulltext-source" ' + tmSidebarFullTextAttr(c.type + ' ' + (c.count||0).toLocaleString(), true) + ' style="font-size:0.71rem;background:var(--bg-3);border:1px solid var(--gold-d);border-radius:10px;padding:2px 8px;">';
           html += '<span style="color:var(--txt);">' + escHtml(c.type) + '</span>';
           html += ' <span style="color:var(--gold);font-weight:600;">' + (c.count||0).toLocaleString() + '</span>';
           html += '</div>';
@@ -316,15 +316,15 @@ function openMilitaryDetailPanel() {
       // 装备
       if (Array.isArray(a.equipment) && a.equipment.length > 0) {
         html += '<div style="margin-bottom:0.5rem;">';
-        html += '<div style="font-size:0.64rem;color:var(--txt-d);margin-bottom:3px;">\u88C5\u5907\u6E05\u5355</div>';
+        html += '<div style="font-size:0.7rem;color:var(--txt-d);margin-bottom:3px;">\u88C5\u5907\u6E05\u5355</div>';
         html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:3px;">';
         a.equipment.forEach(function(e) {
           if (!e || !e.name) return;
           var condClr = e.condition==='\u7CBE\u826F'?'var(--green)':e.condition==='\u4E00\u822C'?'var(--txt-s)':e.condition==='\u7F3A\u635F'||e.condition==='\u788E'?'var(--red)':'var(--txt-d)';
-          html += '<div class="tm-army-full tm-fulltext-source" ' + tmSidebarFullTextAttr(e.name + ' ' + (e.count||0).toLocaleString() + (e.condition ? ' ' + e.condition : ''), true) + ' style="font-size:0.68rem;padding:2px 6px;background:var(--bg-3);border-radius:3px;display:flex;justify-content:space-between;gap:4px;">';
+          html += '<div class="tm-army-full tm-fulltext-source" ' + tmSidebarFullTextAttr(e.name + ' ' + (e.count||0).toLocaleString() + (e.condition ? ' ' + e.condition : ''), true) + ' style="font-size:0.71rem;padding:2px 6px;background:var(--bg-3);border-radius:3px;display:flex;justify-content:space-between;gap:4px;">';
           html += '<span style="color:var(--txt);">' + escHtml(e.name) + '</span>';
           html += '<span><span style="color:var(--gold);">' + (e.count||0).toLocaleString() + '</span>';
-          if (e.condition) html += ' <span style="color:' + condClr + ';font-size:0.6rem;">' + escHtml(e.condition) + '</span>';
+          if (e.condition) html += ' <span style="color:' + condClr + ';font-size:0.66rem;">' + escHtml(e.condition) + '</span>';
           html += '</span>';
           html += '</div>';
         });
@@ -335,11 +335,11 @@ function openMilitaryDetailPanel() {
       // 岁饷
       if (Array.isArray(a.salary) && a.salary.length > 0) {
         html += '<div style="margin-bottom:0.5rem;">';
-        html += '<div style="font-size:0.64rem;color:var(--txt-d);margin-bottom:3px;">\u5C81\u9972</div>';
+        html += '<div style="font-size:0.7rem;color:var(--txt-d);margin-bottom:3px;">\u5C81\u9972</div>';
         html += '<div style="display:flex;flex-wrap:wrap;gap:6px;font-size:0.7rem;">';
         a.salary.forEach(function(s) {
           if (!s || !s.resource) return;
-          html += '<span class="tm-army-full tm-fulltext-source" ' + tmSidebarFullTextAttr(s.resource + ': ' + (s.amount||0).toLocaleString() + ' ' + (s.unit||''), true) + ' style="color:var(--txt);"><span style="color:var(--txt-d);">' + escHtml(s.resource) + ':</span> <span style="color:var(--gold);font-weight:600;">' + (s.amount||0).toLocaleString() + '</span> <span style="color:var(--txt-d);font-size:0.62rem;">' + escHtml(s.unit||'') + '</span></span>';
+          html += '<span class="tm-army-full tm-fulltext-source" ' + tmSidebarFullTextAttr(s.resource + ': ' + (s.amount||0).toLocaleString() + ' ' + (s.unit||''), true) + ' style="color:var(--txt);"><span style="color:var(--txt-d);">' + escHtml(s.resource) + ':</span> <span style="color:var(--gold);font-weight:600;">' + (s.amount||0).toLocaleString() + '</span> <span style="color:var(--txt-d);font-size:0.68rem;">' + escHtml(s.unit||'') + '</span></span>';
         });
         html += '</div>';
         html += '</div>';
@@ -377,22 +377,22 @@ function renderSidePanels(){
   // 势力一览
   if(GM.facs&&GM.facs.length>0){
     var fp=document.createElement("div");fp.style.marginBottom="0.8rem";
-    fp.innerHTML="<div class=\"pt\">\u2694 \u52BF\u529B\u683C\u5C40 <span style=\"font-size:0.65rem;color:var(--txt-d);font-weight:400;\">"+GM.facs.length+"\u4E2A</span></div>"+GM.facs.map(function(f){
+    fp.innerHTML="<div class=\"pt\">\u2694 \u52BF\u529B\u683C\u5C40 <span style=\"font-size:0.7rem;color:var(--txt-d);font-weight:400;\">"+GM.facs.length+"\u4E2A</span></div>"+GM.facs.map(function(f){
       var attClr=f.attitude==='\u53CB\u597D'||f.attitude==='\u8054\u76DF'?'var(--green)':f.attitude==='\u654C\u5BF9'||f.attitude==='\u4EA4\u6218'||f.attitude==='\u654C\u89C6'?'var(--red)':f.attitude==='\u9644\u5C5E'||f.attitude==='\u5B97\u4E3B'||f.attitude==='\u671D\u8D21'?'var(--blue)':'var(--txt-d)';
       var str=f.strength||50;
       var milStr=f.militaryStrength?' \u5175'+f.militaryStrength:'';
       // 类型标签
-      var typeTag=f.type?'<span style="font-size:0.55rem;color:var(--ink-300);margin-left:2px;">'+escHtml(f.type)+'</span>':'';
+      var typeTag=f.type?'<span style="font-size:0.62rem;color:var(--ink-300);margin-left:2px;">'+escHtml(f.type)+'</span>':'';
       // 封臣/宗主标签
       var _vassalTag='';
-      if(f.liege)_vassalTag=' <span style="font-size:0.55rem;color:var(--blue);border:1px solid var(--blue);border-radius:3px;padding:0 3px;">\u81E3\u2192'+escHtml(String(f.liege))+'</span>';
-      else if(f.vassals&&f.vassals.length>0)_vassalTag=' <span style="font-size:0.55rem;color:var(--gold);border:1px solid var(--gold);border-radius:3px;padding:0 3px;">\u5B97\u4E3B('+f.vassals.length+')</span>';
+      if(f.liege)_vassalTag=' <span style="font-size:0.62rem;color:var(--blue);border:1px solid var(--blue);border-radius:3px;padding:0 3px;">\u81E3\u2192'+escHtml(String(f.liege))+'</span>';
+      else if(f.vassals&&f.vassals.length>0)_vassalTag=' <span style="font-size:0.62rem;color:var(--gold);border:1px solid var(--gold);border-radius:3px;padding:0 3px;">\u5B97\u4E3B('+f.vassals.length+')</span>';
       // 颜色条
       var facColor = f.color || attClr;
       // 首领信息
       var leaderLine = '';
       if (f.leader) {
-        leaderLine = '<div style="font-size:0.6rem;color:var(--txt-d);">'
+        leaderLine = '<div style="font-size:0.66rem;color:var(--txt-d);">'
           + escHtml(f.leader) + (f.leaderTitle ? '(' + escHtml(f.leaderTitle) + ')' : '')
           + (f.territory ? ' \u00B7 ' + escHtml(String(f.territory)) : '') + '</div>';
       }
@@ -402,17 +402,17 @@ function renderSidePanels(){
       if (f.goal) extras.push('\u2691' + escHtml(String(f.goal)));
       if (f.mainstream) extras.push(escHtml(String(f.mainstream)));
       if (f.resources) extras.push(escHtml(String(f.resources)));
-      if (extras.length > 0) extraLine = '<div style="font-size:0.58rem;color:var(--ink-300);margin-top:1px;">' + extras.join(' \u00B7 ') + '</div>';
+      if (extras.length > 0) extraLine = '<div style="font-size:0.64rem;color:var(--ink-300);margin-top:1px;">' + extras.join(' \u00B7 ') + '</div>';
       return '<div style="margin-bottom:0.45rem;border-left:2px solid '+facColor+';padding-left:0.4rem;">'
         +'<div style="display:flex;justify-content:space-between;font-size:0.78rem;">'
-        +'<span>'+(f.name||'')+typeTag+_vassalTag+(f.attitude?' <span style="font-size:0.6rem;color:'+attClr+';">'+f.attitude+'</span>':'')+'</span>'
+        +'<span>'+(f.name||'')+typeTag+_vassalTag+(f.attitude?' <span style="font-size:0.66rem;color:'+attClr+';">'+f.attitude+'</span>':'')+'</span>'
         +'<span style="color:'+attClr+';">'+str+milStr+'</span></div>'
         +'<div class="rb"><div class="rf" style="width:'+str+'%;background:'+facColor+';"></div></div>'
         +leaderLine+extraLine+'</div>';
     }).join("");
     // 势力间关系摘要
     if(GM.factionRelations&&GM.factionRelations.length>0){
-      var _frHtml='<div style="margin-top:0.3rem;font-size:0.65rem;color:var(--txt-d);border-top:1px solid var(--bg-4);padding-top:0.3rem;">';
+      var _frHtml='<div style="margin-top:0.3rem;font-size:0.7rem;color:var(--txt-d);border-top:1px solid var(--bg-4);padding-top:0.3rem;">';
       GM.factionRelations.forEach(function(r){
         var rClr=(r.value||0)>30?'var(--green)':(r.value||0)<-30?'var(--red)':'var(--txt-d)';
         _frHtml+='<div>'+r.from+'\u2192'+r.to+' <span style="color:'+rClr+';">'+r.type+'('+r.value+')</span></div>';
@@ -431,15 +431,15 @@ function renderSidePanels(){
       mp.onclick=function(){openMilitaryDetailPanel();};
       mp.title='\u70B9\u51FB\u67E5\u770B\u5404\u519B\u5B8C\u6574\u8BE6\u60C5';
       var totalSol=activeA.reduce(function(s,a){return s+(a.soldiers||0);},0);
-      mp.innerHTML="<div class=\"pt\">\u2694\uFE0F \u519B\u4E8B\u529B\u91CF <span style=\"font-size:0.65rem;color:var(--txt-d);\">\u603B\u5175\u529B"+totalSol+"\u00B7"+activeA.length+"\u652F</span></div>"+activeA.map(function(a){
+      mp.innerHTML="<div class=\"pt\">\u2694\uFE0F \u519B\u4E8B\u529B\u91CF <span style=\"font-size:0.7rem;color:var(--txt-d);\">\u603B\u5175\u529B"+totalSol+"\u00B7"+activeA.length+"\u652F</span></div>"+activeA.map(function(a){
         var sol=a.soldiers||0;
         var pct=totalSol>0?Math.round(sol/totalSol*100):0;
         var morClr=(a.morale||0)>70?'var(--green)':(a.morale||0)>40?'var(--gold)':'var(--red)';
-        var info=a.name+(a.armyType?' <span style=\"font-size:0.6rem;color:var(--txt-d);\">'+a.armyType+'</span>':'');
+        var info=a.name+(a.armyType?' <span style=\"font-size:0.66rem;color:var(--txt-d);\">'+a.armyType+'</span>':'');
         var detail=sol+'\u5175 \u58EB\u6C14'+(a.morale||50)+' \u8BAD\u7EC3'+(a.training||50);
         if(a.commander)detail+=' \u5E05:'+a.commander;
         if(a.garrison)detail+=' \u9A7B:'+String(a.garrison);
-        return "<div style=\"margin-bottom:0.4rem;\"><div style=\"display:flex;justify-content:space-between;font-size:0.78rem;\"><span>"+info+"</span><span style=\"color:"+morClr+";\">"+sol+"</span></div><div class=\"rb\"><div class=\"rf\" style=\"width:"+pct+"%;background:"+morClr+";\"></div></div><div style=\"font-size:0.65rem;color:var(--txt-d);\">"+ detail+"</div></div>";
+        return "<div style=\"margin-bottom:0.4rem;\"><div style=\"display:flex;justify-content:space-between;font-size:0.78rem;\"><span>"+info+"</span><span style=\"color:"+morClr+";\">"+sol+"</span></div><div class=\"rb\"><div class=\"rf\" style=\"width:"+pct+"%;background:"+morClr+";\"></div></div><div style=\"font-size:0.7rem;color:var(--txt-d);\">"+ detail+"</div></div>";
       }).join("");
       gl.appendChild(mp);
     }
@@ -466,8 +466,8 @@ function renderSidePanels(){
       var dc=dimC[c.dimension]||'#9ca3af';
       _cHtml+="<div style=\"padding:3px 0;font-size:0.72rem;border-left:3px solid "+dc+";padding-left:6px;margin-bottom:3px;\">";
       _cHtml+="<span style=\"color:"+dc+";font-weight:700;\">"+escHtml(c.title||'')+"</span>";
-      _cHtml+=" <span style=\"font-size:0.55rem;color:var(--txt-d);\">"+(dimN[c.dimension]||'')+"</span>";
-      if(c.severity==='critical')_cHtml+=" <span style=\"font-size:0.55rem;color:#dc2626;\">\u2605</span>";
+      _cHtml+=" <span style=\"font-size:0.62rem;color:var(--txt-d);\">"+(dimN[c.dimension]||'')+"</span>";
+      if(c.severity==='critical')_cHtml+=" <span style=\"font-size:0.62rem;color:#dc2626;\">\u2605</span>";
       _cHtml+="</div>";
     });
     cp.innerHTML=_cHtml;
@@ -484,7 +484,7 @@ function renderSidePanels(){
         var ts=c.titles.map(function(t){
           var hTag=t.hereditary?'\u4E16\u88AD':'\u6D41\u5B98';
           var supTag=(t._suppressed&&t._suppressed.length>0)?' \u26D4':'';
-          return t.name+'<span style="font-size:0.55rem;color:var(--txt-d);">('+hTag+supTag+')</span>';
+          return t.name+'<span style="font-size:0.62rem;color:var(--txt-d);">('+hTag+supTag+')</span>';
         }).join(' ');
         _tHtml+="<div style=\"font-size:0.75rem;padding:2px 0;\"><span style=\"color:var(--gold-l);\">"+escHtml(c.name)+"</span> "+ts+"</div>";
       });
@@ -516,7 +516,7 @@ function renderSidePanels(){
             _vHtml+="<span>\u8D21"+trib+"% <span style=\"color:"+loyClr+"\">\u5FE0"+loy+"</span>"+(loy<35?" \u26A0":"")+"</span>";
             _vHtml+="</div>";
           });
-          _vHtml+="<div style=\"font-size:0.65rem;color:var(--txt-d);padding-left:1rem;\">\u5C01\u81E3"+f.vassals.length+"\u4E2A</div>";
+          _vHtml+="<div style=\"font-size:0.7rem;color:var(--txt-d);padding-left:1rem;\">\u5C01\u81E3"+f.vassals.length+"\u4E2A</div>";
           _vHtml+="</div>";
         }
       });
@@ -537,12 +537,12 @@ function renderSidePanels(){
     });
     if(_totalDivs>0){
       var ap=document.createElement("div");ap.style.marginBottom="0.8rem";
-      var _aHtml="<div class=\"pt\">\uD83C\uDFEF \u884C\u653F\u533A\u5212 <span style=\"font-size:0.65rem;color:var(--txt-d);\">\u5171"+_totalDivs+"\u5355\u4F4D \u5B98"+_govCount+"</span></div>";
+      var _aHtml="<div class=\"pt\">\uD83C\uDFEF \u884C\u653F\u533A\u5212 <span style=\"font-size:0.7rem;color:var(--txt-d);\">\u5171"+_totalDivs+"\u5355\u4F4D \u5B98"+_govCount+"</span></div>";
       _topDivs.forEach(function(d){
         var pStr=d.prosperity?' \u7E41'+d.prosperity:'';
         var gStr=d.governor?' \u5B98:'+escHtml(d.governor):'';
         var chCount=d.children?d.children.length:0;
-        _aHtml+="<div style=\"font-size:0.72rem;padding:2px 0;\">"+escHtml(d.name)+"<span style=\"color:var(--txt-d);font-size:0.6rem;\"> "+(d.terrain||'')+(d.level?'('+d.level+')':'')+(chCount>0?' \u4E0B\u8F96'+chCount:'')+pStr+gStr+"</span></div>";
+        _aHtml+="<div style=\"font-size:0.72rem;padding:2px 0;\">"+escHtml(d.name)+"<span style=\"color:var(--txt-d);font-size:0.66rem;\"> "+(d.terrain||'')+(d.level?'('+d.level+')':'')+(chCount>0?' \u4E0B\u8F96'+chCount:'')+pStr+gStr+"</span></div>";
       });
       ap.innerHTML=_aHtml;
       gl.appendChild(ap);
@@ -553,7 +553,7 @@ function renderSidePanels(){
   if(GM.classes&&GM.classes.length>0){
     var cp=document.createElement("div");cp.style.marginBottom="0.8rem";cp.style.cursor="pointer";
     cp.onclick=function(){openClassDetailPanel();};
-    cp.innerHTML="<div class=\"pt\">\uD83D\uDC51 \u9636\u5C42</div>"+GM.classes.map(function(c){var _ci=c.influence||c.classInfluence||0;return "<div style=\"margin-bottom:0.3rem;\"><div style=\"display:flex;justify-content:space-between;font-size:0.78rem;\"><span>"+escHtml(c.name)+(c.satisfaction?' <span style=\"font-size:0.65rem;color:var(--txt-d);\">'+Math.round(c.satisfaction)+'</span>':'')+"</span><span style=\"color:var(--gold);\">"+_ci+"</span></div><div class=\"rb\"><div class=\"rf\" style=\"width:"+_ci+"%;background:var(--blue);\"></div></div></div>";}).join("");
+    cp.innerHTML="<div class=\"pt\">\uD83D\uDC51 \u9636\u5C42</div>"+GM.classes.map(function(c){var _ci=c.influence||c.classInfluence||0;return "<div style=\"margin-bottom:0.3rem;\"><div style=\"display:flex;justify-content:space-between;font-size:0.78rem;\"><span>"+escHtml(c.name)+(c.satisfaction?' <span style=\"font-size:0.7rem;color:var(--txt-d);\">'+Math.round(c.satisfaction)+'</span>':'')+"</span><span style=\"color:var(--gold);\">"+_ci+"</span></div><div class=\"rb\"><div class=\"rf\" style=\"width:"+_ci+"%;background:var(--blue);\"></div></div></div>";}).join("");
     gl.appendChild(cp);
   }
 
@@ -561,7 +561,7 @@ function renderSidePanels(){
   if(GM.parties&&GM.parties.length>0){
     var pp=document.createElement("div");pp.style.marginBottom="0.8rem";pp.style.cursor="pointer";
     pp.onclick=function(){openPartyDetailPanel();};
-    pp.innerHTML="<div class=\"pt\">\uD83C\uDFDB \u515A\u6D3E</div>"+GM.parties.map(function(p){var _inf=p.influence||p.strength||0;var _stClr=p.status==='\u6D3B\u8DC3'?'var(--green)':p.status==='\u5F0F\u5FAE'?'var(--gold)':p.status==='\u88AB\u538B\u5236'?'var(--red)':'var(--txt-d)';return "<div style=\"margin-bottom:0.3rem;\"><div style=\"display:flex;justify-content:space-between;font-size:0.78rem;\"><span>"+escHtml(p.name)+(p.status?' <span style=\"font-size:0.65rem;color:'+_stClr+';\">'+escHtml(p.status)+'</span>':'')+"</span><span>"+_inf+"</span></div><div class=\"rb\"><div class=\"rf\" style=\"width:"+_inf+"%;background:var(--purple);\"></div></div></div>";}).join("");
+    pp.innerHTML="<div class=\"pt\">\uD83C\uDFDB \u515A\u6D3E</div>"+GM.parties.map(function(p){var _inf=p.influence||p.strength||0;var _stClr=p.status==='\u6D3B\u8DC3'?'var(--green)':p.status==='\u5F0F\u5FAE'?'var(--gold)':p.status==='\u88AB\u538B\u5236'?'var(--red)':'var(--txt-d)';return "<div style=\"margin-bottom:0.3rem;\"><div style=\"display:flex;justify-content:space-between;font-size:0.78rem;\"><span>"+escHtml(p.name)+(p.status?' <span style=\"font-size:0.7rem;color:'+_stClr+';\">'+escHtml(p.status)+'</span>':'')+"</span><span>"+_inf+"</span></div><div class=\"rb\"><div class=\"rf\" style=\"width:"+_inf+"%;background:var(--purple);\"></div></div></div>";}).join("");
     gl.appendChild(pp);
   }
 
@@ -570,16 +570,16 @@ function renderSidePanels(){
     var ip=document.createElement("div");ip.style.marginBottom="0.8rem";
     var typeIcons={weapon:'\u2694',armor:'\uD83D\uDEE1',consumable:'\uD83C\uDF76',treasure:'\uD83D\uDC8E',document:'\uD83D\uDCDC',seal:'\uD83D\uDD8B',special:'\u2728'};
     var rarClr={'\u666E\u901A':'var(--txt-d)','\u7CBE\u826F':'var(--green)','\u73CD\u8D35':'var(--blue)','\u4F20\u8BF4':'var(--gold)'};
-    var _iHtml="<div class=\"pt\">\uD83D\uDCE6 \u7269\u54C1 <span style=\"font-size:0.65rem;color:var(--txt-d);font-weight:400;\">"+GM.items.length+"\u4EF6</span></div>";
+    var _iHtml="<div class=\"pt\">\uD83D\uDCE6 \u7269\u54C1 <span style=\"font-size:0.7rem;color:var(--txt-d);font-weight:400;\">"+GM.items.length+"\u4EF6</span></div>";
     GM.items.forEach(function(it){
       var _acqStyle = it.acquired ? '' : 'opacity:0.5;';
-      var _acqTag = it.acquired ? '' : '<span style="font-size:0.55rem;color:var(--ink-300);margin-left:3px;">\u672A\u83B7</span>';
+      var _acqTag = it.acquired ? '' : '<span style="font-size:0.62rem;color:var(--ink-300);margin-left:3px;">\u672A\u83B7</span>';
       _iHtml+="<div style=\"padding:0.2rem 0;font-size:0.75rem;border-bottom:1px solid var(--bg-4);"+_acqStyle+"\">";
       _iHtml+="<div style=\"display:flex;justify-content:space-between;\"><span>"+(typeIcons[it.type]||'\u2022')+' '+(it.name||'')+_acqTag+"</span>";
-      if(it.rarity&&it.rarity!=='\u666E\u901A')_iHtml+="<span style=\"font-size:0.6rem;color:"+(rarClr[it.rarity]||'var(--txt-d)')+";\">"+it.rarity+"</span>";
+      if(it.rarity&&it.rarity!=='\u666E\u901A')_iHtml+="<span style=\"font-size:0.66rem;color:"+(rarClr[it.rarity]||'var(--txt-d)')+";\">"+it.rarity+"</span>";
       _iHtml+="</div>";
-      if(it.effect)_iHtml+="<div style=\"font-size:0.65rem;color:var(--gold-d);\">"+escHtml(String(it.effect))+"</div>";
-      if(it.owner)_iHtml+="<div style=\"font-size:0.6rem;color:var(--ink-300);\">\u6301\u6709\uFF1A"+escHtml(it.owner)+"</div>";
+      if(it.effect)_iHtml+="<div style=\"font-size:0.7rem;color:var(--gold-d);\">"+escHtml(String(it.effect))+"</div>";
+      if(it.owner)_iHtml+="<div style=\"font-size:0.66rem;color:var(--ink-300);\">\u6301\u6709\uFF1A"+escHtml(it.owner)+"</div>";
       _iHtml+="</div>";
     });
     ip.innerHTML=_iHtml;
@@ -605,18 +605,18 @@ function renderSidePanels(){
         var childCount=sp.children?sp.children.length:0;
         var loyClr=(sp.loyalty||50)>70?'var(--green)':(sp.loyalty||50)<30?'var(--red)':'var(--txt-s)';
         _hHtml+="<div style=\"font-size:0.72rem;padding:2px 0;display:flex;justify-content:space-between;\">";
-        _hHtml+="<span>"+rkIcon+" "+escHtml(sp.name)+" <span style=\"color:var(--gold-d);font-size:0.6rem;\">"+escHtml(rkName)+"</span></span>";
+        _hHtml+="<span>"+rkIcon+" "+escHtml(sp.name)+" <span style=\"color:var(--gold-d);font-size:0.66rem;\">"+escHtml(rkName)+"</span></span>";
         var favStr = sp.favor !== undefined ? ' \u5BA0' + sp.favor : '';
-        _hHtml+="<span style=\"font-size:0.6rem;\"><span style=\"color:"+loyClr+"\">\u5FE0"+(sp.loyalty||50)+"</span>"+favStr+(childCount>0?" \u5B50"+childCount:"")+"</span>";
+        _hHtml+="<span style=\"font-size:0.66rem;\"><span style=\"color:"+loyClr+"\">\u5FE0"+(sp.loyalty||50)+"</span>"+favStr+(childCount>0?" \u5B50"+childCount:"")+"</span>";
         _hHtml+="</div>";
       });
       // 继承人
       if(GM.harem.heirs&&GM.harem.heirs.length>0){
-        _hHtml+="<div style=\"font-size:0.65rem;color:var(--gold);margin-top:3px;border-top:1px solid var(--bg-4);padding-top:3px;\">\u7EE7\u627F\u4EBA: "+GM.harem.heirs.join('\u3001')+"</div>";
+        _hHtml+="<div style=\"font-size:0.7rem;color:var(--gold);margin-top:3px;border-top:1px solid var(--bg-4);padding-top:3px;\">\u7EE7\u627F\u4EBA: "+GM.harem.heirs.join('\u3001')+"</div>";
       }
       // 孕期
       if(GM.harem.pregnancies&&GM.harem.pregnancies.length>0){
-        _hHtml+="<div style=\"font-size:0.65rem;color:var(--purple,#9b59b6);\">\u6709\u5B55: "+GM.harem.pregnancies.map(function(p){return p.mother;}).join('\u3001')+"</div>";
+        _hHtml+="<div style=\"font-size:0.7rem;color:var(--purple,#9b59b6);\">\u6709\u5B55: "+GM.harem.pregnancies.map(function(p){return p.mother;}).join('\u3001')+"</div>";
       }
       hp.innerHTML=_hHtml;
       gl.appendChild(hp);
@@ -633,14 +633,14 @@ function renderSidePanels(){
     });
     var _catNames={'military':'\u519B','economic':'\u7ECF','economy':'\u7ECF','cultural':'\u6587','culture':'\u6587','administrative':'\u653F','administration':'\u653F','religious':'\u5B97','infrastructure':'\u57FA'};
     var bp=document.createElement("div");bp.style.marginBottom="0.8rem";
-    var _bHtml="<div class=\"pt\">\uD83C\uDFD7 \u5EFA\u7B51 <span style=\"font-size:0.65rem;color:var(--txt-d);\">\u5171"+_totalBld+"\u5EA7</span></div>";
+    var _bHtml="<div class=\"pt\">\uD83C\uDFD7 \u5EFA\u7B51 <span style=\"font-size:0.7rem;color:var(--txt-d);\">\u5171"+_totalBld+"\u5EA7</span></div>";
     var _catEntries=Object.keys(_catCount);
     if(_catEntries.length>0){
       _bHtml+="<div style=\"display:flex;flex-wrap:wrap;gap:4px;font-size:0.7rem;\">";
       _catEntries.forEach(function(c){_bHtml+="<span style=\"background:var(--bg-3);padding:1px 5px;border-radius:3px;\">"+(_catNames[c]||c)+":"+_catCount[c]+"</span>";});
       _bHtml+="</div>";
     }
-    if(_inQueue>0)_bHtml+="<div style=\"font-size:0.65rem;color:var(--gold);margin-top:3px;\">\u5EFA\u9020\u4E2D: "+_inQueue+"\u9879</div>";
+    if(_inQueue>0)_bHtml+="<div style=\"font-size:0.7rem;color:var(--gold);margin-top:3px;\">\u5EFA\u9020\u4E2D: "+_inQueue+"\u9879</div>";
     bp.innerHTML=_bHtml;
     gl.appendChild(bp);
   }
@@ -651,13 +651,13 @@ function renderSidePanels(){
     var _trigEvts=GM.events.filter(function(e){return e.triggered;});
     if(_untrigEvts.length>0||_trigEvts.length>0){
       var ep2=document.createElement("div");ep2.style.marginBottom="0.8rem";
-      var _eHtml="<div class=\"pt\">\u{1F4DC} \u4E8B\u4EF6 <span style=\"font-size:0.65rem;color:var(--txt-d);\">\u5F85\u89E6\u53D1"+_untrigEvts.length+" \u5DF2\u53D1\u751F"+_trigEvts.length+"</span></div>";
+      var _eHtml="<div class=\"pt\">\u{1F4DC} \u4E8B\u4EF6 <span style=\"font-size:0.7rem;color:var(--txt-d);\">\u5F85\u89E6\u53D1"+_untrigEvts.length+" \u5DF2\u53D1\u751F"+_trigEvts.length+"</span></div>";
       _untrigEvts.forEach(function(e){
         var impClr=e.importance==='\u5173\u952E'?'var(--red)':e.importance==='\u91CD\u8981'?'var(--gold)':'var(--txt-d)';
-        _eHtml+="<div style=\"font-size:0.72rem;padding:2px 0;\"><span style=\"color:"+impClr+";\">"+(e.importance==='\u5173\u952E'?'\u2605':e.importance==='\u91CD\u8981'?'\u25C6':'\u25CB')+"</span> "+escHtml(e.name||'')+(e.type?' <span style=\"font-size:0.6rem;color:var(--txt-d);\">'+escHtml(e.type)+'</span>':'')+"</div>";
+        _eHtml+="<div style=\"font-size:0.72rem;padding:2px 0;\"><span style=\"color:"+impClr+";\">"+(e.importance==='\u5173\u952E'?'\u2605':e.importance==='\u91CD\u8981'?'\u25C6':'\u25CB')+"</span> "+escHtml(e.name||'')+(e.type?' <span style=\"font-size:0.66rem;color:var(--txt-d);\">'+escHtml(e.type)+'</span>':'')+"</div>";
       });
       if(_trigEvts.length>0){
-        _eHtml+="<div style=\"font-size:0.65rem;color:var(--green);margin-top:3px;border-top:1px solid var(--bg-4);padding-top:2px;\">\u5DF2\u53D1\u751F: "+_trigEvts.map(function(e){return e.name;}).join('\u3001')+"</div>";
+        _eHtml+="<div style=\"font-size:0.7rem;color:var(--green);margin-top:3px;border-top:1px solid var(--bg-4);padding-top:2px;\">\u5DF2\u53D1\u751F: "+_trigEvts.map(function(e){return e.name;}).join('\u3001')+"</div>";
       }
       ep2.innerHTML=_eHtml;
       gl.appendChild(ep2);
@@ -670,7 +670,7 @@ function renderSidePanels(){
     function cnt(tree){tree.forEach(function(d){td++;to+=(d.positions||[]).filter(function(p){return p.holder;}).length;if(d.subs)cnt(d.subs);});}
     cnt(GM.officeTree);
     var oc=document.createElement("div");oc.style.marginBottom="0.8rem";
-    oc.innerHTML="<div class=\"pt\">\uD83D\uDCB0 \u5B98\u5236\u6D88\u8017</div><div style=\"font-size:0.68rem;color:var(--txt-d);\">\u90E8\u95E8:"+td+" \u5B98\u5458:"+to+"</div>"+P.officeConfig.costVariables.map(function(cv){var cost=(cv.perDept||0)*td+(cv.perOfficial||0)*to;var v=GM.vars[cv.variable];var ok=v&&v.value>=cost;return "<div style=\"display:flex;justify-content:space-between;font-size:0.75rem;\"><span>"+cv.variable+"</span><span style=\"color:"+(ok?"var(--txt-s)":"var(--red)")+";\">-"+cost+"/\u56DE</span></div>";}).join("");
+    oc.innerHTML="<div class=\"pt\">\uD83D\uDCB0 \u5B98\u5236\u6D88\u8017</div><div style=\"font-size:0.71rem;color:var(--txt-d);\">\u90E8\u95E8:"+td+" \u5B98\u5458:"+to+"</div>"+P.officeConfig.costVariables.map(function(cv){var cost=(cv.perDept||0)*td+(cv.perOfficial||0)*to;var v=GM.vars[cv.variable];var ok=v&&v.value>=cost;return "<div style=\"display:flex;justify-content:space-between;font-size:0.75rem;\"><span>"+cv.variable+"</span><span style=\"color:"+(ok?"var(--txt-s)":"var(--red)")+";\">-"+cost+"/\u56DE</span></div>";}).join("");
     gl.appendChild(oc);
   }
 
@@ -691,10 +691,10 @@ function renderSidePanels(){
     var _occupiedCount = 0;
     _palaces.forEach(function(p) { if (p.subHalls) p.subHalls.forEach(function(sh) { if (sh.occupants) _occupiedCount += sh.occupants.length; }); });
     var _damaged = _palaces.filter(function(p) { return p.status === 'damaged' || p.status === 'ruined'; }).length;
-    ppd.innerHTML = '<div class="pt" onclick="openPalacePanel()" style="cursor:pointer;">🏯 ' + escHtml(P.palaceSystem.capitalName || '皇城') + ' <span style="font-size:0.65rem;color:var(--txt-d);font-weight:400;">' + _palaces.length + '处</span></div>'
-      + '<div style="font-size:0.68rem;color:var(--txt-d);line-height:1.5;">' + _statItems.join(' · ') + '</div>'
-      + '<div style="font-size:0.68rem;color:var(--txt-s);">居住 ' + _occupiedCount + '人' + (_damaged?' · <span style="color:var(--red);">'+_damaged+'处需修缮</span>':'') + '</div>'
-      + '<div style="font-size:0.6rem;color:var(--gold-d);margin-top:2px;cursor:pointer;" onclick="openPalacePanel()">点击查看详情 →</div>';
+    ppd.innerHTML = '<div class="pt" onclick="openPalacePanel()" style="cursor:pointer;">🏯 ' + escHtml(P.palaceSystem.capitalName || '皇城') + ' <span style="font-size:0.7rem;color:var(--txt-d);font-weight:400;">' + _palaces.length + '处</span></div>'
+      + '<div style="font-size:0.71rem;color:var(--txt-d);line-height:1.5;">' + _statItems.join(' · ') + '</div>'
+      + '<div style="font-size:0.71rem;color:var(--txt-s);">居住 ' + _occupiedCount + '人' + (_damaged?' · <span style="color:var(--red);">'+_damaged+'处需修缮</span>':'') + '</div>'
+      + '<div style="font-size:0.66rem;color:var(--gold-d);margin-top:2px;cursor:pointer;" onclick="openPalacePanel()">点击查看详情 →</div>';
     gl.appendChild(ppd);
   }
 
@@ -733,13 +733,13 @@ function openPalacePanel() {
       html += '<div><span style="font-size:0.95rem;color:' + color + ';font-weight:700;">' + escHtml(pal.name) + '</span>';
       if (pal.status && pal.status !== 'intact') {
         var sMap = { damaged:'损坏', ruined:'荒废', underconstruction:'在建' };
-        html += '<span style="margin-left:6px;font-size:0.68rem;color:var(--red);">[' + (sMap[pal.status] || pal.status) + ']</span>';
+        html += '<span style="margin-left:6px;font-size:0.71rem;color:var(--red);">[' + (sMap[pal.status] || pal.status) + ']</span>';
       }
-      if (pal.location) html += '<span style="margin-left:6px;font-size:0.66rem;color:var(--txt-d);">📍' + escHtml(pal.location) + '</span>';
+      if (pal.location) html += '<span style="margin-left:6px;font-size:0.7rem;color:var(--txt-d);">📍' + escHtml(pal.location) + '</span>';
       html += '</div>';
       html += '<div style="display:flex;gap:2px;">';
-      html += '<button class="bt bsm" style="font-size:0.62rem;" onclick="_palaceAction(' + realIdx + ',\'renovate\')">修缮</button>';
-      html += '<button class="bt bsm" style="font-size:0.62rem;" onclick="_palaceAction(' + realIdx + ',\'reassign\')">移居</button>';
+      html += '<button class="bt bsm" style="font-size:0.68rem;" onclick="_palaceAction(' + realIdx + ',\'renovate\')">修缮</button>';
+      html += '<button class="bt bsm" style="font-size:0.68rem;" onclick="_palaceAction(' + realIdx + ',\'reassign\')">移居</button>';
       html += '</div>';
       html += '</div>';
       if (pal.function) html += '<div style="font-size:0.72rem;color:var(--txt-d);margin-top:2px;">' + escHtml(pal.function) + '</div>';

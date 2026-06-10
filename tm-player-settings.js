@@ -24,7 +24,7 @@ function _renderEvidenceDetails(evidence) {
   h += '</summary>';
   evidence.checks.forEach(function(c){
     var color = c.ok ? 'var(--celadon-400)' : 'var(--vermillion-400)';
-    h += '<div style="margin-top:0.35rem;padding-top:0.35rem;border-top:1px dashed var(--bdr);font-size:0.68rem;line-height:1.55;">';
+    h += '<div style="margin-top:0.35rem;padding-top:0.35rem;border-top:1px dashed var(--bdr);font-size:0.71rem;line-height:1.55;">';
     h += '<span style="color:' + color + ';">' + (c.ok ? '通过' : '失败') + '</span>';
     h += ' · <b>' + escHtml(c.label || c.id || '-') + '</b>';
     h += ' · 权重' + (c.weight || 0);
@@ -137,7 +137,7 @@ function _renderModelProbePanel(tier) {
   h += '\u2713 \u5F53\u524D\u751F\u6548\uFF1A\u4E0A\u4E0B\u6587 <b>' + effCtxK + 'K</b>\u00B7\u8F93\u51FA\u4E0A\u9650 <b>' + (effOutTok ? effOutTok+' tokens' : '\u6A21\u578B\u81EA\u7531') + '</b>';
   if (manualCtx || manualOut) h += ' <span style="color:var(--gold);">(\u624B\u52A8\u8986\u5199)</span>';
   h += '</div>';
-  h += '<div style="margin-top:0.35rem;color:var(--txt-d);font-size:0.68rem;">能力判断优先级：手动覆写 ＞ 实测输出/API探测 ＞ 白名单 ＞ 自报。自报不直接决定生效值。</div>';
+  h += '<div style="margin-top:0.35rem;color:var(--txt-d);font-size:0.71rem;">能力判断优先级：手动覆写 ＞ 实测输出/API探测 ＞ 白名单 ＞ 自报。自报不直接决定生效值。</div>';
   h += '</div>';
   return h;
 }
@@ -241,7 +241,7 @@ async function _showAvailableModels(tier) {
       var star = m.matched ? '<span style="color:var(--gold);">\u2605</span> ' : '';
       html += '<tr style="border-bottom:1px solid rgba(107,93,79,0.1);">';
       html += '<td style="padding:4px 0;"><code style="color:' + (m.matched?'var(--gold)':'var(--txt-s)') + ';">' + star + escHtml(m.id) + '</code>';
-      if (m.ownedBy) html += '<span style="color:var(--ink-300);font-size:0.64rem;"> · ' + escHtml(m.ownedBy) + '</span>';
+      if (m.ownedBy) html += '<span style="color:var(--ink-300);font-size:0.7rem;"> · ' + escHtml(m.ownedBy) + '</span>';
       html += '</td>';
       html += '<td style="text-align:right;padding:4px 0;">' + (m.contextK ? m.contextK+'K' : '-') + '</td>';
       html += '<td style="text-align:right;padding:4px 0;">' + (m.outputK ? m.outputK+'K' : '-') + '</td>';

@@ -302,12 +302,71 @@ window._settingsSwitchTab = function(key) {
   try { localStorage.setItem('tm.settings.activeTab', key); } catch(_){}
 };
 
+// ── 界面显示设置（2026-06-10·治玩家「双端字太小」反馈）─────────────────
+// 字号档：html 根 font-size 缩放。--text-* token 全是 rem → 全局即时生效。
+// 设备本地偏好（localStorage·不进存档）；index.html head 有同 key 的早期应用块。
+window._tmSetUiFontScale = function(v, btn){
+  try { localStorage.setItem('tm.uiFontScale', String(v)); } catch(_){}
+  try { document.documentElement.style.fontSize = (v === 1 ? '' : (16 * v) + 'px'); } catch(_){}
+  if (btn && btn.parentElement) {
+    var sib = btn.parentElement.children;
+    for (var i = 0; i < sib.length; i++) { sib[i].classList.remove('bp'); sib[i].classList.add('bs'); }
+    btn.classList.remove('bs'); btn.classList.add('bp');
+  }
+};
+// 渲染分辨率（fit 虚拟舞台·tm-fixed-fit.js 读同 key）：'auto'=桌面自适应窗口（不开 fit）·
+// 'WxH'=固定舞台整体缩放（APK 必走舞台·默认 1477x831）。CSSOM 归一化不可逆 → 改档整页重载。
+window._tmSetFitResolution = function(btn){
+  var v = btn && btn.getAttribute ? btn.getAttribute('data-res') : String(btn || 'auto');
+  try {
+    if (!v || v === 'auto') localStorage.removeItem('tm.fitResolution');
+    else localStorage.setItem('tm.fitResolution', v);
+  } catch(_){}
+  if (btn && btn.parentElement) {
+    var sib = btn.parentElement.children;
+    for (var i = 0; i < sib.length; i++) { sib[i].classList.remove('bp'); sib[i].classList.add('bs'); }
+    btn.classList.remove('bs'); btn.classList.add('bp');
+  }
+  try { if (typeof toast === 'function') toast('分辨率已保存·即将刷新生效'); } catch(_){}
+  setTimeout(function(){ try { location.reload(); } catch(_){} }, 900);
+};
+
 openSettings=function(){
   var bg=_$("settings-bg");
   bg.innerHTML="<div class=\"settings-box\"><div style=\"padding:0.8rem 1.2rem;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between;\"><div style=\"font-size:1.1rem;font-weight:700;color:var(--gold);\">"+((typeof tmIcon==='function')?tmIcon('settings',18):'')+"\u8BBE\u7F6E</div><button class=\"bt bs bsm\" onclick=\"closeSettings()\">\u2715</button></div><div class=\"settings-body\" id=\"sb2\"></div></div>";
 
   var b=_$("sb2");
   b.innerHTML=
+    // 界面显示（2026-06-10·玩家反馈双端字太小）·字号即时生效·分辨率（fit 舞台）改后重载生效
+    // 出厂默认（owner 二次拍板再调大）：字号 1.2「大」·APK 分辨率 1477×831「标准」——读档 fallback
+    // 须与 index.html early-apply / tm-fixed-fit.js 的默认一致，否则高亮档错位。
+    (function(){
+      var _fs = 1.2; try { _fs = parseFloat(localStorage.getItem('tm.uiFontScale')) || 1.2; } catch(_){}
+      function pill(v, label){
+        var on = Math.abs(_fs - v) < 0.01;
+        return '<button class="bt ' + (on ? 'bp' : 'bs') + ' bsm" onclick="_tmSetUiFontScale(' + v + ',this)" style="flex:1;">' + label + '</button>';
+      }
+      var h = '<div class="settings-section"><h4>界面显示</h4>' +
+        '<div style="font-size:0.78rem;color:var(--txt-d);margin:-0.2rem 0 0.4rem;">界面字号·即时生效·只影响本设备</div>' +
+        '<div style="display:flex;gap:0.3rem;">' + pill(0.9,'小') + pill(1,'标准') + pill(1.2,'大') + pill(1.35,'特大') + '</div>';
+      // 渲染分辨率（fit 虚拟舞台）·APK 必走舞台（默认 1477×831）·桌面/网页默认自适应窗口、
+      // 显式选定分辨率后开固定舞台（选低于窗口的分辨率 = 界面整体放大）
+      var isApk = false; try { isApk = !!(window.TM && TM.platform && TM.platform.kind === 'capacitor'); } catch(_){}
+      var _res = ''; try { _res = localStorage.getItem('tm.fitResolution') || ''; } catch(_){}
+      if (!_res) _res = isApk ? '1477x831' : 'auto';
+      var pillR = function(v, label){
+        var on = _res === v;
+        return '<button class="bt ' + (on ? 'bp' : 'bs') + ' bsm" data-res="' + v + '" onclick="_tmSetFitResolution(this)" style="flex:1;">' + label + '</button>';
+      };
+      if (isApk) {
+        h += '<div style="font-size:0.78rem;color:var(--txt-d);margin:0.6rem 0 0.4rem;">渲染分辨率·越低界面整体越大（字与按钮图像一起放大）·改后自动刷新</div>' +
+          '<div style="display:flex;gap:0.3rem;">' + pillR('1920x1080','精细 1920×1080') + pillR('1477x831','标准 1477×831') + pillR('1280x720','最大 1280×720') + '</div>';
+      } else {
+        h += '<div style="font-size:0.78rem;color:var(--txt-d);margin:0.6rem 0 0.4rem;">渲染分辨率·「自适应」随窗口伸缩；选定分辨率后按固定舞台整体缩放（低于窗口 = 整体放大）·改后自动刷新</div>' +
+          '<div style="display:flex;gap:0.3rem;">' + pillR('auto','自适应窗口') + pillR('1920x1080','1920×1080') + pillR('1600x900','1600×900') + pillR('1366x768','1366×768') + '</div>';
+      }
+      return h + '</div>';
+    })()+
     // API
     "<div class=\"settings-section\"><h4>API\u8FDE\u63A5</h4>"+
     "<div class=\"rw\"><div class=\"fd\"><label>\u670D\u52A1\u5546</label><select id=\"s-prov\"><option value=\"openai\">OpenAI</option><option value=\"deepseek\">DeepSeek</option><option value=\"anthropic\">Claude</option><option value=\"custom\">\u81EA\u5B9A\u4E49</option></select></div><div class=\"fd\"><label>Key</label><input type=\"password\" id=\"s-key\" value=\""+(P.ai.key||"")+"\"></div></div>"+
@@ -332,9 +391,9 @@ openSettings=function(){
       var enabled = !(P.conf && P.conf.secondaryEnabled === false);
       var active = hasKey && enabled;
       var badge;
-      if (active) badge = ' <span style="display:inline-block;padding:0.1rem 0.5rem;border-radius:10px;background:rgba(107,176,124,0.18);color:var(--celadon-400,#6bb07c);font-size:0.64rem;font-weight:700;">\u25CF \u5DF2\u6FC0\u6D3B</span>';
-      else if (hasKey) badge = ' <span style="display:inline-block;padding:0.1rem 0.5rem;border-radius:10px;background:rgba(184,154,83,0.18);color:var(--gold);font-size:0.64rem;font-weight:700;">\u25CB \u5DF2\u914D\u00B7\u672A\u542F\u7528</span>';
-      else badge = ' <span style="display:inline-block;padding:0.1rem 0.5rem;border-radius:10px;background:rgba(120,120,120,0.2);color:var(--txt-d);font-size:0.64rem;">\u25CB \u672A\u914D\u7F6E</span>';
+      if (active) badge = ' <span style="display:inline-block;padding:0.1rem 0.5rem;border-radius:10px;background:rgba(107,176,124,0.18);color:var(--celadon-400,#6bb07c);font-size:0.7rem;font-weight:700;">\u25CF \u5DF2\u6FC0\u6D3B</span>';
+      else if (hasKey) badge = ' <span style="display:inline-block;padding:0.1rem 0.5rem;border-radius:10px;background:rgba(184,154,83,0.18);color:var(--gold);font-size:0.7rem;font-weight:700;">\u25CB \u5DF2\u914D\u00B7\u672A\u542F\u7528</span>';
+      else badge = ' <span style="display:inline-block;padding:0.1rem 0.5rem;border-radius:10px;background:rgba(120,120,120,0.2);color:var(--txt-d);font-size:0.7rem;">\u25CB \u672A\u914D\u7F6E</span>';
       return "<div class=\"settings-section\" style=\"border-left:3px solid #8a5cf5;\"><h4 style=\"color:#a585ff;\">\u6B21\u8981 API\u00B7\u5FEB\u6A21\u578B\u8DEF\u7531" + badge + "</h4>"+
         "<div style=\"font-size:0.72rem;color:var(--txt-d);margin:-0.3rem 0 0.5rem;line-height:1.55;\">\u7528\u4E8E\u95EE\u5BF9\u00B7\u4E09\u79CD\u671D\u8BAE\u00B7\u6587\u4E8B\u52BF\u529B\u5B50\u8C03\u7528\u7B49\u6B21\u8981\u573A\u666F\u3002\u4E3B\u63A8\u6F14\u59CB\u7EC8\u8D70\u4E3B API\u3002</div>"+
         "<div class=\"rw\"><div class=\"fd\"><label>\u670D\u52A1\u5546</label><select id=\"s-sec-prov\"><option value=\"openai\">OpenAI</option><option value=\"deepseek\">DeepSeek</option><option value=\"anthropic\">Claude</option><option value=\"custom\">\u81EA\u5B9A\u4E49</option></select></div><div class=\"fd\"><label>Key</label><input type=\"password\" id=\"s-sec-key\" value=\""+(sec.key||"")+"\" placeholder=\"\u7559\u7A7A\u5219\u56DE\u9000\u4E3B API\"></div></div>"+
@@ -496,10 +555,10 @@ openSettings=function(){
     "<div class=\"settings-section\"><h4>AI\u751F\u6210\u5B57\u6570</h4>"+
     "<div style=\"font-size:0.75rem;color:var(--txt-d);margin-bottom:0.5rem;\">\u63A7\u5236\u5404\u7C7B\u5185\u5BB9\u7684\u751F\u6210\u5B57\u6570\uFF0C\u4F1A\u4E0E\u6A21\u578B\u4E0A\u4E0B\u6587\u7A97\u53E3\u8054\u52A8\u7F29\u653E</div>"+
     "<div style=\"display:flex;gap:0.5rem;margin-bottom:0.6rem;flex-wrap:wrap;\">"+
-    "<label class=\"wd-preset-label\"><input type=\"radio\" name=\"s-verbosity\" value=\"concise\" "+(P.conf.verbosity==='concise'?'checked':'')+"> \u7CBE\u7B80<span style=\"font-size:0.65rem;color:var(--txt-d);display:block;\">\u00D70.6 \u7701token</span></label>"+
-    "<label class=\"wd-preset-label\"><input type=\"radio\" name=\"s-verbosity\" value=\"standard\" "+((P.conf.verbosity||'standard')==='standard'?'checked':'')+"> \u6807\u51C6<span style=\"font-size:0.65rem;color:var(--txt-d);display:block;\">\u00D71.0 \u63A8\u8350</span></label>"+
-    "<label class=\"wd-preset-label\"><input type=\"radio\" name=\"s-verbosity\" value=\"detailed\" "+(P.conf.verbosity==='detailed'?'checked':'')+"> \u8BE6\u5C3D<span style=\"font-size:0.65rem;color:var(--txt-d);display:block;\">\u00D71.5 \u6C89\u6D78</span></label>"+
-    "<label class=\"wd-preset-label\"><input type=\"radio\" name=\"s-verbosity\" value=\"custom\" "+(P.conf.verbosity==='custom'?'checked':'')+"> \u81EA\u5B9A\u4E49<span style=\"font-size:0.65rem;color:var(--txt-d);display:block;\">\u624B\u52A8\u8C03</span></label>"+
+    "<label class=\"wd-preset-label\"><input type=\"radio\" name=\"s-verbosity\" value=\"concise\" "+(P.conf.verbosity==='concise'?'checked':'')+"> \u7CBE\u7B80<span style=\"font-size:0.7rem;color:var(--txt-d);display:block;\">\u00D70.6 \u7701token</span></label>"+
+    "<label class=\"wd-preset-label\"><input type=\"radio\" name=\"s-verbosity\" value=\"standard\" "+((P.conf.verbosity||'standard')==='standard'?'checked':'')+"> \u6807\u51C6<span style=\"font-size:0.7rem;color:var(--txt-d);display:block;\">\u00D71.0 \u63A8\u8350</span></label>"+
+    "<label class=\"wd-preset-label\"><input type=\"radio\" name=\"s-verbosity\" value=\"detailed\" "+(P.conf.verbosity==='detailed'?'checked':'')+"> \u8BE6\u5C3D<span style=\"font-size:0.7rem;color:var(--txt-d);display:block;\">\u00D71.5 \u6C89\u6D78</span></label>"+
+    "<label class=\"wd-preset-label\"><input type=\"radio\" name=\"s-verbosity\" value=\"custom\" "+(P.conf.verbosity==='custom'?'checked':'')+"> \u81EA\u5B9A\u4E49<span style=\"font-size:0.7rem;color:var(--txt-d);display:block;\">\u624B\u52A8\u8C03</span></label>"+
     "</div>"+
     "<div id=\"s-verb-preview\" style=\"background:var(--bg-3);border-radius:6px;padding:0.5rem 0.7rem;font-size:0.78rem;\"></div>"+
     // AI输出上限控件——默认使用检测值，玩家可手动调低
@@ -513,7 +572,7 @@ openSettings=function(){
     "<label><input type=\"radio\" name=\"s-maxout-mode\" value=\"manual\" "+(P.conf.maxOutputTokens?'checked':'')+" onchange=\"_sMaxoutToggle()\"> \u624B\u52A8</label>"+
     "<input type=\"number\" id=\"s-maxout-val\" value=\""+(P.conf.maxOutputTokens||'')+"\" placeholder=\"tokens\" style=\"width:90px;\" "+(!P.conf.maxOutputTokens?'disabled':'')+">"+
     "</div>"+
-    "<div style=\"font-size:0.68rem;color:var(--txt-d);margin-top:0.3rem;line-height:1.4;\">\u81EA\u52A8=\u4F7F\u7528\u68C0\u6D4B\u5230\u7684\u6A21\u578B\u6700\u5927\u8F93\u51FA\u80FD\u529B\u3002\u624B\u52A8\u53EF\u8C03\u4F4E\u8282\u7701\u6210\u672C\u6216\u907F\u514D\u8D85\u65F6\u3002\u82E5AI\u8F93\u51FA\u88AB\u622A\u65AD\uFF0C\u53EF\u5728\u6B64\u8C03\u5927\u3002</div>"+
+    "<div style=\"font-size:0.71rem;color:var(--txt-d);margin-top:0.3rem;line-height:1.4;\">\u81EA\u52A8=\u4F7F\u7528\u68C0\u6D4B\u5230\u7684\u6A21\u578B\u6700\u5927\u8F93\u51FA\u80FD\u529B\u3002\u624B\u52A8\u53EF\u8C03\u4F4E\u8282\u7701\u6210\u672C\u6216\u907F\u514D\u8D85\u65F6\u3002\u82E5AI\u8F93\u51FA\u88AB\u622A\u65AD\uFF0C\u53EF\u5728\u6B64\u8C03\u5927\u3002</div>"+
     "</div>"+
     "<div id=\"s-verb-custom\" style=\"display:none;margin-top:0.5rem;\">"+
     "<div style=\"font-size:0.72rem;color:var(--gold);margin-bottom:0.3rem;\">\u5206\u7C7B\u5FAE\u8C03\uFF08\u4EC5\u201C\u81EA\u5B9A\u4E49\u201D\u6A21\u5F0F\u751F\u6548\uFF09</div>"+
@@ -547,13 +606,13 @@ openSettings=function(){
     "<option value=\"medium\""+((P.conf.modelTier||'auto')==='medium'?' selected':'')+">中级（gpt-4o-mini/haiku）</option>"+
     "<option value=\"low\""+((P.conf.modelTier||'auto')==='low'?' selected':'')+">初级（小型开源·裁 schema）</option>"+
     "</select>"+
-    "<span style=\"font-size:0.68rem;color:var(--txt-d);margin-left:0.5rem;\">手动覆写 schema 裁剪策略</span>"+
+    "<span style=\"font-size:0.71rem;color:var(--txt-d);margin-left:0.5rem;\">手动覆写 schema 裁剪策略</span>"+
     "</div></div>"+
     "<div class=\"rw\" style=\"margin-top:0.4rem;\">"+
     "<div class=\"fd q\"><label>上下文覆写 K</label><input type=\"number\" id=\"s-ctx-override\" min=\"0\" value=\""+(P.conf.contextSizeK||0)+"\" placeholder=\"0=自动\" style=\"width:90px;\"></div>"+
     "<div class=\"fd q\"><label>max_tokens 覆写</label><input type=\"number\" id=\"s-out-override\" min=\"0\" value=\""+(P.conf.maxOutputTokens||0)+"\" placeholder=\"0=自动\" style=\"width:110px;\"></div>"+
     "</div>"+
-    "<div style=\"font-size:0.68rem;color:var(--txt-d);margin-top:0.3rem;line-height:1.5;\">均留空或 0 = 走自动探测。下方【保存所有设置】按钮一并生效。</div>"+
+    "<div style=\"font-size:0.71rem;color:var(--txt-d);margin-top:0.3rem;line-height:1.5;\">均留空或 0 = 走自动探测。下方【保存所有设置】按钮一并生效。</div>"+
     "</div>"+
 
     "<div class=\"settings-section\"><h4>\u6A21\u578B\u80FD\u529B\u6821\u9A8C</h4>"+
@@ -657,7 +716,7 @@ function _sShowCtxInfo() {
   // 最近探测日志
   if (typeof _ctxDetectLog !== 'undefined' && _ctxDetectLog.length > 0) {
     html += '<details style="margin-top:4px;"><summary style="cursor:pointer;color:var(--txt-d);">探测日志 (' + _ctxDetectLog.length + '条)</summary>';
-    html += '<div style="max-height:120px;overflow-y:auto;font-size:0.68rem;padding:4px;background:var(--bg-3);border-radius:4px;margin-top:2px;">';
+    html += '<div style="max-height:120px;overflow-y:auto;font-size:0.71rem;padding:4px;background:var(--bg-3);border-radius:4px;margin-top:2px;">';
     _ctxDetectLog.forEach(function(e) { html += '<div>' + e.time + ' ' + e.msg + '</div>'; });
     html += '</div></details>';
   }

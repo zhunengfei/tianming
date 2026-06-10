@@ -291,12 +291,12 @@ function _fmtEvt(e){
   var credHtml='';
   if (e.credibility && _CRED_META[e.credibility]) {
     var cm = _CRED_META[e.credibility];
-    credHtml = ' <span style="font-size:0.62rem;color:'+cm.color+';border:1px solid '+cm.color+';padding:0 3px;border-radius:2px;margin-left:2px;">'+cm.label+'</span>';
+    credHtml = ' <span style="font-size:0.68rem;color:'+cm.color+';border:1px solid '+cm.color+';padding:0 3px;border-radius:2px;margin-left:2px;">'+cm.label+'</span>';
   }
   return "<div style=\"padding:0.3rem 0;font-size:0.78rem;border-bottom:1px solid rgba(42,42,62,0.3);\">"+
     "<span style=\"margin-right:3px;\">"+icon+"</span>"+
     "<span class=\"tg\">"+escHtml(e.type)+"</span>"+credHtml+" "+escHtml(e.text)+
-    " <span style=\"color:var(--txt-d);font-size:0.65rem;\">"+escHtml(e.time||'')+"</span></div>";
+    " <span style=\"color:var(--txt-d);font-size:0.7rem;\">"+escHtml(e.time||'')+"</span></div>";
 }
 
 // 风闻录事（原"大事记"）
@@ -366,6 +366,7 @@ function switchGTab(btn,panelId){
     setTimeout(function(){ try { renderWenyuan(); } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'Wenyuan') : console.error('[Wenyuan]', e); } }, 30);
   }
   // 性能·纪录类面板原由 renderGameState 尾部无条件重渲（即便隐藏）·改为切到该页时才强制渲染（force=true）
+  if(panelId==='gt-wendui' && typeof renderWenduiChars==='function'){ try{ renderWenduiChars(true); }catch(e){ (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e,'WenduiChars') : console.warn('[WenduiChars]',e); } }
   if(panelId==='gt-memorial' && typeof renderMemorials==='function'){ try{ renderMemorials(true); }catch(e){ (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e,'Memorial') : console.warn('[Memorial]',e); } }
   if(panelId==='gt-biannian' && typeof renderBiannian==='function'){ try{ renderBiannian(true); }catch(e){ (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e,'Biannian') : console.warn('[Biannian]',e); } }
   if(panelId==='gt-shiji' && typeof renderShijiList==='function'){ try{ renderShijiList(true); }catch(e){ (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e,'ShijiList') : console.warn('[ShijiList]',e); } }
@@ -924,7 +925,7 @@ function _renderDifangPanel(force) {
     // 持爵者/宗主（非直辖）
     if (!_isDirect && item.autonomy.holder) {
       var holderLbl = t === 'fanguo' ? (item.autonomy.subtype === 'real' ? '\u5B9E\u5C01\u85E9\u738B' : '\u865A\u5C01\u85E9\u738B') : t === 'jimi' ? '\u571F\u53F8' : t === 'fanzhen' ? '\u8282\u5EA6\u4F7F' : t === 'chaogong' ? '\u5916\u85E9\u738B' : '';
-      html += '<div style="font-size:10.5px;color:var(--auton-c);font-family:var(--font-serif);letter-spacing:0.08em;">' + holderLbl + '\uFF1A' + escHtml(item.autonomy.holder);
+      html += '<div style="font-size:11.5px;color:var(--auton-c);font-family:var(--font-serif);letter-spacing:0.08em;">' + holderLbl + '\uFF1A' + escHtml(item.autonomy.holder);
       if (item.autonomy.loyalty !== undefined) html += ' \u00B7 \u5FE0 ' + item.autonomy.loyalty;
       if (item.autonomy.tributeRate) html += ' \u00B7 \u8D21\u7387 ' + Math.round(item.autonomy.tributeRate*100) + '%';
       html += '</div>';
@@ -1072,8 +1073,8 @@ function _renderDifangPanel(force) {
 /** 数据条辅助·兼容旧调用 */
 function _dfBar(label, val, color, trend) {
   var v = Math.round(val||0);
-  var tStr = trend ? '<span style="font-size:0.55rem;color:' + (trend==='\u2191'?'var(--vermillion-400)':'var(--celadon-400)') + ';">' + trend + '</span>' : '';
-  return '<div style="display:flex;align-items:center;gap:3px;margin-top:2px;font-size:0.6rem;">'
+  var tStr = trend ? '<span style="font-size:0.62rem;color:' + (trend==='\u2191'?'var(--vermillion-400)':'var(--celadon-400)') + ';">' + trend + '</span>' : '';
+  return '<div style="display:flex;align-items:center;gap:3px;margin-top:2px;font-size:0.66rem;">'
     + '<span style="width:24px;color:var(--color-foreground-muted);">' + label + '</span>'
     + '<div style="flex:1;height:3px;background:var(--color-border-subtle);border-radius:2px;overflow:hidden;"><div style="height:100%;width:' + Math.min(100,v) + '%;background:' + color + ';border-radius:2px;"></div></div>'
     + '<span style="width:20px;text-align:right;color:var(--color-foreground-muted);">' + v + '</span>' + tStr
@@ -1120,10 +1121,10 @@ function _edictLiveForecast(textareaId) {
       html += ' · ' + escHtml(formatLifecycleForScript(etype));
     }
     html += '</div>';
-    if (t.phased) html += '<div style="color:var(--amber-400);font-size:0.68rem;">※ 改革类——分试点→推广→反扑→定局 5 阶段</div>';
+    if (t.phased) html += '<div style="color:var(--amber-400);font-size:0.71rem;">※ 改革类——分试点→推广→反扑→定局 5 阶段</div>';
     if (t.resistance) {
       var resLines = Object.keys(t.resistance).map(function(cls) { return cls + '('+t.resistance[cls]+')'; });
-      if (resLines.length) html += '<div style="color:var(--vermillion-400);font-size:0.68rem;">阻力：' + escHtml(resLines.join(' / ')) + '</div>';
+      if (resLines.length) html += '<div style="color:var(--vermillion-400);font-size:0.71rem;">阻力：' + escHtml(resLines.join(' / ')) + '</div>';
     }
     if (t.affectedClasses) {
       var winners = [], losers = [];
@@ -1133,7 +1134,7 @@ function _edictLiveForecast(textareaId) {
         if (v < 0) losers.push(cls+v);
       });
       if (winners.length || losers.length) {
-        html += '<div style="font-size:0.68rem;">';
+        html += '<div style="font-size:0.71rem;">';
         if (winners.length) html += '<span style="color:var(--celadon-400);">受益：' + escHtml(winners.join('、')) + '</span>';
         if (winners.length && losers.length) html += ' · ';
         if (losers.length) html += '<span style="color:var(--vermillion-400);">受损：' + escHtml(losers.join('、')) + '</span>';
@@ -1146,9 +1147,9 @@ function _edictLiveForecast(textareaId) {
         peasant_revolt: '⚠ 风险：加赋过急可能引发民变',
         elite_backlash: '⚠ 风险：精英阶层反扑，反改革潮'
       };
-      if (riskMap[t.unintendedRisk]) html += '<div style="color:var(--amber-400);font-size:0.68rem;">' + riskMap[t.unintendedRisk] + '</div>';
+      if (riskMap[t.unintendedRisk]) html += '<div style="color:var(--amber-400);font-size:0.71rem;">' + riskMap[t.unintendedRisk] + '</div>';
     }
-    if (t.historyPaths && t.historyPaths.length) html += '<div style="color:var(--ink-300);font-size:0.65rem;">典范：' + escHtml(t.historyPaths.slice(0,3).join('、')) + '</div>';
+    if (t.historyPaths && t.historyPaths.length) html += '<div style="color:var(--ink-300);font-size:0.7rem;">典范：' + escHtml(t.historyPaths.slice(0,3).join('、')) + '</div>';
     fcEl.innerHTML = html;
     fcEl.style.display = 'block';
   }, 500); // 500ms 防抖
@@ -1177,7 +1178,7 @@ function _dfBuildModal(divName) {
     html += '<div style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:0.3rem;">';
     types.forEach(function(b, i) {
       html += '<div style="padding:0.5rem;background:var(--bg-2);border-left:3px solid var(--gold-d);border-radius:6px;cursor:pointer;" onclick="_dfSubmitBuild(&quot;' + encodeURIComponent(divName) + '&quot;,' + i + ',null)">';
-      html += '<div style="font-size:0.85rem;color:var(--gold);font-weight:700;">' + escHtml(b.name) + ' <span style="font-size:0.66rem;color:var(--txt-d);">[' + escHtml(b.category || '') + '] \u6700\u9AD8Lv' + (b.maxLevel||5) + ' \u57FA\u672C\u8D39' + (b.baseCost||0) + '\u4E24 \u5DE5\u671F' + (b.buildTime||3) + '\u56DE\u5408</span></div>';
+      html += '<div style="font-size:0.85rem;color:var(--gold);font-weight:700;">' + escHtml(b.name) + ' <span style="font-size:0.7rem;color:var(--txt-d);">[' + escHtml(b.category || '') + '] \u6700\u9AD8Lv' + (b.maxLevel||5) + ' \u57FA\u672C\u8D39' + (b.baseCost||0) + '\u4E24 \u5DE5\u671F' + (b.buildTime||3) + '\u56DE\u5408</span></div>';
       if (b.description) html += '<div style="font-size:0.72rem;color:var(--txt-d);line-height:1.5;margin-top:0.2rem;">' + escHtml(b.description.substring(0, 180)) + (b.description.length>180?'\u2026':'') + '</div>';
       html += '</div>';
     });
@@ -1342,7 +1343,7 @@ function renderLeftPanel(){
       var _gDiv = document.createElement('div');
       _gDiv.style.cssText = 'margin-bottom:0.6rem;padding:8px;background:linear-gradient(135deg,rgba(201,169,110,0.12),rgba(201,169,110,0.04));border:1px solid var(--gold-d);border-radius:6px;position:relative;font-size:0.7rem;';
       _gDiv.innerHTML = '<span style="color:var(--gold);font-weight:700;">\u{1F4D6} ' + _gm.t + '</span> <span style="color:var(--txt-d);">(' + GM.turn + '/3)</span><br><span style="color:var(--txt-s);line-height:1.5;">' + _gm.h.split('·').map(function(s){return '\u2022'+s;}).join(' ') + '</span>'
-        + '<button onclick="this.parentElement.remove();" style="position:absolute;top:4px;right:6px;background:none;border:none;color:var(--txt-d);cursor:pointer;font-size:0.65rem;">\u2715</button>';
+        + '<button onclick="this.parentElement.remove();" style="position:absolute;top:4px;right:6px;background:none;border:none;color:var(--txt-d);cursor:pointer;font-size:0.7rem;">\u2715</button>';
       gl.appendChild(_gDiv);
     }
   }
@@ -1367,7 +1368,7 @@ function renderLeftPanel(){
     }
   }
   ti.innerHTML="<div style=\"font-size:1.4rem;font-weight:700;color:var(--gold);\">" + _tsMain + "</div>"
-    + (_tsExtra ? "<div style=\"font-size:0.68rem;color:var(--txt-d);margin-top:2px;\">" + _tsExtra + "</div>" : "")
+    + (_tsExtra ? "<div style=\"font-size:0.71rem;color:var(--txt-d);margin-top:2px;\">" + _tsExtra + "</div>" : "")
     + "<div style=\"font-size:0.72rem;color:var(--txt-d);\">" + (typeof getTSText==='function'?getTSText(GM.turn):'') + "</div>";
   gl.appendChild(ti);
   // 顶栏年号/时代指示（兼容旧/新结构）
@@ -1444,18 +1445,18 @@ function renderLeftPanel(){
     var _stability=Math.round((_es.socialStability||0.5)*100);
     var _economy=Math.round((_es.economicProsperity||0.5)*100);
     var _central=Math.round((_es.centralControl||0.5)*100);
-    phDiv.innerHTML+=' <span style="font-size:0.68rem;color:var(--txt-d);">\u7A33'+_stability+'% \u7ECF'+_economy+'% \u6743'+_central+'%</span>';
+    phDiv.innerHTML+=' <span style="font-size:0.71rem;color:var(--txt-d);">\u7A33'+_stability+'% \u7ECF'+_economy+'% \u6743'+_central+'%</span>';
     // 可展开的详细参数
     var _unity=Math.round((_es.politicalUnity||0.5)*100);
     var _culture=Math.round((_es.culturalVibrancy||0.5)*100);
     var _bureau=Math.round((_es.bureaucracyStrength||0.5)*100);
     var _mil=Math.round((_es.militaryProfessionalism||0.5)*100);
-    phDiv.innerHTML+='<div style="font-size:0.6rem;color:var(--txt-d);margin-top:2px;">\u7EDF\u4E00'+_unity+'% \u6587\u5316'+_culture+'% \u5B98\u50DA'+_bureau+'% \u519B\u4E13'+_mil+'%</div>';
+    phDiv.innerHTML+='<div style="font-size:0.66rem;color:var(--txt-d);margin-top:2px;">\u7EDF\u4E00'+_unity+'% \u6587\u5316'+_culture+'% \u5B98\u50DA'+_bureau+'% \u519B\u4E13'+_mil+'%</div>';
     gl.appendChild(phDiv);
     // 1.8: 时代双进度条
     if (GM.eraProgress) {
       var _epDiv = document.createElement("div");
-      _epDiv.style.cssText = "margin-bottom:0.4rem;padding:0.3rem 0.5rem;background:var(--bg-2);border-radius:6px;font-size:0.65rem;";
+      _epDiv.style.cssText = "margin-bottom:0.4rem;padding:0.3rem 0.5rem;background:var(--bg-2);border-radius:6px;font-size:0.7rem;";
       var _colPct = Math.min(100, Math.round(GM.eraProgress.collapse));
       var _resPct = Math.min(100, Math.round(GM.eraProgress.restoration));
       _epDiv.innerHTML = '<div style="display:flex;justify-content:space-between;margin-bottom:2px;"><span style="color:var(--vermillion-400);">\u8870\u9000 ' + _colPct + '</span><span style="color:var(--celadon-400);">\u4E2D\u5174 ' + _resPct + '</span></div>'
@@ -1539,7 +1540,7 @@ function renderLeftPanel(){
     var _pvColor = 'var(--celadon-400)';
     treasuryDiv.innerHTML = '<div style="display:flex;justify-content:space-between;margin-bottom:0.2rem;"><span>'+tmIcon('treasury',12)+' 国库</span><span class="stat-number" style="color:'+_stColor+';">'+Math.round(_stVal).toLocaleString()+'</span></div>'
       + '<div style="display:flex;justify-content:space-between;"><span>'+tmIcon('treasury',12)+' 内库</span><span class="stat-number" style="color:'+_pvColor+';">'+Math.round(_pvVal).toLocaleString()+'</span></div>'
-      + ((GM._bankruptcyTurns||0) > 0 ? '<div style="color:var(--vermillion-400);font-size:0.65rem;margin-top:0.2rem;">〔财政危机第'+(GM._bankruptcyTurns)+'回合〕</div>' : '');
+      + ((GM._bankruptcyTurns||0) > 0 ? '<div style="color:var(--vermillion-400);font-size:0.7rem;margin-top:0.2rem;">〔财政危机第'+(GM._bankruptcyTurns)+'回合〕</div>' : '');
     gl.appendChild(treasuryDiv);
   }
 
@@ -1548,7 +1549,7 @@ function renderLeftPanel(){
     var _lastLedger = AccountingSystem.getLedger();
     if (_lastLedger && (_lastLedger.totalIncome > 0 || _lastLedger.totalExpense > 0)) {
       var _fcDiv = document.createElement("div");
-      _fcDiv.style.cssText = "font-size:0.68rem;color:var(--txt-d);padding:2px 0.5rem;margin-bottom:0.3rem;";
+      _fcDiv.style.cssText = "font-size:0.71rem;color:var(--txt-d);padding:2px 0.5rem;margin-bottom:0.3rem;";
       var _fcNet = _lastLedger.netChange;
       _fcDiv.innerHTML = '\u9884\u4F30\u4E0B\u56DE\u5408\uFF1A<span style="color:' + (_fcNet >= 0 ? 'var(--celadon-400)' : 'var(--vermillion-400)') + ';">' + (_fcNet >= 0 ? '+' : '') + _fcNet.toFixed(0) + '</span>';
       gl.appendChild(_fcDiv);
@@ -1683,7 +1684,7 @@ function renderLeftPanel(){
   if (_hints.length > 0) {
     var hintDiv = document.createElement('div');
     hintDiv.style.cssText = 'margin-top:0.5rem;padding:0.4rem;background:rgba(201,169,110,0.08);border-radius:6px;border:1px dashed var(--gold-d);';
-    hintDiv.innerHTML = '<div style="font-size:0.65rem;color:var(--gold);margin-bottom:2px;">\u63D0\u793A</div>' + _hints.map(function(h){ return '<div style="font-size:0.68rem;color:var(--txt-d);line-height:1.5;">\u00B7 ' + h + '</div>'; }).join('');
+    hintDiv.innerHTML = '<div style="font-size:0.7rem;color:var(--gold);margin-bottom:2px;">\u63D0\u793A</div>' + _hints.map(function(h){ return '<div style="font-size:0.71rem;color:var(--txt-d);line-height:1.5;">\u00B7 ' + h + '</div>'; }).join('');
     gl.appendChild(hintDiv);
   }
 
@@ -2086,19 +2087,19 @@ function openCharDetail(charName) {
   }
   h += '<div class="qp-location-line">';
   if (ch.location) {
-    h += '<span class="rwp-mini-tag loc" style="font-size:9px;">'+escHtml(ch.location)+'</span>';
-    if (ch._travelTo) h += '<span class="rwp-mini-tag travel" style="font-size:9px;">→'+escHtml(ch._travelTo)+'</span>';
+    h += '<span class="rwp-mini-tag loc" style="font-size:10px;">'+escHtml(ch.location)+'</span>';
+    if (ch._travelTo) h += '<span class="rwp-mini-tag travel" style="font-size:10px;">→'+escHtml(ch._travelTo)+'</span>';
   }
-  if (ch.faction) h += '<span class="rwp-mini-tag fac" style="font-size:9px;">'+escHtml(ch.faction)+(ch.party?' · '+escHtml(ch.party):'')+'</span>';
+  if (ch.faction) h += '<span class="rwp-mini-tag fac" style="font-size:10px;">'+escHtml(ch.faction)+(ch.party?' · '+escHtml(ch.party):'')+'</span>';
   // 2026-05-21·入狱/流放/逃亡 mini-tag
   if (ch._imprisoned || ch.imprisoned) {
     var _heldQp = Math.max(0, (GM.turn||0) - (ch._imprisonedTurn||0));
     // 体魄沿用 ch.health (char-economy-engine 维护)
     var _hpQp = (typeof ch.health === 'number') ? Math.round(ch.health) : 80;
-    h += '<span class="rwp-mini-tag imprison" style="font-size:9px;background:rgba(184,71,56,0.25);color:#e07a5f;" title="'+escHtml(ch._imprisonReason||'下狱')+'">诏狱·'+_heldQp+'月·体'+_hpQp+'</span>';
+    h += '<span class="rwp-mini-tag imprison" style="font-size:10px;background:rgba(184,71,56,0.25);color:#e07a5f;" title="'+escHtml(ch._imprisonReason||'下狱')+'">诏狱·'+_heldQp+'月·体'+_hpQp+'</span>';
   }
-  if (ch._exiled || ch.exiled) h += '<span class="rwp-mini-tag exile" style="font-size:9px;background:rgba(168,108,90,0.25);color:#c9a565;" title="'+escHtml(ch._exileReason||'流放')+'">流放</span>';
-  if (ch._fled || ch._missing) h += '<span class="rwp-mini-tag fled" style="font-size:9px;background:rgba(138,122,94,0.25);color:#a08858;">逃亡</span>';
+  if (ch._exiled || ch.exiled) h += '<span class="rwp-mini-tag exile" style="font-size:10px;background:rgba(168,108,90,0.25);color:#c9a565;" title="'+escHtml(ch._exileReason||'流放')+'">流放</span>';
+  if (ch._fled || ch._missing) h += '<span class="rwp-mini-tag fled" style="font-size:10px;background:rgba(138,122,94,0.25);color:#a08858;">逃亡</span>';
   h += '</div>';
   h += '</div>';
   h += '<button class="qp-close" onclick="document.getElementById(\'_charDetailOv\').classList.remove(\'open\')">×</button>';
@@ -2118,10 +2119,10 @@ function openCharDetail(charName) {
   var sCls = stress>=70?'crit':stress>=40?'warn':'';
   h += '<div class="qp-sec"><div class="qp-sec-title">品 行 状 态</div>';
   h += '<div class="rwp-stats-row" style="gap:6px;">';
-  h += '<div class="rwp-stat-card" style="padding:6px 4px;"><div class="rwp-stat-card-label" style="font-size:9px;">名望</div><div class="rwp-fame-seal '+fameS.cls+'" style="font-size:10px;padding:2px 6px;">'+fameS.label+'</div></div>';
-  h += '<div class="rwp-stat-card rwp-xian-card" style="padding:6px 4px;"><div class="rwp-stat-card-label" style="font-size:9px;">贤能</div><div class="rwp-stat-card-value" style="font-size:16px;">'+Math.round(virtue)+'</div><div class="rwp-xian-tier" style="font-size:8px;">'+xianTier+'</div></div>';
-  h += '<div class="rwp-stat-card rwp-health-card '+hCls+'" style="padding:6px 4px;"><div class="rwp-stat-card-label" style="font-size:9px;">健</div><div class="rwp-stat-card-value" style="font-size:16px;">'+health+'</div></div>';
-  h += '<div class="rwp-stat-card rwp-health-card '+sCls+'" style="padding:6px 4px;"><div class="rwp-stat-card-label" style="font-size:9px;">压</div><div class="rwp-stat-card-value" style="font-size:16px;">'+stress+'</div></div>';
+  h += '<div class="rwp-stat-card" style="padding:6px 4px;"><div class="rwp-stat-card-label" style="font-size:10px;">名望</div><div class="rwp-fame-seal '+fameS.cls+'" style="font-size:11px;padding:2px 6px;">'+fameS.label+'</div></div>';
+  h += '<div class="rwp-stat-card rwp-xian-card" style="padding:6px 4px;"><div class="rwp-stat-card-label" style="font-size:10px;">贤能</div><div class="rwp-stat-card-value" style="font-size:16px;">'+Math.round(virtue)+'</div><div class="rwp-xian-tier" style="font-size:9px;">'+xianTier+'</div></div>';
+  h += '<div class="rwp-stat-card rwp-health-card '+hCls+'" style="padding:6px 4px;"><div class="rwp-stat-card-label" style="font-size:10px;">健</div><div class="rwp-stat-card-value" style="font-size:16px;">'+health+'</div></div>';
+  h += '<div class="rwp-stat-card rwp-health-card '+sCls+'" style="padding:6px 4px;"><div class="rwp-stat-card-label" style="font-size:10px;">压</div><div class="rwp-stat-card-value" style="font-size:16px;">'+stress+'</div></div>';
   h += '</div></div>';
 
   // 公库·私产（压缩）
@@ -2134,11 +2135,11 @@ function openCharDetail(charName) {
   var prGrain = priv.grain || 0;
   var prCloth = priv.cloth || 0;
   h += '<div style="padding:6px 8px;background:rgba(0,0,0,0.25);border-radius:3px;">';
-  h += '<div style="font-size:9px;color:var(--gold-400);letter-spacing:0.2em;text-align:center;margin-bottom:3px;">公 库</div>';
-  h += '<div style="font-size:10px;line-height:1.7;">钱 '+_fmtShort(pubMoney)+' · 粮 '+_fmtShort(pubGrain)+' · 布 '+_fmtShort(pubCloth)+'</div></div>';
+  h += '<div style="font-size:10px;color:var(--gold-400);letter-spacing:0.2em;text-align:center;margin-bottom:3px;">公 库</div>';
+  h += '<div style="font-size:11px;line-height:1.7;">钱 '+_fmtShort(pubMoney)+' · 粮 '+_fmtShort(pubGrain)+' · 布 '+_fmtShort(pubCloth)+'</div></div>';
   h += '<div style="padding:6px 8px;background:rgba(0,0,0,0.25);border-radius:3px;">';
-  h += '<div style="font-size:9px;color:var(--gold-400);letter-spacing:0.2em;text-align:center;margin-bottom:3px;">私 产</div>';
-  h += '<div style="font-size:10px;line-height:1.7;"><span'+(prMoney<0?' style="color:var(--vermillion-300);"':'')+'>钱 '+(prMoney<0?'-':'')+_fmtShort(Math.abs(prMoney))+'</span> · 粮 '+_fmtShort(prGrain)+' · 布 '+_fmtShort(prCloth)+'</div></div>';
+  h += '<div style="font-size:10px;color:var(--gold-400);letter-spacing:0.2em;text-align:center;margin-bottom:3px;">私 产</div>';
+  h += '<div style="font-size:11px;line-height:1.7;"><span'+(prMoney<0?' style="color:var(--vermillion-300);"':'')+'>钱 '+(prMoney<0?'-':'')+_fmtShort(Math.abs(prMoney))+'</span> · 粮 '+_fmtShort(prGrain)+' · 布 '+_fmtShort(prCloth)+'</div></div>';
   h += '</div></div>';
 
   // 能力八才（紧凑 2x4）
@@ -2148,9 +2149,9 @@ function openCharDetail(charName) {
   var rkShort = {excel:'优',good:'良','':'寻',poor:'逊'};
   radar.abilities.forEach(function(a) {
     var rk = _rwpAbilityRank(a.val);
-    h += '<div class="rwp-ability-cell '+rk+'" style="padding:4px 8px;"><span class="rwp-ability-cell-name" style="font-size:11px;">'+abLabels[a.key]+'</span>';
+    h += '<div class="rwp-ability-cell '+rk+'" style="padding:4px 8px;"><span class="rwp-ability-cell-name" style="font-size:12px;">'+abLabels[a.key]+'</span>';
     h += '<div class="rwp-ability-cell-right"><span class="rwp-ability-cell-value" style="font-size:14px;">'+a.val+'</span>';
-    h += '<span class="rwp-ability-cell-rank" style="font-size:9px;">'+rkShort[rk]+'</span></div></div>';
+    h += '<span class="rwp-ability-cell-rank" style="font-size:10px;">'+rkShort[rk]+'</span></div></div>';
   });
   h += '</div></div>';
 
@@ -2163,7 +2164,7 @@ function openCharDetail(charName) {
       h += '<div class="rwp-stat" style="padding:4px;"><div class="rwp-stat-label">'+k+'</div><div class="rwp-stat-value" style="font-size:12px;">'+(wc[k]||0)+'</div></div>';
     });
     h += '</div>';
-    if (wc.气质) h += '<div style="font-size:10px;color:var(--gold-400);text-align:center;margin-top:4px;letter-spacing:0.2em;">气质 · '+wc.气质+'</div>';
+    if (wc.气质) h += '<div style="font-size:11px;color:var(--gold-400);text-align:center;margin-top:4px;letter-spacing:0.2em;">气质 · '+wc.气质+'</div>';
     h += '</div>';
   }
 
@@ -2189,14 +2190,14 @@ function openCharDetail(charName) {
         if (d && d.dims && d.dims.boldness > 0.2) cls = 'valor';
         else if (d && d.dims && d.dims.compassion > 0.2) cls = 'heart';
         else if (d && d.dims && d.dims.rationality > 0.2) cls = 'mind';
-        h += '<span class="rwp-trait-tag '+cls+'" style="font-size:10px;padding:2px 8px;">'+escHtml(_name)+'</span>';
+        h += '<span class="rwp-trait-tag '+cls+'" style="font-size:11px;padding:2px 8px;">'+escHtml(_name)+'</span>';
       });
       h += '</div>';
     }
     if (mood && mood !== '平') {
       var mCls = _rwpMoodCls(mood);
       var mTxt = {'喜':'心境欣然','怒':'怒气未消','忧':'心事深重','惧':'惶恐难安','恨':'怨恨难消','敬':'心怀感念'}[mood] || mood;
-      h += '<div style="margin-top:6px;"><span class="rwp-mood-chip '+mCls+'" style="font-size:11px;padding:3px 10px;">〔'+mood+'〕'+mTxt+'</span></div>';
+      h += '<div style="margin-top:6px;"><span class="rwp-mood-chip '+mCls+'" style="font-size:12px;padding:3px 10px;">〔'+mood+'〕'+mTxt+'</span></div>';
     }
     h += '</div>';
   }
@@ -2207,7 +2208,7 @@ function openCharDetail(charName) {
       var _yAttr = _kjYanguanResolveAttribution(ch);
       if (_yAttr && _yAttr.isYanguan && _yAttr.mentor) {
         h += '<div class="qp-sec"><div class="qp-sec-title">出 身</div>';
-        h += '<div style="padding:6px 10px;font-size:11px;line-height:1.7;background:rgba(0,0,0,0.22);border-left:2px solid var(--gold-500);border-radius:0 3px 3px 0;">';
+        h += '<div style="padding:6px 10px;font-size:12px;line-height:1.7;background:rgba(0,0,0,0.22);border-left:2px solid var(--gold-500);border-radius:0 3px 3px 0;">';
         h += '<div>' + (_yAttr.cohortYear ? _yAttr.cohortYear + '年' : '') + '进士</div>';
         h += '<div>门生·' + escHtml(_yAttr.mentor) + (_yAttr.mentorAlive ? '' : ' (已逝)') + '·强度 ' + _yAttr.discipleStrength + '</div>';
         if (_yAttr.mentorParty) h += '<div style="color:var(--gold-400);">清议倾向·' + escHtml(_yAttr.mentorParty) + ' (恩师党)</div>';
@@ -2219,20 +2220,20 @@ function openCharDetail(charName) {
   // 外貌 / 生平（省略号）
   if (ch.appearance) {
     h += '<div class="qp-sec"><div class="qp-sec-title">外 貌</div>';
-    h += '<div class="rwp-prose italic" style="font-size:11px;padding:6px 10px;line-height:1.6;text-indent:0;">'+escHtml(ch.appearance)+'</div></div>';
+    h += '<div class="rwp-prose italic" style="font-size:12px;padding:6px 10px;line-height:1.6;text-indent:0;">'+escHtml(ch.appearance)+'</div></div>';
   }
   if (ch.bio) {
     h += '<div class="qp-sec"><div class="qp-sec-title">生 平</div>';
-    h += '<div class="rwp-prose" style="font-size:11px;padding:6px 10px;line-height:1.6;text-indent:0;">'+escHtml(ch.bio.length>160?ch.bio.slice(0,160)+'……':ch.bio)+'</div></div>';
+    h += '<div class="rwp-prose" style="font-size:12px;padding:6px 10px;line-height:1.6;text-indent:0;">'+escHtml(ch.bio.length>160?ch.bio.slice(0,160)+'……':ch.bio)+'</div></div>';
   }
 
   // 近五记忆
   if (ch._memory && ch._memory.length > 0) {
     h += '<div class="qp-sec"><div class="qp-sec-title">近 五 记 忆</div>';
-    h += '<div style="font-size:11px;">';
+    h += '<div style="font-size:12px;">';
     ch._memory.slice(-5).reverse().forEach(function(m) {
       var mc = _rwpMoodCls(m.emotion);
-      h += '<div class="rwp-mem '+mc+'" style="padding:3px 0 3px 10px;font-size:10px;"><span class="rwp-mem-mood '+mc+'">〔'+m.emotion+'〕</span>'+escHtml((m.event||'').slice(0,36));
+      h += '<div class="rwp-mem '+mc+'" style="padding:3px 0 3px 10px;font-size:11px;"><span class="rwp-mem-mood '+mc+'">〔'+m.emotion+'〕</span>'+escHtml((m.event||'').slice(0,36));
       if (m.who) h += '<span class="rwp-mem-who">('+escHtml(m.who)+')</span>';
       h += '</div>';
     });
@@ -2244,9 +2245,9 @@ function openCharDetail(charName) {
     var gsat = ch._goalSatisfaction !== undefined ? Math.round(ch._goalSatisfaction) : 0;
     var gpc = gsat>=60?'var(--celadon-300)':gsat>=30?'var(--gold-300)':'var(--vermillion-300)';
     h += '<div class="qp-sec"><div class="qp-sec-title">个 人 志 向</div>';
-    h += '<div style="padding:8px 10px;background:rgba(0,0,0,0.22);border-left:2px solid var(--gold-500);border-radius:0 3px 3px 0;font-size:11px;line-height:1.6;">';
+    h += '<div style="padding:8px 10px;background:rgba(0,0,0,0.22);border-left:2px solid var(--gold-500);border-radius:0 3px 3px 0;font-size:12px;line-height:1.6;">';
     h += escHtml(ch.personalGoal);
-    h += '<div style="margin-top:4px;font-size:10px;"><span style="color:#d4be7a;">满足度</span> <span style="color:'+gpc+';font-weight:600;">'+gsat+'%</span></div>';
+    h += '<div style="margin-top:4px;font-size:11px;"><span style="color:#d4be7a;">满足度</span> <span style="color:'+gpc+';font-weight:600;">'+gsat+'%</span></div>';
     h += '</div></div>';
   }
 
@@ -2589,9 +2590,9 @@ function openCharRenwuPage(charName) {
       h += '<div class="rwp-stat"><div class="rwp-stat-label">'+k+'</div><div class="rwp-stat-value">'+(wc[k]||0)+'</div></div>';
     });
     h += '</div>';
-    if (wc.气质) h += '<div style="text-align:center;font-size:11px;color:var(--gold-400);margin-top:6px;letter-spacing:0.2em;">气 质：'+wc.气质+'</div>';
+    if (wc.气质) h += '<div style="text-align:center;font-size:12px;color:var(--gold-400);margin-top:6px;letter-spacing:0.2em;">气 质：'+wc.气质+'</div>';
   } else {
-    h += '<div style="color:#d4be7a;font-size:11px;">五 常 未 启</div>';
+    h += '<div style="color:#d4be7a;font-size:12px;">五 常 未 启</div>';
   }
   h += '</div>';
   h += '<div class="rwp-sec" style="margin-bottom:0;"><div class="rwp-sec-title">性 格 特 质</div>';
@@ -2614,9 +2615,9 @@ function openCharRenwuPage(charName) {
     });
     h += '</div>';
   } else {
-    h += '<div style="color:#d4be7a;font-size:11px;">特 质 未 录</div>';
+    h += '<div style="color:#d4be7a;font-size:12px;">特 质 未 录</div>';
   }
-  if (ch.personality) h += '<div style="font-size:11px;color:var(--ink-300);margin-top:6px;line-height:1.6;font-style:italic;">'+escHtml(ch.personality)+'</div>';
+  if (ch.personality) h += '<div style="font-size:12px;color:var(--ink-300);margin-top:6px;line-height:1.6;font-style:italic;">'+escHtml(ch.personality)+'</div>';
   h += '</div>';
   h += '</div>';
 
@@ -2735,7 +2736,7 @@ function openCharRenwuPage(charName) {
       _inlawList.slice(0, 8).forEach(function(inl) {
         var relText = inl.relations.length ? ('（'+inl.relations.slice(0,2).join('·')+'）') : '';
         h += '<div style="font-size:12px;color:var(--ink-200);margin:3px 0;line-height:1.9;">· <span style="color:var(--celadon-300);">'+escHtml(inl.family)+'</span>'+relText;
-        if (inl.members.length) h += '<span style="color:var(--ink-400);font-size:11px;margin-left:6px;">'+inl.members.slice(0,3).map(escHtml).join('·')+'</span>';
+        if (inl.members.length) h += '<span style="color:var(--ink-400);font-size:12px;margin-left:6px;">'+inl.members.slice(0,3).map(escHtml).join('·')+'</span>';
         h += '</div>';
       });
       h += '</div></div>';
@@ -2892,13 +2893,13 @@ function openCharRenwuPage(charName) {
       h += '<div class="rwp-sec"><div class="rwp-sec-title">情 节 弧 <span style="font-size:0.7rem;color:var(--txt-d);font-weight:400;letter-spacing:0;">T'+(_arc.turn||'?')+' 起</span></div>';
       h += '<div style="padding:10px 14px;background:rgba(142,106,168,0.06);border:1px solid rgba(142,106,168,0.2);border-radius:5px;">';
       if (_arc.arcStage) h += '<div style="font-size:12px;color:var(--purple-300,#b89ec8);letter-spacing:0.2em;margin-bottom:6px;">当 前 境 · '+escHtml(_arc.arcStage)+'</div>';
-      if (_arc.emotionalState) h += '<div style="font-size:11px;color:var(--txt-s);margin-bottom:4px;">情绪：'+escHtml(_arc.emotionalState)+'</div>';
-      if (_arc.motivation) h += '<div style="font-size:11px;color:var(--txt-s);margin-bottom:4px;line-height:1.6;">动机：'+escHtml(_arc.motivation)+'</div>';
-      if (_arc.nextCue) h += '<div style="font-size:11px;color:var(--gold-d,#8c7030);line-height:1.6;">潜动向：'+escHtml(_arc.nextCue)+'</div>';
+      if (_arc.emotionalState) h += '<div style="font-size:12px;color:var(--txt-s);margin-bottom:4px;">情绪：'+escHtml(_arc.emotionalState)+'</div>';
+      if (_arc.motivation) h += '<div style="font-size:12px;color:var(--txt-s);margin-bottom:4px;line-height:1.6;">动机：'+escHtml(_arc.motivation)+'</div>';
+      if (_arc.nextCue) h += '<div style="font-size:12px;color:var(--gold-d,#8c7030);line-height:1.6;">潜动向：'+escHtml(_arc.nextCue)+'</div>';
       if (typeof _arc.arcProgress === 'number') {
         var _ap = Math.max(0, Math.min(100, _arc.arcProgress));
         h += '<div style="margin-top:6px;height:4px;background:rgba(0,0,0,0.2);border-radius:2px;overflow:hidden;"><div style="height:100%;width:'+_ap+'%;background:var(--purple-400,#8e6aa8);"></div></div>';
-        h += '<div style="font-size:10px;color:var(--txt-d);margin-top:2px;letter-spacing:0.1em;">弧线进度 '+_ap+'%</div>';
+        h += '<div style="font-size:11px;color:var(--txt-d);margin-top:2px;letter-spacing:0.1em;">弧线进度 '+_ap+'%</div>';
       }
       h += '</div></div>';
     }
@@ -2910,8 +2911,8 @@ function openCharRenwuPage(charName) {
     h += '<div style="padding:12px 14px;background:rgba(192,64,48,0.06);border:1px solid rgba(192,64,48,0.2);border-radius:5px;">';
     h += '<div style="color:var(--vermillion-300);font-size:12px;margin-bottom:6px;letter-spacing:0.2em;">压 力 值 · '+stress+'/100 · '+sL+'</div>';
     if (ch.stressSources && ch.stressSources.length) {
-      h += '<div style="font-size:10px;color:var(--vermillion-400);letter-spacing:0.15em;margin-bottom:4px;">当 下 压 源</div>';
-      ch.stressSources.forEach(function(s) { h += '<div style="font-size:11px;padding:2px 0 2px 10px;border-left:1px dashed rgba(255,255,255,0.1);">· '+escHtml(s)+'</div>'; });
+      h += '<div style="font-size:11px;color:var(--vermillion-400);letter-spacing:0.15em;margin-bottom:4px;">当 下 压 源</div>';
+      ch.stressSources.forEach(function(s) { h += '<div style="font-size:12px;padding:2px 0 2px 10px;border-left:1px dashed rgba(255,255,255,0.1);">· '+escHtml(s)+'</div>'; });
     }
     // 释压之法·从 hobbies/stressOff/stressRelief 读
     var _reliefs = [];
@@ -2919,8 +2920,8 @@ function openCharRenwuPage(charName) {
     else if (Array.isArray(ch.stressOff)) _reliefs = ch.stressOff.slice(0, 4);
     else if (ch.hobbies) _reliefs = (Array.isArray(ch.hobbies) ? ch.hobbies : String(ch.hobbies).split(/[·、，,\/]/)).filter(Boolean).slice(0, 4);
     if (_reliefs.length > 0) {
-      h += '<div style="font-size:10px;color:var(--celadon-400);letter-spacing:0.15em;margin:8px 0 4px;">释 压 之 法</div>';
-      _reliefs.forEach(function(s) { h += '<div style="font-size:11px;padding:2px 0 2px 10px;border-left:1px dashed rgba(126,184,167,0.2);color:var(--celadon-300);">· '+escHtml(s)+'</div>'; });
+      h += '<div style="font-size:11px;color:var(--celadon-400);letter-spacing:0.15em;margin:8px 0 4px;">释 压 之 法</div>';
+      _reliefs.forEach(function(s) { h += '<div style="font-size:12px;padding:2px 0 2px 10px;border-left:1px dashed rgba(126,184,167,0.2);color:var(--celadon-300);">· '+escHtml(s)+'</div>'; });
     }
     h += '</div></div>';
   }
@@ -2950,16 +2951,16 @@ function openCharRenwuPage(charName) {
           h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;padding:10px 14px;background:rgba(0,0,0,0.22);border-radius:5px;">';
           _domainStats.forEach(function(d) {
             h += '<div style="flex:1;min-width:80px;text-align:center;padding:6px;background:rgba(184,154,83,0.06);border:1px solid rgba(184,154,83,0.18);border-radius:3px;">'
-              + '<div style="font-size:11px;color:var(--gold-400);letter-spacing:0.2em;">'+d.k+'</div>'
+              + '<div style="font-size:12px;color:var(--gold-400);letter-spacing:0.2em;">'+d.k+'</div>'
               + '<div style="font-size:18px;color:var(--gold-300);font-weight:600;margin-top:2px;">'+d.cnt+'</div></div>';
           });
           h += '</div>';
         }
         if (_recentExp.length > 0) {
-          h += '<div style="font-size:11px;color:var(--ink-300);letter-spacing:0.1em;margin-bottom:4px;">近 期</div>';
+          h += '<div style="font-size:12px;color:var(--ink-300);letter-spacing:0.1em;margin-bottom:4px;">近 期</div>';
           _recentExp.forEach(function(e) {
             var txt = typeof e === 'string' ? e : (e.text || e.desc || ('〔'+(e.domain||'?')+'〕'+(e.event||'')));
-            h += '<div style="font-size:11px;padding:3px 0 3px 10px;color:var(--ink-200);line-height:1.6;">· '+escHtml(txt)+'</div>';
+            h += '<div style="font-size:12px;padding:3px 0 3px 10px;color:var(--ink-200);line-height:1.6;">· '+escHtml(txt)+'</div>';
           });
         }
         h += '</div>';
@@ -2986,7 +2987,7 @@ function openCharRenwuPage(charName) {
       var _rwpLazyMemId = 'rwp_mem_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
       window._rwpLazyTabStore = window._rwpLazyTabStore || {};
       window._rwpLazyTabStore[_rwpLazyMemId] = _rwpOlderMem;
-      h += '<div class="rwp-mem" style="cursor:pointer;color:var(--gold-300);font-size:11px;" onclick="_rwpLoadLazyTab(\''+_rwpLazyMemId+'\',this.nextElementSibling);this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\';">展开全部旧记忆（'+_rwpOlderMem.length+' 条）▸</div>';
+      h += '<div class="rwp-mem" style="cursor:pointer;color:var(--gold-300);font-size:12px;" onclick="_rwpLoadLazyTab(\''+_rwpLazyMemId+'\',this.nextElementSibling);this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\';">展开全部旧记忆（'+_rwpOlderMem.length+' 条）▸</div>';
       h += '<div data-rwp-lazy-tab="memory" data-rwp-lazy-id="'+_rwpLazyMemId+'" style="display:none;">';
       h += '</div>';
     }
@@ -3123,7 +3124,7 @@ function openCharRenwuPage(charName) {
   if (typeof PatronNetwork !== 'undefined') {
     var pnt = PatronNetwork.getTextForChar(ch.name);
     if (pnt) {
-      h += '<div class="rwp-sec"><div class="rwp-sec-title">恩 怨 · 因 果</div><div class="rwp-prose" style="font-size:11px;">'+escHtml(pnt)+'</div></div>';
+      h += '<div class="rwp-sec"><div class="rwp-sec-title">恩 怨 · 因 果</div><div class="rwp-prose" style="font-size:12px;">'+escHtml(pnt)+'</div></div>';
     }
   }
   h += '</div>'; // tab6

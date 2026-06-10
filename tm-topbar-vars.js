@@ -403,7 +403,7 @@ var _VAR_RENDERERS = {
 function renderTopBarVars() {
   var host = document.getElementById('bar-vars');
   if (!host) return;
-  if (typeof GM === 'undefined' || !GM.running) { host.innerHTML = ''; return; }
+  if (typeof GM === 'undefined' || !GM.running) { host.innerHTML = ''; host._lastBarVarsHtml = ''; return; }
 
   var html = '';
   for (var i = 0; i < TOP_BAR_VARS.length; i++) {
@@ -446,6 +446,10 @@ function renderTopBarVars() {
   //   · 奏疏(诏令)/抗疏 → 皇权
   //   · 民变 → 民心
   //   · 问对(诏书问对Help) → 左侧 Help 页（作为游戏介绍）
+  // 性能·2026-06-10:输出未变则不动 DOM(20+ 调用点·含每次 renderGameState/applier 逐条变更·
+  // 多数时刻数值无变化·省整条 innerHTML 重建+reflow·渲染器本身只是状态读取照常跑)
+  if (host._lastBarVarsHtml === html) return;
+  host._lastBarVarsHtml = html;
   host.innerHTML = html;
 }
 
@@ -522,11 +526,11 @@ function _openHujiPanel() {
         if (!r._suppressionOrder) {
           var suggestTroops = (r.scale || 5000) * 3;
           body += ' <input type="number" id="_revTroops_' + r.id + '" value="' + suggestTroops + '" style="width:80px;padding:1px 4px;font-size:0.7rem;">';
-          body += ' <button class="btn" style="font-size:0.68rem;padding:2px 6px;" onclick="var v=parseInt(document.getElementById(\'_revTroops_' + r.id + '\').value)||0;var res=AuthorityComplete.suppressRevolt(\'' + r.id + '\',v);if(res.ok)toast(\'已调 \'+v+\' 兵镇压\');this.closest(\'div[style*=position]\').remove();if(typeof _openHujiPanel===\'function\')_openHujiPanel();">调兵镇压</button>';
+          body += ' <button class="btn" style="font-size:0.71rem;padding:2px 6px;" onclick="var v=parseInt(document.getElementById(\'_revTroops_' + r.id + '\').value)||0;var res=AuthorityComplete.suppressRevolt(\'' + r.id + '\',v);if(res.ok)toast(\'已调 \'+v+\' 兵镇压\');this.closest(\'div[style*=position]\').remove();if(typeof _openHujiPanel===\'function\')_openHujiPanel();">调兵镇压</button>';
         }
         body += '</div>';
       });
-      body += '<div style="font-size:0.68rem;color:var(--txt-d);margin-top:4px;">需调兵力约 3×民变规模方可速平；不足则拉锯。</div>';
+      body += '<div style="font-size:0.71rem;color:var(--txt-d);margin-top:4px;">需调兵力约 3×民变规模方可速平；不足则拉锯。</div>';
     }
   }
   // 军队调动 UI
@@ -1285,7 +1289,7 @@ function _renderMinxinFullPanel() {
         h += (r.region || '某地') + ' · ' + _barFmtNum(r.scale||5000);
         if (!r._suppressionOrder) {
           h += ' <input type="number" id="_revT_' + r.id + '" value="' + ((r.scale||5000)*3) + '" style="width:80px;padding:1px 4px;font-size:0.7rem;">';
-          h += ' <button class="btn" style="font-size:0.68rem;padding:2px 6px;" onclick="var v=parseInt(document.getElementById(\'_revT_' + r.id + '\').value)||0;var rr=AuthorityComplete.suppressRevolt(\'' + r.id + '\',v);if(rr.ok)toast(\'已调 \'+v+\' 兵\');">调兵镇压</button>';
+          h += ' <button class="btn" style="font-size:0.71rem;padding:2px 6px;" onclick="var v=parseInt(document.getElementById(\'_revT_' + r.id + '\').value)||0;var rr=AuthorityComplete.suppressRevolt(\'' + r.id + '\',v);if(rr.ok)toast(\'已调 \'+v+\' 兵\');">调兵镇压</button>';
         } else {
           h += ' <span style="color:var(--amber-400);">官军 ' + r._suppressionOrder.strength + ' 讨伐中</span>';
         }

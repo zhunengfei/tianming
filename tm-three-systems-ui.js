@@ -187,10 +187,10 @@
         // 动作按钮(仅玩家势力军队)
         if (isPlayer) {
           html += '<div style="display:flex;gap:0.3rem;flex-wrap:wrap;margin-top:0.3rem;">';
-          html += '<button class="bt bs" onclick="_tsTransferArmy(\''+jsEsc(a.name)+'\')" style="font-size:0.68rem;padding:0.2rem 0.6rem;">调兵</button>';
-          html += '<button class="bt bs" onclick="_tsBoostMorale(\''+jsEsc(a.name)+'\')" style="font-size:0.68rem;padding:0.2rem 0.6rem;">犒军鼓舞</button>';
-          html += '<button class="bt bs" onclick="_tsSettleArrears(\''+jsEsc(a.name)+'\')" style="font-size:0.68rem;padding:0.2rem 0.6rem;">发饷清欠</button>';
-          html += '<button class="bt bs" onclick="_tsAppointGeneral(\''+jsEsc(a.name)+'\')" style="font-size:0.68rem;padding:0.2rem 0.6rem;">易将</button>';
+          html += '<button class="bt bs" onclick="_tsTransferArmy(\''+jsEsc(a.name)+'\')" style="font-size:0.71rem;padding:0.2rem 0.6rem;">调兵</button>';
+          html += '<button class="bt bs" onclick="_tsBoostMorale(\''+jsEsc(a.name)+'\')" style="font-size:0.71rem;padding:0.2rem 0.6rem;">犒军鼓舞</button>';
+          html += '<button class="bt bs" onclick="_tsSettleArrears(\''+jsEsc(a.name)+'\')" style="font-size:0.71rem;padding:0.2rem 0.6rem;">发饷清欠</button>';
+          html += '<button class="bt bs" onclick="_tsAppointGeneral(\''+jsEsc(a.name)+'\')" style="font-size:0.71rem;padding:0.2rem 0.6rem;">易将</button>';
           html += '</div>';
         }
         html += '</div>';
@@ -719,12 +719,12 @@
         // F2·SC16 采纳率 badge
         if (p.sc16ComplianceScore != null && p.sc16DirectiveCount > 0) {
           var compColor = p.sc16ComplianceScore >= 70 ? '#6bb07c' : (p.sc16ComplianceScore >= 40 ? '#cda54c' : '#b04030');
-          html += ' <span title="SC16 采纳率: ' + esc(p.sc16ComplianceScore) + '% (' + esc(p.sc16DirectiveCount) + ' 条指令)" style="color:' + compColor + ';font-size:0.68rem;margin-left:0.3rem;">SC16:' + esc(p.sc16ComplianceScore) + '%</span>';
+          html += ' <span title="SC16 采纳率: ' + esc(p.sc16ComplianceScore) + '% (' + esc(p.sc16DirectiveCount) + ' 条指令)" style="color:' + compColor + ';font-size:0.71rem;margin-left:0.3rem;">SC16:' + esc(p.sc16ComplianceScore) + '%</span>';
         }
         html += '</span>';
         html += '<span style="color:var(--txt-d);">T' + esc(p.lastTurn) + ' · 应用 ' + esc(p.appliedActions) + ' 跳 ' + esc(p.skippedActions) + ' 合 ' + esc(p.mergedActions) + '</span>';
         html += '</div>';
-        if (p.rationale) html += '<div style="font-size:0.68rem;color:var(--txt-d);padding-left:1.2rem;margin-bottom:0.15rem;">"' + esc(p.rationale) + '..."</div>';
+        if (p.rationale) html += '<div style="font-size:0.71rem;color:var(--txt-d);padding-left:1.2rem;margin-bottom:0.15rem;">"' + esc(p.rationale) + '..."</div>';
       });
       if (status.perFacStatus.length > 20) html += '<div style="color:var(--txt-d);margin-top:0.3rem;">... 还有 ' + (status.perFacStatus.length - 20) + ' 个势力未显示</div>';
     } else {
@@ -754,7 +754,7 @@
         html += '<div style="border-bottom:1px dashed rgba(184,80,60,0.2);padding:0.25rem 0;">';
         html += '<b>T' + esc(f.turn) + ' · ' + esc(f.faction || '<dispatch>') + '</b> · kind=' + esc(f.kind);
         if (f.error) html += '<br><span style="color:var(--txt-d);">' + esc(String(f.error).slice(0, 200)) + '</span>';
-        if (f.rawPreview) html += '<details style="margin-top:0.2rem;"><summary style="cursor:pointer;color:var(--txt-d);">raw preview</summary><pre style="font-size:0.68rem;white-space:pre-wrap;margin:0.2rem 0 0;color:var(--txt);">' + esc(f.rawPreview) + '</pre></details>';
+        if (f.rawPreview) html += '<details style="margin-top:0.2rem;"><summary style="cursor:pointer;color:var(--txt-d);">raw preview</summary><pre style="font-size:0.71rem;white-space:pre-wrap;margin:0.2rem 0 0;color:var(--txt);">' + esc(f.rawPreview) + '</pre></details>';
         html += '</div>';
       });
       html += '</div></div>';

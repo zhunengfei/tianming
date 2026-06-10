@@ -251,7 +251,7 @@ function closeModal(){closeGenericModal();}
   function _esc(s) { return (typeof escHtml === 'function') ? escHtml(s) : String(s==null?'':s).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];}); }
 
   function _codeBlock(code) {
-    return '<pre style="background:#0a0806;border:1px solid #2a2010;border-radius:3px;padding:8px 10px;font-size:11px;color:#d9c77a;margin:4px 0;overflow-x:auto;line-height:1.5">' + _esc(code) + '</pre>';
+    return '<pre style="background:#0a0806;border:1px solid #2a2010;border-radius:3px;padding:8px 10px;font-size:12px;color:#d9c77a;margin:4px 0;overflow-x:auto;line-height:1.5">' + _esc(code) + '</pre>';
   }
 
   function _section(title, inner) {
@@ -360,7 +360,7 @@ function closeModal(){closeGenericModal();}
       var body = '';
       if (sec.code) body = _codeBlock(sec.code.join('\n'));
       if (sec.items) {
-        body += '<table style="width:100%;border-collapse:collapse;font-size:11px">'
+        body += '<table style="width:100%;border-collapse:collapse;font-size:12px">'
           + sec.items.map(function(it){
             return '<tr><td style="padding:2px 8px 2px 0;color:#9ac870;white-space:nowrap;vertical-align:top">' + _esc(it[0]) + '</td>'
               + '<td style="padding:2px 0;color:#ccc">' + _esc(it[1]) + '</td></tr>';
@@ -382,8 +382,8 @@ function closeModal(){closeGenericModal();}
       + 'z-index:99993;color:#ddd;font-family:sans-serif;padding:12px';
     el.innerHTML = '<div style="display:flex;align-items:center;margin-bottom:8px;border-bottom:1px solid #3a2a10;padding-bottom:8px">'
       + '<b style="color:#e8c66e;font-size:14px">🀄 天命 · 诊断速查卡</b>'
-      + '<span style="color:#888;font-size:10px;margin-left:12px">Ctrl+Shift+/ 关闭</span>'
-      + '<button onclick="TM.cheatsheet.hide()" style="margin-left:auto;background:#2a2a2a;color:#ccc;border:1px solid #4a4a4a;padding:3px 10px;cursor:pointer;font-size:11px">关闭</button>'
+      + '<span style="color:#888;font-size:11px;margin-left:12px">Ctrl+Shift+/ 关闭</span>'
+      + '<button onclick="TM.cheatsheet.hide()" style="margin-left:auto;background:#2a2a2a;color:#ccc;border:1px solid #4a4a4a;padding:3px 10px;cursor:pointer;font-size:12px">关闭</button>'
       + '</div>'
       + renderHTML();
     document.body.appendChild(el);

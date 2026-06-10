@@ -31,10 +31,109 @@
 
     error: null,
     // P9.2 加载源/进度可见性
-    loadSource: '',        // 'local-vendor' / 'hf-mirror' / 'hf-fallback'
+    loadSource: '',        // 'local-vendor' / 'hf-mirror' / 'hf-fallback'（带 '+worker' 后缀=跑在独立线程）
     downloadProgress: 0,   // 0-100
-    downloadFile: ''       // 当前下载的文件名
+    downloadFile: '',      // 当前下载的文件名
+    // perf round5 (2026-06-10): 模型加载+推理优先走独立 Worker·主线程零阻塞
+    worker: null,          // Worker 实例（成功启动后）
+    workerReady: false     // worker 模型就绪
   };
+
+  // ────── Worker RPC（perf round5） ──────
+  // 模型初始化在主线程有 ~10s 长任务·每条嵌入 ~160ms·全部挪进
+  // tm-semantic-worker.js。worker 启动失败（环境不支持等）则回退
+  // 下方原主线程路径·行为与旧版完全一致。
+  var _rpcSeq = 0;
+  var _rpcPending = {};
+
+  function _workerOnMessage(ev) {
+    var m = ev.data || {};
+    if (m.kind === 'progress') {
+      if (typeof m.progress === 'number') STATE.downloadProgress = m.progress;
+      if (m.file) STATE.downloadFile = m.file;
+      return;
+    }
+    if (m.id != null && _rpcPending[m.id]) {
+      var cb = _rpcPending[m.id];
+      delete _rpcPending[m.id];
+      clearTimeout(cb.timer);
+      cb.resolve(m);
+    }
+  }
+
+  function _workerRpc(msg, timeoutMs) {
+    return new Promise(function (resolve) {
+      if (!STATE.worker || !STATE.workerReady) return resolve({ ok: false, err: 'worker not ready' });
+      var id = 'r' + (++_rpcSeq);
+      msg.id = id;
+      _rpcPending[id] = {
+        resolve: resolve,
+        timer: setTimeout(function () {
+          delete _rpcPending[id];
+          resolve({ ok: false, err: 'worker rpc timeout' });
+        }, timeoutMs || 120000)
+      };
+      try { STATE.worker.postMessage(msg); } catch (e) {
+        delete _rpcPending[id];
+        resolve({ ok: false, err: String(e && e.message || e) });
+      }
+    });
+  }
+
+  function _workerDown(reason) {
+    if (STATE.worker) { try { STATE.worker.terminate(); } catch (_) {} }
+    STATE.worker = null;
+    STATE.workerReady = false;
+    Object.keys(_rpcPending).forEach(function (id) {
+      var cb = _rpcPending[id];
+      delete _rpcPending[id];
+      clearTimeout(cb.timer);
+      cb.resolve({ ok: false, err: 'worker down: ' + reason });
+    });
+  }
+
+  // 尝试启动 worker 并在其中完成模型加载·成功返回 loadSource·失败返回 null
+  function _tryStartWorker(initOpts) {
+    return new Promise(function (resolve) {
+      var w;
+      try { w = new Worker('./tm-semantic-worker.js', { type: 'module' }); }
+      catch (e) { return resolve(null); }
+      var settled = false;
+      var aliveTimer = setTimeout(function () { finish(null, 'alive timeout'); }, 15000);
+      function finish(src, why) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(aliveTimer);
+        if (!src) { try { w.terminate(); } catch (_) {} }
+        resolve(src || null);
+      }
+      w.onerror = function (e) { finish(null, 'onerror'); };
+      w.onmessage = function (ev) {
+        var m = ev.data || {};
+        if (m.kind === 'alive') {
+          clearTimeout(aliveTimer);
+          w.postMessage({ cmd: 'init', id: '__init__', opts: initOpts });
+          return;
+        }
+        if (m.kind === 'progress') {
+          if (typeof m.progress === 'number') STATE.downloadProgress = m.progress;
+          if (m.file) STATE.downloadFile = m.file;
+          return;
+        }
+        if (m.id === '__init__') {
+          if (m.ok) {
+            STATE.worker = w;
+            STATE.workerReady = true;
+            w.onmessage = _workerOnMessage;
+            w.onerror = function () { _workerDown('runtime error'); };
+            finish(m.loadSource || 'worker', 'ok');
+          } else {
+            finish(null, m.err);
+          }
+        }
+      };
+    });
+  }
 
   async function probeSemanticAsset(path) {
     if (typeof fetch !== 'function') return false;
@@ -77,6 +176,34 @@
     }
     STATE.modelLoading = true;
     try {
+      // P9.1·P9.2 模型加载策略
+      // (a) Electron 端·若本地预打包 vendor/models 存在·优先用本地
+      // (b) 网页端·首选 hf-mirror.com（CN 友好）·失败回退 huggingface.co
+      var localModelRoot = './vendor/models/';
+      var localModelPath = localModelRoot + STATE.modelName + '/';
+      var hasLocalModel = await probeSemanticAsset(localModelPath + 'config.json') &&
+                           await probeSemanticAsset(localModelPath + 'tokenizer.json');
+      if (!hasLocalModel && !semanticRemoteFallbackAllowed()) {
+        return setSemanticUnavailable('local semantic model assets not reachable; remote fallback disabled');
+      }
+
+      // perf round5 (2026-06-10): 优先在独立 Worker 内加载模型+推理
+      // 模型初始化主线程长任务 ~10s + 每条嵌入 ~160ms 全部离开主线程
+      var workerSrc = await _tryStartWorker({
+        modelName: STATE.modelName,
+        hasLocalModel: hasLocalModel,
+        localModelRoot: localModelRoot,
+        remoteFallbackAllowed: semanticRemoteFallbackAllowed()
+      });
+      if (workerSrc) {
+        STATE.modelReady = true;
+        STATE.modelLoading = false;
+        STATE.error = null;
+        STATE.loadSource = workerSrc + '+worker';
+        return true;
+      }
+
+      // —— worker 不可用（环境不支持等）·回退原主线程路径·行为与旧版一致 ——
       // 加载顺序：本地 vendor → jsdelivr → esm.sh（参见 vendor/transformers/README.md）
       var transformers;
       try {
@@ -92,13 +219,6 @@
           }
         }
       }
-      // P9.1·P9.2 模型加载策略
-      // (a) Electron 端·若本地预打包 vendor/models 存在·优先用本地
-      // (b) 网页端·首选 hf-mirror.com（CN 友好）·失败回退 huggingface.co
-      var localModelRoot = './vendor/models/';
-      var localModelPath = localModelRoot + STATE.modelName + '/';
-      var hasLocalModel = await probeSemanticAsset(localModelPath + 'config.json') &&
-                           await probeSemanticAsset(localModelPath + 'tokenizer.json');
       transformers.env.useBrowserCache = true;
       if (hasLocalModel) {
         // 完全离线·从本地 vendor 加载
@@ -191,7 +311,8 @@
       error: STATE.error,
       loadSource: STATE.loadSource,
       downloadProgress: STATE.downloadProgress,
-      downloadFile: STATE.downloadFile
+      downloadFile: STATE.downloadFile,
+      workerActive: !!STATE.workerReady   // perf round5: 推理是否跑在独立线程
     };
   }
 
@@ -200,6 +321,12 @@
     if (!STATE.modelReady) return null;
     if (!text || typeof text !== 'string') return null;
     text = text.slice(0, 512); // bge-small 最大 512 tokens
+    // perf round5: worker 路径·推理在独立线程·主线程只等消息
+    if (STATE.workerReady) {
+      var r = await _workerRpc({ cmd: 'embedBatch', texts: [text] }, 120000);
+      return (r && r.ok && r.vecs && r.vecs[0]) ? r.vecs[0] : null;
+    }
+    if (!STATE.pipeline) return null;
     var out = await STATE.pipeline(text, { pooling: 'mean', normalize: true });
     // 转成 Float32Array 存储
     return Array.from(out.data);
@@ -220,6 +347,12 @@
     if (!STATE.enabled) return { ok: false, reason: 'disabled' };
     if (!await ensureModel()) return { ok: false, reason: 'model not ready: ' + STATE.error };
     if (typeof GM === 'undefined' || !GM) return { ok: false, reason: 'no GM' };
+    // perf round5: 本会话首次索引前·先尝试吃上一会话的持久化索引（同 campaign 才吃）
+    // 不吃则 lastIndexedTurn=0·老存档会全量重嵌一遍（worker 内·不卡主线程但白烧几分钟）
+    if (!STATE._idxLoadTried) {
+      STATE._idxLoadTried = true;
+      try { await loadIndex(); } catch (_li) {}
+    }
     var turn = (GM.turn || 0);
     var since = STATE.lastIndexedTurn;
     var added = 0;
@@ -315,6 +448,8 @@
     }
 
     STATE.lastIndexedTurn = turn;
+    // perf round5: 有新增才落盘·失败静默（IDB 不可用等）
+    if (added > 0) { try { persistIndex().catch(function () {}); } catch (_pi) {} }
     return { ok: true, added: added, total: STATE.index.length };
   }
 
@@ -399,23 +534,45 @@
     });
     return _idxDbPromise;
   }
+  // perf round5 (2026-06-10): 持久化按 campaign(GM._runId) 隔离·防跨存档索引污染
+  // GM._runId 与 keju v7.1·D5 同一字段同一惯用法·懒生成后随存档持久
+  function _campaignId() {
+    try {
+      if (typeof GM !== 'undefined' && GM) {
+        if (!GM._runId) GM._runId = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        return GM._runId;
+      }
+    } catch (_) {}
+    return '';
+  }
   function persistIndex() {
+    var campaign = _campaignId();
     return _openIdxDB().then(function(db) {
       return new Promise(function(resolve) {
         var tx = db.transaction('idx', 'readwrite');
         var s = tx.objectStore('idx');
         s.clear();
+        s.put({ id: '__meta__', campaign: campaign, savedAt: Date.now(), count: STATE.index.length });
         STATE.index.forEach(function(it) { s.put(it); });
         tx.oncomplete = function(){ resolve({ ok: true, count: STATE.index.length }); };
       });
     });
   }
   function loadIndex() {
+    var campaign = _campaignId();
     return _openIdxDB().then(function(db) {
       return new Promise(function(resolve) {
         var tx = db.transaction('idx', 'readonly');
         tx.objectStore('idx').getAll().onsuccess = function(e) {
-          STATE.index = e.target.result || [];
+          var rows = e.target.result || [];
+          var meta = null, items = [];
+          rows.forEach(function(r) { if (r && r.id === '__meta__') meta = r; else if (r) items.push(r); });
+          // 无 meta（旧库）或 campaign 不匹配（别的存档）→ 不吃
+          if (!meta || !campaign || meta.campaign !== campaign) {
+            resolve({ ok: false, reason: 'campaign mismatch', count: 0 });
+            return;
+          }
+          STATE.index = items;
           if (STATE.index.length > 0) {
             STATE.lastIndexedTurn = STATE.index.reduce(function(m, it) { return Math.max(m, it.turn || 0); }, 0);
           }

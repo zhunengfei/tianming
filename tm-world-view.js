@@ -107,7 +107,7 @@ function openWorldSituation(){
         evtHtml+='<div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-top:0.3rem;">';
         evt.effects.forEach(function(ef){
           var ec=ef.indexOf('-')>=0?'var(--red)':ef.indexOf('+')>=0?'var(--green)':'var(--txt-d)';
-          evtHtml+='<span style="font-size:0.68rem;background:var(--bg-3);color:'+ec+';padding:1px 5px;border-radius:3px;">'+ef+'</span>';
+          evtHtml+='<span style="font-size:0.71rem;background:var(--bg-3);color:'+ec+';padding:1px 5px;border-radius:3px;">'+ef+'</span>';
         });
         evtHtml+='</div>';
       }

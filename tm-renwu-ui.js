@@ -544,7 +544,7 @@ function viewRenwu(i){
   if (_idTags.length > 0) {
     html += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:0.6rem;">';
     _idTags.forEach(function(t) {
-      html += '<span style="font-size:0.65rem;padding:1px 6px;background:var(--color-elevated);border:1px solid var(--color-border-subtle);border-radius:3px;color:var(--color-foreground-secondary);">' + t.l + '\uFF1A' + escHtml(t.v) + '</span>';
+      html += '<span style="font-size:0.7rem;padding:1px 6px;background:var(--color-elevated);border:1px solid var(--color-border-subtle);border-radius:3px;color:var(--color-foreground-secondary);">' + t.l + '\uFF1A' + escHtml(t.v) + '</span>';
     });
     html += '</div>';
   }
@@ -581,13 +581,13 @@ function viewRenwu(i){
     html += '<div style="font-size:0.7rem;color:var(--gold-d);letter-spacing:0.1em;margin-bottom:0.2rem;">\u516C\u804C\u8EAB\u4EFD</div>';
     html += '<div style="font-size:0.82rem;color:var(--txt);">' + escHtml(_pubRole || '\u5E03\u8863') + '</div>';
     if (_pubFaction) html += '<div style="font-size:0.72rem;color:var(--txt-s);">' + escHtml(_pubFaction) + '</div>';
-    if (ch.party) html += '<div style="font-size:0.68rem;color:var(--ink-300);">\u515A\uFF1A' + escHtml(ch.party) + '</div>';
+    if (ch.party) html += '<div style="font-size:0.71rem;color:var(--ink-300);">\u515A\uFF1A' + escHtml(ch.party) + '</div>';
     html += '</div>';
     html += '<div style="padding:0.5rem;background:var(--bg-3);border-radius:6px;border-left:3px solid var(--purple,#9b59b6);">';
     html += '<div style="font-size:0.7rem;color:var(--purple,#9b59b6);letter-spacing:0.1em;margin-bottom:0.2rem;">\u79C1\u4EBA\u8EAB\u4EFD</div>';
     html += '<div style="font-size:0.82rem;color:var(--txt);">' + escHtml(ch.name) + (ch.age ? '\uFF0C' + ch.age + '\u5C81' : '') + '</div>';
     if (ch.personality) html += '<div style="font-size:0.72rem;color:var(--txt-s);">' + escHtml(ch.personality) + '</div>';
-    if (ch.personalGoal) html += '<div style="font-size:0.68rem;color:var(--ink-300);">\u6240\u6C42\uFF1A' + escHtml(ch.personalGoal.slice(0,30)) + '</div>';
+    if (ch.personalGoal) html += '<div style="font-size:0.71rem;color:var(--ink-300);">\u6240\u6C42\uFF1A' + escHtml(ch.personalGoal.slice(0,30)) + '</div>';
     html += '</div></div>';
     // 玩家角色专属：近期内省记录
     if (_isPlayerChar) {
@@ -682,7 +682,7 @@ function viewRenwu(i){
 
       // 分支信息
       if (_fam.branches && _fam.branches.length > 1) {
-        html += '<div style="font-size:0.68rem;color:var(--txt-d);margin-top:0.3rem;">\u5BB6\u652F\uFF1A';
+        html += '<div style="font-size:0.71rem;color:var(--txt-d);margin-top:0.3rem;">\u5BB6\u652F\uFF1A';
         _fam.branches.forEach(function(b, bi) {
           html += (bi > 0 ? ' | ' : '') + '<span style="color:' + (bi === 0 ? _tierColor : 'var(--txt-s)') + ';">' + escHtml(b.name) + '(' + b.members.length + '\u4EBA)</span>';
         });
@@ -692,7 +692,7 @@ function viewRenwu(i){
       // 家族关联势力
       if (GM.facs || GM.parties) {
         var _facLink = (GM.facs || []).find(function(f) { return f.name && ch.family && f.name.indexOf(ch.family.replace(/\u6C0F$/, '')) >= 0; });
-        if (_facLink) html += '<div style="font-size:0.68rem;color:var(--txt-d);margin-top:0.2rem;">\u5173\u8054\u52BF\u529B\uFF1A' + escHtml(_facLink.name) + '</div>';
+        if (_facLink) html += '<div style="font-size:0.71rem;color:var(--txt-d);margin-top:0.2rem;">\u5173\u8054\u52BF\u529B\uFF1A' + escHtml(_facLink.name) + '</div>';
       }
     }
     html += '</div>';
@@ -715,7 +715,7 @@ function viewRenwu(i){
     {label:'\u538B\u529B',val:ch.stress||0,color:(ch.stress||0)>=50?'var(--vermillion-400)':'var(--ink-300)'}
   ];
   bars.forEach(function(b){
-    var bonusTag = (b.bonus && b.bonus!==0) ? '<span style="color:'+(b.bonus>0?'var(--green)':'var(--red)')+';font-size:0.65rem;">('+(b.bonus>0?'+':'')+_f1(b.bonus)+')</span>' : '';
+    var bonusTag = (b.bonus && b.bonus!==0) ? '<span style="color:'+(b.bonus>0?'var(--green)':'var(--red)')+';font-size:0.7rem;">('+(b.bonus>0?'+':'')+_f1(b.bonus)+')</span>' : '';
     html += '<div style="font-size:0.75rem;color:var(--txt-s);">' + b.label + ' ' + _f1(b.val) + bonusTag;
     html += '<div style="height:4px;background:var(--bg-4);border-radius:2px;margin-top:2px;"><div style="height:100%;width:'+Math.min(100,Math.max(0,parseFloat(b.val)||0))+'%;background:'+b.color+';border-radius:2px;"></div></div></div>';
   });
@@ -730,7 +730,7 @@ function viewRenwu(i){
       var t = TRAIT_LIBRARY[tid]; if (!t) return;
       var cat = TRAIT_CATEGORIES && TRAIT_CATEGORIES[t.category];
       var col = cat ? cat.color : '#888';
-      html += '<span title="' + escHtml(t.behaviorTendency || t.description || '') + '" style="font-size:0.65rem;padding:1px 6px;background:' + col + '22;color:' + col + ';border:1px solid ' + col + ';border-radius:10px;cursor:help;">' + escHtml(t.name || tid) + '</span>';
+      html += '<span title="' + escHtml(t.behaviorTendency || t.description || '') + '" style="font-size:0.7rem;padding:1px 6px;background:' + col + '22;color:' + col + ';border:1px solid ' + col + ';border-radius:10px;cursor:help;">' + escHtml(t.name || tid) + '</span>';
     });
     html += '</div></div>';
   }
@@ -753,12 +753,12 @@ function viewRenwu(i){
         var tier = w.isPreserved ? '★' : '';
         html += '<div style="padding:0.25rem 0.4rem;background:var(--bg-2);border-radius:3px;cursor:pointer;font-size:0.75rem;" onclick="closeGenericModal();_showWorkDetail(' + realIdx + ')" title="点击查看全文">';
         html += '<span style="color:var(--gold-400);">' + tier + '《' + escHtml(w.title || '?') + '》</span>';
-        html += ' <span style="color:var(--txt-d);font-size:0.68rem;">[' + genreLbl + (w.subtype ? '·' + escHtml(w.subtype) : '') + '] T' + (w.turn||0) + ' 品' + (w.quality||0);
+        html += ' <span style="color:var(--txt-d);font-size:0.71rem;">[' + genreLbl + (w.subtype ? '·' + escHtml(w.subtype) : '') + '] T' + (w.turn||0) + ' 品' + (w.quality||0);
         if (w.mood) html += ' · ' + escHtml(w.mood);
         html += '</span>';
         html += '</div>';
       });
-      if (_myWorks.length > 8) html += '<div style="font-size:0.65rem;color:var(--txt-d);text-align:center;">…另有 ' + (_myWorks.length - 8) + ' 篇（可在文苑标签查阅）</div>';
+      if (_myWorks.length > 8) html += '<div style="font-size:0.7rem;color:var(--txt-d);text-align:center;">…另有 ' + (_myWorks.length - 8) + ' 篇（可在文苑标签查阅）</div>';
       html += '</div></div>';
     }
   }
@@ -775,8 +775,8 @@ function viewRenwu(i){
       if(def.attrMod){ var an={valor:'武',intelligence:'智',administration:'政',military:'军'}; Object.keys(def.attrMod).forEach(function(k){attrParts.push((an[k]||k)+(def.attrMod[k]>0?'+':'')+def.attrMod[k]);}); }
       html += '<span style="display:inline-flex;align-items:center;gap:0.2rem;padding:0.15rem 0.4rem;background:var(--bg-4);border-radius:10px;font-size:0.75rem;">';
       html += '<b style="color:var(--gold-l);">'+escHtml(def.name)+'</b>';
-      if(attrParts.length) html += '<span style="color:var(--blue);font-size:0.65rem;">'+attrParts.join(' ')+'</span>';
-      if(oppLabel) html += '<span style="color:var(--txt-d);font-size:0.6rem;">'+oppLabel+'</span>';
+      if(attrParts.length) html += '<span style="color:var(--blue);font-size:0.7rem;">'+attrParts.join(' ')+'</span>';
+      if(oppLabel) html += '<span style="color:var(--txt-d);font-size:0.66rem;">'+oppLabel+'</span>';
       html += '</span>';
     });
     html += '</div>';
@@ -916,7 +916,7 @@ function viewRenwu(i){
       _rwRecentMem.forEach(function(m){
         html += '<div style="font-size:0.75rem;padding:0.15rem 0;border-bottom:1px solid var(--bg-4);">';
         html += '<span style="color:var(--txt-d);">T'+m.turn+'</span> '+(emotionIcons[m.emotion]||'•')+' '+escHtml(m.event);
-        if(m.who) html += ' <span style="color:var(--blue);font-size:0.65rem;">→'+escHtml(m.who)+'</span>';
+        if(m.who) html += ' <span style="color:var(--blue);font-size:0.7rem;">→'+escHtml(m.who)+'</span>';
         html += '</div>';
       });
       if(_rwOlderMem.length > 0){
@@ -925,7 +925,7 @@ function viewRenwu(i){
         _rwOlderMem.forEach(function(m){
           html += '<div style="font-size:0.75rem;padding:0.15rem 0;border-bottom:1px solid var(--bg-4);">';
           html += '<span style="color:var(--txt-d);">T'+m.turn+'</span> '+(emotionIcons[m.emotion]||'•')+' '+escHtml(m.event);
-          if(m.who) html += ' <span style="color:var(--blue);font-size:0.65rem;">→'+escHtml(m.who)+'</span>';
+          if(m.who) html += ' <span style="color:var(--blue);font-size:0.7rem;">→'+escHtml(m.who)+'</span>';
           html += '</div>';
         });
         html += '</div>';
@@ -970,9 +970,9 @@ function viewRenwu(i){
       ch.children.forEach(function(cn) {
         var childCh = findCharByName(cn);
         html += '<span style="cursor:pointer;color:var(--gold-l);text-decoration:underline;" onclick="closeGenericModal();viewRenwu(\'' + cn.replace(/'/g, "\\'") + '\')">' + escHtml(cn) + '</span> ';
-        if (childCh && childCh.age) html += '<span style="font-size:0.65rem;color:var(--txt-d);">(' + childCh.age + '\u5C81)</span> ';
+        if (childCh && childCh.age) html += '<span style="font-size:0.7rem;color:var(--txt-d);">(' + childCh.age + '\u5C81)</span> ';
         // 标注太子
-        if (GM.harem && GM.harem.heirs && GM.harem.heirs[0] === cn) html += '<span style="font-size:0.6rem;color:var(--gold);">\u{1F451}\u592A\u5B50</span> ';
+        if (GM.harem && GM.harem.heirs && GM.harem.heirs[0] === cn) html += '<span style="font-size:0.66rem;color:var(--gold);">\u{1F451}\u592A\u5B50</span> ';
       });
       html += '</div>';
     }
@@ -1017,7 +1017,7 @@ function viewRenwu(i){
     ch.children.forEach(function(cn) {
       var childCh = findCharByName(cn);
       html += '<span style="cursor:pointer;color:var(--gold-l);text-decoration:underline;margin-right:0.4rem;" onclick="closeGenericModal();viewRenwu(\'' + cn.replace(/'/g,"\\'") + '\')">' + escHtml(cn) + '</span>';
-      if (childCh && childCh.age) html += '<span style="font-size:0.65rem;color:var(--txt-d);">(' + childCh.age + '\u5C81)</span> ';
+      if (childCh && childCh.age) html += '<span style="font-size:0.7rem;color:var(--txt-d);">(' + childCh.age + '\u5C81)</span> ';
     });
     html += '</div></div>';
   }

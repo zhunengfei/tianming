@@ -24,7 +24,7 @@ function openShizhengTasks() {
 
   var overlay = document.createElement('div');
   overlay.id = 'shizheng-tasks-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(18,12,6,0.85);z-index:9998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px);';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(18,12,6,0.88);z-index:9998;display:flex;align-items:center;justify-content:center;';
   overlay.onclick = function(e){ if (e.target === overlay) closeShizhengTasks(); };
 
   var panel = document.createElement('div');
@@ -116,7 +116,7 @@ function _openShizhengDetail(issueId) {
 
   var det = document.createElement('div');
   det.id = 'shizheng-task-detail';
-  det.style.cssText = 'position:fixed;inset:0;background:rgba(15,10,5,0.88);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+  det.style.cssText = 'position:fixed;inset:0;background:rgba(15,10,5,0.9);z-index:9999;display:flex;align-items:center;justify-content:center;';
   det.onclick = function(e){ if (e.target === det) det.remove(); };
 
   var panel = document.createElement('div');
@@ -308,7 +308,7 @@ function openMiZhaoPicker(prefilledIssueId) {
   var exist = document.getElementById('mizhao-picker'); if (exist) exist.remove();
   var overlay = document.createElement('div');
   overlay.id = 'mizhao-picker';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,10,5,0.88);z-index:10000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,10,5,0.9);z-index:10000;display:flex;align-items:center;justify-content:center;';
   overlay.onclick = function(e){ if (e.target === overlay) overlay.remove(); };
 
   var panel = document.createElement('div');
@@ -443,7 +443,7 @@ function _openMiZhaoDialogue(charNames, issueId) {
   var exist = document.getElementById('mizhao-dialog'); if (exist) exist.remove();
   var overlay = document.createElement('div');
   overlay.id = 'mizhao-dialog';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,10,5,0.88);z-index:10001;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,10,5,0.9);z-index:10001;display:flex;align-items:center;justify-content:center;';
 
   var panel = document.createElement('div');
   // 固定尺寸·聊天区内部滚动·面板不随消息数伸缩
@@ -826,7 +826,7 @@ function _mzShowSummary() {
   var exist = document.getElementById('mz-summary-panel'); if (exist) exist.remove();
   var layer = document.createElement('div');
   layer.id = 'mz-summary-panel';
-  layer.style.cssText = 'position:fixed;inset:0;background:rgba(10,8,4,0.85);z-index:10010;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px);';
+  layer.style.cssText = 'position:fixed;inset:0;background:rgba(10,8,4,0.88);z-index:10010;display:flex;align-items:center;justify-content:center;';
   layer.onclick = function(e){ if (e.target === layer) layer.remove(); };
 
   var p = document.createElement('div');

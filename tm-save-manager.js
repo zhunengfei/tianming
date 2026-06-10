@@ -484,7 +484,7 @@ function _renderSaveManagerUI(ov, saves, preEndturnRec) {
       html += save.scenarioName + ' · 第' + save.turn + '回合';
       if (save.eraName) html += ' · ' + save.eraName;
       html += '<br>';
-      html += '<span style="font-size:0.6rem;">' + ink.label + ' · ' + new Date(save.timestamp).toLocaleString('zh-CN') + '</span>';
+      html += '<span style="font-size:0.66rem;">' + ink.label + ' · ' + new Date(save.timestamp).toLocaleString('zh-CN') + '</span>';
       html += '</div>';
       // 朱印
       html += '<div class="save-seal' + sealType + sealAnim + '">' + (isAuto ? '自' : '封') + '</div>';

@@ -181,11 +181,11 @@
     body += '<div style="background:var(--vermillion-400);width:' + (taoohu/total*100) + '%;" title="逃户 ' + taoohu + '"></div>';
     body += '<div style="background:var(--ink-600);width:' + (hidden/total*100) + '%;" title="隐户 ' + hidden + '"></div>';
     body += '</div>';
-    body += '<div style="font-size:0.68rem;color:#d4be7a;margin-bottom:10px;">黄籍 ' + (huangji/total*100).toFixed(1) + '% | 逃户 ' + (taoohu/total*100).toFixed(1) + '% | 隐户 ' + (hidden/total*100).toFixed(1) + '%</div>';
+    body += '<div style="font-size:0.71rem;color:#d4be7a;margin-bottom:10px;">黄籍 ' + (huangji/total*100).toFixed(1) + '% | 逃户 ' + (taoohu/total*100).toFixed(1) + '% | 隐户 ' + (hidden/total*100).toFixed(1) + '%</div>';
     // 50 年曲线（若有归档）
     if (P.yearlyArchive && P.yearlyArchive.length > 0) {
       body += '<div style="font-size:0.82rem;color:var(--gold-400);margin-bottom:4px;">近 ' + P.yearlyArchive.length + ' 年人口曲线</div>';
-      body += '<div style="background:var(--bg-2);padding:8px;border-radius:4px;font-size:0.68rem;">';
+      body += '<div style="background:var(--bg-2);padding:8px;border-radius:4px;font-size:0.71rem;">';
       P.yearlyArchive.slice(-10).forEach(function(y) {
         body += '<div>' + y.year + ': ' + (y.mouths||0).toLocaleString() + ' 口</div>';
       });

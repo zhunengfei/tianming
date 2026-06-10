@@ -214,7 +214,7 @@ function showNotificationHistory() {
       var timeStr = new Date(n.time).toLocaleTimeString();
       html += '<div style="padding:0.3rem 0;border-bottom:1px solid var(--color-border-subtle);font-size:0.78rem;">';
       html += '<span style="color:' + levelColor + ';">' + levelLabel + '</span> ';
-      html += '<span style="color:var(--color-foreground-muted);font-size:0.68rem;">T' + n.turn + ' ' + timeStr + '</span> ';
+      html += '<span style="color:var(--color-foreground-muted);font-size:0.71rem;">T' + n.turn + ' ' + timeStr + '</span> ';
       html += (typeof escHtml==='function'?escHtml(n.msg):n.msg);
       html += '</div>';
     });
@@ -1122,6 +1122,8 @@ function gSid(s){var el=_$(s);return el?el.value:(P.scenarios[0]?P.scenarios[0].
 var _aiProgressTimer=null;
 var _LOADING_HINTS=['运筹帷幄之中','决胜千里之外','天下大势，分合有时','时来天地皆同力','万事俱备','风云际会','暗潮涌动','大势将至','变局已生','棋局已布'];
 var _loadingMaxPct = 0;  // 单调递增的最大值·防止进度条倒退
+var _loadingCrawlCeil = 95;  // 自动爬升上界·拍表引擎(tm-endturn-progress.js)在过回合窗口按拍间隙动态收紧
+function setLoadingCrawlCeil(v){ _loadingCrawlCeil = (typeof v === 'number' && isFinite(v)) ? Math.max(5, Math.min(99, v)) : 95; }
 function showLoading(msg,pct){
   if (typeof GM !== 'undefined' && GM && GM._isPostTurnCourt && (!GM._pendingShijiModal || GM._pendingShijiModal.courtDone === false)) {
     return;
@@ -1136,7 +1138,8 @@ function showLoading(msg,pct){
   _$("loading-fill").style.width=cur+"%";
   _aiProgressTimer=setInterval(function(){
     cur+=(Date.now()%7)*0.3+0.2;
-    if(cur>95)cur=95;
+    if(cur>_loadingCrawlCeil)cur=_loadingCrawlCeil;
+    if(cur<_loadingMaxPct)cur=_loadingMaxPct;
     _loadingMaxPct = cur;
     _$("loading-fill").style.width=cur+"%";
   },400);
@@ -1145,6 +1148,7 @@ function hideLoading(){
   if(_aiProgressTimer){clearInterval(_aiProgressTimer);_aiProgressTimer=null;}
   _$("loading-fill").style.width="100%";
   _loadingMaxPct = 0;  // 重置·下回合从 0 开始
+  _loadingCrawlCeil = 95;
   setTimeout(function(){_$("loading").classList.remove("show");_$("loading-fill").style.width="0%";},250);
 }
 // ═══ 后朝并发期间·模态排队机制 ═══

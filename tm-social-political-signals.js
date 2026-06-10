@@ -381,7 +381,8 @@
           unrestDelta: impact.unrestDelta || null,
           linkedIssue: signal.linkedIssue || '',
           reason: reason,
-          allowMinxinFeedback: !/local-revolt-risk|minxin/i.test(feedbackSource)
+          allowMinxinFeedback: !/local-revolt-risk|minxin/i.test(feedbackSource),
+          deferLedgerFinalize: options.deferLedgerFinalize === true
         });
       }
     } catch (_classMinxinBridgeE) {}
@@ -549,6 +550,47 @@
     return summary;
   }
 
+  // 2026-06-10·性能:审计账本摘要化。applyPending 原把每个 signal 的完整应用结果深拷三份
+  // (total.results + 账本 clone(total) + 调度器 lastRun)·classResults[].coupling / relationResults
+  // 内嵌整棵关系/证据结构·真存档实测每回合涨 2~7MB(40 条 cap 形同虚设·存档/deepClone/IPC 全被拖累)·
+  // 且 clone=JSON 往返·单次 applyPending 实测 ~950ms 主线程尖刺。
+  // 账本只承担审计职责:运行时无人读深结构(右栏读 _socialPoliticalSignals.items·调度器 formatForPrompt
+  // 只读标量·smoke 只断言计数)·故只留标量摘要(计数+名称+before/after)·深结构不入账。
+  function digestImpactRow(r) {
+    if (!r || typeof r !== 'object') return r == null ? null : r;
+    var slim = {};
+    Object.keys(r).forEach(function(k) {
+      var v = r[k];
+      if (v == null || typeof v === 'number' || typeof v === 'boolean') { slim[k] = v; return; }
+      if (typeof v === 'string') { slim[k] = v.length > 160 ? v.slice(0, 160) : v; return; }
+      if (k === 'before' || k === 'after') {
+        var bo = {};
+        Object.keys(v).forEach(function(k2) {
+          var v2 = v[k2];
+          if (v2 == null || typeof v2 === 'number' || typeof v2 === 'boolean' || typeof v2 === 'string') bo[k2] = v2;
+        });
+        slim[k] = bo;
+        return;
+      }
+      if (k === 'coupling') { slim.couplingParties = toArray(v && v.applied).length; return; }
+      // 其余深结构(edge/evidence/mirror 等)一律不入账本
+    });
+    if (slim.couplingParties == null && typeof r.couplingParties === 'number') slim.couplingParties = r.couplingParties;
+    return slim;
+  }
+  function digestApplyResult(result) {
+    if (!result || typeof result !== 'object') return result == null ? null : result;
+    return {
+      classes: Number(result.classes) || 0,
+      parties: Number(result.parties) || 0,
+      relations: Number(result.relations) || 0,
+      goals: Number(result.goals) || 0,
+      classResults: toArray(result.classResults).slice(0, 12).map(digestImpactRow),
+      partyResults: toArray(result.partyResults).slice(0, 12).map(digestImpactRow),
+      relationResults: toArray(result.relationResults).slice(0, 12).map(digestImpactRow)
+    };
+  }
+
   function applyPending(root, options) {
     root = pickRoot(root);
     options = options || {};
@@ -559,7 +601,7 @@
     var _src = options.source || 'social-political-signal';
     var _hasPending = store.items.some(function(s){ return s && s.applied !== true; });
     if (_hasPending) { try { if (TM.PartyGoals && typeof TM.PartyGoals.buildScenarioRelationIndex === 'function') TM.PartyGoals.buildScenarioRelationIndex(root, { turn: _turn, source: _src }); } catch (_) {} }
-    var _signalOptions = Object.assign({}, options, { skipScenarioMaintenance: true });
+    var _signalOptions = Object.assign({}, options, { skipScenarioMaintenance: true, deferLedgerFinalize: true });
     store.items.forEach(function(signal) {
       if (!signal || signal.applied === true) return;
       var result = applySignal(root, signal, _signalOptions);
@@ -571,8 +613,15 @@
       total.parties += result.parties;
       total.relations += result.relations;
       total.goals += result.goals;
-      total.results.push({ signalId: signal.id, result: clone(result) });
+      total.results.push({ signalId: signal.id, result: digestApplyResult(result) });
     });
+    // 2026-06-10·批末收口:循环内 deferLedgerFinalize 跳过的 aggregateTrue/rebuildMatrix/updatePerception
+    // 在此一次补齐(无欠账时 no-op)·治逐笔全量重建矩阵的主线程冻结
+    try {
+      if (TM.MinxinLedger && typeof TM.MinxinLedger.finalizeBatch === 'function') {
+        TM.MinxinLedger.finalizeBatch(root, { turn: _turn, source: _src });
+      }
+    } catch (_) {}
     if (total.signals > 0) {
       try {
         if (TM.PartyGoals && typeof TM.PartyGoals.deriveFromClassDemands === 'function') {
@@ -592,6 +641,17 @@
       });
       if (root._socialPoliticalSignalApplications.length > 40) root._socialPoliticalSignalApplications = root._socialPoliticalSignalApplications.slice(-40);
       root._socialPoliticalSignalsUiDirty = true;
+    }
+    // 一次性削平旧存档遗留的整结果深拷账本(读档削平范式·条目已 slim 时近零成本·idempotent)
+    if (Array.isArray(root._socialPoliticalSignalApplications)) {
+      root._socialPoliticalSignalApplications.forEach(function(entry) {
+        var s = entry && entry.summary;
+        if (!s || !Array.isArray(s.results)) return;
+        s.results = s.results.slice(0, 40).map(function(row) {
+          if (!row || typeof row !== 'object') return row;
+          return { signalId: row.signalId, result: digestApplyResult(row.result) };
+        });
+      });
     }
     return total;
   }

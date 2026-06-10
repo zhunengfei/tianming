@@ -917,6 +917,11 @@ function fullLoadGame(data){
 
     // 重建索引
     if (typeof buildIndices === 'function') buildIndices();
+    // 2026-06-10·_facIndex 已不入存档(autoSave SKIP·派生索引)·读档后在 chars/官衔/迁移全就绪处重建·
+    // 兼顾旧存档:旧档里的 _facIndex 反序列化后本就是与 chars 脱钩的死拷贝·重建一并治
+    try {
+      if (window.TM && TM.FactionIndex && typeof TM.FactionIndex.rebuild === 'function') TM.FactionIndex.rebuild();
+    } catch(_fxRebuildE) { try{ window.TM&&TM.errors&&TM.errors.captureSilent(_fxRebuildE,'fullLoadGame·facIndexRebuild'); }catch(_){} }
 
     // P6.3 修：老存档加载后·若 _memTables 缺失或仅有空 schema·自动反向重建以保留历史
     try {
@@ -1198,9 +1203,14 @@ function _autoSaveSnapshotGM(){
     _kjpPrivateAudienceLog:1
   };
   // skip·debug-only·崩溃恢复用不上·清掉省 100-300ms
+  // 2026-06-10 追加三个纯冗余大块(真存档实测计 5.5MB+):
+  //   _facIndex·派生反向索引·序列化后是与 chars 脱钩的死拷贝·读档即 rebuild(fullLoadGame)+每回合 render-finalize 重建
+  //   _savedMapData / _savedAdminHierarchy·_prepareGMForSave 每次从工作数据克隆的备份·
+  //     与文件里 gameState.mapData / P.adminHierarchy 逐字节相同·_restoreSavedFields 是条件式恢复·缺席时工作数据原样生效
   var SKIP = {
     _aiTelemetry:1, _debugSnapshots:1, _aiBranchDiag:1, _aiDiag:1,
-    _sysCacheMode:1, _sysCacheLen:1, _saveMeta:1
+    _sysCacheMode:1, _sysCacheLen:1, _saveMeta:1,
+    _facIndex:1, _savedMapData:1, _savedAdminHierarchy:1
   };
   var out = {};
   for (var k in GM) {
@@ -1271,7 +1281,10 @@ if(_tmHasNativeFs()){
         saveData.gameState=_autoSaveSnapshotGM();
         var _gmMs=Date.now()-_t0;
         if(_gmMs>800)console.warn('[autoSave] GM snapshot slow:'+_gmMs+'ms');
-        saveData._saveMeta={turn:GM.turn,scenario:findScenarioById(GM.sid)||{name:''},saveName:GM.saveName,date:new Date().toISOString()};
+        // 2026-06-10·性能:scenario 只存名字串(原 findScenarioById 整对象=把 5.3MB 剧本含内嵌地图又塞进存档一份)·
+        // 与手动存档(:557/:572 sc.name)口径一致·读档方只用 turn/字符串显示·无人读 scenario 对象字段
+        var _asScen=findScenarioById(GM.sid);
+        saveData._saveMeta={turn:GM.turn,scenario:(_asScen&&_asScen.name)||'',saveName:GM.saveName,date:new Date().toISOString()};
       }
       await window.tianming.autoSave(saveData);
       _autoSaveLastDoneMs=Date.now();

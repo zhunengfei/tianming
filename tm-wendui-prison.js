@@ -173,7 +173,7 @@
 
     var hdr = '<div style="background:linear-gradient(to right,#3a1a14,#2a1208);padding:10px 14px;border-bottom:1px solid #6b2e2a;">' +
       '<div style="font-size:16px;color:#c98a55;letter-spacing:0.15em;">【诏狱】' + _esc(charName) + '</div>' +
-      '<div style="font-size:11px;color:#8a6a4a;margin-top:3px;">罪名·' + _esc(imprisonReason) + ' · 羁押 ' + heldTurns + ' 月 · 体魄 ' + health + '/100</div>' +
+      '<div style="font-size:12px;color:#8a6a4a;margin-top:3px;">罪名·' + _esc(imprisonReason) + ' · 羁押 ' + heldTurns + ' 月 · 体魄 ' + health + '/100</div>' +
       '</div>';
 
     // 动作按钮·chat 单独抽出到 textarea 旁边 (跟 wendui 的发送按钮位置一致)
@@ -186,10 +186,10 @@
       if (e.huangwei) costParts.push('皇威 ' + (e.huangwei > 0 ? '+' : '') + e.huangwei);
       if (e.loyalty) costParts.push('忠诚 ' + (e.loyalty > 0 ? '+' : '') + e.loyalty);
       if (e.health) costParts.push('体魄 ' + (e.health > 0 ? '+' : '') + e.health);
-      var costStr = costParts.length ? '<div style="font-size:10px;color:#7a5a3a;margin-top:3px;">' + costParts.join(' · ') + '</div>' : '';
+      var costStr = costParts.length ? '<div style="font-size:11px;color:#7a5a3a;margin-top:3px;">' + costParts.join(' · ') + '</div>' : '';
       return '<button class="wdp-btn" data-action="' + k + '" style="display:block;width:100%;text-align:left;padding:8px 12px;margin:4px 0;background:#2a1610;border:1px solid #5a3a2a;color:#c9a55a;cursor:pointer;border-radius:3px;font-family:inherit;">' +
         '<div style="font-size:14px;">' + a.label + '</div>' +
-        '<div style="font-size:11px;color:#8a7a5a;margin-top:2px;">' + a.desc + '</div>' +
+        '<div style="font-size:12px;color:#8a7a5a;margin-top:2px;">' + a.desc + '</div>' +
         costStr +
         '</button>';
     }).join('');
@@ -208,7 +208,7 @@
     var footerInput = '<div style="padding:8px 14px;border-top:1px solid #4a2a20;background:#0e0805;">' +
       '<textarea id="wd-prison-input" placeholder="对罪臣说什么…  (Enter 送·Shift+Enter 换行)" style="width:100%;min-height:50px;background:#1a0e08;color:#d9c8a8;border:1px solid #5a3a2a;padding:6px;font-family:inherit;resize:vertical;"></textarea>' +
       '<div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:6px;">' +
-      '<span style="font-size:10px;color:#5a4a3a;flex:1;">对话·精力 -5·不动状态。或上方动作 (动作会用此文本作旁白)。</span>' +
+      '<span style="font-size:11px;color:#5a4a3a;flex:1;">对话·精力 -5·不动状态。或上方动作 (动作会用此文本作旁白)。</span>' +
       '<button id="wd-prison-send" style="padding:5px 16px;background:#3a2a1a;border:1px solid #8a6a3a;color:#c9a55a;cursor:pointer;font-family:inherit;">发送</button>' +
       '<button id="wd-prison-close" style="padding:5px 12px;background:transparent;border:1px solid #5a3a2a;color:#8a7a5a;cursor:pointer;">退出</button>' +
       '</div></div>';
