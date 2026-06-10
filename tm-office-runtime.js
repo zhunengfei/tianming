@@ -521,7 +521,10 @@ function _renderOfficeTreeList(container) {
   container.innerHTML = filterBar + '<div class="ogp-wrap">' + emperorHtml + bodyHtml + '</div>';
 }
 
-function renderOfficeTree(){
+function renderOfficeTree(force){
+  // 性能·2026-06-10·与纪录类面板同范式:gt-office 隐藏时跳过(renderGameState 尾部无条件调它·
+  // 整棵 SVG 衙门树+摘要对隐藏 tab 纯浪费)·switchGTab 切入钩/官制 standalone 都是先显后调·不受影响
+  if(!force && typeof _gtTabVisible==='function' && !_gtTabVisible('gt-office')) return;
   var el=_$("office-tree");if(!el)return;
   // 容错：如果 GM.officeTree 为空但 P.officeTree 有数据，恢复
   if ((!GM.officeTree || GM.officeTree.length===0) && P.officeTree && P.officeTree.length > 0) {
@@ -834,7 +837,7 @@ function _ogRenderPosCard(fi, idx, NW, cardH) {
     html += '<div class="og-empty-msg">\u6B64\u804C\u65E0\u4EBA\u00B7\u653F\u52A1\u505C\u6EDE</div>';
   } else {
     // 列表模式空缺·底部朱红警告
-    html += '<div style="padding:10px 14px;text-align:center;color:var(--vermillion-400);font-size:11px;letter-spacing:0.1em;border-top:1px dashed rgba(192,64,48,0.2);">\u6B64 \u804C \u65E0 \u4EBA \u00B7 \u653F \u52A1 \u505C \u6EDE</div>';
+    html += '<div style="padding:10px 14px;text-align:center;color:var(--vermillion-400);font-size:12px;letter-spacing:0.1em;border-top:1px dashed rgba(192,64,48,0.2);">\u6B64 \u804C \u65E0 \u4EBA \u00B7 \u653F \u52A1 \u505C \u6EDE</div>';
   }
 
   // 权限图标（列表模式空缺时跳过·保持极简）
@@ -1411,7 +1414,7 @@ function _ogRenderPosCardV10(fi, courtKey) {
     }
     if (_state === 'mourning' && _holder._mourning) {
       var mn = _holder._mourning.monthsLeft || _holder._mourning.left || 27;
-      html += '<div style="padding:6px 12px;font-size:9px;color:rgba(217,208,187,0.7);letter-spacing:0.1em;text-align:center;font-style:italic;border-top:1px dashed rgba(217,208,187,0.2);">\u4F9D\u5236\u5B88\u5B5D\u00B7<b style="color:#d9d0bb;">' + mn + '</b>\u6708\u518D\u8D77</div>';
+      html += '<div style="padding:6px 12px;font-size:10px;color:rgba(217,208,187,0.7);letter-spacing:0.1em;text-align:center;font-style:italic;border-top:1px dashed rgba(217,208,187,0.2);">\u4F9D\u5236\u5B88\u5B5D\u00B7<b style="color:#d9d0bb;">' + mn + '</b>\u6708\u518D\u8D77</div>';
     }
     if (_state === 'sick' && _holder._sickLeave) {
       var days = _holder._sickLeave.daysLeft || _holder._sickLeave.days || _holder._sickLeave || 0;
@@ -1448,9 +1451,9 @@ function _ogRenderEmperorCard(fi) {
   var style = 'left:' + fi.x + 'px;top:' + fi.y + 'px;width:' + fi.w + 'px;height:' + fi.h + 'px;position:absolute;background:linear-gradient(135deg,rgba(201,168,95,0.18),rgba(140,80,20,0.1)),var(--color-surface-elevated,#2a241c);border:1.5px solid var(--gold-400);border-radius:3px;box-shadow:0 0 0 1px rgba(184,154,83,0.15),0 6px 30px rgba(0,0,0,0.6);padding:12px 16px;text-align:center;z-index:2;';
   var html = '<div class="og-emperor-card" style="' + style + '">';
   html += '<div style="position:absolute;inset:4px;border:1px dashed rgba(201,168,95,0.3);pointer-events:none;border-radius:2px;"></div>';
-  html += '<div style="font-size:10px;letter-spacing:0.35em;color:var(--gold-400);margin-bottom:4px;">\u5929 \u547D \u6240 \u5F52</div>';
+  html += '<div style="font-size:11px;letter-spacing:0.35em;color:var(--gold-400);margin-bottom:4px;">\u5929 \u547D \u6240 \u5F52</div>';
   html += '<div style="font-size:20px;font-weight:700;color:var(--gold-100,#f4e8c5);letter-spacing:0.3em;text-shadow:0 0 10px rgba(201,168,95,0.3);">' + escHtml(emp.name||'\u5E1D') + '</div>';
-  if (reign) html += '<div style="font-size:10px;color:var(--txt-d);margin-top:3px;letter-spacing:0.2em;">' + escHtml(reign) + '</div>';
+  if (reign) html += '<div style="font-size:11px;color:var(--txt-d);margin-top:3px;letter-spacing:0.2em;">' + escHtml(reign) + '</div>';
   html += '</div>';
   return html;
 }
@@ -1831,7 +1834,7 @@ function _renderOfficeSummary() {
     }
     html += '</div>';
   } else {
-    html += '<div style="color:var(--ink-300);font-size:11px;font-style:italic;padding:4px 0;">\u672A\u52BF\u4E4B\u5C40\u00B7\u767E\u5B98\u5404\u5C45\u5176\u4F4D</div>';
+    html += '<div style="color:var(--ink-300);font-size:12px;font-style:italic;padding:4px 0;">\u672A\u52BF\u4E4B\u5C40\u00B7\u767E\u5B98\u5404\u5C45\u5176\u4F4D</div>';
   }
   html += '</div>';
 
@@ -1846,7 +1849,7 @@ function _renderOfficeSummary() {
       html += '<div class="og-cost-theory">\u4F9D\u7F16\u5236\u8DB3\u989D\u652F\u7ED9</div>';
     }
   } else {
-    html += '<div style="color:var(--ink-300);font-size:11px;font-style:italic;padding:4px 0;">\u672A\u914D\u7F6E\u4FF8\u7984\u89C4\u5219</div>';
+    html += '<div style="color:var(--ink-300);font-size:12px;font-style:italic;padding:4px 0;">\u672A\u914D\u7F6E\u4FF8\u7984\u89C4\u5219</div>';
   }
   html += '</div>';
 
@@ -1976,8 +1979,8 @@ function _offOpenZhongtui() {
       + 'onclick="this.closest(\'div[style*=fixed]\').remove();_offRecommend(' + pathJSON + ',\'' + safeDept + '\',\'' + safePos + '\')">';
     html += '<div>';
     html += '<span style="font-size:var(--text-sm);' + (v.isHigh ? 'color:var(--gold-400);font-weight:var(--weight-bold);' : '') + '">' + escHtml(v.deptName) + ' · ' + escHtml(v.posName) + '</span>';
-    if (v.rank) html += '<span style="font-size:0.65rem;color:var(--ink-300);margin-left:6px;">' + escHtml(v.rank) + '</span>';
-    if (v.duty) html += '<div style="font-size:0.62rem;color:var(--color-foreground-muted);margin-top:2px;">' + escHtml(v.duty) + '</div>';
+    if (v.rank) html += '<span style="font-size:0.7rem;color:var(--ink-300);margin-left:6px;">' + escHtml(v.rank) + '</span>';
+    if (v.duty) html += '<div style="font-size:0.68rem;color:var(--color-foreground-muted);margin-top:2px;">' + escHtml(v.duty) + '</div>';
     html += '</div>';
     html += '<span style="font-size:0.7rem;color:var(--gold-400);">' + (v.isHigh ? '入 廷 推 ›' : '荐 贤 ›') + '</span>';
     html += '</div>';
@@ -2039,7 +2042,7 @@ function _offRecommend(pathArr, deptName, posName) {
   if (_quanOfficer) {
     inner += '<div style="font-size:0.7rem;color:var(--gold-400);margin-bottom:var(--space-2);">\u94E8\u66F9\u63A8\u8350\uFF08' + escHtml(_quanOfficer.name) + '\uFF09\uFF1A</div>';
   }
-  if (pos.rank) inner += '<div style="font-size:0.65rem;color:var(--ink-300);margin-bottom:var(--space-2);">\u54C1\u7EA7\u8981\u6C42\uFF1A' + escHtml(pos.rank) + '</div>';
+  if (pos.rank) inner += '<div style="font-size:0.7rem;color:var(--ink-300);margin-bottom:var(--space-2);">\u54C1\u7EA7\u8981\u6C42\uFF1A' + escHtml(pos.rank) + '</div>';
   var top10 = candidates.slice(0, 10);
   top10.forEach(function(c, ci) {
     var isFaction = _quanOfficer && _quanOfficer.faction && c.faction === _quanOfficer.faction;
@@ -2047,10 +2050,10 @@ function _offRecommend(pathArr, deptName, posName) {
     inner += '<div style="padding:var(--space-2);margin-bottom:var(--space-1);background:var(--color-elevated);border:1px solid ' + borderClr + ';border-radius:var(--radius-sm);cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="_offSelectCandidate(\'' + escHtml(c.name).replace(/'/g,"\\'") + '\',\'' + escHtml(deptName).replace(/'/g,"\\'") + '\',\'' + escHtml(posName).replace(/'/g,"\\'") + '\');this.closest(\'div[style*=fixed]\').remove();">';
     inner += '<div>';
     inner += '<span style="font-size:var(--text-sm);font-weight:var(--weight-bold);">' + escHtml(c.name) + '</span>';
-    if (c.title) inner += '<span style="font-size:0.65rem;color:var(--ink-300);margin-left:4px;">' + escHtml(c.title) + '</span>';
-    if (isFaction) inner += '<span style="font-size:0.6rem;color:var(--gold-400);margin-left:4px;">[\u94E8\u66F9\u8350]</span>';
-    if (c._avoidance) inner += '<span style="font-size:0.6rem;color:var(--vermillion-400);margin-left:4px;">[' + c._avoidance + ']</span>';
-    inner += '<div style="font-size:0.65rem;color:var(--color-foreground-muted);">\u667A' + (c.intelligence||50) + ' \u653F' + (c.administration||50) + ' \u519B' + (c.military||50) + ' \5FE0' + (typeof _fmtNum1==='function'?_fmtNum1(c.loyalty||50):(c.loyalty||50)) + '</div>';
+    if (c.title) inner += '<span style="font-size:0.7rem;color:var(--ink-300);margin-left:4px;">' + escHtml(c.title) + '</span>';
+    if (isFaction) inner += '<span style="font-size:0.66rem;color:var(--gold-400);margin-left:4px;">[\u94E8\u66F9\u8350]</span>';
+    if (c._avoidance) inner += '<span style="font-size:0.66rem;color:var(--vermillion-400);margin-left:4px;">[' + c._avoidance + ']</span>';
+    inner += '<div style="font-size:0.7rem;color:var(--color-foreground-muted);">\u667A' + (c.intelligence||50) + ' \u653F' + (c.administration||50) + ' \u519B' + (c.military||50) + ' \5FE0' + (typeof _fmtNum1==='function'?_fmtNum1(c.loyalty||50):(c.loyalty||50)) + '</div>';
     inner += '</div>';
     inner += '<span style="font-size:0.7rem;color:var(--gold-400);">' + Math.round(c._recommendScore||0) + '\u5206</span>';
     inner += '</div>';
@@ -2068,10 +2071,10 @@ function _offRecommend(pathArr, deptName, posName) {
     inner += '<div class="_off-rec-item" data-name="' + escHtml(c.name) + '" data-title="' + escHtml(c.title||'') + '" data-admin="' + (c.administration||50) + '" data-mil="' + (c.military||50) + '" data-loy="' + (c.loyalty||50) + '" data-hasoffice="' + (c.officialTitle?'1':'0') + '" style="padding:var(--space-2);margin-bottom:var(--space-1);background:var(--color-elevated);border:1px solid ' + borderClr + ';border-radius:var(--radius-sm);cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="_offSelectCandidate(\'' + escHtml(c.name).replace(/'/g,"\\'") + '\',\'' + escHtml(deptName).replace(/'/g,"\\'") + '\',\'' + escHtml(posName).replace(/'/g,"\\'") + '\');this.closest(\'div[style*=fixed]\').remove();">';
     inner += '<div>';
     inner += '<span style="font-size:var(--text-sm);font-weight:var(--weight-bold);">' + escHtml(c.name) + '</span>';
-    if (c.title) inner += '<span style="font-size:0.65rem;color:var(--ink-300);margin-left:4px;">' + escHtml(c.title) + '</span>';
-    if (isFaction) inner += '<span style="font-size:0.6rem;color:var(--gold-400);margin-left:4px;">[\u94E8\u66F9\u8350]</span>';
-    if (c._avoidance) inner += '<span style="font-size:0.6rem;color:var(--vermillion-400);margin-left:4px;">[' + c._avoidance + ']</span>';
-    inner += '<div style="font-size:0.65rem;color:var(--color-foreground-muted);">\u667A' + (c.intelligence||50) + ' \u653F' + (c.administration||50) + ' \u519B' + (c.military||50) + ' \5FE0' + (typeof _fmtNum1==='function'?_fmtNum1(c.loyalty||50):(c.loyalty||50)) + '</div>';
+    if (c.title) inner += '<span style="font-size:0.7rem;color:var(--ink-300);margin-left:4px;">' + escHtml(c.title) + '</span>';
+    if (isFaction) inner += '<span style="font-size:0.66rem;color:var(--gold-400);margin-left:4px;">[\u94E8\u66F9\u8350]</span>';
+    if (c._avoidance) inner += '<span style="font-size:0.66rem;color:var(--vermillion-400);margin-left:4px;">[' + c._avoidance + ']</span>';
+    inner += '<div style="font-size:0.7rem;color:var(--color-foreground-muted);">\u667A' + (c.intelligence||50) + ' \u653F' + (c.administration||50) + ' \u519B' + (c.military||50) + ' \5FE0' + (typeof _fmtNum1==='function'?_fmtNum1(c.loyalty||50):(c.loyalty||50)) + '</div>';
     inner += '</div>';
     inner += '<span style="font-size:0.7rem;color:var(--gold-400);">' + Math.round(c._recommendScore||0) + '\u5206</span>';
     inner += '</div>';
@@ -2252,7 +2255,7 @@ function _offOpenPicker(pathArr, deptName, posName, currentHolder) {
   if (existing) existing.remove();
   var bg = document.createElement('div');
   bg.id = 'off-picker-modal';
-  bg.style.cssText = 'position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,0.72);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px);';
+  bg.style.cssText = 'position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,0.78);display:flex;align-items:center;justify-content:center;';
   bg.onclick = function(e) { if (e.target === bg) _offClosePicker(); };
 
   var modeLbl = currentHolder ? '改换' : '任命';
