@@ -1641,18 +1641,18 @@
       }
     },
     // ═══ 外国领袖 ═══
-    'Don Francisco Mascarenhas': {
+    '马士加路也': {
       familyMembers: [],
       relations: {
         '朱由检': { affinity: 55, trust: 40, respect: 60, fear: 15, hostility: 5, labels: ['明藩属·租借澳门'] },
-        'Gerard Frederikszoon de With': { affinity: 0, trust: 0, respect: 30, fear: 20, hostility: 95, labels: ['葡荷海战'] },
-        'Juan Niño de Tabora': { affinity: 70, trust: 65, respect: 70, fear: 0, hostility: 0, labels: ['西葡同君'] }
+        '德威特': { affinity: 0, trust: 0, respect: 30, fear: 20, hostility: 95, labels: ['葡荷海战'] },
+        '尼尼奥·德·塔沃拉': { affinity: 70, trust: 65, respect: 70, fear: 0, hostility: 0, labels: ['西葡同君'] }
       }
     },
-    'Gerard Frederikszoon de With': {
+    '德威特': {
       familyMembers: [],
       relations: {
-        'Don Francisco Mascarenhas': { affinity: 0, trust: 0, respect: 30, fear: 15, hostility: 90, labels: ['葡荷死敌'] },
+        '马士加路也': { affinity: 0, trust: 0, respect: 30, fear: 15, hostility: 90, labels: ['葡荷死敌'] },
         '郑芝龙': { affinity: 10, trust: 5, respect: 55, fear: 10, hostility: 75, labels: ['台海贸易敌手'] },
         '朱由检': { affinity: 15, trust: 10, respect: 50, fear: 20, hostility: 45, labels: ['被驱退台湾'] }
       }
@@ -5791,7 +5791,7 @@
         strategy: '此时仅求食。若民变燎原则走"流寇"战略——不据一城，流动求活。'
       },
       {
-        name: '葡萄牙·澳门', leader: 'Don Francisco Mascarenhas(澳门总督 1623-1626·继任 Dom Filipe Lobo da Silveira)', color: '#8b4513',
+        name: '葡萄牙·澳门', leader: '马士加路也(澳门总督 1623-1626·继任 罗保)', color: '#8b4513',
         type: '外国势力·欧洲', factionType: '海上殖民+贸易', territory: '澳门半岛(1557 起租借·月租 500 两)+圣保禄学院+议事亭',
         prestige: 58, economy: 68, militaryStrength: 1205,   // 总兵力≈1200(正规驻军250+民兵800+精锐150+武装商船5艘)·澳门葡人社群
         description: '葡萄牙自嘉靖三十六年(1557)起租借澳门。月付租银 500 两(后改岁输 2 万)。以澳门为东亚中转港，对接卧亚(Goa)-果阿-马六甲-长崎(日本)航线。葡人与中国士大夫(徐光启/李之藻/孙元化)联系密切，红衣大炮即由葡人铸/引入。耶稣会利玛窦、罗明坚等传教先锋驻此。1580-1640 葡属西班牙哈布斯堡王朝(同君连合)。',
@@ -5807,7 +5807,7 @@
         weaknesses: ['军事极弱·仅能自卫', '母国与西班牙合并致荷英海上打击', '传教受地方禁忌', '粮食靠买自广东', '海路被荷兰截断则全断'],
         strategy: '维护澳门现状。与明廷合作改善形象——铸炮、译历、传数学。与徐光启等明朝士大夫结盟抵制荷兰东进。若荷兰断海运则全力求与明廷结盟。',
         foundYear: 1557,
-        leaderInfo: { name: 'Don Francisco Mascarenhas', personality: '务实·商贸派', age: '55', gender: '男', belief: '罗马天主教', learning: '葡萄牙贵族·海事', ethnicity: '葡萄牙', bio: '澳门总督 1623-1626 任内铸红衣炮输明。继任者 Dom Filipe Lobo da Silveira 1626-1630 继续对明合作政策。' },
+        leaderInfo: { name: '马士加路也', personality: '务实·商贸派', age: '55', gender: '男', belief: '罗马天主教', learning: '葡萄牙贵族·海事', ethnicity: '葡萄牙', bio: '澳门总督 1623-1626 任内铸红衣炮输明。继任者 罗保 1626-1630 继续对明合作政策。' },
         heirInfo: { name: '议事会(Loyal Senate)', personality: '集体领导·商绅共治', age: '', gender: '合议', belief: '天主教', learning: '', ethnicity: '葡+土生葡人', bio: '议事会由 6 议员+主席构成，葡萄牙国王任命总督之外的实际治理单位。' },
         cohesion: { political: 62, military: 35, economic: 78, cultural: 70, ethnic: 50, loyalty: 65 },
         // 澳门驻军史料：《澳门记略》《The Portuguese Empire in Asia》Newitt
@@ -5827,7 +5827,7 @@
         internalParties: ['议事会(商绅派)', '耶稣会(传教派)', '总督府(军事派)']
       },
       {
-        name: '荷兰·台海(东印度公司)', leader: 'Gerard Frederikszoon de With(大员台湾长官·1625-1627 在任·Pieter Nuyts 1627-1629 将继)', color: '#d2691e',
+        name: '荷兰·台海(东印度公司)', leader: '德威特(大员台湾长官·1625-1627 在任·彼得·纳茨 1627-1629 将继)', color: '#d2691e',
         type: '外国势力·欧洲', factionType: '特许公司+海上霸权',
         territory: '台湾大员热兰遮城(1624 起·Fort Zeelandia)+普罗文西亚城(赤崁·Fort Provintia 1625 起筑)+巴达维亚总部(1619 建于爪哇)',
         prestige: 52, economy: 75, militaryStrength: 4118,   // 总兵力≈4100(VOC雇佣军1200+亚洲雇佣兵2500+精锐400+Galleon/Fluyt 18艘)
@@ -5844,14 +5844,14 @@
         weaknesses: ['台湾孤立·缺乏大陆立足', '原住民部分反抗(麻豆/萧垄社)', '与郑氏海商竞争不利', '基隆被西班牙卡住', '对明战败后声誉低'],
         strategy: '巩固热兰遮/普罗文西亚据点。进一步向福建/浙江沿海扩张。压郑氏海商。与日本争长崎。',
         foundYear: 1624,
-        leaderInfo: { name: 'Gerard Frederikszoon de With', personality: '商贸优先·避战', age: '50', gender: '男', belief: '加尔文派', learning: '阿姆斯特丹商学', ethnicity: '荷兰', bio: '1625-1627 大员长官。Pieter Nuyts 1627-1629 将继，日后因滨田弥兵卫事件被日方扣押。' },
-        heirInfo: { name: 'Pieter Nuyts', personality: '跋扈·外交无能', age: '29', gender: '男', belief: '加尔文派', learning: '莱顿大学法学博士', ethnicity: '荷兰', bio: '将于 1627 年继任大员长官。1628 与郑芝龙滨田弥兵卫冲突后被日方扣押 4 年。' },
+        leaderInfo: { name: '德威特', personality: '商贸优先·避战', age: '50', gender: '男', belief: '加尔文派', learning: '阿姆斯特丹商学', ethnicity: '荷兰', bio: '1625-1627 大员长官。彼得·纳茨 1627-1629 将继，日后因滨田弥兵卫事件被日方扣押。' },
+        heirInfo: { name: '彼得·纳茨', personality: '跋扈·外交无能', age: '29', gender: '男', belief: '加尔文派', learning: '莱顿大学法学博士', ethnicity: '荷兰', bio: '将于 1627 年继任大员长官。1628 与郑芝龙滨田弥兵卫冲突后被日方扣押 4 年。' },
         cohesion: { political: 68, military: 75, economic: 88, cultural: 55, ethnic: 40, loyalty: 60 },
         // VOC 东亚兵力史料：《The Dutch Seaborne Empire》Boxer·《VOC Archives》Hague
         // 台湾驻军 200-400 人+巴达维亚派遣+亚洲雇佣兵(日本/爪哇/马来)+战舰水手
         militaryBreakdown: { standingArmy: 1200, militia: 2500, elite: 400, fleet: 18 },
         economicStructure: { agriculture: 5, trade: 72, handicraft: 8, tribute: 15 },
-        succession: { rule: 'appointedByVOC', designatedHeir: 'Pieter Nuyts', stability: 70 },
+        succession: { rule: 'appointedByVOC', designatedHeir: '彼得·纳茨', stability: 70 },
         historicalEvents: [
           { turn: -25, event: '1602 VOC 成立', impact: '世界首家股份公司·垄断东印度贸易' },
           { turn: -23, event: '1604 韦麻郎犯澎湖', impact: '明沈有容驱荷·首次交手' },
@@ -5860,12 +5860,12 @@
           { turn: -3, event: '1624 南居益驱荷退台湾', impact: '台湾殖民史起点' },
           { turn: -2, event: '1625 建热兰遮城+普罗文西亚城', impact: '台湾防务体系建成' },
           { turn: -2, event: '1625 料罗湾战役', impact: '荷+明联合剿海盗成功' },
-          { turn: 0, event: '1627 Nuyts 即将接任', impact: '日荷关系紧张起点' }
+          { turn: 0, event: '1627 纳茨 即将接任', impact: '日荷关系紧张起点' }
         ],
         internalParties: ['十七绅士(VOC 董事会)', '巴达维亚总督府', '台湾商务派', '海军扩张派']
       },
       {
-        name: '西班牙·马尼拉', leader: 'Juan Niño de Tabora(菲律宾总督·1626-1632 在任)', color: '#b8860b',
+        name: '西班牙·马尼拉', leader: '尼尼奥·德·塔沃拉(菲律宾总督·1626-1632 在任)', color: '#b8860b',
         type: '外国势力·欧洲', factionType: '美洲银贸易中介·殖民帝国远东省',
         territory: '菲律宾马尼拉(1571 建)+北吕宋基隆(1626 Santísima Trinidad)+宿务+棉兰老部分',
         prestige: 54, economy: 76, militaryStrength: 8608,   // 总兵力≈8600(驻军2500+Tercio民兵5500+精锐600+大帆船8艘)
@@ -5882,7 +5882,7 @@
         weaknesses: ['远离母国(马德里)·兵少', '北吕宋据点被荷兰围', '华商叛乱风险', '穆斯林摩洛苏丹牵制南方', '大帆船常遭荷英海盗袭击'],
         strategy: '维持马尼拉-阿卡普尔科-月港银路。与澳门葡人协作。对华商既用又防。守基隆抗荷。',
         foundYear: 1571,
-        leaderInfo: { name: 'Juan Niño de Tabora', personality: '好战·扩张派·信天主教', age: '58', gender: '男', belief: '罗马天主教', learning: '西班牙军职晋升', ethnicity: '西班牙', bio: '菲律宾总督 1626-1632。任内建基隆城(1626)抗荷。1629 远征苏禄失败。1632 死于马尼拉任上。' },
+        leaderInfo: { name: '尼尼奥·德·塔沃拉', personality: '好战·扩张派·信天主教', age: '58', gender: '男', belief: '罗马天主教', learning: '西班牙军职晋升', ethnicity: '西班牙', bio: '菲律宾总督 1626-1632。任内建基隆城(1626)抗荷。1629 远征苏禄失败。1632 死于马尼拉任上。' },
         heirInfo: { name: 'Audiencia Real(皇家法院)', personality: '临时合议', age: '', gender: '合议', belief: '天主教', learning: '', ethnicity: '西班牙', bio: '总督去职空缺期由 Audiencia 合议代理，直至马德里新任。' },
         cohesion: { political: 58, military: 55, economic: 80, cultural: 65, ethnic: 45, loyalty: 62 },
         // 西班牙菲律宾驻军：《Spanish Philippines》Phelan·《Archivo General de Indias》
@@ -10572,7 +10572,7 @@
         recentDisasters: ['天启五年至七年陕北连旱', '延安榆林饥民逃散与驿路崩坏']
       });
       compact('portugueseMacau', {
-        name: '澳门葡人租居地', regionType: 'leased_port', officialPosition: '澳门议事会与总督辖区', governor: 'Dom Filipe Lobo da Silveira',
+        name: '澳门葡人租居地', regionType: 'leased_port', officialPosition: '澳门议事会与总督辖区', governor: '罗保',
         description: '澳门半岛、炮厂、商馆和外港合并为一个租居港区。小港口不再拆成多区。',
         terrain: '沿海', specialResources: '红衣炮·耶稣会·中日转口贸易·船坞', taxLevel: '租银/商税',
         byEthnicity: { '汉': 0.72, '葡萄牙': 0.05, '土生葡人': 0.08, '马来/印度/非洲仆役': 0.10, '其他': 0.05 },
@@ -10584,7 +10584,7 @@
         recentDisasters: ['天启二年荷兰攻澳门失败后戒备增强', '日本贸易波动与荷兰封锁压力上升']
       });
       compact('dutchFormosa', {
-        name: '大员荷兰商馆区', regionType: 'company_colony', officialPosition: 'VOC 大员长官辖区', governor: 'Gerard Frederikszoon de With',
+        name: '大员荷兰商馆区', regionType: 'company_colony', officialPosition: 'VOC 大员长官辖区', governor: '德威特',
         description: '热兰遮、赤崁与台海舰队合并为一个公司殖民据点。它是商馆加要塞，不按省制拆细。',
         terrain: '沿海/海域', specialResources: '鹿皮·糖·转口贸易·火炮·武装商船', taxLevel: '公司税',
         byEthnicity: { '平埔族': 0.62, '汉': 0.25, '荷兰': 0.02, '日本/东南亚雇佣兵': 0.06, '其他': 0.05 },
@@ -10596,7 +10596,7 @@
         recentDisasters: ['天启四年荷兰入据大员后筑热兰遮', '西班牙占北台湾基隆形成牵制']
       });
       compact('spanishManila', {
-        name: '菲律宾马尼拉总督区', regionType: 'colonial_governorate', officialPosition: '菲律宾总督府', governor: 'Juan Niño de Tabora',
+        name: '菲律宾马尼拉总督区', regionType: 'colonial_governorate', officialPosition: '菲律宾总督府', governor: '尼尼奥·德·塔沃拉',
         description: '马尼拉、吕宋、宿务、北台湾基隆与摩洛边区压成一个殖民总督区。海外殖民势力只做一个省级大区。',
         terrain: '沿海/群岛', specialResources: '美洲银·大帆船·华商·船坞·基隆炮台', taxLevel: '殖民商税',
         byEthnicity: { '菲律宾原住民': 0.76, '华商(Sangley)': 0.13, '西班牙/拉美士兵': 0.015, '混血': 0.045, '其他': 0.05 },
@@ -11403,7 +11403,7 @@
 
       portugueseMacau: npcTree('fac-portuguese-macau', '葡萄牙·澳门', [
         division({
-          name: '澳门议事会辖区', level: 'province', regionType: 'leased_port', officialPosition: '议事会与总督辖区', governor: 'Dom Filipe Lobo da Silveira',
+          name: '澳门议事会辖区', level: 'province', regionType: 'leased_port', officialPosition: '议事会与总督辖区', governor: '罗保',
           description: '澳门半岛、议事亭、圣保禄学院及葡人商社。依明廷许可租居，靠中日贸易、传教和火炮技术吃饭。',
           populationDetail: { mouths: 10000, fugitives: 200, hiddenCount: 1000 },
           terrain: '沿海', specialResources: '红衣炮·耶稣会·中日转口贸易', taxLevel: '租银/商税',
@@ -11434,7 +11434,7 @@
 
       dutchFormosa: npcTree('fac-dutch-formosa', '荷兰·台海(东印度公司)', [
         division({
-          name: '大员热兰遮商馆区', level: 'province', regionType: 'company_colony', officialPosition: 'VOC 大员长官辖区', governor: 'Gerard Frederikszoon de With',
+          name: '大员热兰遮商馆区', level: 'province', regionType: 'company_colony', officialPosition: 'VOC 大员长官辖区', governor: '德威特',
           description: '台湾西南大员与热兰遮城。1624 后荷兰由澎湖退据台湾，以商馆、要塞和征税经营台海。',
           populationDetail: { mouths: 12000, fugitives: 200, hiddenCount: 3000 },
           terrain: '沿海', specialResources: '鹿皮·糖·转口贸易·火炮', taxLevel: '公司税',
@@ -11479,7 +11479,7 @@
 
       spanishManila: npcTree('fac-spanish-manila', '西班牙·马尼拉', [
         division({
-          name: '马尼拉王城与甲米地', level: 'province', regionType: 'colonial_governorate', officialPosition: '菲律宾总督府', governor: 'Juan Niño de Tabora',
+          name: '马尼拉王城与甲米地', level: 'province', regionType: 'colonial_governorate', officialPosition: '菲律宾总督府', governor: '尼尼奥·德·塔沃拉',
           description: '马尼拉王城、巴里安华商区和甲米地船坞。大帆船白银、华商贸易和殖民军政都压在这里。',
           populationDetail: { mouths: 85000, fugitives: 2000, hiddenCount: 12000 },
           terrain: '沿海', specialResources: '美洲银·大帆船·华商·船坞', taxLevel: '殖民商税',

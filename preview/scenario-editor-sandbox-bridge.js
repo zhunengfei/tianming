@@ -296,29 +296,26 @@
   }
 
   function handleReturnedScenario(payload) {
-    var restoredCount = 0;
     var settled = false;
     installReturnedScenario(payload);
     refreshReturnedScenarioView();
 
     function reapplyAfterRestore() {
       if (settled) return;
-      restoredCount += 1;
       installReturnedScenario(payload, { silent: true });
       refreshReturnedScenarioView();
-      if (restoredCount >= 2) {
-        settled = true;
-        clearReturnPayload(payload);
-      }
     }
 
     if (global.addEventListener) global.addEventListener('tm:p-restored', reapplyAfterRestore);
+    // 2.5s 兜底重装一次（旧档同步恢复多在此前完成）
+    setTimeout(reapplyAfterRestore, 2500);
+    // 治竞态：旧档异步恢复（tm:p-restored）可能晚于 2.5s。listener 保留到 60s，
+    // 期间每次 restore 都幂等重装，写回结果不再被慢恢复覆盖；之后才摘 listener、清暂存。
     setTimeout(function() {
-      reapplyAfterRestore();
-      if (global.removeEventListener) global.removeEventListener('tm:p-restored', reapplyAfterRestore);
       settled = true;
+      if (global.removeEventListener) global.removeEventListener('tm:p-restored', reapplyAfterRestore);
       clearReturnPayload(payload);
-    }, 2500);
+    }, 60000);
   }
 
   function startWithPausedAi(sc) {
