@@ -45,6 +45,35 @@ function buildScenarioResetEditorSnapshot(scnId) {
   return scenario;
 }
 
+// 治 quota：把超大草稿写进与预览 app 同一 IndexedDB(DB tm-scenario-editor-reset-projects·store projectBodies·key __autosaveDraft__)
+// 预览 app init() 在 localStorage(STORAGE_KEY) 为空时会 getDraftBody() 读此草稿(形状 {id, draft})·故入口落此处即可被读到。
+// 版本/库名/store/keyPath 必须与 scenario-editor-reset-app.js openProjectDb() 完全一致。
+function _tmResetEditorPutDraftToIdb(payload) {
+  return new Promise(function (resolve) {
+    try {
+      if (typeof indexedDB === 'undefined' || !indexedDB) { resolve(false); return; }
+      var req = indexedDB.open('tm-scenario-editor-reset-projects', 1);
+      req.onupgradeneeded = function () {
+        var db = req.result;
+        if (!db.objectStoreNames.contains('projectBodies')) db.createObjectStore('projectBodies', { keyPath: 'id' });
+      };
+      req.onsuccess = function () {
+        var db = req.result;
+        try {
+          if (!db.objectStoreNames.contains('projectBodies')) { db.close(); resolve(false); return; }
+          var tx = db.transaction('projectBodies', 'readwrite');
+          tx.objectStore('projectBodies').put({ id: '__autosaveDraft__', draft: payload });
+          tx.oncomplete = function () { db.close(); resolve(true); };
+          tx.onerror = function () { db.close(); resolve(false); };
+          tx.onabort = function () { db.close(); resolve(false); };
+        } catch (_) { try { db.close(); } catch (__) {} resolve(false); }
+      };
+      req.onerror = function () { resolve(false); };
+      req.onblocked = function () { resolve(false); };
+    } catch (_) { resolve(false); }
+  });
+}
+
 function openScenarioResetEditor(scnId) {
   var scenario = buildScenarioResetEditorSnapshot(scnId);
   if (!scenario) {
@@ -69,15 +98,24 @@ function openScenarioResetEditor(scnId) {
     sandboxLaunch: null,
     fieldNotes: {}
   };
+  function _gotoResetEditor() {
+    console.log('[openScenarioResetEditor] 打开新版剧本工坊, scnId=' + scnId);
+    window.location.href = 'preview/scenario-editor-reset-preview.html?tmScenarioEditorSource=runtime&scnId=' + encodeURIComponent(scnId);
+  }
   try {
     localStorage.setItem(SCENARIO_RESET_EDITOR_DRAFT_KEY, JSON.stringify(payload));
   } catch (e) {
-    console.warn('[openScenarioResetEditor] localStorage 写入失败', e && e.message || e);
-    toast('新版工坊写入失败');
-    return null;
+    // quota：大剧本(天启含 ~7MB 地图·payload 又含 scenario+original 双份)超 localStorage 配额。
+    // 不再静默失败·改落 IndexedDB(配额远大)·清掉陈旧 localStorage key 逼预览 app 读 IndexedDB 草稿·写完再导航(IDB 异步)。
+    console.warn('[openScenarioResetEditor] localStorage 写入失败，转存 IndexedDB', e && e.message || e);
+    try { localStorage.removeItem(SCENARIO_RESET_EDITOR_DRAFT_KEY); } catch (_) {}
+    _tmResetEditorPutDraftToIdb(payload).then(function (ok) {
+      if (ok) { _gotoResetEditor(); }
+      else { toast('剧本过大且本地库不可用·无法打开工坊·请改用导出 JSON'); }
+    });
+    return scenario;
   }
-  console.log('[openScenarioResetEditor] 打开新版剧本工坊, scnId=' + scnId);
-  window.location.href = 'preview/scenario-editor-reset-preview.html?tmScenarioEditorSource=runtime&scnId=' + encodeURIComponent(scnId);
+  _gotoResetEditor();
   return scenario;
 }
 window.openScenarioResetEditor = openScenarioResetEditor;

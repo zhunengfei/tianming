@@ -1597,7 +1597,9 @@ function robustParseJSON(raw) {
   // 模型复读/代理失控可吐出数 MB 的 raw·回合「深度推演」阶段 20+ 个 AI 子调用并发各跑一遍·
   // 瞬时分配叠加可把 Electron 渲染进程内存撑爆 → 深推时突然黑屏、必须重启 App。
   // 合法子调用响应 ≤8000 tokens(数十 KB)·故超过上限者一律视为失控:只做一次零/低拷贝直解·失败即放弃(交上层截断重修)·绝不进多拷贝修复风暴。
-  var MAX_PARSE_LEN = 500000; // ~500KB·远超任何合法子调用·远低于致 OOM 量级
+  // 2026-06-11·安卓 WebView 小堆·解析上限同步收紧(多层正则修复每步全量复制 raw·安卓上更易爆)。合法子调用仅几十 KB。
+  var _rpjIsCap = (function(){ try { if (typeof window !== 'undefined' && window.TM && window.TM.platform && window.TM.platform.kind) return window.TM.platform.kind === 'capacitor'; return !!(typeof window !== 'undefined' && window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); } catch(_) { return false; } })();
+  var MAX_PARSE_LEN = _rpjIsCap ? 262144 : 500000; // 安卓~256KB·桌面~500KB·均远超任何合法子调用·远低于致 OOM 量级
   if (raw.length > MAX_PARSE_LEN) {
     try { if (typeof _dbg === 'function') _dbg('[robustParseJSON] 响应过大 ' + raw.length + ' 字符·跳过多层修复防 OOM'); } catch (_) {}
     try { return JSON.parse(raw); } catch (_e0) {}

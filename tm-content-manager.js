@@ -261,9 +261,11 @@
       '.tm-feat-h .tm-pill{margin-left:auto;}',
       '.tm-update-ritual{position:fixed;inset:0;z-index:2700;display:none;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 20%,rgba(154,47,34,.24),transparent 30%),rgba(2,1,1,.86);backdrop-filter:blur(5px);}',
       '.tm-update-ritual.show{display:flex;}',
-      '.tm-update-box{width:min(900px,92vw);max-height:min(740px,90vh);display:grid;grid-template-rows:auto minmax(0,1fr) auto;background:linear-gradient(180deg,rgba(42,24,17,.98),rgba(10,7,5,.99));border:1px solid rgba(214,177,93,.7);box-shadow:0 28px 82px rgba(0,0,0,.72),inset 0 0 0 1px rgba(255,238,184,.07);color:#eadfcb;}',
+      '.tm-update-box{width:min(900px,92vw);max-height:min(740px,90vh);display:grid;grid-template-rows:auto minmax(0,1fr) auto;background:linear-gradient(180deg,rgba(42,24,17,.98),rgba(10,7,5,.99));border:1px solid rgba(214,177,93,.7);box-shadow:0 28px 82px rgba(0,0,0,.72),inset 0 0 0 1px rgba(255,238,184,.07);color:#eadfcb;font-family:"STKaiti","KaiTi","楷体","Noto Serif SC","Songti SC",serif;}',
+      // 御案化·标题楷体 + 圆形朱印（与 tm-update-card 同语·对齐 body.tm-phase8-formal）
       '.tm-update-title{padding:1rem 1.1rem;border-bottom:1px solid rgba(214,177,93,.28);display:flex;justify-content:space-between;gap:.8rem;align-items:flex-start;background:linear-gradient(90deg,rgba(138,38,28,.34),rgba(0,0,0,.08));}',
-      '.tm-update-title b{display:block;color:#f2d487;font-size:1.05rem;}',
+      '.tm-update-title b{display:flex;align-items:center;color:#f7dda0;font-size:1.08rem;letter-spacing:.12em;}',
+      '.tm-update-title b::before{content:"\\66f4";display:grid;place-items:center;width:26px;height:26px;margin-right:.6rem;flex:0 0 auto;border-radius:50%;border:1px solid rgba(213,176,95,.55);color:#f4dca0;font-size:13px;background:radial-gradient(circle,rgba(154,47,34,.55),rgba(64,31,20,.85) 74%);box-shadow:inset 0 0 6px rgba(0,0,0,.45),0 0 6px rgba(201,160,69,.28);}',
       '.tm-update-title span{display:block;margin-top:.25rem;color:rgba(234,223,203,.66);font-size:.74rem;line-height:1.45;}',
       '.tm-update-body{min-height:0;overflow-y:auto;overflow-x:hidden;padding:1rem;display:block;}',
       '.tm-update-body>section{display:block;margin-bottom:.8rem;}',
@@ -2151,7 +2153,8 @@
       updateApplyState({ stage: 'checking-hot', message: '正在检查前端热更...', progress: 10 }, '检查前端热更清单。');
       var hot = await window.tianming.checkHotUpdate(state.hotFeedUrl || state.defaultHotFeedUrl || '');
       state.hotCheck = hot || null;
-      if (hot && hot.success && hot.hasUpdate) {
+      // 2026-06-11·needsInstaller=热更要求更高本体版本·别在注定失败的热更上空转·直落本体安装包分支
+      if (hot && hot.success && hot.hasUpdate && !hot.needsInstaller) {
         updateApplyState({
           stage: 'downloading-hot',
           kind: 'hot',

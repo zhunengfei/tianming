@@ -666,7 +666,10 @@
     var flow = computeTaxFlow(totalIncomeAnnual);
     g.actualTaxRate = 1 - flow.leakageRate;
     // ★ 若 cascade 已为本回合写入 thisTurnIn → 已设置真实 annualIncome（按 turnFracOfYear 推算），不要用八源公式覆盖
-    var _cascadeRanForIncome = (GM._lastCascadeTurn === GM.turn) ||
+    // 2026-06-11·补 GM.turn-1:endturn 里 cascade(SubTickRunner)跑在 GM.turn++ 之前(_lastCascadeTurn=旧回合)·
+    //   monthlySettle 在自增后跑·旧检测 _lastCascadeTurn===GM.turn 必假→误落八源 fallback 覆盖月入(治「过回合月入96万·读档才正常」)。
+    //   load 路 cascade 跑时 GM.turn 未变·仍走第一条件·不受影响。
+    var _cascadeRanForIncome = (GM._lastCascadeTurn === GM.turn) || (GM._lastCascadeTurn === (GM.turn - 1)) ||
                                (g.ledgers && g.ledgers.money && (g.ledgers.money.thisTurnIn || 0) > 0);
     if (!_cascadeRanForIncome) {
       g.annualIncome = Math.round(flow.actualReceived);
@@ -685,7 +688,7 @@
     g.monthlyExpense = Math.round(totalExpenseAnnual / 12);
 
     // ★ 央地财政正确衔接（防止 CascadeTax/FixedExpense 写入被覆盖）
-    var cascadeRanThisTurn = (GM._lastCascadeTurn === GM.turn) || ((g.ledgers.money.thisTurnIn || 0) > 0);
+    var cascadeRanThisTurn = (GM._lastCascadeTurn === GM.turn) || (GM._lastCascadeTurn === (GM.turn - 1)) || ((g.ledgers.money.thisTurnIn || 0) > 0);
     var fixedRanThisTurn = (GM._lastFixedExpenseTurn === GM.turn);
     var oldBalance = g.balance || 0;
     var periodIn, periodOut;
@@ -746,6 +749,14 @@
       g.lastDelta = periodIn - periodOut;
     }
 
+    // 2026-06-11·显示对齐 cascade 真账:从权威 ledger(cascade 已写真实 thisTurnIn·FixedExpense+residual 已写 thisTurnOut)反算
+    //   显示用月入月支(= thisTurn/mr·数学上等价 cascade fiscal-engine:1283/1729 与 load 后的值)·彻底治「过回合月入96万/月支170万·读档才正常」。
+    //   仅 cascade 真跑过(本回合或刚结束回合)且确有进项时执行·fallback(cascade 未跑)保持原八源/八类显示。
+    if (cascadeRanThisTurn && mr > 0 && (g.ledgers.money.thisTurnIn || 0) > 0) {
+      g.monthlyIncome = Math.round((g.ledgers.money.thisTurnIn || 0) / mr);
+      g.monthlyExpense = Math.round((g.ledgers.money.thisTurnOut || 0) / mr);
+      g.annualIncome = Math.round(g.monthlyIncome * 12);
+    }
     // 趋势
     var threshold = g.annualIncome * 0.01;
     g.trend = g.lastDelta > threshold ? 'up' :

@@ -128,7 +128,12 @@ function _cc3_buildSummonablePool() {
 /** 判断角色是否"在京文武大臣"（常朝可参与） */
 function _cc3_isCourtOfficial(ch) {
   if (!ch) return false;
-  const t = (ch.officialTitle || ch.title || '');
+  // 2026-06-11·治「罢官后仍上朝」：officialTitle 一旦被任免系统写过(罢官会清成 ''/null)即以它为准，
+  //   防罢官者靠剧本旧 title(描述快照·个别罢官路径未必同步清)回退仍被判「在京大臣」。
+  //   仅当从未有该字段(undefined·老档/纯剧本只填 title 的角色)才回退 title——剧本朝官均设了 officialTitle(实查 121 处)，无误伤。
+  const t = (ch.officialTitle !== undefined)
+    ? (ch.officialTitle || '')
+    : (ch.title || '');
   // ── 黑名单：后宫女眷 / 太监杂役 / 学生 / 命妇·一律不入常朝 ──
   // 注：宦官系如"司礼监掌印/秉笔太监"是入朝的·此处只挡纯杂役太监（无品级"小太监/中常侍/答应"）
   if (/皇后|皇太后|皇贵妃|贵妃|皇妃|妃|嫔|才人|选侍|婕妤|淑仪|淑女|美人|宫人/.test(t)) return false;
@@ -151,6 +156,9 @@ function _cc3_buildCharsFromGM() {
   const playerName = (typeof P !== 'undefined' && P.playerInfo && P.playerInfo.characterName) || '';
   chars.forEach(function(ch) {
     if (!ch || !ch.name || ch.alive === false) return;
+    // 2026-06-11·治「下狱/流放/逃亡后仍参与朝会」：法律上已不在朝者直接不入百官列(不只标 absent·
+    //   防个别参与/展示路径漏查 absent)。致仕/丁忧/病假等暂离仍保留(由 _cc3_classifyAbsent 标缺席·仍在朝籍)。
+    if (ch._imprisoned || ch.imprisoned || ch._inJail || ch._jailed || ch._exiled || ch._banished || ch._fled || ch._missing) return;
     // 排除玩家自己（皇帝不在"百官"列）
     if (ch.isPlayer || (playerName && ch.name === playerName)) return;
     // 排除非本朝势力（如玩家是明·则后金/蒙古/起义军不上明朝早朝）·旧档 ch.faction 缺失时用官名兜底

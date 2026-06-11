@@ -402,7 +402,9 @@
         // 内存峰值叠加可把 Electron 渲染进程撑爆 → 深推时突然黑屏、必须重启。合法子调用 ≤8000 tokens(数十 KB)。
         // 超过上限一律视为失控:丢弃内容·让此子调用按"空响应"优雅失败·绝不让超大串向下游(解析/MemoryTrace/turnAiResults)传播。
         try {
-          var _RAW_CAP = 1000000; // ~1MB·远超任何合法子调用·远低于致 OOM 量级
+          // 2026-06-11·安卓 WebView 小堆·上限比桌面更狠(合法子调用仅几十 KB·384KB 仍远超之)·更早丢弃失控中转响应防累积。
+          var _capIsCap = (function(){ try { if (window.TM && TM.platform && TM.platform.kind) return TM.platform.kind === 'capacitor'; return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); } catch(_) { return false; } })();
+          var _RAW_CAP = _capIsCap ? 393216 : 1000000; // 安卓~384KB·桌面~1MB·均远超任何合法子调用·远低于致 OOM 量级
           if (raw && raw.length > _RAW_CAP) {
             var _oversize = raw.length;
             _dbg('[_callEndturnAI] ' + label + ' 响应过大 ' + _oversize + ' 字符·丢弃防 OOM(深推渲染器崩溃护栏)');
@@ -413,6 +415,10 @@
               if (!Array.isArray(GM._turnAiResults._oversizedResponses)) GM._turnAiResults._oversizedResponses = [];
               GM._turnAiResults._oversizedResponses.push({ id: opts.id || '', label: label, len: _oversize, turn: GM.turn });
               if (GM._turnAiResults._oversizedResponses.length > 20) GM._turnAiResults._oversizedResponses.shift();
+              // 安卓端实时告知玩家(本回合首次即弹·不刷屏):既确认「确实在收到超大中转响应」·又解释为何拦截。
+              if (_capIsCap && GM._turnAiResults._oversizedResponses.length === 1 && typeof toast === 'function') {
+                toast('⚠ 第三方中转返回超大响应 ' + Math.round(_oversize / 1024) + 'KB·已拦截防闪退;若反复出现请换稳定中转或改用官方 API');
+              }
             } catch(_recE) {}
           }
         } catch(_capE) {}
@@ -941,7 +947,12 @@
       async function _runSubcallBatch(label, tasks, limit) {
         if (!Array.isArray(tasks) || tasks.length === 0) return;
         var _confLimit = parseInt(P.conf && P.conf.aiSubcallConcurrency, 10);
-        var _limit = _confLimit > 0 ? _confLimit : (limit || 3);
+        // 2026-06-11·安卓过回合闪退护栏。安卓 WebView 内存天花板远低于桌面 Electron;
+        // 第三方中转(无 CORS)的 AI 调用必走 CapacitorHttp 原生路·整段响应在原生侧完整 materialize 再跨桥拷贝进 JS,
+        // 多个子调用并发 = 多份数 MB 响应同时压在小堆上 → 渲染进程 OOM·App 闪退(玩家报「几乎每回合都崩·仅第三方中转」)。
+        // 默认在安卓串行(并发 1)·峰值≈÷并发数;玩家显式设 P.conf.aiSubcallConcurrency 则尊重其选择(可自行调高)。
+        var _isCap = (function(){ try { if (window.TM && TM.platform && TM.platform.kind) return TM.platform.kind === 'capacitor'; return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); } catch(_) { return false; } })();
+        var _limit = _confLimit > 0 ? _confLimit : (_isCap ? 1 : (limit || 3));
         _limit = Math.max(1, Math.min(_limit, tasks.length));
         var _cursor = 0;
         var _started = Date.now();

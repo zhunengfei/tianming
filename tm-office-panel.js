@@ -372,7 +372,7 @@ function _offPickerConfirm(charName, deptName, posName, oldHolder, mode) {
     if (typeof _offRemoveCharOfficeTitle === 'function') {
       _offRemoveCharOfficeTitle(oldChar, posName);
     } else {
-      if (oldChar.officialTitle === posName) oldChar.officialTitle = '';
+      if (oldChar.officialTitle === posName) { oldChar.officialTitle = ''; oldChar.title = ''; }
       if (oldChar.position === posName) oldChar.position = '';
     }
     oldChar._displaced = { from: posName, by: charName, turn: GM.turn };

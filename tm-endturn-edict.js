@@ -345,7 +345,7 @@ function applyEdictActions(actions) {
           if (prevCh) {
             prevCh._displaced = { from: a.position, by: a.character, turn: GM.turn };
             if (typeof _offRemoveCharOfficeTitle === 'function') _offRemoveCharOfficeTitle(prevCh, a.position);
-            else if (prevCh.officialTitle === a.position) prevCh.officialTitle = '';
+            else if (prevCh.officialTitle === a.position) { prevCh.officialTitle = ''; prevCh.title = ''; }
             // ⑤ 确定性夺位党争:被夺位者生怨(loyalty 降·stress 升)·对接替者积怨(AffinityMap)·跨党倾轧更烈
             var _crossParty = !!(prevCh.party && char.party && prevCh.party !== char.party);
             var _dpLoss = _crossParty ? 6 : 4;
@@ -534,6 +534,7 @@ function applyEdictActions(actions) {
     if (char) {
       char.officialTitle = '';
       char.position = '';
+      char.title = ''; // 同步·否则免职后廷议等 `officialTitle||title` 回退仍显示原官职
       char.officialTitles = [];
       char.concurrentTitles = [];
       char.concurrentTitle = '';

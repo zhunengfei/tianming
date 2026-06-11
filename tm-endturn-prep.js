@@ -507,6 +507,15 @@ function _endTurn_collectInput() {
   // 判定本回合 edicts 来源：已颁行润色稿 / 玩家原文（不含润色）
   var _thisTurnPromulgated = (GM.edicts||[]).filter(function(e){ return e && typeof e === 'object' && e.turn === GM.turn && e.status === 'promulgated'; });
   var _edictsSource = _thisTurnPromulgated.length > 0 ? 'promulgated' : 'original';
+  // 整体颁行的润色诏书（颁行天下）：作为「一道完整诏书」整体注入推演·不拆进政令类·
+  // AI 通览全文自行识别其中任命/钱粮/军务/外交各项。留档(手稿入档·status=draft)不在此列·仍走分类草拟。
+  if (_thisTurnPromulgated.length > 0) {
+    var _decreeText = _thisTurnPromulgated.map(function(e){ return String((e && e.text) || '').trim(); }).filter(Boolean).join('\n\n');
+    if (_decreeText) {
+      edicts.decree = _decreeText;
+      if (typeof recordPlayerDecision === 'function') recordPlayerDecision('edict', '颁行诏书:' + _decreeText.substring(0, 80));
+    }
+  }
   GM.qijuHistory.push({turn:GM.turn,time:getTSText(GM.turn),edicts:edicts,xinglu:xinglu,memorials:memRes,edictsSource:_edictsSource});
   resetTurnChanges();
   // 注意：不在此处清空 _couplingReport/_edictExecutionReport/_buildingOutputReport/_npcIntents/_healthAlerts/_decisionAlerts
@@ -521,11 +530,11 @@ function _endTurn_collectInput() {
   }
 
   // 从诏令文本中提取结构化操作（记录供AI推演参考，由AI决定执行效果）
-  var allEdictText = [edicts.political, edicts.military, edicts.diplomatic, edicts.economic, edicts.other].join(' ');
+  var allEdictText = [edicts.political, edicts.military, edicts.diplomatic, edicts.economic, edicts.other, edicts.decree].join(' ');
 
   // 2.2→2.3: 收集执行管线信息注入AI prompt（不做机械效果，效果完全由AI判断）
   if (typeof processEdictEffects === 'function' && allEdictText.trim()) {
-    var _edictCategory = edicts.political ? '政令' : edicts.military ? '军令' : edicts.diplomatic ? '外交' : edicts.economic ? '经济' : '';
+    var _edictCategory = edicts.decree ? '诏书' : edicts.political ? '政令' : edicts.military ? '军令' : edicts.diplomatic ? '外交' : edicts.economic ? '经济' : '';
     processEdictEffects(allEdictText, _edictCategory);
   }
 

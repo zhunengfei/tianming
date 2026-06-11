@@ -473,7 +473,7 @@
     }
 
     // —— 层2: 玩家意图（诏令 + 行录 + 奏疏批复）——
-    var _hasEdicts = edicts.political || edicts.military || edicts.diplomatic || edicts.economic || edicts.other;
+    var _hasEdicts = edicts.political || edicts.military || edicts.diplomatic || edicts.economic || edicts.other || edicts.decree;
     var _hasTyrant = GM._turnTyrantActivities && GM._turnTyrantActivities.length > 0;
     if (!_hasEdicts && !_hasTyrant) {
       // 玩家什么都没做——无为而治，叙事应该让这种"不作为"感觉舒适
@@ -503,6 +503,14 @@
         {label:'【\u5176\u4ED6】',text:edicts.other,cat:'其他'}
       ];
       var _edictSeq = 0;
+      // 整体颁行诏书：玩家「有司润色」后将各类旨意合并为一道完整诏书并颁行天下。
+      // 作为一道诏书整体下达——AI 须通览全文，自行识别其中任命/钱粮/军务/外交等各项并逐一落实，
+      // 不得因其为一整道诏书而遗漏其中任何一项。
+      if (edicts.decree) {
+        _edictSeq++;
+        tp += '\n▶ 诏令 #' + _edictSeq + ' 【颁行诏书·全文】\n  原文："' + edicts.decree + '"\n';
+        tp += '  ※ 此为一道完整诏书（已合并各类旨意），须通览全文：涉及任命→office_assignments，钱粮→fiscal_adjustments，军务/外交各依其实质落实；edict_feedback 至少一条覆盖此诏书。\n';
+      }
       _edictLines.forEach(function(el) {
         if (!el.text) return;
         _edictSeq++;
@@ -1093,9 +1101,9 @@
           var _phaseLbl = cr.phase === 'post-turn' ? '【朔朝·月初】' : '【月中】';
           if (cr.mode === 'keyi') _phaseLbl = '【科议·廷推】';
           tp += _phaseLbl + '议题：' + cr.topic + '\n';
-          Object.keys(cr.stances).forEach(function(name) {
-            var s = cr.stances[name];
-            tp += '  ' + name + '：' + s.stance + '——' + s.brief + '\n';
+          Object.keys(cr.stances || {}).forEach(function(name) {
+            var s = cr.stances[name] || {};
+            tp += '  ' + name + '：' + (s.stance || '') + '——' + (s.brief || '') + '\n';
           });
           if (cr.adopted && cr.adopted.length > 0) {
             tp += '  采纳：' + cr.adopted.map(function(a) { return a.author + '之议（' + a.content + '）'; }).join('；') + '\n';
@@ -2606,7 +2614,7 @@
       var _diligentTurns = 0;
       for (var _dt = Math.max(1, GM.turn - _diligentWindowTurns); _dt <= GM.turn; _dt++) {
         var _qj = (GM.qijuHistory || []).find(function(q) { return q.turn === _dt; });
-        if (_qj && _qj.edicts && (_qj.edicts.political || _qj.edicts.military || _qj.edicts.economic)) _diligentTurns++;
+        if (_qj && _qj.edicts && (_qj.edicts.political || _qj.edicts.military || _qj.edicts.economic || _qj.edicts.decree)) _diligentTurns++;
       }
       if (_diligentTurns >= Math.min(3, _diligentWindowTurns)) {
         sysP += '\n\u3010\u660E\u541B\u56F0\u5883\u3011\u73A9\u5BB6\u8FDE\u7EED\u52E4\u653F\u3002\u53D9\u4E8B\u5E94\u4F53\u73B0\uFF1A';
@@ -3079,7 +3087,7 @@
     sysP += '\n- scheme_actions: 阴谋干预（schemer阴谋发起者 + action:"advance"推进/"disrupt"阻碍/"abort"中止/"expose"揭露 + reason原因）';
     sysP += '\n- timeline_triggers: 触发剧本预设的时间线事件（当条件成熟时标记事件为已发生）';
     sysP += '\n- current_issues_update: 时局要务——AI对当前时政矛盾的总结，为玩家提供施政方向参考（玩家可据此撰写诏书、问对、朝议等）。';
-    sysP += '\n    【定位】这是AI的时政分析摘要，不是游戏机制——要务本身不产生机械效果，不影响任何数值。实际影响来自玩家的诏书和AI的推演。';
+    sysP += '\n    【定位】这是AI的时政分析摘要，为玩家提供施政方向参考。要务本身不直接改数值（实际影响来自玩家诏书与推演），但你【必须每回合维护它】——否则御案时政面板会停滞、与推演完全脱节（已解决的还显示待裁、推演出的新矛盾也不出现）。';
     sysP += '\n    【着眼点】聚焦"时局""时政"——当前朝廷面临的具体政务问题（如某镇兵饷拖欠、河道淤塞待修、某州刺史贪腐被劾），不要过于宏大空泛（如"天下大乱""国运衰微"）。';
     sysP += '\n    add: 当推演中出现新的具体时政问题时，用半文言200-500字描述其来由、现状、涉及人物和潜在走向';
     sysP += '\n    resolve: 当某问题因推演进展（玩家诏书、官员施政、局势变化等）已解决或不再紧迫时标记（填id）';
@@ -3096,7 +3104,7 @@
           var _issConf = typeof iss.confidence === 'number' ? Math.round(Math.max(0, Math.min(1, iss.confidence)) * 100) + '%' : 'unknown';
           sysP += '\n  ' + iss.title + '(' + (iss.category || '') + ' \u7B2C' + iss.raisedTurn + '\u56DE\u5408\u63D0\u51FA) id:' + iss.id + ' authority:' + _issAuth + ' fact:' + _issFact + ' confidence:' + _issConf;
         });
-        sysP += '\n\u8BF7\u6839\u636E\u672C\u56DE\u5408\u63A8\u6F14\u68C0\u67E5\u4EE5\u4E0A\u8981\u52A1\u662F\u5426\u6709\u8FDB\u5C55\u6216\u5DF2\u89E3\u51B3\uFF0C\u5E76\u8BC6\u522B\u65B0\u51FA\u73B0\u7684\u91CD\u5927\u77DB\u76FE\u3002';
+        sysP += '\n\u3010\u5FC5\u505A\u00B7\u65F6\u653F\u540C\u6B65\u3011\u9010\u4E00\u6838\u5BF9\u4E0A\u5217\u5F85\u89E3\u51B3\u8981\u52A1\uFF1A\u51E1\u672C\u56DE\u5408\u63A8\u6F14\uFF08\u8BCF\u4EE4\u843D\u5B9E/\u5B98\u5458\u65BD\u653F/\u5C40\u52BF\u53D8\u5316/\u4EBA\u4E8B\u53D8\u52A8/\u6218\u548C\u8FDB\u5C55\uFF09\u5DF2\u89E3\u51B3\u6216\u4E0D\u518D\u7D27\u8FEB\u8005\uFF0C\u5FC5\u987B\u5728 current_issues_update \u7528 {action:"resolve", id:"\u628A\u4E0A\u9762\u8BE5\u8981\u52A1\u7684 id \u539F\u6837\u7167\u586B"} \u6807\u8BB0\uFF1B\u6001\u52BF\u53D8\u5316\u8005\u7528 {action:"update", id, description}\uFF1B\u672C\u56DE\u5408\u63A8\u6F14\u4E2D\u65B0\u51FA\u73B0\u7684\u5177\u4F53\u653F\u52A1\u77DB\u76FE\u7528 {action:"add", title, description} \u65B0\u589E\u3002current_issues_update \u662F\u5FA1\u6848\u65F6\u653F\u4E0E\u63A8\u6F14\u4FDD\u6301\u540C\u6B65\u7684\u552F\u4E00\u901A\u9053\uFF0C\u6BCF\u56DE\u5408\u90FD\u8981\u8F93\u51FA\u3001\u4E0D\u53EF\u7701\u7565\u3002';
       }
     }
     sysP += '\n- office_changes中的任命必须考虑岗位继任方式：世袭岗位应由前任子嗣继承，流官由朝廷选拔，科举岗位应从进士中选，军功岗位从武将中选。';

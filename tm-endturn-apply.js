@@ -2848,7 +2848,7 @@
                         // 清除旧任职者的官职字段
                         if (oldHolder) {
                           var _oldCh = findCharByName(oldHolder);
-                          if (_oldCh && _oldCh.officialTitle === oc.position) _oldCh.officialTitle = '';
+                          if (_oldCh && _oldCh.officialTitle === oc.position) { _oldCh.officialTitle = ''; _oldCh.title = ''; }
                         }
                         // 同步PostSystem（如果有对应post）
                         if (typeof PostTransfer !== 'undefined' && GM.postSystem && GM.postSystem.posts) {

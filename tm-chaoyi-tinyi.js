@@ -833,7 +833,7 @@ async function _ty2_decide(mode) {
     phase: _isPostTurnTy ? 'post-turn' : 'in-turn',
     topic: CY._ty2.topic, mode: 'tinyi',
     topicType: CY._ty2.topicType, participants: CY._ty2.attendees,
-    stances: CY._ty2.stances, decision: decision, stanceHistory: CY._ty2.stanceHistory
+    stances: CY._ty2.stances || {}, decision: decision, stanceHistory: CY._ty2.stanceHistory
   });
   if (GM._courtRecords.length > 8) GM._courtRecords.shift();
   // 事件板

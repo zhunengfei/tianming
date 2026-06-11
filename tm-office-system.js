@@ -209,6 +209,8 @@ function _offRemoveCharOfficeTitle(ch, title) {
   ch.officialTitles = _offUniqueTitles((main ? [main] : []).concat(concurrent));
   ch.concurrentTitles = concurrent;
   ch.concurrentTitle = concurrent.join('、');
+  // 同步描述性 title·否则卸任后 title 仍是旧官职·廷议等 137 处 `officialTitle||title` 回退会显示已失之职
+  ch.title = main;
   return ch.officialTitles;
 }
 

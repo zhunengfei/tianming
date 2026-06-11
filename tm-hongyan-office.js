@@ -2576,7 +2576,7 @@ function _renderPolishedEdict(panel, text) {
     + '<div class="ed-scroll-actions">'
     +   '<button class="ed-scroll-btn" onclick="_polishEdicts()" title="\u91CD\u65B0\u7531\u6709\u53F8\u6DA6\u8272">\u91CD \u65B0 \u6DA6 \u8272</button>'
     +   '<button class="ed-scroll-btn" onclick="_applyPolishedEdict(\'keep\')" title="\u5B58\u4E3A\u8BCF\u4E66\u624B\u7A3F\u00B7\u5F52\u6863\u8D77\u5C45\u6CE8\u00B7\u672A\u9881\u884C">\u624B \u7A3F \u5165 \u6863</button>'
-    +   '<button class="ed-scroll-btn primary" onclick="_applyPolishedEdict(\'replace\')" title="\u8BCF\u4E66\u9881\u884C\u5929\u4E0B\u00B7\u5F55\u5165\u653F\u4EE4\u680F\u00B7\u540C\u65F6\u5F52\u6863\u8D77\u5C45\u6CE8">\u9881 \u884C \u5929 \u4E0B</button>'
+    +   '<button class="ed-scroll-btn primary" onclick="_applyPolishedEdict(\'replace\')" title="\u8BCF\u4E66\u9881\u884C\u5929\u4E0B\u00B7\u4F5C\u4E3A\u4E00\u9053\u5B8C\u6574\u8BCF\u4E66\u6574\u4F53\u9881\u884C\u00B7\u5F52\u6863\u8D77\u5C45\u6CE8">\u9881 \u884C \u5929 \u4E0B</button>'
     +   '<button class="ed-scroll-btn" onclick="_hidePolishedEdict()">\u6536 \u8D77</button>'
     + '</div>'
     + '</div>';
@@ -2622,13 +2622,14 @@ function _applyPolishedEdict(mode) {
       }
     } catch(_) {}
     if (!formalApplied) {
-      var polEl = _edictEl('edict-pol');
-      if (polEl) polEl.value = text;
-      ['edict-mil', 'edict-dip', 'edict-eco', 'edict-oth'].forEach(function(id) {
+      // \u7ECF\u5178 UI \u56DE\u9000\uFF1A\u4E0E\u5FA1\u6848\u4E00\u81F4\u00B7\u6574\u4F53\u9881\u884C\u4E0D\u704C\u653F\u4EE4\u680F\u00B7\u6E05\u7A7A\u5404\u7C7B\u8349\u62DF\u3002
+      // \u8BCF\u4E66\u5168\u6587\u5DF2\u5728 GM.edicts(status=promulgated)\u00B7\u56DE\u5408\u63A8\u6F14\u6309 edicts.decree \u4F5C\u4E3A\u4E00\u9053\u5B8C\u6574\u8BCF\u4E66\u6574\u4F53\u5904\u7406\u3002
+      // \uFF08\u82E5\u4ECD\u704C edict-pol\u00B7\u4F1A\u4E0E prep \u7684 decree \u6CE8\u5165\u91CD\u590D\u63A8\u6F14\u540C\u4E00\u8BCF\u4E66\u3002\uFF09
+      ['edict-pol', 'edict-mil', 'edict-dip', 'edict-eco', 'edict-oth'].forEach(function(id) {
         var el = _edictEl(id); if (el) el.value = '';
       });
     }
-    toast('\u8BCF\u4E66\u9881\u884C\u5929\u4E0B\u00B7\u5DF2\u5F55\u5165\u653F\u4EE4\u680F');
+    toast('\u8BCF\u4E66\u9881\u884C\u5929\u4E0B\u00B7\u4F5C\u4E3A\u4E00\u9053\u8BCF\u4E66\u6574\u4F53\u9881\u884C\u00B7\u5F52\u6863\u8D77\u5C45\u6CE8');
   } else {
     status = 'draft';
     toast('\u8BCF\u4E66\u5DF2\u7F16\u8BA2\u5165\u6863\u00B7\u672A\u9881\u884C\uFF08\u8BCF\u4E66\u624B\u7A3F\uFF09');

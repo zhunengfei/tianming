@@ -607,6 +607,7 @@ EndTurnHooks.register('after', function() {
     var _edictText = '（无明确诏令）';
     if (_edictSnapshot) {
       var _eL = [];
+      if (_edictSnapshot.decree) _eL.push('颁行诏书:' + _edictSnapshot.decree);
       if (_edictSnapshot.political) _eL.push('政:' + _edictSnapshot.political);
       if (_edictSnapshot.military) _eL.push('军:' + _edictSnapshot.military);
       if (_edictSnapshot.diplomatic) _eL.push('外:' + _edictSnapshot.diplomatic);
@@ -868,6 +869,7 @@ EndTurnHooks.registerFragment('qiju-history', function(ctx) {
   recentQ.forEach(function(q){
     qijuText += "T" + q.turn + " " + q.time + ":\n";
     if (q.edicts) {
+      if (q.edicts.decree) qijuText += "  颁行诏书: " + q.edicts.decree + "\n";
       if (q.edicts.political) qijuText += "  政: " + q.edicts.political + "\n";
       if (q.edicts.military) qijuText += "  军: " + q.edicts.military + "\n";
       if (q.edicts.diplomatic) qijuText += "  外: " + q.edicts.diplomatic + "\n";

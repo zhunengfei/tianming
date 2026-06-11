@@ -1827,6 +1827,7 @@
       } catch(_mvE){}
       if (edicts) {
         var _eL = [];
+        if (edicts.decree) _eL.push('颁行诏书:' + edicts.decree.substring(0,60));
         if (edicts.political) _eL.push('政令:' + edicts.political.substring(0,60));
         if (edicts.military) _eL.push('军令:' + edicts.military.substring(0,60));
         if (edicts.diplomatic) _eL.push('外交:' + edicts.diplomatic.substring(0,60));
@@ -3218,7 +3219,7 @@
           var _edictText = '';
           try {
             // 收集本回合玩家诏令原文·让历史审查者知道哪些不可动
-            var _eVals = [edicts.political, edicts.military, edicts.diplomatic, edicts.economic, edicts.other].filter(Boolean);
+            var _eVals = [edicts.decree, edicts.political, edicts.military, edicts.diplomatic, edicts.economic, edicts.other].filter(Boolean);
             _edictText = _eVals.join('\n · ');
           } catch(_eE) {}
 

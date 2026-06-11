@@ -1654,6 +1654,7 @@ function officeApplyDismissalPressure(root) {
         if (ch.position === item.pos.name || ch.officialTitle === item.pos.name) {
           ch.position = '';
           ch.officialTitle = '';
+          ch.title = ''; // 同步·否则弹劾罢黜后廷议等 `officialTitle||title` 回退仍显示原官职
         }
       }
       item.pos._lastHolder = item.pos.holder;
