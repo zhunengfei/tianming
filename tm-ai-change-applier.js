@@ -361,6 +361,7 @@
               if (position && position !== pos.name) global._offRemoveCharOfficeTitle(prevCh2, position);
             } else if (prevCh2 && (prevCh2.officialTitle === pos.name || prevCh2.officialTitle === position)) {
               prevCh2.officialTitle = '';
+              prevCh2.title = ''; // 同步·否则被逐出者 title 仍是旧官职·廷议回退显示
             }
             if (!Array.isArray(pos.holderHistory)) pos.holderHistory = [];
             pos.holderHistory.push({ name: removed2.name, since: removed2.joinedTurn||0, until: G.turn||0, reason: '额满·最老者罢黜' });
@@ -565,6 +566,7 @@
     })(G.officeTree || []);
     ch.officialTitle = null;
     ch.position = '';
+    ch.title = ''; // 同步描述性 title·否则免职后廷议等 `officialTitle||title` 回退仍显示原官职
     ch.officialTitles = [];
     ch.concurrentTitles = [];
     ch.concurrentTitle = '';
@@ -1358,6 +1360,25 @@
       }
     });
     if (personnelFromPcCount > 0) applied.semantic.personnel_changes_fallback = personnelFromPcCount;
+
+    // 2026-06-11·治「任命/罢免/改任推演成功但官制树 UI 不变」：office/personnel 变更后刷新官制 UI。
+    //   御案默认 UI 的官制面板在右栏(renderZhiRich/rightOfficeTree·读 GM.officeTree 的 holder)。此前 army/narrative
+    //   变更都调 TMPhase8FormalBridge.refresh()(见 tm-ai-change-army.js:104 / tm-ai-change-narrative.js:221)，唯独 office 漏了。
+    //   延后一帧(setTimeout 0)执行：确保本轮 apply 的后续段(personnel/narrative 等)也已落、读到最新 GM.officeTree；去抖只刷一次。
+    if (officeCount > 0 || personnelFromPcCount > 0) {
+      try {
+        if (typeof window !== 'undefined' && typeof window.setTimeout === 'function') {
+          if (!window._tmOfficeUiRefreshPending) {
+            window._tmOfficeUiRefreshPending = true;
+            window.setTimeout(function(){
+              window._tmOfficeUiRefreshPending = false;
+              try { if (typeof window.renderOfficeTree === 'function') window.renderOfficeTree(); } catch(_){}
+              try { if (window.TMPhase8FormalBridge && typeof window.TMPhase8FormalBridge.refresh === 'function') window.TMPhase8FormalBridge.refresh(); } catch(_){}
+            }, 0);
+          }
+        }
+      } catch(_){}
+    }
 
     // ── 10. fiscal_adjustments：岁入岁出动态增删 + **立即作用于余额** ──
     // schema: [{ target:'guoku|neitang|province:X', kind:'income|expense', resource?:'money|grain|cloth', category, name, amount, reason, recurring:bool, stopAfterTurn }]

@@ -4906,7 +4906,7 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:999;o
 .wendui-char-btn.wd-has-history::after{content:"";position:absolute;top:2px;right:2px;width:5px;height:5px;border-radius:50%;background:var(--gold-400);}
 
 /* === 问对弹窗 === */
-.wd-modal-inner{background:var(--color-surface);border:1px solid var(--gold-500);border-radius:var(--radius-lg);width:95%;max-width:800px;height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-lg);}
+.wd-modal-inner{background:var(--color-surface);border:1px solid var(--gold-500);border-radius:var(--radius-lg);width:95%;max-width:800px;height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-lg);contain:layout style;}
 .wd-modal-header{display:flex;align-items:center;justify-content:space-between;padding:var(--space-2) var(--space-4);border-bottom:1px solid var(--color-border-subtle);min-height:48px;}
 .wd-modal-header-left{flex-shrink:0;}
 .wd-modal-header-center{flex:1;text-align:center;}
@@ -4915,7 +4915,9 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:999;o
 .wd-modal-close{font-size:var(--text-md);padding:var(--space-1) var(--space-2);border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;}
 .wd-modal-hint{text-align:right;padding:var(--space-1) var(--space-4);font-size:var(--text-xs);color:var(--color-foreground-muted);border-bottom:1px solid var(--color-border-subtle);letter-spacing:0.06em;}
 .wd-modal-chat{flex:1;overflow-y:auto;padding:var(--space-4);scroll-behavior:smooth;background:var(--color-sunken);
-  background-image:repeating-linear-gradient(90deg,transparent,transparent 3em,rgba(107,93,79,0.012) 3em,rgba(107,93,79,0.012) calc(3em + 1px));}
+  background-image:repeating-linear-gradient(90deg,transparent,transparent 3em,rgba(107,93,79,0.012) 3em,rgba(107,93,79,0.012) calc(3em + 1px));
+  /* 2026-06-11·性能:把聊天列的样式/布局/重绘 scope 在自身·流式刷新与打字重绘不波及背后沉重(且 APK 上被 transform:scale)的全局 DOM */
+  contain:layout style paint;}
 .wd-modal-footer{padding:var(--space-3) var(--space-4);border-top:1px solid var(--color-border-subtle);background:var(--color-surface);}
 .wd-modal-textarea{flex:1;resize:none;padding:var(--space-2) var(--space-3);font-size:var(--text-sm);font-family:inherit;background:var(--color-elevated);border:1px solid var(--color-border);border-radius:var(--radius-md);color:var(--color-foreground);line-height:var(--leading-relaxed);min-height:60px;}
 .wd-modal-textarea:focus{outline:none;border-color:var(--gold-400);box-shadow:0 0 0 3px rgba(138,109,27,0.12);}

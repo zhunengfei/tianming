@@ -40,5 +40,7 @@ assert(/hy-person-main-v5 b\{[^}]*white-space:normal/.test(styles), 'contact nam
 assert(/hy-inbox-open-v5 b\{[^}]*white-space:normal/.test(styles), 'inbox sender names should wrap instead of ellipsis');
 assert(!/hy-letter-body-v5[^=;]*=\s*[^;]*compactText/.test(card), 'thread body must not call compactText');
 assert(!/hy-inbox-body-v5[^=;]*=\s*[^;]*compactText/.test(inbox), 'inbox body must not call compactText');
+// 中栏往来信札正文 .lc-body 不得被数字行夹截断——展阅后中侧须见全文（bug 2026-06-11）
+assert(!/\.lc-body\{[^}]*-webkit-line-clamp\s*:\s*[1-9]/.test(src), 'thread letter body (.lc-body) must not be line-clamped — middle column must show full text after 展阅');
 
 console.log(`[smoke-formal-hongyan-fulltext] PASS ${passed} assertions`);
