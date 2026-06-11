@@ -476,6 +476,35 @@
     ];
   }
 
+  // perf round7 (2026-06-10): 原版每个地块全扫 GM.provinceStats(每行 regionMatchFields+regionKeyNorm)·
+  // 真档逐省 walk = renderFormalMap 主峰之一(实测 176ms)。同 round6 admin 索引法:
+  // Phase2(字段扫)一次建 normKey->{行键,seq} 索引·查询取 seq 最小(=原「scan 序首个 fields∩wanted 的行」语义)·
+  // Phase1(r 键直命 stats 对象键·原始键非归一化)仍 O(1) 现读·仅缓存「键映射」·值经 stats[key] 现读
+  //(回合内值变仍可见)·按 (stats 引用, 回合) 失效(同 round6·回合内新增省到下回合才入索引)。
+  var _provStatsIdxCache = { ref: null, turn: -1, map: null };
+  function _provStatsIndex(stats){
+    var turn = (window.GM && GM.turn) || 0;
+    if (_provStatsIdxCache.map && _provStatsIdxCache.ref === stats && _provStatsIdxCache.turn === turn) return _provStatsIdxCache.map;
+    var m = new Map();
+    var seq = 0;
+    function regRow(rowKey, value){
+      if (value && typeof value === 'object') {
+        var fields = regionMatchFields(value, rowKey).map(regionKeyNorm);
+        for (var i = 0; i < fields.length; i += 1) {
+          var f = fields[i];
+          if (f && !m.has(f)) m.set(f, { seq: seq, key: rowKey });
+        }
+      }
+      seq += 1;
+    }
+    if (Array.isArray(stats)) {
+      for (var j = 0; j < stats.length; j += 1) regRow('', stats[j]);
+    } else if (stats && typeof stats === 'object') {
+      Object.keys(stats).forEach(function(k){ regRow(k, stats[k]); });
+    }
+    _provStatsIdxCache.ref = stats; _provStatsIdxCache.turn = turn; _provStatsIdxCache.map = m;
+    return m;
+  }
   function findLiveProvinceStats(r){
     var stats = window.GM && GM.provinceStats;
     if (!stats) return null;
@@ -487,14 +516,16 @@
         if (stats[keys[i]] && typeof stats[keys[i]] === 'object') return Object.assign({ _provinceKey: keys[i] }, stats[keys[i]]);
       }
     }
-    var rows = Array.isArray(stats) ? stats.map(function(x){ return { key: '', value: x }; }) : Object.keys(stats).map(function(k){ return { key: k, value: stats[k] }; });
-    for (var j = 0; j < rows.length; j += 1) {
-      var value = rows[j].value;
-      if (!value || typeof value !== 'object') continue;
-      var fields = regionMatchFields(value, rows[j].key).map(regionKeyNorm).filter(Boolean);
-      if (fields.some(function(x){ return wanted.indexOf(x) >= 0; })) return Object.assign({ _provinceKey: rows[j].key }, value);
+    var idx = _provStatsIndex(stats);
+    var best = null;
+    for (var w = 0; w < wanted.length; w += 1) {
+      var hit = idx.get(wanted[w]);
+      if (hit && (best === null || hit.seq < best.seq)) best = hit;
     }
-    return null;
+    if (!best) return null;
+    var value = Array.isArray(stats) ? stats[best.seq] : stats[best.key];
+    if (!value || typeof value !== 'object') return null;
+    return Object.assign({ _provinceKey: best.key }, value);
   }
 
   // perf round6 (2026-06-10): 原版对每个地块全树深走两棵 adminHierarchy
@@ -559,6 +590,23 @@
     return best.objectKey && !best.node.name ? Object.assign({ name: best.objectKey }, best.node) : best.node;
   }
 
+  // perf round7: 原版每地块全扫 GM._provinceToFaction 的 Object.keys·逐省 = renderFormalMap 主峰之一(111ms)。
+  // 同法:Phase2 一次建 normKey->{key,seq} 索引(首现胜)·取 seq 最小(=Object.keys 序首个 normKey∈wanted 的键)·
+  // 值 map[key] 现读(回合内归属变可见)·按 (map 引用, 回合) 失效。
+  var _provFacIdxCache = { ref: null, turn: -1, map: null };
+  function _provFacIndex(map){
+    var turn = (window.GM && GM.turn) || 0;
+    if (_provFacIdxCache.map && _provFacIdxCache.ref === map && _provFacIdxCache.turn === turn) return _provFacIdxCache.map;
+    var m = new Map();
+    var seq = 0;
+    Object.keys(map).forEach(function(k){
+      var nk = regionKeyNorm(k);
+      if (nk && !m.has(nk)) m.set(nk, { key: k, seq: seq });
+      seq += 1;
+    });
+    _provFacIdxCache.ref = map; _provFacIdxCache.turn = turn; _provFacIdxCache.map = m;
+    return m;
+  }
   function liveOwnerFromProvinceMap(r){
     var map = window.GM && GM._provinceToFaction;
     if (!map || typeof map !== 'object') return '';
@@ -567,8 +615,15 @@
       if (hasValue(map[keys[i]])) return map[keys[i]];
     }
     var wanted = keys.map(regionKeyNorm).filter(Boolean);
-    var hit = Object.keys(map).find(function(k){ return wanted.indexOf(regionKeyNorm(k)) >= 0; });
-    return hit && hasValue(map[hit]) ? map[hit] : '';
+    if (!wanted.length) return '';
+    var idx = _provFacIndex(map);
+    var best = null;
+    for (var w = 0; w < wanted.length; w += 1) {
+      var hit = idx.get(wanted[w]);
+      if (hit && (best === null || hit.seq < best.seq)) best = hit;
+    }
+    if (!best) return '';
+    return hasValue(map[best.key]) ? map[best.key] : '';
   }
 
   function ownerFromRecord(record){
@@ -927,6 +982,16 @@
     })[state.mapMode || 'owner'] || '按势力归属着色';
   }
 
+  // perf round7: 地图 dirty 签名·捕捉所有影响 SVG 输出的运行时输入(mapId/模式/比例 + 逐区
+  // 归属键 canonicalOwnerKey + 填色 regionColor)。几何/标签运行时不变故不入签名。供 renderFormalMap
+  // 守卫与等价性脚本(__formalMapSignature)共用。
+  function formalMapSignature(map){
+    map = map || getMapData();
+    if (!map || !Array.isArray(map.regions)) return '';
+    return mapIdentity(map) + '|' + (state.mapMode || '') + '|' + (state.mapScale || '') + '|' + map.regions.map(function(r){
+      return (r.id || r.name || '') + ':' + canonicalOwnerKey(r) + ':' + regionColor(r);
+    }).join(',');
+  }
   function renderFormalMap(){
     var shell = document.getElementById('tm-phase8-main-shell');
     var stage = mapStage();
@@ -969,6 +1034,23 @@
     var mapId = mapIdentity(map);
     var basemap = resolveBasemap(map);
     var basemapLayer = generatedBasemapLayer(map, basemap);
+    // perf round7 (2026-06-10): dirty-guard·原版每次 stage.innerHTML 全量重建整张地图 SVG
+    // (逐区 ×3 算 path·解析+布局+绘制)·实测每次 ~300ms。但运行时几何/标签不变·只
+    // regionColor/canonicalOwnerKey/mapMode/mapScale 影响输出。addEB/问对开关/多数
+    // renderGameState 不改地图却触发本函数(经 scheduleFormalRuntimeRefresh→showHome)。
+    // owner 函数已 round7 索引故签名廉价·与上次相同则只刷廉价 chrome(图例/警示/检索/transform)·
+    // 跳过昂贵 SVG 重建。归属/数值/模式一变签名即变→正常重建。编辑器走独立渲染路径不受影响·
+    // 载新图/换剧本 mapId 变或首渲无签名→必重建。bridge.map.invalidateFormalMap() 为强制逃生阀。
+    var _fmSig = formalMapSignature(map);
+    if (state._lastFormalMapSig === _fmSig && stage.querySelector('#tmf-formal-map')) {
+      applyMapTransform();
+      updateMapChrome();
+      renderLegend(map);
+      renderMapAlerts(map);
+      syncMapSearch(map);
+      return;
+    }
+    state._lastFormalMapSig = _fmSig;
     var regionWashes = map.regions.map(function(r){
       var d = pathForRegion(r);
       if (!d) return '';
@@ -2872,6 +2954,14 @@
   // perf round6: 测试柄·供等价性验证脚本对照新旧 findLiveAdminDivision
   bridge.map.__findLiveAdminDivision = findLiveAdminDivision;
   bridge.map.__regionNameKeys = regionNameKeys;
+  // perf round7: 测试柄·供等价性验证脚本对照新旧 findLiveProvinceStats / liveOwnerFromProvinceMap
+  bridge.map.__findLiveProvinceStats = findLiveProvinceStats;
+  bridge.map.__liveOwnerFromProvinceMap = liveOwnerFromProvinceMap;
+  bridge.map.__regionKeyNorm = regionKeyNorm;
+  bridge.map.__regionMatchFields = regionMatchFields;
+  // perf round7: 强制下次 renderFormalMap 重建 SVG(清 dirty 签名)·供几何变更等绕过守卫
+  bridge.map.invalidateFormalMap = function(){ try { state._lastFormalMapSig = null; } catch(_){} };
+  bridge.map.__formalMapSignature = formalMapSignature;
 
   // ── re-attach bridge exposes that previously came from bridge.js ──
   bridge._ownerKey = ownerKey;

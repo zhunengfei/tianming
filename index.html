@@ -14,6 +14,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- 正在运行的包版本·与代码同包同发·footer 与在线版更新提示都读这里（发版工具自动盖戳） -->
+<meta name="tm-version" content="1.3.3.6">
 <title>天命 · AI历史模拟</title>
 <script>
 (function(){
@@ -224,7 +226,7 @@
   </div>
   <!-- 底部栏 -->
   <div class="home-foot">
-    <div class="f-ver">天 命　测试版 1.3.3.5</div>
+    <div class="f-ver">天 命　测试版 <span id="tm-foot-ver">1.3.3.5</span></div>
     <div class="f-mid" id="home-foot-mid">春 分<span class="dot">◆</span>太 平<span class="dot">◆</span>河 清 海 晏</div>
     <div class="f-right">
       <span class="lt-dibao-btn" style="cursor:pointer;" onclick="if(window.TM_Changelog)TM_Changelog.show();" title="查看更新公告"><kbd>报</kbd> 邸 报<span class="tm-cl-dot" id="tm-cl-dot" style="display:none;"></span></span>
@@ -884,6 +886,13 @@ console.log('天命游戏脚本开始加载...');
 
 <!-- Capacitor 启动钩子（移植 Phase 3）·Capgo 热更 notifyAppReady + 在线·仅原生端·桌面/web no-op -->
 <script src="tm-capacitor-boot.js?v=20260604-ota-progress3"></script>
+
+<!-- 更新进度卡·三端共用 UI 组件·自身不判平台不发请求·由消费方挂载（不挂载即惰性） -->
+<script src="tm-update-card.js?v=20260611-upd1"></script>
+<!-- 桌面端启动自动检查更新·仅 window.tianming 在时生效·dev 静默·安卓/在线 no-op -->
+<script src="tm-desktop-update.js?v=20260611-upd1"></script>
+<!-- 在线版更新提示（仅 web 端查 version.json·桌面/安卓只同步 footer 版本号） -->
+<script src="tm-online-update.js?v=20260611-upd1"></script>
 
 <!-- 触屏手势桥（移植 Phase 2·S2.x）·长按=右键(contextmenu)·仅触屏设备挂载·鼠标零影响 -->
 <script src="tm-touch-gestures.js?v=20260603-longpress-rclick"></script>

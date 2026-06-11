@@ -509,6 +509,9 @@
       'body.tm-phase8-office-single #gt-office{display:block!important;position:absolute!important;inset:0!important;overflow-y:auto!important;padding:0!important;background:linear-gradient(180deg,rgba(18,13,9,.98),rgba(7,6,5,.99))!important;}',
       'body.tm-phase8-office-single #gc{position:relative!important;overflow:hidden!important;}',
       'body.tm-phase8-office-single #tm-phase8-action-tray,body.tm-phase8-office-single #shizheng-btn{display:none!important;}',
+      'body.tm-phase8-office-single #tm-phase8-event-notice{display:none!important;}',
+      'body.tm-phase8-formal.tm-phase8-office-single #tm-phase8-event-notice.tm-event-notice,body.tm-phase8-formal.tm-phase8-office-single #tm-phase8-event-notice.tmv3-feed{display:none!important;}',
+      'body.tm-phase8-office-single [id^=zhao-btn]{display:none!important;}',
       '#tm-office-single-back{position:fixed;right:24px;top:96px;z-index:19020;height:32px;padding:0 14px;border:1px solid rgba(201,168,95,.46);border-radius:3px;background:linear-gradient(180deg,rgba(39,30,22,.96),rgba(12,9,7,.96));color:#eadfbd;font:13px/1 "STKaiti","KaiTi","SimSun",serif;letter-spacing:.14em;cursor:pointer;box-shadow:0 8px 22px rgba(0,0,0,.45);}',
       '#tm-office-single-back:hover{border-color:#e0c27a;color:#fff0bd;background:linear-gradient(180deg,rgba(68,46,24,.96),rgba(18,12,8,.98));}'
     ].join('\n');
