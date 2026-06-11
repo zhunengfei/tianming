@@ -350,3 +350,45 @@ CDP **Tracing**(devtools.timeline) 拆渲染管线（Layerize/UpdateLayoutTree/P
 - 玩家实跑确认 `SemanticRecall.status().workerActive`（Electron file:// worker 可用性）
 - ort .wasm vendor 进安装包（完全离线·+30MB owner 拍板）
 - smoke-tianqi-map-runtime 键空间漂移修复（pre-existing·归 bug 巡检线）
+
+---
+
+## 第七轮（2026-06-10/11·owner 三具体场景投诉：问天卡 / 关人物对话卡 / 滑动浏览卡）
+
+六轮测的是按钮点击矩阵·没覆盖这三个具体交互。场景化探针逐个实测 + profile 定位，揪出一个**系统级总根**。
+
+### 病根（profile 实证·非猜）
+**① 人物图志（renwu-tuzhi）开 = 1561ms 冻结**：开任何人物都把**整张 201 张花名册卡片**渲进 DOM（27,674 节点）·每张含一个 SVG 忠诚环。profile：`(program)` 2000ms（HTML解析+样式+布局+绘制）·`renderRoster` JS 仅 **32ms**·`pcard` 1ms——**渲染绑定·非 JS 绑定**（=content-visibility 教科书场景）。
+
+**② 问对（wendui）开/关各 ~460ms**：表面 syncMs 仅 2-8ms（弹窗即移除），但 2 帧后一个 **~460ms 长任务**砸下。profile 真凶**不是 wendui 卡片（才25张）**而是**地图重渲**——开问对对后妃会 `addEB`→`scheduleFormalRuntimeRefresh`→`showHome`→`renderFormalMap` 全量重建地图 SVG·其中 `findLiveProvinceStats` 176ms + `liveRegionOwner` 111ms = **逐省全扫 GM.provinceStats(210项)+GM._provinceToFaction(210项)**（round6 没碰的另两条未索引扫描）。**根本不改地图却每次全量重渲**——这也是六轮「点啥都卡」的总根（每次 renderGameState/addEB 都重建地图）。
+
+**③ 滑动浏览**：真滚轮 + mousemove 悬停风暴在 .main-scroll/.gs-drawer-body 上 headless **0 长任务**=合成器/光栅绑定·桌面扛得住·弱机才显。
+
+### 四刀（`.bak-perf7-20260610`·未 ship）
+| # | 改动 | 文件 |
+|---|------|------|
+| F1 | `.pcard` 加 `content-visibility:auto;contain-intrinsic-size:auto 64px`（离屏花名册卡片跳过布局/绘制·节点数不变） | tm-renwu-tuzhi.js |
+| F2 | `findLiveProvinceStats` 改**索引**（同 round6 法·Phase2 字段扫一次建 normKey→{行键,seq}·查询取 seq 最小=原「scan 序首命中行」·Phase1 直命 O(1) 现读·值经 stats[key] 现读·按 (ref,回合) 失效） | phase8-formal-map.js |
+| F3 | `liveOwnerFromProvinceMap` 改**索引**（同法·normKey→{key,seq} 首现胜·值 map[key] 现读） | phase8-formal-map.js |
+| F4 | `renderFormalMap` 加 **dirty-guard**：`formalMapSignature()` = mapId + mapMode + mapScale + 逐区(canonicalOwnerKey+regionColor)·与上次相同则只刷廉价 chrome（图例/警示/检索/transform）跳过昂贵 SVG 重建·`invalidateFormalMap()` 逃生阀 | phase8-formal-map.js |
+
+### 实测数字
+- 人物图志开：**1561 → 138ms**（warm 116ms·c-v `auto` 生效·201 卡 27,674 节点不变·只跳离屏渲染）
+- 问对开：**468 → 52ms**；关：**458 → 149ms**（早先的「延迟 2 帧刷新」只是把冻结挪到点击之后·守卫才真消除）
+- 省份函数（43 地块）：旧逐省全扫 176+111ms → 新 **1ms**·**等价 0 分歧**（provinceStats 210·provinceToFaction 210·其中仅 1 键匹配 43 个省级地图区·其余 209 是府级不上图——所以旧版「扫 210 项即使没命中」纯浪费）
+- 点击矩阵复测：profile top self-time **地图函数全消失**（renderFormalMap/findLiveProvinceStats/liveRegionOwner 不再出现）·小按钮（鸿雁/问对/人物/设置）**0 长任务**·奏疏 496→**246**·百官人事 264→**93**（户部/舆图 653ms 是冷开建面板 DOM·非地图归属·pre-existing）
+
+### 验证
+- 省份索引等价性：probe-prov-equiv **0 分歧**（43 区·新旧 verbatim 对照·暴露 `__findLiveProvinceStats/__liveOwnerFromProvinceMap/__regionKeyNorm/__regionMatchFields` 测试柄）
+- 地图守卫：无变化→**跳过**（G1 标记存活）·invalidate→**重建**（43 区·标记清）·真色变→重建**靠检查证明**（factionLabelLayer→ownerGroups 按 canonicalOwnerKey 分组·regionColor 输出整个进 sig·故 SVG=纯函数(sig+静态几何)·不可能误跳过）；运行时凑不出第二势力因该存档**全 43 区归明朝廷一家**（天启明朝局·distinctVal=1）
+- 烟测：map-live-panels/p5-zeta-map-ui/perf-guards/ui-lag/right-panel-lag/typing-lag/army-panel-lag **7 绿**·**smoke-tianqi-map-runtime 红=pre-existing**（换 `.bak-perf7` 对照同红 `fac_mp9rsc3f4r9co`·非本轮引入）
+- 全局：boot **283/283**·render **17**·headless **301/301**
+
+### 评估后不做
+- 盲目给 .gs-drawer-body 子节点加 c-v——headless 测不出收益（已 0 长任务）+ 部分模块含活内容（#gc 活壳教训）·风险>证据·改走「owner 指认具体卡的列表再 c-v 其行」
+- wendui 卡片 c-v——地图修掉后只剩 25 张·边际
+- 人物图志冷开 555ms（首开·暖 116ms）——可加「先渲 dossier·roster 推迟一帧」但暖路径已够·暂留
+
+### 给 owner 实测的话
+- 三投诉对应：人物详情开/关（F1）·问对开/关（F4 地图守卫·**也是六轮「点啥都卡」的总根**）·滑动（守卫消除滑动时背景 renderGameState 的地图重渲 hitch + 最重的花名册列表已 c-v）
+- 滑动若仍卡：多半弱机光栅/合成（headless 测不出）·指认具体哪个长列表·我 c-v 其行
