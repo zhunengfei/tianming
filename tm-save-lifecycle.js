@@ -773,12 +773,36 @@ function _restoreSavedFields() {
   if (GM._savedHistoryIndexCursor) { GM._historyIndexCursor = GM._savedHistoryIndexCursor; delete GM._savedHistoryIndexCursor; }
 }
 
+// 机器级 AI 偏好字段·属"玩家设置"而非"局内状态"·读档时不应被存档快照覆盖(同 tm_api 保护逻辑)
+// 仅含 AI 生成/记忆/模型/管线类偏好·不含 gameMode/difficulty/refText/style 等局内定义字段(那些应随存档)
+var PREF_CONF_KEYS = [
+  'verbosity', 'aiCallDepth',
+  'maxOutputTokens', 'turnTokenBudget', 'modelTier', 'contextSizeK',
+  'memoryAnchorKeep', 'memoryArchiveKeep', 'characterArcKeep',
+  'playerDecisionKeep', 'chronicleKeep', 'convKeep',
+  'shiluMin', 'shiluMax', 'szjMin', 'szjMax', 'hourenMin', 'hourenMax',
+  'memLoyalMin', 'memLoyalMax', 'memNormalMin', 'memNormalMax',
+  'memSecretMin', 'memSecretMax', 'wdMin', 'wdMax', 'cyMin', 'cyMax',
+  'chronicleMin', 'chronicleMax', 'commentMin', 'commentMax',
+  'qijuLookback', 'shijiLookback', 'autoSaveTurns', 'summaryRule',
+  'dialogueRecallTurns', 'costAlertThreshold', 'strictSchemaEnabled', 'memorySynthesisEnabled',
+  'npcAiPrecision', 'npcAiCosmeticEnrich', 'npcAiPrecisionMode', 'npcAiPrecisionMaxPerTurn', 'npcInTurnMaxPerTurn',
+  'insecureTlsRelay'
+];
+
 function fullLoadGame(data){
   // 跨档保留 API 设置：localStorage 的 tm_api 是用户的"机器"配置·不应被存档覆盖
   var _preservedAi = null;
   try {
     var _stored = localStorage.getItem('tm_api');
     if (_stored) _preservedAi = JSON.parse(_stored);
+  } catch(_) {}
+  // 跨档保留机器级 AI 偏好(生成字数/推演深度/记忆容量等)·捕获当前内存中的玩家设置·读档后回填
+  var _preservedConf = {};
+  try {
+    if (typeof P !== 'undefined' && P && P.conf) {
+      PREF_CONF_KEYS.forEach(function(k) { if (P.conf[k] !== undefined) _preservedConf[k] = P.conf[k]; });
+    }
   } catch(_) {}
   // 兼容两种存档格式：
   // 格式A (desktopDoSave/doSaveGame): data = P, data.gameState = GM
@@ -802,6 +826,11 @@ function fullLoadGame(data){
       if (_preservedAi[k] != null && _preservedAi[k] !== '') P.ai[k] = _preservedAi[k];
     });
   }
+  // 回填机器级 AI 偏好·让玩家最近的设置永远生效·不被存档快照(可能是旧值/默认)覆盖
+  try {
+    if (!P.conf) P.conf = {};
+    Object.keys(_preservedConf).forEach(function(k) { P.conf[k] = _preservedConf[k]; });
+  } catch(_) {}
 
   if(GM){
     GM.running=true;

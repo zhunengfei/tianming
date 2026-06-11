@@ -15,8 +15,17 @@ const path = require('path');
 const crypto = require('crypto');
 const AdmZip = require('adm-zip');
 
-const WEB_ROOT = path.resolve(__dirname, '..');
-const APP_ROOT = path.resolve(WEB_ROOT, '..');
+// 2026-06-11·S7 测试缝·--web-root/--app-root 可注入合成树（验证脚本用）·默认不变
+const WEB_ROOT = (function () {
+  const i = process.argv.indexOf('--web-root');
+  if (i >= 0 && process.argv[i + 1]) return path.resolve(process.argv[i + 1]);
+  return path.resolve(__dirname, '..');
+})();
+const APP_ROOT = (function () {
+  const i = process.argv.indexOf('--app-root');
+  if (i >= 0 && process.argv[i + 1]) return path.resolve(process.argv[i + 1]);
+  return path.resolve(WEB_ROOT, '..');
+})();
 const DEFAULT_MIN_APP_VERSION = '';
 
 const ALLOWED_EXTS = new Set([
@@ -44,6 +53,8 @@ const EXCLUDED_DIRS = new Set([
   '.git', 'node_modules', '.cache', '.tmp', 'tmp', 'dist', 'build', 'release', 'coverage',
   // 本地开发产物·绝不入热更包
   '_archive', 'backups', '_screenshots', 'test-results', '_codex_tmp', '.playwright-cli',
+  // 内部文档·开发工具·smoke 测试脚本·运行时不依赖·不入热更包(瘦身~89MB·审计P0-2)
+  'dev-tools', 'docs', 'scripts',
   // godot 端 WIP 移植·web 运行时不依赖·package.json 也用 !web/godot/**/* 排掉
   'godot'
 ]);
@@ -74,6 +85,19 @@ function listArg(name) {
 
 function sha256Buffer(buf) {
   return crypto.createHash('sha256').update(buf).digest('hex');
+}
+
+// 2026-06-11·S7·4 段数值版本比较（与 main-impl compareVersions 同语义）
+function cmpVersions(a, b) {
+  const aa = String(a || '0').split(/[.+-]/).map(n => { const v = parseInt(n, 10); return Number.isFinite(v) ? v : 0; });
+  const bb = String(b || '0').split(/[.+-]/).map(n => { const v = parseInt(n, 10); return Number.isFinite(v) ? v : 0; });
+  const n = Math.max(aa.length, bb.length, 4);
+  for (let i = 0; i < n; i++) {
+    const av = aa[i] || 0, bv = bb[i] || 0;
+    if (av > bv) return 1;
+    if (av < bv) return -1;
+  }
+  return 0;
 }
 
 function sha256File(file) {
@@ -257,6 +281,51 @@ function main() {
   const explicitFiles = listArg('files');
   const indexRefs = collectIndexReferencedLocalFiles();
 
+  // ════ S7 防呆闸门·2026-06-11·1.3.3.4 事故（--files 部分清单 → 玩家假更新/装失败）后加 ════
+  // GATE-0·--files 部分包模式默认禁用·增量客户端把 manifest.files 当「完整树」·部分清单必出事
+  if (explicitFiles.length && !flag('allow-partial-DANGEROUS')) {
+    console.error('[GATE-0] --files 部分包模式已禁用：1.3.3.4 事故根源（清单不完整 → 玩家假更新/更新失败）。');
+    console.error('         正式发版一律全量清单。确属本地调试需要请加 --allow-partial-DANGEROUS。');
+    process.exit(1);
+  }
+  // GATE-3·版本单调·同一 outDir 里已有 feed 时新版本必须严格更高（防把旧版本号发出去 → 全员拒装/搁浅）
+  if (!flag('allow-same-version')) {
+    try {
+      const prevFeedPath = path.join(outDir, 'hot-latest.json');
+      if (fs.existsSync(prevFeedPath)) {
+        const prevFeed = JSON.parse(fs.readFileSync(prevFeedPath, 'utf-8'));
+        const cmp = cmpVersions(version, String(prevFeed.version || '0'));
+        if (cmp <= 0) {
+          console.error('[GATE-3] 版本不单调：--version ' + version + ' ≤ 现有 feed ' + prevFeed.version
+            + '（' + prevFeedPath + '）。发布更低/相同版本会让全部客户端拒装。--allow-same-version 可跳过（仅限本地重打）。');
+          process.exit(1);
+        }
+      }
+    } catch (e) {
+      if (e && /GATE-3/.test(e.message || '')) throw e;
+      console.warn('[GATE-3] 旧 feed 读取失败(跳过单调检查)·' + (e && e.message || e));
+    }
+  }
+  // GATE-5·版本戳一致·web/version.json 与 index.html <meta name="tm-version"> 必须等于 --version
+  //   （发版工具 release.js 负责盖戳·手工构建请先盖戳或 --skip-stamp-check）
+  if (!explicitFiles.length && !flag('skip-stamp-check')) {
+    const stampProblems = [];
+    try {
+      const vj = JSON.parse(fs.readFileSync(path.join(WEB_ROOT, 'version.json'), 'utf-8'));
+      if (String(vj.version || '').trim() !== version) stampProblems.push('version.json=' + vj.version);
+    } catch (_e) { stampProblems.push('version.json 缺失/不可读'); }
+    try {
+      const html = fs.readFileSync(path.join(WEB_ROOT, 'index.html'), 'utf-8');
+      const m = html.match(/<meta\s+name="tm-version"\s+content="([^"]*)"/);
+      if (!m || m[1].trim() !== version) stampProblems.push('index.html meta tm-version=' + (m ? m[1] : '(无)'));
+    } catch (_e) { stampProblems.push('index.html 不可读'); }
+    if (stampProblems.length) {
+      console.error('[GATE-5] 版本戳不一致（目标 ' + version + '）：' + stampProblems.join('·'));
+      console.error('         请用 scripts/release.js 统一盖戳后构建·或确属调试加 --skip-stamp-check。');
+      process.exit(1);
+    }
+  }
+
   const manifestEntries = new Map();
   if (explicitFiles.length) {
     explicitFiles.forEach(rel => {
@@ -341,6 +410,25 @@ function main() {
     .sort((a, b) => a.path.localeCompare(b.path))
     .map(entry => ({ path: entry.path, sha256: entry.sha256, size: entry.size }));
 
+  // GATE-2·必含文件 + index.html 引用闭包 ⊆ 清单（1.3.3.4 的病灶正是 index 引的脚本不在清单里）
+  if (!explicitFiles.length) {
+    const manifestPathSet = new Set(finalManifestFiles.map(f => f.path));
+    const problems = [];
+    const required = ['index.html', 'changelog.json', 'styles.css', 'version.json'];
+    if (fs.existsSync(path.join(APP_ROOT, 'main-impl.js'))) required.push('_app_main.js');
+    if (fs.existsSync(path.join(APP_ROOT, 'preload-impl.js'))) required.push('_app_preload.js');
+    required.forEach(p => { if (!manifestPathSet.has(p)) problems.push('必含文件缺失·' + p); });
+    indexRefs.forEach(ref => {
+      if (!manifestPathSet.has(ref)) problems.push('index.html 引用不在清单·' + ref);
+    });
+    if (problems.length) {
+      console.error('[GATE-2] 清单完整性不过关（' + problems.length + ' 处）：');
+      problems.slice(0, 20).forEach(p => console.error('         ' + p));
+      if (problems.length > 20) console.error('         …等共 ' + problems.length + ' 处');
+      process.exit(1);
+    }
+  }
+
   const manifest = {
     type: 'tianming-hot-update',
     version,
@@ -353,7 +441,29 @@ function main() {
   zip.addFile('manifest.json', Buffer.from(JSON.stringify(manifest, null, 2), 'utf-8'));
   zip.writeZip(zipPath);
 
+  // GATE-4·zip ↔ manifest 双向一致·重开写好的 zip 对账（结构性堵死「打进包但没记账/记了账没打包」）
+  {
+    const written = new AdmZip(zipPath);
+    const zipSet = new Set(written.getEntries().filter(e => !e.isDirectory).map(e => e.entryName.replace(/\\/g, '/')));
+    zipSet.delete('manifest.json');
+    const manifestSet = new Set(finalManifestFiles.map(f => f.path));
+    const onlyZip = [...zipSet].filter(p => !manifestSet.has(p));
+    const onlyManifest = [...manifestSet].filter(p => !zipSet.has(p));
+    if (onlyZip.length || onlyManifest.length) {
+      console.error('[GATE-4] zip 与 manifest 不一致·包内多出 ' + onlyZip.length + '·清单多出 ' + onlyManifest.length);
+      onlyZip.slice(0, 10).forEach(p => console.error('         仅在 zip·' + p));
+      onlyManifest.slice(0, 10).forEach(p => console.error('         仅在清单·' + p));
+      try { fs.rmSync(zipPath, { force: true }); } catch (_) {}
+      process.exit(1);
+    }
+  }
+
   const zipStat = fs.statSync(zipPath);
+  // GATE-6·体积理智线（警告不拦）·全量包异常大小往往意味着排除规则坏了
+  if (!explicitFiles.length) {
+    if (zipStat.size < 100 * 1024 * 1024) console.warn('[GATE-6] WARN·全量包仅 ' + (zipStat.size / 1048576).toFixed(0) + ' MB·低于 100MB·确认排除规则没把运行时内容剔掉');
+    if (zipStat.size > 700 * 1024 * 1024) console.warn('[GATE-6] WARN·全量包高达 ' + (zipStat.size / 1048576).toFixed(0) + ' MB·高于 700MB·确认没把开发产物夹带进来');
+  }
   // 2026-05-23·incremental update 字段·old client 读不到 manifestUrl 自动 fallback 走 packageUrl 全包路径
   //   manifestUrl·per-version manifest·{path,sha256,size}·客户端 diff 本地 .hot-update-manifest.json
   //   filesBaseUrl·sha-content-addressable file store·客户端按 `${filesBaseUrl}<sha2>/<sha-rest>/<basename>` 取
@@ -368,6 +478,9 @@ function main() {
     notes,
     generatedAt: manifest.generatedAt
   };
+  // 2026-06-11·minAppVersion 提升到 feed 层·客户端「下载前」即可判定要不要先升本体（needsInstaller）
+  //   旧客户端忽略未知字段·manifest 内同名字段仍是装前最后防线
+  if (minAppVersion) feed.minAppVersion = minAppVersion;
   fs.writeFileSync(path.join(outDir, 'hot-latest.json'), JSON.stringify(feed, null, 2), 'utf-8');
   // 同步把 manifest 单独写到 outDir·upload-hot.py 直接拾·SCP 到 server hot/manifests/<ver>.json
   fs.mkdirSync(path.join(outDir, 'manifests'), { recursive: true });

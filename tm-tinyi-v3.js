@@ -1149,6 +1149,7 @@ function _ty3_actionStrip(ch, opts) {
   if (!ch) return;
   ch.loyalty = 0;  // 革除·loyalty 归零
   ch.officialTitle = '';
+  ch.title = ''; // 同步·否则廷议革除官职后 `officialTitle||title` 回退仍显示原官职
   // 从 attendees 移除
   if (typeof CY !== 'undefined' && CY._ty3 && Array.isArray(CY._ty3.attendees)) {
     var idx = CY._ty3.attendees.indexOf(ch.name);

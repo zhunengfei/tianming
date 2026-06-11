@@ -1672,10 +1672,21 @@ async function _wd_extractCommitments(targetName) {
   } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, '_wd_extractCommitments') : console.warn('[_wd_extractCommitments]', e); }
 }
 
-function _wdUpdateCounter() {
+// 2026-06-11·性能·打字流畅:计数器更新改 rAF 合帧。原每次按键(含中文 IME 逐字)同步写 cnt.textContent,
+//   每写一次都生成一条 childList 变动 → 触发 tm-fixed-fit.js 那个挂在 documentElement(subtree) 的全局
+//   MutationObserver 微任务。合帧后每帧至多一次更新·快速连打只在停顿那一帧落字数·肉眼无差。
+var _wdCounterRaf = 0;
+function _wdDoUpdateCounter() {
+  _wdCounterRaf = 0;
   var inp = _$('wd-modal-input');
   var cnt = _$('wd-char-counter');
   if (inp && cnt) cnt.textContent = inp.value.length + '/5000';
+}
+function _wdUpdateCounter() {
+  if (_wdCounterRaf) return;
+  _wdCounterRaf = (typeof requestAnimationFrame === 'function')
+    ? requestAnimationFrame(_wdDoUpdateCounter)
+    : (setTimeout(_wdDoUpdateCounter, 16), 1);
 }
 
 /**

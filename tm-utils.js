@@ -845,9 +845,23 @@ function _aiDialogueTok(category, speakerCount) {
   var r = (typeof _getCharRange === 'function') ? _getCharRange(category) : [150, 300];
   var perMax = r[1];
   var totalChars = perMax * n;
-  // 汉字 → token：约 × 2 + JSON wrapper/思考 buffer
+  // 汉字 → token：约 × 2 + 思考 buffer
   var tok = Math.max(500, Math.round(totalChars * 2.5));
-  try { if (window._dbgDialogueWC) console.log('[对话字数]', category, '×' + n + '人', 'range=', r, '→ tok=', tok); } catch(e){try{window.TM&&TM.errors&&TM.errors.captureSilent(e,'tm-utils');}catch(_){}}
+  // 2026-06-11·JSON 元数据缓冲（治问对/对话「生成一半就截断」）：
+  //   reply 之外，AI 还要写忠诚/情绪/记忆 memoryImpact/欺瞒 deception/施政建议 suggestions 等结构化字段，
+  //   这些是「与 reply 长度无关」的近似固定开销。旧公式只按 totalChars 给量 → reply 写满后 JSON 元数据被
+  //   finish_reason:length 截断 → extractJSON 失败 / 玩家看到对话半截。按 category 加固定缓冲（wd 单人但 schema 最重）。
+  tok += (category === 'wd') ? 600 : 250;
+  // 2026-06-11·owner:默认 token 翻三倍·彻底消除问对/朝议截断。
+  //   （max_tokens 只是输出上限·模型仍按 prompt 的字数提示生成·不会因上限高就变啰嗦；高上限只是不再半截。）
+  tok = tok * 3;
+  // 并确保「设置·AI 输出上限(max_tokens 手动值)」对对话生效：
+  //   此前对话流式路 callAIMessagesStream→_callAIMessagesStreamDirect 的 max_tokens 只来自本函数·完全不读 P.conf.maxOutputTokens
+  //   （只有 endturn 读它），故设置对问对/朝议无效。取 max(翻三倍默认, 设置值)——用户调高即生效；
+  //   设置偏低也不回落到截断（翻三倍默认作下限保护，符合「治截断」本意）。
+  var _setOutCap = parseInt(P && P.conf && P.conf.maxOutputTokens, 10) || 0;
+  if (_setOutCap > 0) tok = Math.max(tok, _setOutCap);
+  try { if (window._dbgDialogueWC) console.log('[对话字数]', category, '×' + n + '人', 'range=', r, '→ tok=', tok, '| 设置上限=', _setOutCap || '(auto)'); } catch(e){try{window.TM&&TM.errors&&TM.errors.captureSilent(e,'tm-utils');}catch(_){}}
   return tok;
 }
 
@@ -1295,6 +1309,10 @@ function saveP(){
     var lite = {
       scenarios: (P.scenarios || []).map(function(s) { return {id:s.id, name:s.name, era:s.era, role:s.role}; }),
       ai: P.ai,
+      // conf 镜像入轻量骨架——这是同步存储·随 saveP 一并写·用于在启动同步层即恢复用户设置(生成字数/推演深度/记忆容量等)
+      // 修 2026-06-11·剧本 register() 在 DOMContentLoaded 早于异步 IndexedDB restore 跑·会用默认 conf 覆盖玩家保存的设置
+      // 让 conf 经同步骨架抢先在 register 之前落到内存·register 的 saveP 便持久化正确 conf·竞态消除
+      conf: P.conf,
       _hasFullData: true // 标记：完整数据在IndexedDB
     };
     localStorage.setItem('tm_P_lite', JSON.stringify(lite));
@@ -1387,7 +1405,14 @@ function _tmEmitPRestored(source) {
       if (lite) {
         var liteData = JSON.parse(lite);
         if (liteData.ai) P.ai = liteData.ai;
-        console.log('[restoreP] 从localStorage骨架恢复AI配置');
+        // 同步恢复用户设置(conf)——必须早于剧本 register() 的 saveP·否则被默认 conf 覆盖(见 saveP 处注释)
+        if (liteData.conf && typeof liteData.conf === 'object') {
+          if (!P.conf) P.conf = {};
+          for (var _ck in liteData.conf) {
+            if (liteData.conf.hasOwnProperty(_ck)) P.conf[_ck] = liteData.conf[_ck];
+          }
+        }
+        console.log('[restoreP] 从localStorage骨架恢复AI配置与用户设置');
       }
     }
   } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'restoreP] localStorage恢复失败:') : console.warn('[restoreP] localStorage恢复失败:', e); }

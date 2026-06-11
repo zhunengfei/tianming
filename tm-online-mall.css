@@ -391,7 +391,10 @@
 .tm-mall .update-hero.ok{background:linear-gradient(120deg,rgba(40,82,56,.3),rgba(14,11,8,.5) 72%);}
 .tm-mall .update-hero.avail{background:linear-gradient(120deg,rgba(124,84,18,.4),rgba(18,11,7,.5) 72%);border-color:var(--gold);}
 .tm-mall .uh-top{display:grid;grid-template-columns:auto 1fr auto;gap:15px;align-items:center;}
-.tm-mall .uh-ic{width:58px;height:58px;display:grid;place-items:center;border:1px solid var(--line-strong);border-radius:12px;font-size:26px;color:var(--gold-bright);background:rgba(0,0,0,.26);}
+/* 御案化·更新图标 = 圆形朱印（与 tm-update-card 圆朱印同语·把更新中心连进御案视觉） */
+.tm-mall .uh-ic{width:58px;height:58px;display:grid;place-items:center;border:1px solid rgba(213,176,95,.5);border-radius:50%;font-size:24px;color:#f4dca0;background:radial-gradient(circle,rgba(154,47,34,.42),rgba(64,31,20,.82) 74%);box-shadow:inset 0 0 10px rgba(0,0,0,.45),0 0 8px rgba(201,160,69,.22);}
+/* 有新版可装时·hero 左缘朱砂封条（御案 .tm-desk-item.hot 语汇） */
+.tm-mall .update-hero.avail::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,rgba(180,54,37,0),rgba(180,54,37,.78) 20%,rgba(180,54,37,.78) 80%,rgba(180,54,37,0));}
 .tm-mall .uh-id b{font-family:var(--serif);font-size:18px;color:#f7e7b8;display:block;}
 .tm-mall .uh-id>small{font-size:12px;color:var(--ink-dim);display:block;margin-top:4px;}
 .tm-mall .uh-state{font-size:12.5px;margin-top:7px;font-family:var(--serif);letter-spacing:.5px;}

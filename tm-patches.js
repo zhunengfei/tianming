@@ -372,6 +372,13 @@ openSettings=function(){
     "<div class=\"rw\"><div class=\"fd\"><label>\u670D\u52A1\u5546</label><select id=\"s-prov\"><option value=\"openai\">OpenAI</option><option value=\"deepseek\">DeepSeek</option><option value=\"anthropic\">Claude</option><option value=\"custom\">\u81EA\u5B9A\u4E49</option></select></div><div class=\"fd\"><label>Key</label><input type=\"password\" id=\"s-key\" value=\""+(P.ai.key||"")+"\"></div></div>"+
     "<div class=\"rw\"><div class=\"fd\"><label>\u5730\u5740</label><input id=\"s-url\" value=\""+(P.ai.url||"")+"\" placeholder=\"https://api.openai.com/v1 \u6216\u4E2D\u8F6C\u7AD9URL\"></div><div class=\"fd\"><label>\u6A21\u578B</label><input id=\"s-model\" value=\""+(P.ai.model||"")+"\"></div></div>"+
     "<div style=\"font-size:0.75rem;color:var(--txt-d);margin:-0.3rem 0 0.4rem;\">\u652F\u6301 OpenAI \u517C\u5BB9\u4E2D\u8F6C\u7AD9\uFF0C\u586B base URL \u5373\u53EF\u3002</div>"+
+    (function(){
+      var _on = !!(typeof P!=='undefined' && P && P.conf && P.conf.insecureTlsRelay===true);
+      return '<label style="display:inline-flex;align-items:flex-start;gap:0.35rem;font-size:0.74rem;color:var(--txt-d);margin:-0.1rem 0 0.5rem;cursor:pointer;line-height:1.5;">'
+        + '<input type="checkbox" id="s-insecure-tls" ' + (_on?'checked ':'') + 'onchange="sToggleInsecureTlsRelay(this.checked)" style="margin-top:0.15rem;flex:none;">'
+        + '<span>\u5141\u8BB8\u4E2D\u8F6C\u7AD9<b style="color:var(--gold);">\u4E0D\u5B89\u5168\u8BC1\u4E66</b>\uFF08\u8BC1\u4E66\u57DF\u540D\u4E0D\u5339\u914D / \u81EA\u7B7E\u540D\u5BFC\u81F4\u8FDE\u4E0D\u4E0A\u65F6\u52FE\u9009\u00B7<b>\u4EC5\u5BF9\u4E0A\u65B9 API \u5730\u5740</b>\u751F\u6548\u00B7\u5B98\u65B9\u670D\u52A1\u5668\u4E0E\u70ED\u66F4\u4ECD\u4E25\u683C\u6821\u9A8C\u00B7\u5728\u7EBF\u7F51\u9875\u7248\u53D7\u6D4F\u89C8\u5668\u9650\u5236\u65E0\u6548\uFF09</span>'
+        + '</label>';
+    })()+
     "<div class=\"rw\"><div class=\"fd q\"><label>Temp</label><input type=\"number\" id=\"s-temp\" value=\""+(P.ai.temp||0.8)+"\" step=\"0.1\"></div><div class=\"fd q\"><label>\u8BB0\u5FC6</label><input type=\"number\" id=\"s-mem\" value=\""+(P.ai.mem||20)+"\"></div><div class=\"fd q\"><label>\u4E0A\u4E0B\u6587(K)</label><input type=\"number\" id=\"s-ctx\" value=\""+(P.conf.contextSizeK||0)+"\" placeholder=\"0=\u81EA\u52A8\" min=\"0\" title=\"\u6A21\u578B\u4E0A\u4E0B\u6587\u7A97\u53E3\u5927\u5C0F(K tokens)\u3002\u7559\u7A7A\u62160=\u81EA\u52A8\u68C0\u6D4B\"></div></div>"+
     "<div style=\"font-size:0.7rem;color:var(--txt-d);margin:-0.2rem 0 0.3rem;\">\u4E0A\u4E0B\u6587\u7A97\u53E3\u5F71\u54CD\u8BB0\u5FC6\u538B\u7F29\u7B56\u7565\uFF1A128K+\u5BBD\u677E\u4FDD\u7559\u3001<32K\u6FC0\u8FDB\u538B\u7F29\u3001\u7559\u7A7A\u81EA\u52A8\u8BC6\u522B\u6A21\u578B</div>"+
     "<div style=\"display:flex;gap:0.3rem;margin-top:0.4rem;\"><button class=\"bai\" onclick=\"sDetectModels()\">\u68C0\u6D4B\u6A21\u578B</button><button class=\"bt bs bsm\" onclick=\"sTestConn()\">\u6D4B\u8BD5\u8FDE\u63A5</button><button class=\"bt bs bsm\" onclick=\"sReDetectCtx()\">\u91CD\u65B0\u63A2\u6D4B\u7A97\u53E3</button><button class=\"bt bp bsm\" onclick=\"sSaveAPI()\">\u4FDD\u5B58</button></div>"+
@@ -819,6 +826,7 @@ var DEFAULT_RULES="1.\u6570\u503C\u5408\u7406 2.\u89D2\u8272\u72EC\u7ACB 3.\u621
 
 function sSaveAPI(){
   P.ai.key=_$("s-key")?_$("s-key").value:"";P.ai.url=_$("s-url")?_$("s-url").value:"";P.ai.model=_$("s-model")?_$("s-model").value:"";P.ai.temp=parseFloat(_$("s-temp")?_$("s-temp").value:"0.8");P.ai.mem=parseInt(_$("s-mem")?_$("s-mem").value:"20");P.ai.provider=_$("s-prov")?_$("s-prov").value:"openai";
+  try{ if(typeof tmApplyInsecureTlsConfig==='function') tmApplyInsecureTlsConfig(); }catch(_){}
   if(window.tianming&&window.tianming.isDesktop){window.tianming.autoSave(P).catch(function(e){ (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'catch] async:') : console.warn('[catch] async:', e); });}else{try{localStorage.setItem("tm_api",JSON.stringify(P.ai));}catch(e){ console.warn("[catch] 静默异常:", e.message || e); }}
   toast("\u2705 API\u5DF2\u4FDD\u5B58");
 }
@@ -917,6 +925,7 @@ function sSaveSecondaryAPI(){
   }
   try{localStorage.setItem("tm_api",JSON.stringify(P.ai));}catch(e){}
   if(window.tianming&&window.tianming.isDesktop){try{window.tianming.autoSave(P).catch(function(){});}catch(e){try{window.TM&&TM.errors&&TM.errors.captureSilent(e,'tm-patches');}catch(_){}}}
+  try{ if(typeof tmApplyInsecureTlsConfig==='function') tmApplyInsecureTlsConfig(); }catch(_){}  // 次 API 地址变了·刷新放行白名单
   saveP();
   // 刷新面板以更新徽标和清除按钮可见性
   try{closeSettings();openSettings();}catch(_){}
