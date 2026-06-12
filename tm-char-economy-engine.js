@@ -1361,7 +1361,9 @@
 
   function triggerCharacterDeath(ch, cause) {
     ch.dead = true;
+    ch.alive = false; // 必须同步 alive=false·否则死者仍过 `alive!==false` 过滤·继续生成奏疏/信件、显在朝(bug)
     ch.deathCause = cause;
+    ch.deathReason = cause; // 与 AI 死亡路径字段一致(部分显示/过滤读 deathReason)
     ch.deathTurn = GM.turn;
     // 继承（分给子嗣）
     distributeInheritance(ch);

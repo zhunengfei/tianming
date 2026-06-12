@@ -492,6 +492,22 @@ async function _endTurnCore(){
     return;
   }
 
+  // 建筑工役 tick（2026-06-12·确定性步·每回合恰一次）：在建递减→完工把效果写进 economyBase/fortLevel/民心叶子，
+  // 维护费扣地方库银。须在 final aggregate 之前——完工改的叶子当回合即被聚合。
+  try { if (window.TM && TM.BuildingWorks && typeof TM.BuildingWorks.tick === 'function') TM.BuildingWorks.tick(GM, P); } catch(_bwTickE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_bwTickE, 'endTurn] building works tick') : console.warn('[endTurn] building works tick', _bwTickE); }
+
+  // 地块状态 tick（2026-06-12·确定性步）：过期清除 + 状态民心摊叶 + 繁荣度缓变。
+  // 须在 BuildingWorks.tick 之后（完工状态当回合生效）、final aggregate 之前。
+  try { if (window.TM && TM.RegionStatus && typeof TM.RegionStatus.tick === 'function') TM.RegionStatus.tick(GM, P); } catch(_rsTickE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_rsTickE, 'endTurn] region status tick') : console.warn('[endTurn] region status tick', _rsTickE); }
+
+  // 字段活化 tick（2026-06-12·S6·确定性步）：重税之地民心叶账缓跌（地板 25）+ _fieldLedger 近账。
+  // 同样须在 final aggregate 之前——叶子变更当回合即被聚合。
+  try { if (window.TM && TM.FieldPipes && typeof TM.FieldPipes.tick === 'function') TM.FieldPipes.tick(GM, P); } catch(_fpTickE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_fpTickE, 'endTurn] field pipelines tick') : console.warn('[endTurn] field pipelines tick', _fpTickE); }
+
+  // 社会层地基 tick（2026-06-12·确定性步）：阶层结构基线缓变回归 + 议程引擎消长 + 党派双账合流。
+  // 须在 RegionStatus/FieldPipes 之后（要读灾域/税负实况）、final aggregate 之前。
+  try { if (window.TM && TM.SocialFoundation && typeof TM.SocialFoundation.tick === 'function') TM.SocialFoundation.tick(GM, P); } catch(_sfTickE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_sfTickE, 'endTurn] social foundation tick') : console.warn('[endTurn] social foundation tick', _sfTickE); }
+
   // 回合结束前最后一次聚合：确保 七变量(national) 严格等于 各区划叶子之和
   // （因 AI 推演/各 engine.tick 都可能修改 division.population.mouths，需重新累计）
   try { if (typeof IntegrationBridge !== 'undefined' && typeof IntegrationBridge.aggregateRegionsToVariables === 'function') IntegrationBridge.aggregateRegionsToVariables(); } catch(_aggFinalE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_aggFinalE, 'endTurn] final aggregate') : console.warn('[endTurn] final aggregate', _aggFinalE); }

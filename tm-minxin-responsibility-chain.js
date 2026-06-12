@@ -269,7 +269,7 @@
       reportedProgress: reported,
       falseReportRisk: calcFalseReportRisk(root, item),
       spent: clone(spent || {}),
-      text: 'Official report: ' + (item.regionName || '') + ' ' + (item.className || '') + ' progress ' + Math.round(reported) + '%'
+      text: '官报：' + (item.regionName || '') + '·' + (item.className || '') + '·所报进度 ' + Math.round(reported) + '%'
     };
     store.officialReports.push(report);
     if (store.officialReports.length > MAX_ITEMS) store.officialReports = store.officialReports.slice(-MAX_ITEMS);
@@ -296,7 +296,7 @@
       falseReportRisk: Math.round(risk * 100) / 100,
       severity: hot ? 'hot' : 'watch',
       sourceType: 'minxin_responsibility_rumor',
-      text: (hot ? 'Rumor warns: ' : 'Rumor notes: ') + (item.regionName || '') + ' ' + (item.className || '') + ' actual progress ' + actual + '%'
+      text: (hot ? '坊间疾呼：' : '坊间风闻：') + (item.regionName || '') + '·' + (item.className || '') + '·实际进度 ' + actual + '%'
     };
     store.rumors.push(rumor);
     if (store.rumors.length > MAX_ITEMS) store.rumors = store.rumors.slice(-MAX_ITEMS);
@@ -315,18 +315,18 @@
     var store = ensureStore(root);
     var turn = Number(options.turn != null ? options.turn : root.turn) || 0;
     item._responsibilityAccountabilitySpawned = true;
-    var title = 'Accountability - ' + (item.executor && item.executor.name || item.agency || 'official') + ' / ' + (item.regionName || '');
+    var title = '问责·' + (item.executor && item.executor.name || item.agency || '有司') + '·' + (item.regionName || '');
     var mem = {
       id: 'mxresp-acc-mem-' + item.id,
       turn: turn,
       title: title,
       topic: title,
-      from: 'Censorate',
-      dept: 'Censorate',
-      type: 'impeachment',
-      subtype: 'minxin_accountability',
-      content: 'Official report and popular rumor diverge on ' + (item.regionName || '') + ' ' + (item.className || '') + '.',
-      text: 'Official report and popular rumor diverge on ' + (item.regionName || '') + ' ' + (item.className || '') + '.',
+      from: '都察院',
+      dept: '都察院',
+      type: '弹劾',
+      subtype: '民情问责',
+      content: '官报与坊间舆情在' + (item.regionName || '') + '·' + (item.className || '') + '一事上相牴牾，疑有虚报。',
+      text: '官报与坊间舆情在' + (item.regionName || '') + '·' + (item.className || '') + '一事上相牴牾，疑有虚报。',
       status: 'pending',
       priority: 'urgent',
       sourceType: 'minxin_accountability',
@@ -338,8 +338,8 @@
     var topic = {
       id: 'mxresp-acc-tinyi-' + item.id,
       turn: turn,
-      topic: title + ' asks court review',
-      title: title + ' asks court review',
+      topic: title + '·吁请廷议核处',
+      title: title + '·吁请廷议核处',
       from: 'minxin-responsibility-chain',
       sourceType: 'minxin_accountability',
       sourceId: item.id,
@@ -348,9 +348,9 @@
       sourceClass: item.className || '',
       className: item.className || '',
       regionName: item.regionName || '',
-      demandText: 'Investigate false report and execution delay',
+      demandText: '查究虚报与执行延宕',
       priority: 90,
-      reason: rumor && rumor.text || report && report.text || 'minxin responsibility accountability'
+      reason: rumor && rumor.text || report && report.text || '民情执行问责'
     };
     ensureArray(root, '_pendingTinyiTopics').unshift(topic);
     var rec = {
@@ -523,8 +523,8 @@
   function formatForPrompt(root, options) {
     var snap = snapshot(root, options || {});
     if (!snap.assignments.length && !snap.officialReports.length && !snap.rumors.length && !snap.accountability.length) return '';
-    var lines = ['\n\n=== Minxin Responsibility Chain ==='];
-    lines.push('Official reports may diverge from popular rumor when corruption is high. Treat rumors as evidence of hidden execution risk, not as direct orders.');
+    var lines = ['\n\n=== 民情执行·责任链 ==='];
+    lines.push('贪腐高企时，官报常与坊间舆情相牴牾。将风闻视作隐性执行风险的线索，而非直接政令。相关奏疏、书信、廷议议题须以中文叙写，勿夹英文字段名。');
     if (snap.assignments.length) lines.push('assignments:\n' + snap.assignments.slice(0, 6).map(function(a) {
       return '- ' + a.commitmentId + ' agency=' + a.agency + ' executor=' + (a.executor && a.executor.name || '') + ' region=' + a.regionName + ' class=' + a.className;
     }).join('\n'));

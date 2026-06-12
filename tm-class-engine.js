@@ -357,8 +357,8 @@
           influence: parseTurnNumber(p.influence) || 30,
           cohesion: parseTurnNumber(p.cohesion) || 50,
           reputationBalance: 0,
-          alliedWith: [],
-          conflictWith: [],
+          alliedWith: toArray(p.allies || p.alliedWith).map(function(x){ return typeof x === 'string' ? x.trim() : String(x && (x.name || x.party) || '').trim(); }).filter(Boolean),
+          conflictWith: toArray(p.enemies || p.rivals || p.conflictWith).map(function(x){ return typeof x === 'string' ? x.trim() : String(x && (x.name || x.party) || '').trim(); }).filter(Boolean),
           neutralWith: [],
           officeCount: 0,
           recentImpeachWin: 0,
@@ -645,9 +645,17 @@
         }
       });
       if (!classDelta) return;
-      var oldSat = parseTurnNumber(cls.satisfaction) || 50;
-      var nextSat = clamp(oldSat + classDelta, 0, 100);
-      cls.satisfaction = nextSat;
+      // 单次胜负对一个阶层的牵动有限——旧版 Σaffinity×delta 无限幅，是连败跌穿的源头之一。
+      classDelta = clamp(classDelta, -4, 4);
+      var gatePo = gateSatisfaction(source, cls, classDelta, {
+        turn: turn,
+        source: options.source || 'party-outcome',
+        reason: (outcome && (outcome.reason || outcome.topic || outcome.demandText)) || '党争胜负'
+      });
+      if (!gatePo.approved) return;
+      classDelta = gatePo.approved;
+      var oldSat = gatePo.before;
+      var nextSat = gatePo.after;
       cls.lastPartyOutcomeRef = refs;
       cls.lastPartyOutcomeTurn = turn;
       if (!Array.isArray(cls.partyOutcomeHistory)) cls.partyOutcomeHistory = [];
@@ -730,25 +738,71 @@
     return { ok: decayed > 0, decayed: decayed, decay: decay, turn: turn };
   }
 
+  // 标签只从「这次变化」的事由文本派生——旧版把阶层自身 demands/description 一并匹配，
+  // 导致每次触碰都按「被加税/被征役」扣基线（满意度只跌不涨的旧病根之一）。
   function deriveTagsFromReason(cc, cls, root) {
     var text = [
       cc && cc.reason,
-      cc && cc.new_demands,
-      cls && cls.demands,
-      cls && cls.description
+      cc && cc.new_demands
     ].filter(Boolean).join(' ');
     var lower = normalizeText(text);
     var tags = [];
     function has(re) { return re.test(lower); }
-    if (has(/税|赋税|税负|钱粮|征敛|苛税/)) tags.push('tax');
+    if (has(/税|赋|钱粮|征敛/)) tags.push('tax');
     if (has(/徭|役|差役|服役|征发|民夫|工役/)) tags.push('corvee');
     if (has(/特权|门阀|世家|免役|荫封|优免|既得/)) tags.push('privilege');
     if (has(/宗教|寺|庙|僧|道|佛|教门|香火|清规/)) tags.push('religion');
     if (has(/军|兵|征发|募兵|军户|戍边|调兵|武力/)) tags.push('military');
     if (has(/法|律|刑|案|冤|狱|官司|审判|缉捕/)) tags.push('law');
     if (has(/外贸|海贸|互市|边贸|禁海|海禁|关税|番商|通商/)) tags.push('foreign_trade');
-    if (tags.length === 0) tags.push('privilege');
     return tags;
+  }
+
+  // 事由方向：+1 惠政（蠲赈减免），-1 苛政（加征摊派），0 不明——矩阵静默，信 AI delta。
+  var RELIEF_RE = /蠲|赈|减赋|减税|减派|减负|减租|免役|免征|免赋|免税|缓征|罢征|罢矿|罢税|罢役|抚恤|犒赏|补饷|发饷|清欠|昭雪|平反|开海|弛禁|安抚|招抚|放粮|施粥/;
+  var BURDEN_RE = /加征|加派|加税|加赋|增赋|增税|增役|摊派|苛敛|催科|催征|逼粮|强征|横征|拉丁|抽丁|欠饷|克扣|盘剥|兼并|圈地|禁海|查抄|抄没|迫害|构陷|冤狱|镇压|屠/;
+  function deriveDirection(text) {
+    var s = String(text || '');
+    var relief = RELIEF_RE.test(s);
+    var burden = BURDEN_RE.test(s);
+    if (relief && !burden) return 1;
+    if (burden && !relief) return -1;
+    return 0;
+  }
+
+  // 满意度总闸：事件源（AI 推演/党派胜负耦合/LLM 校准器）统一过闸——
+  // 每阶层每回合净变动封顶 classSatTurnBudget（默认 14），写 _satLedger 近账。
+  // 旧版多源各写各的无总预算，同回合可叠扣 30 以上，是「无缘无故跌到 0」主因之一。
+  // 稳定器（结构回归）走闸外：它是恢复通道，自身限幅 ±1.2。
+  function gateSatisfaction(root, cls, rawDelta, info) {
+    var source = ensureRootContainers(root);
+    info = info || {};
+    var cur = Number(cls && cls.satisfaction);
+    if (!isFinite(cur)) cur = 50;
+    var d = Number(rawDelta);
+    if (!cls || typeof cls !== 'object' || !isFinite(d) || !d) {
+      return { approved: 0, before: cur, after: cur, capped: false };
+    }
+    var turn = parseTurnNumber(info.turn != null ? info.turn : source.turn);
+    var budget = parseFloat(read('classSatTurnBudget', source));
+    if (!isFinite(budget) || budget <= 0) budget = 14;
+    if (!cls._satBudget || cls._satBudget.turn !== turn) cls._satBudget = { turn: turn, used: 0 };
+    var room = Math.max(0, budget - cls._satBudget.used);
+    var approved = clamp(d, -room, room);
+    var after = clamp(cur + approved, 0, 100);
+    approved = Math.round((after - cur) * 100) / 100;
+    if (!approved) return { approved: 0, before: cur, after: cur, capped: true };
+    cls.satisfaction = Math.round(after * 100) / 100;
+    cls._satBudget.used += Math.abs(approved);
+    if (!Array.isArray(cls._satLedger)) cls._satLedger = [];
+    cls._satLedger.push({
+      t: turn,
+      d: approved,
+      src: String(info.source || 'event').slice(0, 40),
+      why: String(info.reason || '').slice(0, 80)
+    });
+    if (cls._satLedger.length > 12) cls._satLedger = cls._satLedger.slice(-12);
+    return { approved: approved, before: cur, after: cls.satisfaction, capped: Math.abs(approved) < Math.abs(d) - 1e-9 };
   }
 
   function getDeltaForTag(matrix, tag, classKey) {
@@ -765,31 +819,63 @@
     var classKey = classKeys[0] || normalizeText(cls.name || cc.name || 'class');
     var matrix = read('classTagDeltaMatrix', source) || {};
     var tags = deriveTagsFromReason(cc, cls, source);
-    var baseline = { satisfaction: 0, influence: 0 };
+    var direction = deriveDirection([cc.reason, cc.new_demands].filter(Boolean).join(' '));
+    var matrixSum = { satisfaction: 0, influence: 0 };
     tags.forEach(function(tag) {
       var delta = getDeltaForTag(matrix, tag, classKey);
-      baseline.satisfaction += parseTurnNumber(delta.satisfaction);
-      baseline.influence += parseTurnNumber(delta.influence);
+      matrixSum.satisfaction += parseTurnNumber(delta.satisfaction);
+      matrixSum.influence += parseTurnNumber(delta.influence);
     });
+    // 矩阵按「苛政方向」标定（受害阶层为负）；惠政取反（受害愈重受惠愈大）；方向不明矩阵静默。
+    var baseline = {
+      satisfaction: direction ? clamp(direction < 0 ? matrixSum.satisfaction : -matrixSum.satisfaction, -10, 10) : 0,
+      influence: direction ? clamp(direction < 0 ? matrixSum.influence : -matrixSum.influence, -6, 6) : 0
+    };
 
-    var aiSat = parseTurnNumber(cc.satisfaction_delta);
-    var aiInf = parseTurnNumber(cc.influence_delta);
-    var satLimit = Math.max(1, Math.round(Math.max(1, Math.abs(baseline.satisfaction)) * 0.3));
-    var infLimit = Math.max(1, Math.round(Math.max(1, Math.abs(baseline.influence)) * 0.3));
-    var satAi = clamp(aiSat, -satLimit, satLimit);
-    var infAi = clamp(aiInf, -infLimit, infLimit);
-    var totalSatDelta = baseline.satisfaction + satAi;
-    var totalInfDelta = baseline.influence + infAi;
-    var oldSat = parseTurnNumber(cls.satisfaction) || 50;
-    var oldInf = parseTurnNumber(cls.influence || cls.classInfluence) || 50;
-    var nextSat = clamp(oldSat + totalSatDelta, 0, 100);
+    // AI delta 是主信号（模型读过完整叙事），矩阵只是关键词先验：
+    // AI 缺省→用基线；基线 0→用 AI；同号→取强者不叠加；异号→信 AI。
+    var aiSat = clamp(parseTurnNumber(cc.satisfaction_delta), -12, 12);
+    var aiInf = clamp(parseTurnNumber(cc.influence_delta), -8, 8);
+    function combineSignals(ai, base) {
+      if (!ai) return base;
+      if (!base) return ai;
+      if ((ai > 0) === (base > 0)) return (ai > 0 ? 1 : -1) * Math.max(Math.abs(ai), Math.abs(base));
+      return ai;
+    }
+    var wantSatDelta = combineSignals(aiSat, baseline.satisfaction);
+    var totalInfDelta = combineSignals(aiInf, baseline.influence);
+    var gate = gateSatisfaction(source, cls, wantSatDelta, {
+      turn: parseTurnNumber(source.turn || (options && options.turn)),
+      source: options && options.source || 'class-change',
+      reason: cc.reason || ''
+    });
+    var totalSatDelta = gate.approved;
+    var oldSat = gate.before;
+    var nextSat = gate.after;
+    var oldInfRaw = Number(cls.influence != null ? cls.influence : cls.classInfluence);
+    var oldInf = isFinite(oldInfRaw) ? oldInfRaw : 50;
     var nextInf = clamp(oldInf + totalInfDelta, 0, 100);
 
-    cls.satisfaction = nextSat;
     cls.influence = nextInf;
-    if (cc.new_demands !== undefined) cls.demands = cc.new_demands;
+    if (cc.new_demands !== undefined) {
+      var SF = TM.SocialFoundation;
+      if (SF && typeof SF.setAiDemand === 'function') {
+        SF.setAiDemand(source, cls, cc.new_demands, { turn: parseTurnNumber(source.turn || (options && options.turn)), source: options && options.source || 'class-change' });
+      } else {
+        cls.demands = cc.new_demands;
+      }
+    }
     if (cc.new_status !== undefined) cls.status = cc.new_status;
     if (cc.reason) cls.lastClassReason = cc.reason;
+    // 指域事件（2026-06-12 地域分账）：region 指明地域时同步牵动该阶层在当地的分账变体
+    if (cc.region) {
+      try {
+        var SFR = TM.SocialFoundation;
+        if (SFR && typeof SFR.applyRegionalDelta === 'function') {
+          SFR.applyRegionalDelta(source, cls, cc.region, aiSat || totalSatDelta, { turn: parseTurnNumber(source.turn || (options && options.turn)) });
+        }
+      } catch (_regionalE) {}
+    }
 
     var levels = cls.unrestLevels || (cls.unrestLevels = { grievance: 60, petition: 70, strike: 80, revolt: 90 });
     var unrestShift = 0;
@@ -820,12 +906,14 @@
       className: cls.name || cc.name,
       classKey: classKey,
       tags: tags,
+      direction: direction,
       baseline: clone(baseline),
-      ai: { satisfaction: satAi, influence: infAi },
+      ai: { satisfaction: aiSat, influence: aiInf },
       applied: { satisfaction: totalSatDelta, influence: totalInfDelta },
       before: { satisfaction: oldSat, influence: oldInf },
       after: { satisfaction: nextSat, influence: nextInf },
-      clamp: { satisfaction: satLimit, influence: infLimit },
+      clamp: { satisfaction: 12, influence: 8 },
+      gateCapped: !!gate.capped,
       turn: parseTurnNumber(source.turn || (options && options.turn))
     };
     result.partyCoupling = applyClassPartyCoupling(source, cls, totalSatDelta, {
@@ -1063,6 +1151,8 @@
     parseSizeShare: parseSizeShare,
     formatSizeText: formatSizeText,
     deriveTagsFromReason: deriveTagsFromReason,
+    deriveDirection: deriveDirection,
+    gateSatisfaction: gateSatisfaction,
     constantsOf: constantsOf,
     read: read,
     clone: clone

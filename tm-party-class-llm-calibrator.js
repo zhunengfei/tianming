@@ -466,7 +466,7 @@
         { party: 'party name from snapshot', className: 'class name from snapshot', affinityDelta: 0, trustDelta: 0, grievanceDelta: 0, reason: 'short reason' }
       ],
       class_updates: [
-        { className: 'class name from snapshot', satisfactionDelta: 0, demands: ['short demand'], unrestDelta: { grievance: 0, petition: 0, strike: 0, revolt: 0 } }
+        { className: 'class name from snapshot', satisfactionDelta: 0, demands: ['该阶层独有的具体诉求(中文)'], unrestDelta: { grievance: 0, petition: 0, strike: 0, revolt: 0 } }
       ],
       party_updates: [
         { party: 'party name from snapshot', currentAgenda: 'short agenda', shortGoal: 'short goal', cohesionDelta: 0 }
@@ -496,6 +496,8 @@
       'Class-character relation updates should describe who a class treats as spokesperson, patron, broker, suppressor, symbol, or debtor from current evidence only.',
       'Return strict JSON only. No markdown, no prose outside JSON.',
       'Deltas should usually be small: affinity/trust/grievance between -25 and 25, satisfaction/cohesion between -10 and 10, faction deltas between -8 and 8.',
+      'Never return absolute satisfaction values; use satisfactionDelta only. Class mood must move gradually with evidence.',
+      'All demands/agenda/goal texts must be written in Chinese, concise and concrete. Each class has distinct interests rooted in its own economic role and grievances - never reuse the same demand wording across different classes. Only include demands for a class when the evidence shows a genuinely new or shifted demand; omit otherwise.',
       'For class-character relation updates use fractional deltas between -0.25 and 0.25 and keep evidence short.',
       'For new or uncertain party-class links set emergent:true and keep affinityDelta small.'
     ].join('\n');
@@ -589,22 +591,41 @@
     var changed = false;
     var beforeSat = Number(cls.satisfaction);
     if (!isFinite(beforeSat)) beforeSat = 50;
-    var satDelta = Number(update.satisfactionDelta != null ? update.satisfactionDelta : update.satisfaction_delta);
-    if (isFinite(satDelta) && satDelta) {
+    var gateFn = TM.ClassEngine && typeof TM.ClassEngine.gateSatisfaction === 'function' ? TM.ClassEngine.gateSatisfaction : null;
+    function pushSat(delta, why) {
+      delta = clamp(delta, -8, 8);
+      if (!delta) return false;
+      if (gateFn) {
+        var g = gateFn(root, cls, delta, { turn: turn, source: sourceName || 'llm-calibration', reason: why || update.reason || 'LLM 校准' });
+        return !!g.approved;
+      }
       var current = Number(cls.satisfaction);
       if (!isFinite(current)) current = 50;
-      cls.satisfaction = Math.round(clamp(current + clamp(satDelta, -15, 15), 0, 100) * 100) / 100;
-      changed = true;
+      cls.satisfaction = Math.round(clamp(current + delta, 0, 100) * 100) / 100;
+      return true;
     }
+    var satDelta = Number(update.satisfactionDelta != null ? update.satisfactionDelta : update.satisfaction_delta);
+    if (isFinite(satDelta) && satDelta) {
+      if (pushSat(satDelta, update.reason)) changed = true;
+    }
+    // 绝对值通道关闸：旧版 LLM 返回 satisfaction:0 即硬设 0（「满意度无缘无故跌到 0」病根之一）。
+    // 现转为与当前值之差，限幅 ±8 并走满意度总闸。
     if (update.satisfaction != null) {
-      cls.satisfaction = Math.round(clamp(update.satisfaction, 0, 100) * 100) / 100;
-      changed = true;
+      var absTarget = Number(update.satisfaction);
+      var absCur = Number(cls.satisfaction);
+      if (!isFinite(absCur)) absCur = 50;
+      if (isFinite(absTarget) && pushSat(absTarget - absCur, update.reason || '校准回归')) changed = true;
     }
     if (update.demands != null || update.currentDemand != null) {
       var demands = toArray(update.demands != null ? update.demands : update.currentDemand).map(textOf).filter(Boolean);
       if (demands.length) {
-        cls.demands = demands.length === 1 ? [demands[0]] : demands;
-        cls.currentDemand = demands[0];
+        var SFD = TM.SocialFoundation;
+        if (SFD && typeof SFD.setAiDemand === 'function') {
+          SFD.setAiDemand(root, cls, demands.join('·'), { turn: turn, source: sourceName || 'llm-calibration' });
+        } else {
+          cls.demands = demands.length === 1 ? [demands[0]] : demands;
+          cls.currentDemand = demands[0];
+        }
         changed = true;
       }
     }

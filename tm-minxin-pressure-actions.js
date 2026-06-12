@@ -122,7 +122,7 @@
           perceived: row.perceived != null ? clamp(row.perceived, 0, 100) : null,
           weight: row.weight,
           influence: row.influence,
-          reason: compact(row.lastReason || row.reason || 'low minxin pressure', 160),
+          reason: compact(row.lastReason || row.reason || '民心低落', 160),
           linkedIssue: row.linkedIssue || ''
         });
       });
@@ -177,7 +177,7 @@
     var turn = Number(options.turn != null ? options.turn : root.turn) || 0;
     var severity = severityFor(row, tuning);
     var issueId = 'mpa-' + turn + '-' + seq;
-    var demand = row.true <= tuning.criticalMax ? 'urgent relief and investigation' : 'relief, audit, and local reporting';
+    var demand = row.true <= tuning.criticalMax ? '亟需赈恤并究查' : '赈恤、稽核、责地方据实奏报';
     return {
       id: issueId,
       key: key,
@@ -193,7 +193,7 @@
       true: row.true,
       perceived: row.perceived,
       demandText: demand,
-      reason: row.reason || 'low minxin pressure',
+      reason: row.reason || '民心低落',
       linkedIssue: row.linkedIssue || issueId,
       parties: getRelevantParties(root, row.className),
       spawnedChannels: [],
@@ -209,23 +209,23 @@
       var hay = [ch && ch.name, ch && ch.title, ch && ch.office, ch && ch.location, ch && ch.region].map(textOf).join(' ');
       return regionN && normalizeName(hay).indexOf(regionN) >= 0;
     });
-    if (local) return compact(local.name || local.title || 'Local official', 80);
+    if (local) return compact(local.name || local.title || '地方有司', 80);
     var censor = chars.find(function(ch) {
       return /censor|御史|都察|言官/i.test([ch && ch.title, ch && ch.office, ch && ch.role].map(textOf).join(' '));
     });
-    if (censor) return compact(censor.name || censor.title || 'Censor', 80);
-    return 'Local memorialist';
+    if (censor) return compact(censor.name || censor.title || '都察言官', 80);
+    return '地方陈情者';
   }
 
   function itemTitle(item) {
-    return 'Minxin pressure - ' + item.regionName + ' / ' + item.className;
+    return '民情积压·' + item.regionName + '·' + item.className;
   }
 
   function itemBody(item) {
     return [
-      item.regionName + ' ' + item.className + ' minxin truth ' + Math.round(item.true) + (item.perceived != null ? ', court view ' + Math.round(item.perceived) : ''),
-      'Pressure reason: ' + (item.reason || 'low minxin pressure'),
-      'Suggested channel: memorial reply, court debate, wendui, or hongyan verification.'
+      item.regionName + '·' + item.className + '民心实情 ' + Math.round(item.true) + (item.perceived != null ? '，朝堂观感 ' + Math.round(item.perceived) : ''),
+      '积压缘由：' + (item.reason || '民心低落'),
+      '可经奏疏批复、廷议、问对，或鸿雁查访核处。'
     ].join('\n');
   }
 
@@ -240,6 +240,14 @@
     var mems = ensureArray(root, 'memorials');
     var existing = mems.find(function(m) { return m && m._minxinPressureActionId === item.id; });
     if (existing) {
+      // 重新本地化既有奏疏——旧档可能残留英文模板(本地化前已落 GM.memorials)·复用时一并刷为中文
+      existing.title = itemTitle(item);
+      existing.topic = itemTitle(item);
+      existing.content = itemBody(item);
+      existing.text = itemBody(item);
+      if (existing.type === 'minxin') existing.type = '民情';
+      if (existing.subtype === 'pressure') existing.subtype = '积压';
+      if (existing.dept === 'Local affairs') existing.dept = '地方有司';
       markChannel(item, 'memorial', existing.id || item.id);
       return existing;
     }
@@ -248,9 +256,9 @@
       title: itemTitle(item),
       topic: itemTitle(item),
       from: chooseMemorialSender(root, item),
-      dept: 'Local affairs',
-      type: 'minxin',
-      subtype: 'pressure',
+      dept: '地方有司',
+      type: '民情',
+      subtype: '积压',
       content: itemBody(item),
       text: itemBody(item),
       status: 'pending',
@@ -276,7 +284,7 @@
       markChannel(item, 'tinyi', existing.id || item.id);
       return existing;
     }
-    var topic = 'Minxin pressure - ' + item.regionName + ' ' + item.className + ' asks court review';
+    var topic = '民情积压·' + item.regionName + '·' + item.className + '·吁请廷议核处';
     var row = {
       id: 'mpa-tinyi-' + item.id,
       topic: topic,
@@ -293,7 +301,7 @@
       demandText: item.demandText,
       priority: item.severity === 'critical' ? 92 : item.severity === 'high' ? 84 : 74,
       reason: item.reason,
-      proposerReason: 'Minxin pressure surfaced from region/class matrix',
+      proposerReason: '民心矩阵浮现的地方·阶层民情积压',
       origin: {
         sourceType: 'minxin_pressure',
         sourceId: item.id,
@@ -327,10 +335,10 @@
   function spawnWenduiHints(root, item) {
     var hints = ensureArray(root, '_minxinWenduiHints');
     var targets = pickWenduiTargets(root, item);
-    if (!targets.length) targets = [{ name: 'Local official' }];
+    if (!targets.length) targets = [{ name: '地方有司' }];
     var made = [];
     targets.forEach(function(ch) {
-      var personName = compact(ch.name || ch.title || 'Local official', 80);
+      var personName = compact(ch.name || ch.title || '地方有司', 80);
       var exists = hints.find(function(h) { return h && h.linkedIssue === item.id && h.personName === personName; });
       if (exists) {
         markChannel(item, 'wendui', exists.id);
@@ -347,8 +355,8 @@
         personId: ch.id || '',
         regionName: item.regionName,
         className: item.className,
-        question: 'Ask about ' + item.regionName + ' ' + item.className + ' pressure',
-        prompt: 'Question ' + personName + ' about ' + item.reason + ' and possible relief or audit.',
+        question: '询' + item.regionName + '·' + item.className + '民情积压之事',
+        prompt: '向' + personName + '问询「' + item.reason + '」，并探赈恤、稽核之策。',
         status: 'active'
       };
       hints.unshift(hint);
@@ -376,8 +384,8 @@
       to: target,
       regionName: item.regionName,
       className: item.className,
-      subject: 'Verify ' + item.regionName + ' minxin pressure',
-      bodyHint: 'Ask for relief options, false-report risk, and local abuse details.',
+      subject: '查访' + item.regionName + '民情积压',
+      bodyHint: '问询赈恤之策、虚报之险，及地方苛虐详情。',
       status: 'active'
     };
     hints.unshift(hint);
@@ -501,8 +509,8 @@
         name: p.name,
         influenceDelta: 0,
         cohesionDelta: delta > 0 ? 0.4 : -0.5,
-        currentAgenda: item.regionName + ' ' + item.className + ' pressure',
-        reason: 'minxin pressure response'
+        currentAgenda: item.regionName + '·' + item.className + '·民情积压',
+        reason: '民情积压回应'
       };
     }).filter(function(p) { return !!p.name; });
   }
@@ -520,7 +528,7 @@
     var decision = compact(payload.decision || payload.status || payload.action || channel, 60);
     var delta = responseDelta({ channel: channel, decision: decision });
     var turn = Number(options.turn != null ? options.turn : payload.turn != null ? payload.turn : root.turn) || 0;
-    var reason = text || (channel + ' response to ' + item.regionName + ' ' + item.className);
+    var reason = text || ('对' + item.regionName + '·' + item.className + '民情积压的处置');
     var response = {
       id: 'mpa-resp-' + turn + '-' + (store.responses.length + 1),
       turn: turn,
@@ -632,8 +640,8 @@
   function formatForPrompt(root, options) {
     var snap = snapshot(root, options || {});
     if (!snap.active.length && !snap.responses.length) return '';
-    var lines = ['\n\n=== Minxin Pressure Actions ==='];
-    lines.push('Low regional/class minxin becomes playable work. Player may respond through memorial replies, court debate, wendui, hongyan, or edicts; do not invent direct abstract buttons.');
+    var lines = ['\n\n=== 民情积压·待处置 ==='];
+    lines.push('地方/阶层民心低落已化为可处置的朝政：玩家可经奏疏批复、廷议、问对、鸿雁或诏令回应；不要臆造抽象按钮。相关奏疏、书信、廷议议题须以中文叙写，勿夹英文字段名。');
     if (snap.active.length) lines.push('active:\n' + snap.active.map(pressureLine).join('\n'));
     if (snap.responses.length) lines.push('responses:\n' + snap.responses.map(responseLine).join('\n'));
     return lines.join('\n');

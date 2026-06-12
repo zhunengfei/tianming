@@ -1017,8 +1017,24 @@
     if (div._warZone) disruption = 0.3;
     if (div._revoltActive) disruption = Math.max(disruption, 0.5);
 
+    // S6（2026-06-12）逃隐户税基折减：逃户全免、隐户六成不纳，封顶 35%。
+    // 无 fugitives/hiddenCount 数据 = 0 = 行为不变（零数据零变更）。
+    var fleePenalty = 0;
+    try {
+      var _fp = (typeof TM !== 'undefined' && TM.FieldPipes) || (typeof window !== 'undefined' && window.TM && window.TM.FieldPipes);
+      if (_fp && typeof _fp.fleeTaxPenalty === 'function') fleePenalty = _fp.fleeTaxPenalty(div) || 0;
+    } catch (_) {}
+
+    // 地块状态乘子（2026-06-12）：奇观/灾异/圣裁/风云/营造之利 → 地方经济一本账的读取点。
+    // 零状态 = 1 = 行为不变；模块缺位安全。
+    var statusMult = 1;
+    try {
+      var _rs = (typeof TM !== 'undefined' && TM.RegionStatus) || (typeof window !== 'undefined' && window.TM && window.TM.RegionStatus);
+      if (_rs && typeof _rs.econMult === 'function') statusMult = _rs.econMult(div) || 1;
+    } catch (_) {}
+
     var autonomy = Math.max(0, Math.min(1, safeNumber(div.fiscal && div.fiscal.autonomyLevel, 0)));
-    amount = amount * (1 - corrPenalty) * (1 - disasterPenalty) * (1 - exemption) * (1 - disruption) * (1 - autonomy * 0.8);
+    amount = amount * (1 - corrPenalty) * (1 - disasterPenalty) * (1 - exemption) * (1 - disruption) * (1 - fleePenalty) * (1 - autonomy * 0.8) * statusMult;
     return Math.max(0, Math.round(amount));
   }
 
@@ -1171,6 +1187,13 @@
       }
     });
 
+    // 2026-06-12 归零病修：cascade 在此区划一文未征（无 economyBase 税基/全免科）时，
+    // 不得用 0 抹掉剧本静态账——否则册页「应征 234 万/实征 0」自相矛盾、财赋视图直接归零。
+    // 一文未征 = 本引擎对此地无话语权，账面保持原样（剧本/上回合值）。
+    if (claimedTotal <= 0 && actualTotal <= 0) {
+      div.fiscal._cascadeIdleTurn = (ctx && ctx.turn) || true; // 留痕：本回合 cascade 未触此账
+      return;
+    }
     div.fiscal.claimedRevenue = claimedTotal;
     div.fiscal.actualRevenue = actualTotal;
     div.fiscal.remittedToCenter = remitMoney;

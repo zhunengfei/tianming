@@ -534,6 +534,8 @@ function renderOfficeTree(force){
     el.innerHTML='<div style="color:var(--txt-d);font-size:0.82rem;padding:1rem;text-align:center;">\u5B98\u5236\u672A\u914D\u7F6E\u3002\u8BF7\u5728\u5267\u672C\u7F16\u8F91\u5668\u7684\u300C\u653F\u5E9C\u300D\u6216\u300C\u5B98\u5236\u300D\u9762\u677F\u4E2D\u914D\u7F6E\uFF0C\u6216\u70B9\u4E0A\u65B9\u300C\uFF0B \u90E8\u95E8\u300D\u6DFB\u52A0</div>';
     return;
   }
+  // 单一真相源:渲染前从人物 officialTitle 派生官制树任职者(状态未变则跳过)
+  try { if (typeof _offSyncHoldersFromChars === 'function') _offSyncHoldersFromChars({ ifChanged: true }); } catch (_) {}
   // v10·初始化默认折叠+分类
   if (typeof _officeInitDefaults === 'function') _officeInitDefaults();
   // 视图模式·v10 默认 tree（预览同）·仅当玩家手动切过才保留其选择

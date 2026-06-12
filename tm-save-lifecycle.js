@@ -897,6 +897,8 @@ function fullLoadGame(data){
 
     // 迁移官制树到双层模型
     if (typeof _offMigrateTree === 'function' && GM.officeTree) _offMigrateTree(GM.officeTree);
+    // 单一真相源:读档时去重人物+从树回填officialTitle+派生任职者(治双源漂移/布衣/重复人物)
+    try { if (typeof _offSyncHoldersFromChars === 'function') _offSyncHoldersFromChars({ importSeats: true, dedupChars: true, force: true }); } catch (_e) {}
     // 官制officialTitle同步——确保ch.officialTitle与GM.officeTree一致
     if (GM.officeTree && GM.chars) {
       (function _syncTitles(nodes) {

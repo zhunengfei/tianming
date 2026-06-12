@@ -74,7 +74,8 @@ function _memIsIllegalPresenterName(name){
 }
 
 function _memCanPresent(c){
-  return !!(c && c.alive !== false && !_memIsPlayerChar(c));
+  // 防御:死者(alive===false 或 dead===true)不得上奏·兼容只设 dead 不设 alive 的半死路径
+  return !!(c && c.alive !== false && !c.dead && !_memIsPlayerChar(c));
 }
 
 function _memSafePresenterName(name){
@@ -738,7 +739,9 @@ function renderMemorials(force){
     }
 
     // 类型 pill
-    var _typeLabel = (m.type||'\u594F\u758F') + (m.subtype ? '\u00B7' + m.subtype : '');
+    var _MEM_TYPE_CN = { minxin:'\u6C11\u60C5', pressure:'\u79EF\u538B', impeachment:'\u5F39\u52BE', minxin_accountability:'\u6C11\u60C5\u95EE\u8D23', report:'\u9898\u672C', intelligence:'\u5BC6\u6298', warning:'\u519B\u52A1', policy:'\u653F\u52A1', personnel:'\u4EBA\u4E8B', local:'\u5730\u65B9', accountability:'\u95EE\u8D23' };
+    function _memTypeCn(v){ if(v==null||v==='')return ''; var s=String(v); if(_MEM_TYPE_CN[s])return _MEM_TYPE_CN[s]; if(/^[A-Za-z_ ]+$/.test(s))return _MEM_TYPE_CN[s.toLowerCase()]||s; return s; }
+    var _typeLabel = (_memTypeCn(m.type)||'\u594F\u758F') + (m.subtype ? '\u00B7' + _memTypeCn(m.subtype) : '');
     var _typePill = '<span class="mem-type-pill">' + escHtml(_typeLabel) + '</span>';
 
     // 正文

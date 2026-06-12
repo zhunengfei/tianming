@@ -103,6 +103,7 @@
     faction_succession:       { type: 'array', desc: '势力首脑传承' },
     faction_dissolve:         { type: 'array', desc: '势力覆灭（不得用于玩家势力）' },
 
+    party_relation_changes: { type: 'array', desc: '党派结盟/交恶（party/target/relation:ally|rival|neutral·对称生效）', requiredSubFields: ['party', 'target'] },
     party_changes: {
       type: 'array',
       desc: '党派状态修改',
@@ -144,7 +145,8 @@
     // ──────────────────────────────────────────────
     item_changes:     { type: 'array', desc: '角色获得/失去物品' },
     title_changes:    { type: 'array', desc: '头衔爵位变动（grant/revoke/inherit/promote）' },
-    building_changes: { type: 'array', desc: '建筑变动（build/upgrade/destroy，需 territory+type）' },
+    building_changes: { type: 'array', desc: '建筑变动（build/custom_build/upgrade/destroy，需 territory+type；custom_build 须给 effectsStructured 白名单结构化效果·费效为度）' },
+    region_status_changes: { type: 'array', desc: '地块状态变动（add/remove + region + name + kind:wonder/disaster/event/player + econPct±0.25 + minxinPerTurn±2 + durationTurns≤24·缺省永续）——奇观/天灾/兵燹/丰年/玩家地方善政落此' },
     vassal_changes:   { type: 'array', desc: '封臣关系变动（establish/break/change_tribute）' },
 
     // ──────────────────────────────────────────────

@@ -860,6 +860,340 @@ function canPerformAction(charName, action) {
   return { can: false, reason: hit.dept + '·' + p.name + ' 无 ' + action + ' 之权' };
 }
 
+// ============================================================
+// 单一真相源:从人物 officialTitle 派生官制树任职者 (2026-06-12)
+// ------------------------------------------------------------
+// 病根:GM.officeTree 的 holder/actualHolders 与人物 officialTitle 双源各自维护、
+//   靠精确匹配双写同步,长期漂移→树不同步实际官职、官员莫名变布衣、图志不反映推演。
+// 治本:人物 officialTitle 为唯一真相;每次渲染前+endturn后从人物**派生**树任职者。
+//   树结构(部门/职位/编制/世袭)仍以 GM.officeTree 为权威,只有"谁坐哪个位子"被重算。
+//   编制外的本朝活跃官员→按分类器挂动态部门,使树"展开包含全部任职者"(owner语义)。
+// ============================================================
+
+// 致仕/罢归/待罪等"已离职"特征——不进活跃官制树
+var _OFF_RETIRE_RE = /已罢|罢归|罢居|罢闲|致仕|乞休|乞骸|告归|告病|养病|削籍|闲住|闲居|夺职|去职|待召还|待罪|起复待|先朝|前朝/;
+// 后宫封号——非官僚职、不进官制树(仍在人物图志)
+var _OFF_HAREM_RE = /皇后|皇贵妃|贵妃|淑妃|德妃|贤妃|庄妃|宸妃|选侍|嫔|婕妤|才人|昭仪|贵人|奉圣夫人|乳母|宫女|尚宫/;
+
+/** 最长公共子串长度(用于"锦衣卫北镇抚使"∩"北镇抚使专理诏狱"类重叠匹配) */
+function _offLongestCommonSub(a, b) {
+  var best = 0;
+  for (var i = 0; i < a.length; i++) {
+    for (var j = 0; j < b.length; j++) {
+      var k = 0;
+      while (i + k < a.length && j + k < b.length && a[i + k] === b[j + k]) k++;
+      if (k > best) best = k;
+    }
+  }
+  return best;
+}
+
+// 职位"核心后缀"——去左/右/前/后/中等方位序数前缀后的可比对核
+var _OFF_CORE_SUFFIXES = ['大学士','尚书','侍郎','都御史','副都御史','佥都御史','都督','总兵','副总兵','参将','给事中','御史','布政使','按察使','都指挥使','学士','祭酒','司业','寺卿','少卿','寺丞','监正','监副','掌印','秉笔','随堂','指挥使','镇抚使','巡抚','总督','经略','知府','府尹','詹事','主事','员外郎','郎中','太监','寺人'];
+function _offCoreOfPos(posName) {
+  var n = _offNormalizeTitleName(posName);
+  for (var i = 0; i < _OFF_CORE_SUFFIXES.length; i++) {
+    if (n.indexOf(_OFF_CORE_SUFFIXES[i]) >= 0) return _OFF_CORE_SUFFIXES[i];
+  }
+  return n;
+}
+// 部门归属 token(判断诉求是否属于该部门,避免"兵部尚书"误配"吏部尚书")
+function _offDeptTokens(deptName) {
+  var n = _offNormalizeTitleName(deptName);
+  var toks = {}; toks[n] = 1;
+  var m = n.match(/^(吏|户|礼|兵|刑|工)部/); if (m) toks[m[0]] = 1;
+  ['内阁','都察院','大理寺','通政使司','司礼监','锦衣卫','五军都督府','翰林院','詹事府','国子监','钦天监','太医院','宗人府','六科','顺天府','应天府','御马监','光禄寺','太仆寺','鸿胪寺','太常寺','上林苑','尚宝司','内官监'].forEach(function(d){ var nd=_offNormalizeTitleName(d); if (n.indexOf(nd) >= 0) toks[nd] = 1; });
+  return Object.keys(toks).filter(Boolean);
+}
+
+/** 人物某官职诉求 vs 职位槽 评分 (claimTitle, dept名, pos名, 是否既有holder) */
+function _offTitleSlotScore(claimTitle, deptName, posName, prevHolder) {
+  var ct = _offNormalizeTitleName(claimTitle);
+  var np = _offNormalizeTitleName(posName);
+  var nd = _offNormalizeTitleName(deptName);
+  if (!ct || !np) return 0;
+  var sc = 0;
+  if (ct === np) sc = 100;
+  else if (ct === nd + np) sc = 98;
+  else if (np.indexOf(ct) >= 0 && ct.length >= 3) sc = 88;
+  else if (ct.indexOf(np) >= 0 && np.length >= 3) sc = 86;
+  else if (_offLongestCommonSub(ct, np) >= 4) sc = 76;
+  else {
+    var core = _offCoreOfPos(posName);
+    if (core && ct.indexOf(core) >= 0) {
+      var dtoks = _offDeptTokens(deptName);
+      var deptHit = dtoks.some(function(d){ return d && ct.indexOf(d) >= 0; });
+      var posEmbedsDept = dtoks.some(function(d){ return d && np.indexOf(d) >= 0; });
+      if (deptHit) sc = 72;
+      else if (posEmbedsDept) sc = 40;
+      else sc = 30; // 通用后缀无部门对应——低于阈值,不匹配
+    }
+  }
+  if (prevHolder && sc > 0) sc += 50; // 既有座位优先(稳定)
+  return sc;
+}
+
+/** 解析玩家本朝 faction(用于 realm 过滤·敌国/外藩封号不进本朝官制树) */
+function _offResolveRealmFaction(chars) {
+  try {
+    if (typeof GM !== 'undefined' && GM) {
+      if (GM.playerFaction) return GM.playerFaction;
+      var pid = GM.playerCharacterId;
+      var pc = (chars || []).find(function(c){ return c && (c.isPlayer || (pid && (c.id === pid || c.name === pid))); });
+      if (pc && pc.faction) return pc.faction;
+    }
+  } catch (_) {}
+  // 兜底:取人数最多的 faction(通常是本朝)
+  var cnt = {};
+  (chars || []).forEach(function(c){ if (c && c.faction) cnt[c.faction] = (cnt[c.faction] || 0) + 1; });
+  var best = '', bn = -1;
+  Object.keys(cnt).forEach(function(f){ if (cnt[f] > bn) { bn = cnt[f]; best = f; } });
+  return best;
+}
+function _offCharInRealm(c, realm) {
+  if (!realm) return true;
+  if (!c.faction) return true; // 无faction的(旧档/通用)默认本朝
+  if (c.faction === realm) return true;
+  // 容忍朝代名变体(明朝廷/大明朝廷/明)·但敌国(后金/日本幕府等)不会互含
+  return c.faction.indexOf(realm) >= 0 || realm.indexOf(c.faction) >= 0;
+}
+
+/** 按名去重 chars(应对存档重复人物·保留含officialTitle且alive的最佳条目) */
+function _offDedupCharsByName(chars) {
+  var byName = {}, order = [];
+  (chars || []).forEach(function(c){
+    if (!c || !c.name) return;
+    var ex = byName[c.name];
+    var sc = (c.officialTitle ? 2 : 0) + (c.alive !== false ? 1 : 0) + (c.id ? 1 : 0);
+    var exsc = ex ? ((ex.officialTitle ? 2 : 0) + (ex.alive !== false ? 1 : 0) + (ex.id ? 1 : 0)) : -1;
+    if (!ex) order.push(c.name);
+    if (!ex || sc > exsc) byName[c.name] = c;
+  });
+  return order.map(function(n){ return byName[n]; });
+}
+
+/**
+ * 全局去重 GM.chars(同名重复人物·存档/剧本补全合并的副作用)。
+ * 保留最丰富条目为 canonical·把 drop 的非空字段补进 canonical 缺失处(只补不覆盖)·删除多余条目。
+ * 重要:dup chars 致 findCharByName 返回残桩(无officialTitle)→AI写官职写错条目、图志显布衣。
+ */
+function _offDedupGMChars() {
+  if (typeof GM === 'undefined' || !GM || !Array.isArray(GM.chars)) return 0;
+  var byName = {}, orderNames = [], anon = [], removed = 0;
+  var richness = function(x){ return (x.id ? 4 : 0) + (x.officialTitle ? 2 : 0) + (x.alive !== false ? 1 : 0) + (Object.keys(x).length * 0.01); };
+  GM.chars.forEach(function(c){
+    if (!c || !c.name) { anon.push(c); return; }
+    if (!byName[c.name]) { byName[c.name] = c; orderNames.push(c.name); return; }
+    removed++;
+    var ex = byName[c.name], canonical, drop;
+    if (richness(c) > richness(ex)) { canonical = c; drop = ex; } else { canonical = ex; drop = c; }
+    Object.keys(drop).forEach(function(k){
+      var cv = canonical[k];
+      if (cv === undefined || cv === null || cv === '') {
+        var dv = drop[k];
+        if (dv !== undefined && dv !== null && dv !== '') canonical[k] = dv;
+      }
+    });
+    byName[c.name] = canonical;
+  });
+  if (removed > 0) {
+    GM.chars = orderNames.map(function(n){ return byName[n]; }).concat(anon.filter(Boolean));
+    try { if (typeof buildIndices === 'function') buildIndices(); } catch (_) {}
+  }
+  return removed;
+}
+
+/** title 是否皇帝/帝王(已是树根·不重复挂) */
+function _offIsSovereign(c) {
+  if (!c) return false;
+  if (c.role === '皇帝' || c.isEmperor) return true;
+  var t = _offNormalizeTitleName(c.officialTitle || '');
+  return t === '皇帝' || /^(皇帝|天子|大汗|可汗)$/.test(t);
+}
+
+/** title → {court,group} 分类(复用 runtime 分类器·兜底 central/sijian) */
+function _offClassifyTitle(title) {
+  try {
+    if (typeof _officeGetClassifierPatterns === 'function') {
+      var pats = _officeGetClassifierPatterns();
+      for (var i = 0; i < pats.length; i++) { if (pats[i][0].test(title)) return pats[i][1]; }
+    } else if (typeof _OFFICE_CLASSIFIER_PATTERNS !== 'undefined') {
+      for (var j = 0; j < _OFFICE_CLASSIFIER_PATTERNS.length; j++) { if (_OFFICE_CLASSIFIER_PATTERNS[j][0].test(title)) return _OFFICE_CLASSIFIER_PATTERNS[j][1]; }
+    }
+  } catch (_) {}
+  return { court: 'central', group: 'sijian' };
+}
+// 动态部门标签(按 group)
+var _OFF_DYN_DEPT_LABEL = {
+  zhongchao:'（编制外）中朝近侍', tiqi:'（编制外）缇骑耳目', suwei:'（编制外）宿卫禁军', gongyu:'（编制外）供御宫务',
+  bianzhen:'（编制外）边镇将帅', fengjiang:'（编制外）封疆督抚', fannie:'（编制外）藩臬监司',
+  shuji:'（编制外）枢辅词臣', taijian:'（编制外）台谏风宪', liucao:'（编制外）部院属官', sijian:'（编制外）寺监杂职', xunqi:'（编制外）勋戚加衔'
+};
+
+/**
+ * 从人物 officialTitle 派生官制树任职者(holder/actualHolders)。
+ * opts.importSeats: 同时把树既有 holder 回填到缺 officialTitle 的人物(load/init 用)。
+ * 幂等:重复调用结果稳定(既有座位硬锁)。
+ */
+function _offSyncHoldersFromChars(opts) {
+  opts = opts || {};
+  if (typeof GM === 'undefined' || !GM || !Array.isArray(GM.officeTree)) return { ok: false };
+  // 签名守卫:渲染高频调用·状态未变则跳过重算(perf)
+  if (opts.ifChanged && !opts.dedupChars) {
+    var sig = (GM.turn || 0) + '|' + (GM.chars || []).length + '|';
+    var h = 0, src = GM.chars || [];
+    for (var _i = 0; _i < src.length; _i++) {
+      var _c = src[_i]; if (!_c) continue;
+      var _s = (_c.name || '') + '#' + (_c.officialTitle || '') + '#' + (_c.concurrentTitle || '') + '#' + (_c.alive === false ? 0 : 1) + '#' + (_c.faction || '');
+      for (var _k = 0; _k < _s.length; _k++) { h = ((h << 5) - h + _s.charCodeAt(_k)) | 0; }
+    }
+    sig += h;
+    if (GM._officeDerivedSig === sig) return { ok: true, skipped: true };
+    GM._officeDerivedSig = sig;
+  } else {
+    GM._officeDerivedSig = null; // 强制路径后清签名·确保下次渲染守卫不误跳
+  }
+  if (opts.dedupChars) _offDedupGMChars();
+  var chars = _offDedupCharsByName(GM.chars || []);
+  var realm = _offResolveRealmFaction(chars);
+
+  // 先移除上轮派生的动态部门(每次重建)
+  GM.officeTree = GM.officeTree.filter(function(d){ return !d || !d._offDynamic; });
+
+  // 收集正式职位槽(并迁移)
+  var slots = [];
+  _offWalkOfficeTree(GM.officeTree, function(n){
+    if (!n) return true;
+    (n.positions || []).forEach(function(p){
+      if (!p) return;
+      _offMigratePosition(p);
+      slots.push({
+        node: n, pos: p, dept: n.name || '', posName: p.name || '',
+        cap: Math.max(1, p.establishedCount || p.headCount || 1),
+        prev: _offAllHolders(p), fill: []
+      });
+    });
+    return true;
+  });
+
+  var findCh = function(nm){ for (var i = 0; i < chars.length; i++) if (chars[i].name === nm) return chars[i]; return null; };
+
+  // ── Pass 0: 导入——树 holder 回填到缺 officialTitle 的人物 ──
+  if (opts.importSeats) {
+    slots.forEach(function(sl){
+      sl.prev.forEach(function(nm){
+        var ch = findCh(nm);
+        if (ch && !_offNormalizeTitleName(ch.officialTitle || '')) {
+          _offAddCharOfficeTitle(ch, sl.posName, { concurrent: false });
+        }
+      });
+    });
+  }
+
+  // ── 收集本朝活跃官职诉求(每个官职一条 claim) ──
+  var claims = [];               // {name, ch, title, primary}
+  var claimsByChar = {};         // name -> [claim index]
+  chars.forEach(function(c){
+    if (!c || c.alive === false) return;
+    if (!_offCharInRealm(c, realm)) return;
+    if (_offIsSovereign(c)) return;
+    var titles = _offGetCharOfficeTitles(c);
+    titles.forEach(function(t, i){
+      var nt = _offNormalizeTitleName(t);
+      if (!nt) return;
+      if (_OFF_RETIRE_RE.test(String(t))) return;
+      if (_OFF_HAREM_RE.test(String(t))) return;
+      var idx = claims.length;
+      claims.push({ name: c.name, ch: c, title: t, primary: i === 0 });
+      (claimsByChar[c.name] = claimsByChar[c.name] || []).push(idx);
+    });
+  });
+
+  var used = new Array(claims.length).fill(false);
+
+  // ── Pass 1: 硬锁既有座位(既有 holder 活着且仍 claim 兼容→原地保留) ──
+  slots.forEach(function(sl){
+    sl.prev.forEach(function(nm){
+      if (sl.fill.length >= sl.cap) return;
+      var cis = claimsByChar[nm] || [];
+      var bestCi = -1, bestSc = 0;
+      cis.forEach(function(ci){
+        if (used[ci]) return;
+        var s = _offTitleSlotScore(claims[ci].title, sl.dept, sl.posName, true);
+        if (s >= 40 && s > bestSc) { bestSc = s; bestCi = ci; }
+      });
+      if (bestCi >= 0) { used[bestCi] = true; sl.fill.push(claims[bestCi].name); }
+    });
+  });
+
+  // ── Pass 2: 贪心填空(余 claims × 余槽容量·按分高优先) ──
+  var pairs = [];
+  for (var ci = 0; ci < claims.length; ci++) {
+    if (used[ci]) continue;
+    for (var si = 0; si < slots.length; si++) {
+      if (slots[si].fill.length >= slots[si].cap) continue;
+      var s = _offTitleSlotScore(claims[ci].title, slots[si].dept, slots[si].posName, false);
+      if (s >= 40) pairs.push({ ci: ci, si: si, s: s });
+    }
+  }
+  pairs.sort(function(a, b){ return b.s - a.s; });
+  pairs.forEach(function(pr){
+    if (used[pr.ci]) return;
+    var sl = slots[pr.si];
+    if (sl.fill.length >= sl.cap) return;
+    used[pr.ci] = true; sl.fill.push(claims[pr.ci].name);
+  });
+
+  // ── 应用:把 fill 写回职位的 holder/actualHolders(保结构/编制/元数据) ──
+  slots.forEach(function(sl){
+    var p = sl.pos, named = sl.fill;
+    var keepPlaceholders = (Array.isArray(p.actualHolders) ? p.actualHolders : []).filter(function(h){ return h && h.generated === false; });
+    var ah = named.map(function(nm){ return { name: nm, generated: true }; });
+    var estab = Math.max(named.length, p.establishedCount || p.headCount || 1);
+    var ki = 0;
+    while (ah.length < estab) {
+      ah.push(keepPlaceholders[ki++] || { name: '', generated: false, placeholderId: 'ph_' + Math.random().toString(36).slice(2, 8) });
+    }
+    p.actualHolders = ah;
+    p.holder = named[0] || '';
+    p.additionalHolders = named.slice(1);
+    // 保留 office_aggregate 的匿名填充占位(generated:false 且有 filledTurn)计入实有
+    var anonFilled = ah.filter(function(h){ return h && h.generated === false && h.filledTurn; }).length;
+    p.actualCount = named.length + anonFilled;
+    p.vacancyCount = Math.max(0, estab - p.actualCount);
+  });
+
+  // ── Pass 3: 编制外本朝活跃官→动态部门(按分类器归庭) ──
+  var dynByGroup = {};
+  for (var ci2 = 0; ci2 < claims.length; ci2++) {
+    if (used[ci2]) continue;
+    var cl = claims[ci2];
+    if (!cl.primary) continue; // 兼任未匹配的不单列(避免重复)
+    var cls = _offClassifyTitle(cl.title);
+    var gkey = cls.court + ':' + cls.group;
+    if (!dynByGroup[gkey]) {
+      dynByGroup[gkey] = {
+        name: _OFF_DYN_DEPT_LABEL[cls.group] || '（编制外）其他职官',
+        court: cls.court, group: cls.group, _offDynamic: true,
+        desc: '从人物实际官职动态归集·非正式编制', positions: [], subs: [], functions: []
+      };
+    }
+    dynByGroup[gkey].positions.push({
+      name: _offNormalizeTitleName(cl.title) || cl.title, rank: cl.ch.rank || '', holder: cl.name,
+      desc: '', headCount: 1, actualCount: 1, additionalHolders: [],
+      establishedCount: 1, vacancyCount: 0, actualHolders: [{ name: cl.name, generated: true }],
+      _offDynamicPos: true
+    });
+    used[ci2] = true;
+  }
+  var dynDepts = Object.keys(dynByGroup).map(function(k){ return dynByGroup[k]; });
+  // 动态部门追加到树末(渲染按 court 分庭,顺序不敏感)
+  dynDepts.forEach(function(d){ GM.officeTree.push(d); });
+
+  return { ok: true, slots: slots.length, dynamicDepts: dynDepts.length, realm: realm,
+           seated: claims.filter(function(_, i){ return used[i]; }).length, claims: claims.length };
+}
+
 if (typeof window !== 'undefined') {
   window.canPerformAction = canPerformAction;
   window._findPositionByCharName = _findPositionByCharName;
@@ -869,6 +1203,9 @@ if (typeof window !== 'undefined') {
   window._offAddCharOfficeTitle = _offAddCharOfficeTitle;
   window._offRemoveCharOfficeTitle = _offRemoveCharOfficeTitle;
   window._offGetCharOfficeTitles = _offGetCharOfficeTitles;
+  window._offSyncHoldersFromChars = _offSyncHoldersFromChars;
+  window._offTitleSlotScore = _offTitleSlotScore;
+  window._offDedupGMChars = _offDedupGMChars;
 }
 
 // ============================================================

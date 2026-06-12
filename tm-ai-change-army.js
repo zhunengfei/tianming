@@ -332,6 +332,22 @@
         }
       }
       if (delta) {
+        // S6（2026-06-12）募兵硬上限：明示募兵类扩编按驻地兵源池（militaryDetail.availableRecruits·硬链引擎每回合算）封顶；
+        // 越限视为强征——民心叶账立扣。仅拦「募」字号正向扩编，调防/合军/援军不受限。
+        if (delta > 0 && /募|征兵|招兵|招募|抽丁/.test(String(reason || '') + ' ' + String(change.action || ''))) {
+          try {
+            var _fpRec = global.TM && global.TM.FieldPipes;
+            if (_fpRec && typeof _fpRec.capRecruitDelta === 'function') {
+              var _recLoc = String(army.garrison || army.location || change.garrison || change.location || '').trim();
+              var _capRes = _fpRec.capRecruitDelta(G, global.P, _recLoc, delta);
+              if (_capRes && _capRes.overdraft > 0) {
+                delta = _capRes.approved;
+                if (typeof global.addEB === 'function') global.addEB('军事', (army.name || name) + '募兵逾' + _recLoc + '兵源之池（池 ' + _capRes.cap + '）·实募 ' + _capRes.approved + '·强征扰民');
+                if (G._turnReport) G._turnReport.push({ type:'military', armyName:army.name || name, field:'recruitCap', old:_capRes.cap + _capRes.overdraft, new:_capRes.approved, reason:'募兵硬上限（S6）', source:opts.source || '', turn:G.turn||0 });
+              }
+            }
+          } catch(_) {}
+        }
         var oldS = Math.max(0, Math.round(Number(army.soldiers || army.size || army.strength || 0) || 0));
         var newS = Math.max(0, oldS + delta);
         army.soldiers = newS;

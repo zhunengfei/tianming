@@ -929,7 +929,8 @@ async function aiDeepReadScenario() {
         ds.forEach(function(d) {
           if (d.buildings && d.buildings.length) {
             d.buildings.forEach(function(bd) {
-              _builtBuildings.push(d.name + ':' + bd.name + (bd.level?'(Lv'+bd.level+')':'') + (bd.status==='building'?'[建造中'+(bd.remainingTurns||'?')+'回合]':''));
+              // 2026-06-12: 完工建筑把入账效果摘要(effectSummary·建筑工役引擎写)一并喂给 AI——推演感知「此地有何业、效用几何」
+              _builtBuildings.push(d.name + ':' + bd.name + (bd.level?'(Lv'+bd.level+')':'') + (bd.status==='building'?'[建造中'+(bd.remainingTurns||'?')+'回合]':(bd.status==='neglected'?'[失修]':'')) + (bd.effectSummary?'{'+bd.effectSummary+'}':''));
             });
           }
           if (d.children) _walk(d.children);
