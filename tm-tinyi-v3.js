@@ -1194,9 +1194,19 @@ function _ty3_actionReopen(opts) {
 
 function _ty3_actionRevoke(ch, opts) {
   if (!ch) return;
-  ch.alive = false;  // 永久革除·从 attendees 移除
-  if (typeof GM !== 'undefined' && Array.isArray(GM.chars)) {
-    // 不真 splice·留尸·alive=false 即可
+  // 革职·永久革除官职——非生理死亡!
+  // 原 bug:此处误设 ch.alive=false(当"从与会名单移除"的偷懒手段),致被革职者在人物图志显"已殁"=无缘无故死亡。
+  // 正解:清官职(同 _ty3_actionStrip 范式)+ 永不叙用标记 + 真从 attendees 数组移除·绝不动 alive。
+  ch.loyalty = 0;
+  ch.officialTitle = '';
+  ch.title = ''; // 同步·否则 `officialTitle||title` 回退仍显原官职
+  if (Array.isArray(ch.officialTitles)) ch.officialTitles = [];
+  ch.concurrentTitle = '';
+  if (Array.isArray(ch.concurrentTitles)) ch.concurrentTitles = [];
+  ch._revoked = { turn: (typeof GM !== 'undefined' && GM.turn) || 0, neverReappoint: true }; // 革职·永不叙用
+  if (typeof CY !== 'undefined' && CY._ty3 && Array.isArray(CY._ty3.attendees)) {
+    var idx = CY._ty3.attendees.indexOf(ch.name);
+    if (idx >= 0) CY._ty3.attendees.splice(idx, 1);
   }
   _ty3_runCeremony('ty3-cer-revoke', '⚰️ 革职 ' + ch.name, 6000);
   _ty3_pendingEventPush('revoke', { target: ch.name });
@@ -4971,7 +4981,7 @@ function _ty3_phase3_doPublicVote() {
     ch.prestige = Math.min(100, (ch.prestige || 50) + 1);
   }
   if (typeof addCYBubble === 'function') addCYBubble('内侍', '〔 廷推所定：' + winner.name + ' 〕', true);
-  if (typeof addEB === 'function') addEB('Recommendation', 'Public recommendation selected ' + winner.name + ((CY._ty2 && CY._ty2.topic) ? ' / ' + CY._ty2.topic : ''));
+  if (typeof addEB === 'function') addEB('荐贤', '廷推所定：' + winner.name + ((CY._ty2 && CY._ty2.topic) ? '·' + CY._ty2.topic : ''));
   var cb = CY._ty3_phase3_callback;
   CY._ty3_phase3_callback = null;
   if (typeof cb === 'function') cb({ winner: winner.name, mode: 'public', party: winner.party });
@@ -5522,7 +5532,7 @@ function _ty3_phase6_doSeal(force) {
     if (typeof GM.partyStrife === 'number') GM.partyStrife = Math.min(100, GM.partyStrife + 4);
     _ty3_adjustHuangquan(-5, '\u5f3a\u884c\u7528\u5370\u53d7\u515a\u6d3e\u963b\u6ede', 'tinyi-force-seal');
     if (typeof addCYBubble === 'function') addCYBubble('内侍', '〔 强行用印·阻于 ' + hostile.partyName + '·皇威 -5·' +  + _ty3_strifeChange(siOld, GM.partyStrife), true);
-    if (typeof addEB === 'function') addEB('Seal', 'Forced seal against ' + hostile.partyName + '; ' + _ty3_strifeChange(siOld, GM.partyStrife));
+    if (typeof addEB === 'function') addEB('用印', '强行用印·阻于' + hostile.partyName + '·' + _ty3_strifeChange(siOld, GM.partyStrife));
   } else {
     if (typeof addCYBubble === 'function') addCYBubble('内侍', '〔 诏命用印颁行 〕', true);
     if (typeof addEB === 'function') addEB('Seal', 'Decree issued');
@@ -5646,7 +5656,7 @@ function _ty3_partySpawn(opts) {
     turn: GM.turn || 1,
     date: GM._gameDate || (typeof getTSText === 'function' ? getTSText(GM.turn) : ''),
     type: '党祸·新党生',
-    text: 'New party formed: ' + newParty.name + (newParty.leader ? ' led by ' + newParty.leader : '') + '. ' + (opts.reason || ''),
+    text: '新党「' + newParty.name + '」结成' + (newParty.leader ? '，以' + newParty.leader + '为魁' : '') + '。' + (opts.reason || ''),
     tags: ['党派', '新党', newParty.name],
     partyName: newParty.name,
     parentParty: opts.parentParty || ''

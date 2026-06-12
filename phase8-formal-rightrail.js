@@ -2002,20 +2002,28 @@
   function rightPcSection(title, small, rows, emptyText){
     rows = rightPcArray(rows).filter(Boolean);
     return '<section class="tmrp-card tmrp-pcdebug-section"><div class="tmrp-card-title"><span>' + esc(title) + '</span><small>' + esc(small || '') + '</small></div>' +
-      (rows.length ? '<div class="tmrp-pcdebug-list">' + rows.join('') + '</div>' : '<div class="tmrp-empty">' + esc(emptyText || 'No entries') + '</div>') +
+      (rows.length ? '<div class="tmrp-pcdebug-list">' + rows.join('') + '</div>' : '<div class="tmrp-empty">' + esc(emptyText || '暂无记录') + '</div>') +
       '</section>';
   }
+
+  // 状态枚举→中文(仅显示用·枚举值本身不变)
+  var _PC_STAT_CN = { active:'在办', stalled:'停滞', resolved:'化解', expired:'过期', pending:'待决', escalated:'升级', applied:'已应', settled:'了结', done:'完成', failed:'失败', delayed:'延期', executing:'执行中', completed:'完成', queued:'待办', converted:'已转', drift:'漂移',
+    critical:'危殆', high:'紧要', medium:'寻常', low:'轻微', watch:'观望', hot:'灼热',
+    signal:'信号', commitment:'承诺', consumer:'消费端', secret:'密信', alliance:'结盟', conspiracy:'密谋', routine:'例行', report:'禀报', warning:'警讯',
+    refer:'付议', annotate:'批示', reject:'驳回', hold:'留中', approve:'准奏', responded:'已应', abolished:'已废',
+    issued:'颁行', sealed:'已用印', promulgated:'颁行', vetoed:'封驳', tabled:'搁置', annotated:'已批' };
+  function _pcStatCn(v){ if(v==null||v==='')return ''; var s=String(v); return _PC_STAT_CN[s] || _PC_STAT_CN[s.toLowerCase()] || s; }
 
   function rightPcSignalRows(gm){
     return rightPcArray(gm && gm._socialPoliticalSignals && gm._socialPoliticalSignals.items).slice(-8).reverse().map(function(s){
       return rightPcRow(
-        'T' + (s.turn || '') + ' ' + (s.sourceSystem || 'signal') + '/' + (s.kind || ''),
+        'T' + (s.turn || '') + ' ' + (s.sourceSystem || '信号') + '/' + (s.kind || ''),
         rightPcText(s.reason || '', 140),
         [
           s.linkedIssue || '',
-          'intensity ' + (s.intensity != null ? s.intensity : ''),
-          'confidence ' + (s.confidence != null ? s.confidence : ''),
-          s.resolved ? 'resolved' : (s.escalated ? 'escalated' : (s.applied ? 'applied' : 'pending'))
+          '强度 ' + (s.intensity != null ? s.intensity : ''),
+          '置信 ' + (s.confidence != null ? s.confidence : ''),
+          s.resolved ? '化解' : (s.escalated ? '升级' : (s.applied ? '已应' : '待决'))
         ]
       );
     });
@@ -2029,7 +2037,7 @@
       return rightPcRow('T' + (x.turn || '') + ' actor maintenance', rightPcJson(x.summary), [x.source || '']);
     });
     var escalationRows = rightPcArray(gm && gm._socialPoliticalSignalEscalations).slice(-5).reverse().map(function(x){
-      return rightPcRow('T' + (x.turn || '') + ' escalation', rightPcText(x.reason || x.kind || '', 140), [x.linkedIssue || '', rightPcArray(x.affectedClasses).join('/'), x.kind || '']);
+      return rightPcRow('T' + (x.turn || '') + ' 升级', rightPcText(x.reason || x.kind || '', 140), [x.linkedIssue || '', rightPcArray(x.affectedClasses).join('/'), x.kind || '']);
     });
     return signalRows.concat(actorRows).concat(escalationRows);
   }
@@ -2039,17 +2047,17 @@
       return rightPcRow(
         'T' + (m.turn || '') + ' ' + (m.actorType || '') + ' ' + (m.actorId || ''),
         rightPcText((m.agenda || '') + ' / ' + (m.grievance || '') + ' / ' + (m.belief || ''), 180),
-        [m.source || '', m.linkedIssue || '', m.status || (m.resolved ? 'resolved' : (m.expired ? 'expired' : 'active')), 'confidence ' + (m.confidence != null ? m.confidence : '')]
+        [m.source || '', m.linkedIssue || '', _pcStatCn(m.status) || (m.resolved ? '化解' : (m.expired ? '过期' : '在办')), '置信 ' + (m.confidence != null ? m.confidence : '')]
       );
     });
   }
 
   function rightPcActionRows(gm){
     var partyRows = rightPcArray(gm && gm.party_actions).slice(-6).reverse().map(function(a){
-      return rightPcRow('party_actions ' + (a.actorId || ''), rightPcText((a.actionType || '') + ' / ' + (a.agenda || ''), 160), [a.linkedIssue || '', a.status || '', 'T' + (a.turn || '')]);
+      return rightPcRow('党派动作 ' + (a.actorId || ''), rightPcText((a.actionType || '') + ' / ' + (a.agenda || ''), 160), [a.linkedIssue || '', _pcStatCn(a.status), 'T' + (a.turn || '')]);
     });
     var classRows = rightPcArray(gm && gm.class_actions).slice(-6).reverse().map(function(a){
-      return rightPcRow('class_actions ' + (a.actorId || ''), rightPcText((a.actionType || '') + ' / ' + (a.agenda || ''), 160), [a.linkedIssue || '', a.status || '', 'T' + (a.turn || '')]);
+      return rightPcRow('阶层动作 ' + (a.actorId || ''), rightPcText((a.actionType || '') + ' / ' + (a.agenda || ''), 160), [a.linkedIssue || '', _pcStatCn(a.status), 'T' + (a.turn || '')]);
     });
     return partyRows.concat(classRows);
   }
@@ -2059,19 +2067,19 @@
     var store = gm.classCharacterRelations || {};
     var history = rightPcArray(store.history).slice(-6).reverse().map(function(h){
       return rightPcRow(
-        'class-character history ' + (h.className || '') + '/' + (h.characterName || ''),
+        '阶层人物·历 ' + (h.className || '') + '/' + (h.characterName || ''),
         rightPcText(rightPcArray(h.evidence).join(' / ') || h.reason || h.source || h.type || '', 160),
         [h.role || '', h.source || '', 'T' + (h.turn || '')]
       );
     });
     var edgeRows = rightClassCharacterAllEdges().slice(0, 8).map(function(e){
       return rightPcRow(
-        'class-character edge ' + (e.className || '') + '/' + (e.characterName || ''),
+        '阶层人物·联 ' + (e.className || '') + '/' + (e.characterName || ''),
         rightPcText(rightPcArray(e.evidence).join(' / ') || e.source || '', 160),
         [
           e.role || '',
-          'trust ' + rightClassCharacterPct(e.trust),
-          'grievance ' + rightClassCharacterPct(e.grievance),
+          '信任 ' + rightClassCharacterPct(e.trust),
+          '积怨 ' + rightClassCharacterPct(e.grievance),
           'T' + (e.lastTurn || '')
         ]
       );
@@ -2081,14 +2089,14 @@
 
   function rightPcTinyiRows(gm){
     var pendingRows = rightPcArray(gm && gm._pendingTinyiTopics).slice(-7).reverse().map(function(t){
-      return rightPcRow('Tinyi Queue ' + (t.topic || t.title || ''), rightPcText((t.goalText || t.demandText || t.reason || ''), 150), [t.sourceType || t.source || '', t.party || t.sourceParty || '', t.sourceClass || t.className || '', t.issueId || t.linkedIssue || '']);
+      return rightPcRow('廷议队列 ' + (t.topic || t.title || ''), rightPcText((t.goalText || t.demandText || t.reason || ''), 150), [t.sourceType || t.source || '', t.party || t.sourceParty || '', t.sourceClass || t.className || '', t.issueId || t.linkedIssue || '']);
     });
     var linkRows = rightPcArray(gm && gm._partyClassCourtIssueLinks).slice(-6).reverse().map(function(l){
-      return rightPcRow('Issue Link ' + (l.topic || l.issueId || ''), rightPcText(l.goalText || l.reason || '', 150), [l.party || '', l.className || '', 'T' + (l.turn || '')]);
+      return rightPcRow('议题关联 ' + (l.topic || l.issueId || ''), rightPcText(l.goalText || l.reason || '', 150), [l.party || '', l.className || '', 'T' + (l.turn || '')]);
     });
     var courtRows = rightPcArray(gm && gm._courtRecords).concat(rightPcArray(gm && gm.tinyiSeals)).slice(-8).reverse().map(function(r){
-      var status = (r.sealStatus || r.status || r.result || '') + (r.grade ? ' ' + r.grade : '');
-      return rightPcRow('Court Records ' + (r.topic || r.title || ''), rightPcText(r.demandText || r.body || r.reason || '', 150), [status, r.sourceParty || r.party || '', r.sourceClass || r.className || '', r.issueId || r.chaoyiTrackId || '']);
+      var status = _pcStatCn(r.sealStatus || r.status || r.result || '') + (r.grade ? ' ' + r.grade : '');
+      return rightPcRow('朝议记录 ' + (r.topic || r.title || ''), rightPcText(r.demandText || r.body || r.reason || '', 150), [status, r.sourceParty || r.party || '', r.sourceClass || r.className || '', r.issueId || r.chaoyiTrackId || '']);
     });
     return pendingRows.concat(linkRows).concat(courtRows);
   }
@@ -2114,7 +2122,7 @@
         historicalReferences: rightPcArray(inst.lifecycle && inst.lifecycle.historicalReferences)
       };
       var steps = rightPcArray(view.visibleSteps).map(function(s){
-        return (s.status === 'done' ? 'done ' : 'todo ') + (s.key || s.label || '');
+        return (s.status === 'done' ? '完成 ' : '待办 ') + (s.key || s.label || '');
       }).join(' / ');
       var feedback = rightPcArray(view.feedback).slice(-2).map(function(f){
         return f.summary || f.text || f.reason || f.note || '';
@@ -2123,20 +2131,20 @@
         return r.note || r.text || r.citedBy || '';
       }).filter(Boolean).join(' / ');
       var body = [
-        'current ' + (view.currentStage || view.stage || inst.stage || ''),
+        '当前 ' + (view.currentStage || view.stage || inst.stage || ''),
         steps,
-        feedback ? ('feedback ' + feedback) : '',
-        refs ? ('history ' + refs) : ''
+        feedback ? ('反馈 ' + feedback) : '',
+        refs ? ('历 ' + refs) : ''
       ].filter(Boolean).join(' | ');
       rows.push(rightPcRow(
         'Institution Lifecycle ' + (view.name || inst.name || inst.id || ''),
         rightPcText(body, 260),
-        [view.currentStage || inst.stage || '', inst.rank ? ('rank ' + inst.rank) : '', inst.createdTurn != null ? ('T' + inst.createdTurn) : '']
+        [view.currentStage || inst.stage || '', inst.rank ? ('品级 ' + inst.rank) : '', inst.createdTurn != null ? ('T' + inst.createdTurn) : '']
       ));
     });
     rightPcArray(gm._institutionLifecycleEvents).slice(-5).reverse().forEach(function(e){
       rows.push(rightPcRow(
-        'Lifecycle Event ' + (e.name || e.id || ''),
+        '制度大事 ' + (e.name || e.id || ''),
         rightPcText([(e.phaseKey || e.action || ''), e.text || ''].filter(Boolean).join(' / '), 200),
         ['T' + (e.turn || ''), e.phaseKey || '', e.action || '']
       ));
@@ -2202,9 +2210,9 @@
     var counts = audit.counts || {};
     if (diag.audit) {
       rows.push(rightPcRow(
-        'audit ' + (audit.ok ? 'OK' : 'FAIL'),
+        '稽核 ' + (audit.ok ? 'OK' : 'FAIL'),
         rightPcText((diag.warnings && diag.warnings.length ? diag.warnings.join(' / ') : rightPcJson(counts)), 220),
-        ['duplicates ' + (counts.duplicates || 0), 'drifts ' + (counts.drifts || 0), 'blind ' + (counts.blindRegionWrites || 0), audit.source || '']
+        ['重复 ' + (counts.duplicates || 0), '漂移 ' + (counts.drifts || 0), '盲区 ' + (counts.blindRegionWrites || 0), audit.source || '']
       ));
     }
     if (diag.maintenance) {
@@ -2218,16 +2226,16 @@
       var lp = c.lastPressure || {};
       rows.push(rightPcRow(
         'byClass ' + (c.className || c.classKey || ''),
-        rightPcText('true ' + (c.true != null ? c.true : c.index) + ' perceived ' + (c.perceived != null ? c.perceived : '') + ' / ' + (c.unrestPhase || '') + ' / ' + (lp.reason || c.demand || ''), 180),
-        [c.classKey || '', lp.linkedIssue || '', lp.delta != null ? ('delta ' + lp.delta) : '']
+        rightPcText('实情 ' + (c.true != null ? c.true : c.index) + ' 观感 ' + (c.perceived != null ? c.perceived : '') + ' / ' + (c.unrestPhase || '') + ' / ' + (lp.reason || c.demand || ''), 180),
+        [c.classKey || '', lp.linkedIssue || '', lp.delta != null ? ('增减 ' + lp.delta) : '']
       ));
     });
     rightPcArray(diag.ledger).slice(0, 6).forEach(function(row){
       var regions = rightPcRegionText(row);
       rows.push(rightPcRow(
-        'ledger ' + (row.className || row.classKey || ''),
+        '账目 ' + (row.className || row.classKey || ''),
         rightPcText([row.reason || row.sourceSystem || '', regions].filter(Boolean).join(' / '), 180),
-        [row.linkedIssue || '', row.sourceSystem || '', row.delta != null ? ('delta ' + row.delta) : '', regions]
+        [row.linkedIssue || '', row.sourceSystem || '', row.delta != null ? ('增减 ' + row.delta) : '', regions]
       ));
     });
     rightPcArray(diag.courtTopics).slice(0, 5).forEach(function(t){
@@ -2239,9 +2247,9 @@
     });
     rightPcArray(diag.uprisingCandidates).slice(0, 5).forEach(function(c){
       rows.push(rightPcRow(
-        'Uprising Candidates ' + (c.id || ''),
+        '民变候选 ' + (c.id || ''),
         rightPcText([c.cause || '', c.region || ''].filter(Boolean).join(' / '), 160),
-        [c.className || c.classKey || '', c.linkedIssue || '', c.level != null ? ('level ' + c.level) : '', c.momentum != null ? ('momentum ' + c.momentum) : '']
+        [c.className || c.classKey || '', c.linkedIssue || '', c.level != null ? ('级别 ' + c.level) : '', c.momentum != null ? ('势头 ' + c.momentum) : '']
       ));
     });
     return rows;
@@ -2276,40 +2284,40 @@
     var rows = [];
     if (!snap) return rows;
     rows.push(rightPcRow(
-      'truth / court view',
-      rightPcText('true ' + (snap.trueIndex != null ? snap.trueIndex : '') + ' perceived ' + (snap.perceivedIndex != null ? snap.perceivedIndex : '') + ' visibility ' + (snap.visibilityTier || ''), 180),
+      '实情 / 朝堂观感',
+      rightPcText('实情 ' + (snap.trueIndex != null ? snap.trueIndex : '') + ' 观感 ' + (snap.perceivedIndex != null ? snap.perceivedIndex : '') + ' 显隐 ' + (snap.visibilityTier || ''), 180),
       ['Minxin Ledger']
     ));
     rightPcArray(snap.recent).slice(0, 6).forEach(function(row){
       var classes = rightPcArray(row.targetClasses).map(function(c){ return c.name || c.classKey || c; }).filter(Boolean).join('/');
       var regions = rightPcArray(row.targetRegions).map(function(r){ return r.region || r.name || r.id || r; }).filter(Boolean).join('/');
       rows.push(rightPcRow(
-        'T' + (row.turn || '') + ' ' + (row.kind || row.sourceSystem || 'signal'),
+        'T' + (row.turn || '') + ' ' + (row.kind || row.sourceSystem || '信号'),
         rightPcText([row.reason || '', regions, classes].filter(Boolean).join(' / '), 190),
-        [row.deltaTrue != null ? ('delta ' + row.deltaTrue) : '', row.linkedIssue || '', row.policyActionId || row.courtIssueId || '']
+        [row.deltaTrue != null ? ('增减 ' + row.deltaTrue) : '', row.linkedIssue || '', row.policyActionId || row.courtIssueId || '']
       ));
     });
     Object.keys(snap.byRegion || {}).slice(0, 5).forEach(function(key){
       var r = snap.byRegion[key] || {};
       rows.push(rightPcRow(
-        'region ' + (r.regionName || key),
-        rightPcText('true ' + (r.true != null ? r.true : r.index) + ' perceived ' + (r.perceived != null ? r.perceived : '') + ' phase ' + (r.phase || ''), 170),
+        '地方 ' + (r.regionName || key),
+        rightPcText('实情 ' + (r.true != null ? r.true : r.index) + ' 观感 ' + (r.perceived != null ? r.perceived : '') + ' 段位 ' + (r.phase || ''), 170),
         [r.visibilityTier || '', key]
       ));
     });
     Object.keys(snap.byClass || {}).slice(0, 5).forEach(function(key){
       var c = snap.byClass[key] || {};
       rows.push(rightPcRow(
-        'class ' + (c.className || key),
-        rightPcText('true ' + (c.true != null ? c.true : c.index) + ' perceived ' + (c.perceived != null ? c.perceived : '') + ' cause ' + (c.lastReason || ''), 170),
+        '阶层 ' + (c.className || key),
+        rightPcText('实情 ' + (c.true != null ? c.true : c.index) + ' 观感 ' + (c.perceived != null ? c.perceived : '') + ' 缘由 ' + (c.lastReason || ''), 170),
         [c.linkedIssue || '', key]
       ));
     });
     rightPcArray(snap.uprisingChain).slice(0, 5).forEach(function(c){
       rows.push(rightPcRow(
-        'uprising chain ' + (c.region || c.regionName || c.id || ''),
+        '民变链 ' + (c.region || c.regionName || c.id || ''),
         rightPcText(c.cause || c.reason || '', 170),
-        [c.className || c.classKey || '', c.level != null ? ('level ' + c.level) : '', c.momentum != null ? ('momentum ' + c.momentum) : '']
+        [c.className || c.classKey || '', c.level != null ? ('级别 ' + c.level) : '', c.momentum != null ? ('势头 ' + c.momentum) : '']
       ));
     });
     return rows;
@@ -2343,23 +2351,23 @@
     var rows = [];
     if (snap.maintenance) {
       rows.push(rightPcRow(
-        'maintenance T' + (snap.maintenance.turn || ''),
-        rightPcText('scanned ' + (snap.maintenance.scanned || 0) + ' spawned ' + (snap.maintenance.spawned || 0) + ' active ' + (snap.maintenance.active || 0), 160),
+        '维护·第' + (snap.maintenance.turn || ''),
+        rightPcText('扫描 ' + (snap.maintenance.scanned || 0) + ' 生成 ' + (snap.maintenance.spawned || 0) + ' 在办 ' + (snap.maintenance.active || 0), 160),
         [snap.maintenance.source || '']
       ));
     }
     rightPcArray(snap.active || snap.recent).slice(0, 6).forEach(function(item){
       rows.push(rightPcRow(
-        'pressure ' + (item.regionName || '') + ' / ' + (item.className || ''),
+        '积压 ' + (item.regionName || '') + ' / ' + (item.className || ''),
         rightPcText([item.reason || '', item.demandText || ''].filter(Boolean).join(' / '), 190),
-        [item.severity || '', item.true != null ? ('true ' + item.true) : '', item.status || '', item.id || '']
+        [_pcStatCn(item.severity), item.true != null ? ('实情 ' + item.true) : '', _pcStatCn(item.status), item.id || '']
       ));
     });
     rightPcArray(snap.responses).slice(0, 5).forEach(function(r){
       rows.push(rightPcRow(
-        'response ' + (r.channel || '') + ' / ' + (r.decision || ''),
+        '回应 ' + (r.channel || '') + ' / ' + (_pcStatCn(r.decision)),
         rightPcText(r.text || '', 180),
-        [r.linkedIssue || '', r.deltaTrue != null ? ('delta ' + r.deltaTrue) : '', 'T' + (r.turn || '')]
+        [r.linkedIssue || '', r.deltaTrue != null ? ('增减 ' + r.deltaTrue) : '', 'T' + (r.turn || '')]
       ));
     });
     return rows;
@@ -2393,23 +2401,23 @@
     var rows = [];
     if (snap.maintenance) {
       rows.push(rightPcRow(
-        'maintenance T' + (snap.maintenance.turn || ''),
-        rightPcText('active ' + (snap.maintenance.active || 0) + ' stalled ' + (snap.maintenance.stalled || 0) + ' resolved ' + (snap.maintenance.resolved || 0) + ' settled ' + (snap.maintenance.settled || 0), 180),
+        '维护·第' + (snap.maintenance.turn || ''),
+        rightPcText('在办 ' + (snap.maintenance.active || 0) + ' 停滞 ' + (snap.maintenance.stalled || 0) + ' 化解 ' + (snap.maintenance.resolved || 0) + ' 了结 ' + (snap.maintenance.settled || 0), 180),
         [snap.maintenance.source || '']
       ));
     }
     rightPcArray(snap.active || snap.recent).slice(0, 6).forEach(function(item){
       rows.push(rightPcRow(
-        'commitment ' + (item.regionName || '') + ' / ' + (item.className || ''),
-        rightPcText([item.text || '', 'measures ' + rightPcArray(item.measures).join('/')].filter(Boolean).join(' / '), 190),
-        [item.status || '', item.progress != null ? ('progress ' + item.progress) : '', item.dueTurn ? ('due ' + item.dueTurn) : '', item.id || '']
+        '承诺 ' + (item.regionName || '') + ' / ' + (item.className || ''),
+        rightPcText([item.text || '', '措置 ' + rightPcArray(item.measures).join('/')].filter(Boolean).join(' / '), 190),
+        [_pcStatCn(item.status), item.progress != null ? ('进度 ' + item.progress) : '', item.dueTurn ? ('限期 ' + item.dueTurn) : '', item.id || '']
       ));
     });
     rightPcArray(snap.settlements).slice(0, 5).forEach(function(s){
       rows.push(rightPcRow(
-        'settlement ' + (s.status || ''),
+        '结案 ' + (_pcStatCn(s.status)),
         rightPcText(s.reason || '', 190),
-        [s.commitmentId || '', s.deltaTrue != null ? ('delta ' + s.deltaTrue) : '', s.progress != null ? ('progress ' + s.progress) : '']
+        [s.commitmentId || '', s.deltaTrue != null ? ('增减 ' + s.deltaTrue) : '', s.progress != null ? ('进度 ' + s.progress) : '']
       ));
     });
     return rows;
@@ -2445,35 +2453,35 @@
     var rows = [];
     if (snap.maintenance) {
       rows.push(rightPcRow(
-        'maintenance T' + (snap.maintenance.turn || ''),
-        rightPcText('assigned ' + (snap.maintenance.assigned || 0) + ' reports ' + (snap.maintenance.reports || 0) + ' rumors ' + (snap.maintenance.rumors || 0) + ' accountability ' + (snap.maintenance.accountability || 0), 180),
+        '维护·第' + (snap.maintenance.turn || ''),
+        rightPcText('指派 ' + (snap.maintenance.assigned || 0) + ' 官报 ' + (snap.maintenance.reports || 0) + ' 风闻 ' + (snap.maintenance.rumors || 0) + ' 问责 ' + (snap.maintenance.accountability || 0), 180),
         [snap.maintenance.source || '']
       ));
     }
     rightPcArray(snap.assignments).slice(0, 5).forEach(function(a){
       rows.push(rightPcRow(
-        'assignment ' + (a.regionName || '') + ' / ' + (a.className || ''),
-        rightPcText('agency ' + (a.agency || '') + ' executor ' + (a.executor && a.executor.name || ''), 190),
-        [a.commitmentId || '', a.falseReportRisk != null ? ('risk ' + a.falseReportRisk) : '']
+        '指派 ' + (a.regionName || '') + ' / ' + (a.className || ''),
+        rightPcText('承办司 ' + (a.agency || '') + ' 承办人 ' + (a.executor && a.executor.name || ''), 190),
+        [a.commitmentId || '', a.falseReportRisk != null ? ('风险 ' + a.falseReportRisk) : '']
       ));
     });
     rightPcArray(snap.officialReports).slice(0, 5).forEach(function(r){
       rows.push(rightPcRow(
-        'official report ' + (r.executorName || ''),
-        rightPcText((r.regionName || '') + ' / ' + (r.className || '') + ' reported ' + (r.reportedProgress || 0) + ' actual ' + (r.actualProgress || 0), 190),
-        [r.commitmentId || '', r.falseReportRisk != null ? ('risk ' + r.falseReportRisk) : '']
+        '官报·' + (r.executorName || ''),
+        rightPcText((r.regionName || '') + ' / ' + (r.className || '') + ' 所报 ' + (r.reportedProgress || 0) + ' 实际 ' + (r.actualProgress || 0), 190),
+        [r.commitmentId || '', r.falseReportRisk != null ? ('风险 ' + r.falseReportRisk) : '']
       ));
     });
     rightPcArray(snap.rumors).slice(0, 5).forEach(function(r){
       rows.push(rightPcRow(
-        'rumor ' + (r.severity || ''),
+        '风闻 ' + (_pcStatCn(r.severity)),
         rightPcText(r.text || '', 190),
-        [r.commitmentId || '', r.falseReportRisk != null ? ('risk ' + r.falseReportRisk) : '', r.trueProgress != null ? ('true ' + r.trueProgress) : '']
+        [r.commitmentId || '', r.falseReportRisk != null ? ('风险 ' + r.falseReportRisk) : '', r.trueProgress != null ? ('实情 ' + r.trueProgress) : '']
       ));
     });
     rightPcArray(snap.accountability).slice(0, 5).forEach(function(a){
       rows.push(rightPcRow(
-        'accountability',
+        '问责',
         rightPcText(a.reason || '', 190),
         [a.commitmentId || '', a.memorialId || '', a.tinyiId || '']
       ));
@@ -2518,21 +2526,21 @@
     var local = summary.localExecution || {};
     rows.push(rightPcRow(
       'fiscal / conscription / hukou',
-      rightPcText('actual ' + (fiscal.actualRevenue || 0) + ' claimed ' + (fiscal.claimedRevenue || 0) + ' gap ' + (fiscal.revenueGap || 0) + ' recruits ' + (military.availableRecruits || 0), 190),
-      ['hidden ' + (hukou.hiddenHouseholds || 0), 'refugees ' + (hukou.refugees || 0), 'exec ' + (local.avgExecutionRate || 0)]
+      rightPcText('实际 ' + (fiscal.actualRevenue || 0) + ' 申报 ' + (fiscal.claimedRevenue || 0) + ' 缺口 ' + (fiscal.revenueGap || 0) + ' 募兵 ' + (military.availableRecruits || 0), 190),
+      ['隐匿 ' + (hukou.hiddenHouseholds || 0), '流民 ' + (hukou.refugees || 0), '执行 ' + (local.avgExecutionRate || 0)]
     ));
     rightPcArray(snap.regionImpacts).slice(0, 6).forEach(function(row){
       rows.push(rightPcRow(
-        'hard link ' + (row.regionName || ''),
-        rightPcText('fiscal ' + ((row.fiscal && row.fiscal.actualRevenue) || 0) + '/' + ((row.fiscal && row.fiscal.claimedRevenue) || 0) + ' draft ' + ((row.conscription && row.conscription.recruitmentEfficiency) || 0) + ' hukou ' + ((row.hukou && row.hukou.hiddenHouseholds) || 0), 190),
-        ['minxin ' + (row.trueMinxin || 0), 'execution ' + (row.localExecutionRate || 0), row.reason || '']
+        '硬链 ' + (row.regionName || ''),
+        rightPcText('财赋 ' + ((row.fiscal && row.fiscal.actualRevenue) || 0) + '/' + ((row.fiscal && row.fiscal.claimedRevenue) || 0) + ' 征调 ' + ((row.conscription && row.conscription.recruitmentEfficiency) || 0) + ' 户籍 ' + ((row.hukou && row.hukou.hiddenHouseholds) || 0), 190),
+        ['民心 ' + (row.trueMinxin || 0), '执行 ' + (row.localExecutionRate || 0), row.reason || '']
       ));
     });
     rightPcArray(snap.ledger).slice(0, 4).forEach(function(e){
       rows.push(rightPcRow(
-        'coercive ' + (e.regionName || ''),
+        '强制 ' + (e.regionName || ''),
         rightPcText(e.reason || e.kind || '', 190),
-        ['delta ' + (e.deltaTrue || 0), 'recruits ' + (e.shortTermRecruits || 0), 'T' + (e.turn || '')]
+        ['增减 ' + (e.deltaTrue || 0), '募兵 ' + (e.shortTermRecruits || 0), 'T' + (e.turn || '')]
       ));
     });
     return rows;
@@ -2568,14 +2576,14 @@
     var hukou = summary.hukou || {};
     var execution = summary.execution || {};
     rows.push(rightPcRow(
-      'consumer caps',
-      rightPcText('income ' + (fiscal.actualIncome || 0) + '/' + (fiscal.plannedIncome || 0) + ' recruits ' + (military.approvedRecruits || 0) + '/' + (military.requestedRecruits || 0), 190),
-      ['taxbase ' + (hukou.effectiveTaxHouseholds || 0), 'exec ' + (execution.effectiveExecutionRate || 0)]
+      '消费上限',
+      rightPcText('实收 ' + (fiscal.actualIncome || 0) + '/' + (fiscal.plannedIncome || 0) + ' 募兵 ' + (military.approvedRecruits || 0) + '/' + (military.requestedRecruits || 0), 190),
+      ['税基 ' + (hukou.effectiveTaxHouseholds || 0), '执行 ' + (execution.effectiveExecutionRate || 0)]
     ));
     rightPcArray(snap.events).slice(0, 6).forEach(function(e){
       var p = e.payload || {};
       rows.push(rightPcRow(
-        e.type || 'consumer',
+        e.type || '消费端',
         rightPcText(rightPcJson(p), 190),
         ['T' + (e.turn || '')]
       ));
@@ -2614,32 +2622,32 @@
     var hardCorvee = hujiHardEffects.corvee || {};
     rows.push(rightPcRow(
       'hukouLedger',
-      rightPcText('registered ' + (hukou.registeredHouseholds || 0) + ' households / ' + (hukou.registeredMouths || 0) + ' mouths / ' + (hukou.registeredDing || 0) + ' ding', 190),
-      ['hidden ' + (hukou.hiddenCount || 0), 'fugitives ' + (hukou.fugitives || 0), 'taxbase ' + (hukou.effectiveTaxHouseholds || 0)]
+      rightPcText('在籍 ' + (hukou.registeredHouseholds || 0) + ' households / ' + (hukou.registeredMouths || 0) + ' mouths / ' + (hukou.registeredDing || 0) + ' ding', 190),
+      ['隐匿 ' + (hukou.hiddenCount || 0), '逃户 ' + (hukou.fugitives || 0), '税基 ' + (hukou.effectiveTaxHouseholds || 0)]
     ));
     rows.push(rightPcRow(
       'corveeLedger',
-      rightPcText('demand ' + (corvee.totalDemandDays || 0) + ' fulfilled ' + (corvee.fulfilledDays || 0) + ' gap ' + (corvee.gapDays || 0), 190),
-      ['burden ' + (corvee.burden || 0), 'commute ' + (corvee.commutationRate || 0), 'regions ' + (corvee.regionCount || 0)]
+      rightPcText('诉求 ' + (corvee.totalDemandDays || 0) + ' 兑现 ' + (corvee.fulfilledDays || 0) + ' 缺口 ' + (corvee.gapDays || 0), 190),
+      ['负担 ' + (corvee.burden || 0), '折银 ' + (corvee.commutationRate || 0), '地方 ' + (corvee.regionCount || 0)]
     ));
     rows.push(rightPcRow(
       'militaryServicePool',
-      rightPcText('active ' + (military.activeSoldiers || 0) + ' available ' + (military.availableRecruits || 0) + ' requested ' + (military.requestedRecruits || 0), 190),
-      ['eligible ' + (military.eligibleDing || 0), 'shortfall ' + (military.shortfall || 0), 'eff ' + (military.avgRecruitmentEfficiency || 0)]
+      rightPcText('在办 ' + (military.activeSoldiers || 0) + ' 可用 ' + (military.availableRecruits || 0) + ' 请拨 ' + (military.requestedRecruits || 0), 190),
+      ['合格 ' + (military.eligibleDing || 0), '亏缺 ' + (military.shortfall || 0), '实效 ' + (military.avgRecruitmentEfficiency || 0)]
     ));
     if (hujiHardEffects && (hujiHardEffects.fiscal || hujiHardEffects.military || hujiHardEffects.corvee)) {
       rows.push(rightPcRow(
         'hujiHardEffects',
-        rightPcText('fiscal x' + (hardFiscal.collectionMultiplier || 0) + ' loss ' + (hardFiscal.revenueLoss || 0) + ' · draft shortfall ' + (hardMilitary.shortfall || 0) + ' · minxin ' + (hardCorvee.minxinDelta || 0), 190),
-        ['taxbase ' + (hardFiscal.taxBaseRatio || 0), 'morale -' + (hardMilitary.moralePenalty || 0), 'tinyi ' + ((hujiHardEffects.tinyi && hujiHardEffects.tinyi.totalPending) || 0)]
+        rightPcText('财赋×' + (hardFiscal.collectionMultiplier || 0) + ' 损耗 ' + (hardFiscal.revenueLoss || 0) + ' · draft shortfall ' + (hardMilitary.shortfall || 0) + ' · minxin ' + (hardCorvee.minxinDelta || 0), 190),
+        ['税基 ' + (hardFiscal.taxBaseRatio || 0), 'morale -' + (hardMilitary.moralePenalty || 0), '廷议 ' + ((hujiHardEffects.tinyi && hujiHardEffects.tinyi.totalPending) || 0)]
       ));
     }
     rightPcArray(hujiHardEffects.ledger).slice(-4).reverse().forEach(function(e){
       var s = e.summary || {};
       rows.push(rightPcRow(
         'hardEffectLedger',
-        rightPcText((e.stage || '') + '/' + (e.kind || '') + ' loss ' + (s.revenueLoss != null ? s.revenueLoss : '') + ' shortfall ' + (s.shortfall != null ? s.shortfall : '') + ' minxin ' + (s.minxinDelta != null ? s.minxinDelta : ''), 190),
-        ['T' + (e.turn || ''), 'adjust ' + (s.adjustment != null ? s.adjustment : ''), e.source || '']
+        rightPcText((e.stage || '') + '/' + (e.kind || '') + ' 损耗 ' + (s.revenueLoss != null ? s.revenueLoss : '') + ' 亏缺 ' + (s.shortfall != null ? s.shortfall : '') + ' 民心 ' + (s.minxinDelta != null ? s.minxinDelta : ''), 190),
+        ['T' + (e.turn || ''), '调整 ' + (s.adjustment != null ? s.adjustment : ''), e.source || '']
       ));
     });
     rightPcArray(snap.operations).slice(0, 5).forEach(function(op){
@@ -2679,20 +2687,20 @@
     var rows = [];
     rows.push(rightPcRow(
       'governanceSummary',
-      rightPcText('active ' + (snap.active || 0) + ' completed ' + (snap.completed || 0) + ' total ' + (snap.count || rightPcArray(snap.commitments).length), 190),
-      ['created ' + ((snap.stats && snap.stats.created) || 0), 'ticked ' + ((snap.stats && snap.stats.ticked) || 0)]
+      rightPcText('在办 ' + (snap.active || 0) + ' 完成 ' + (snap.completed || 0) + ' 合计 ' + (snap.count || rightPcArray(snap.commitments).length), 190),
+      ['新建 ' + ((snap.stats && snap.stats.created) || 0), '计入 ' + ((snap.stats && snap.stats.ticked) || 0)]
     ));
     rightPcArray(snap.commitments).slice(0, 6).forEach(function(c){
       var executorOffice = c.executorOffice || c.executorDept || '';
       var executorHolder = c.executorHolder || '';
       var executorLabel = executorOffice + (executorHolder ? '/' + executorHolder : '');
       rows.push(rightPcRow(
-        c.type || 'commitment',
-        rightPcText((c.status || 'active') + ' progress ' + (c.progress || 0) + ' exec ' + (c.executionRate || 0) + ' court ' + (c.courtDecision || '-')
-          + (executorLabel ? ' executor ' + executorLabel : '')
-          + (c.executorReliability != null ? ' reliability ' + c.executorReliability : '')
+        c.type || '承诺',
+        rightPcText((c.status || 'active') + ' 进度 ' + (c.progress || 0) + ' 执行 ' + (c.executionRate || 0) + ' 朝堂 ' + (c.courtDecision || '-')
+          + (executorLabel ? ' 承办人 ' + executorLabel : '')
+          + (c.executorReliability != null ? ' 可信 ' + c.executorReliability : '')
           + ' - ' + (c.target || c.title || ''), 220),
-        ['T' + (c.turn || ''), 'paid ' + (c.paidCost || 0) + '/' + (c.cost || 0), executorLabel || c.linkedIssue || '']
+        ['T' + (c.turn || ''), '已付 ' + (c.paidCost || 0) + '/' + (c.cost || 0), executorLabel || c.linkedIssue || '']
       ));
     });
     rightPcArray(snap.events).slice(0, 4).forEach(function(e){
@@ -2741,7 +2749,7 @@
       var nav = window.navigator || (typeof navigator !== 'undefined' ? navigator : null);
       if (nav && nav.clipboard && typeof nav.clipboard.writeText === 'function') nav.clipboard.writeText(text);
     } catch (_) {}
-    toast('Diagnostics copied');
+    toast('诊断快照已复制');
     return text;
   }
 
@@ -2753,24 +2761,24 @@
     var tinyiCount = rightPcArray(gm._pendingTinyiTopics).length;
     var ccCount = rightClassCharacterAllEdges().length;
     return '<div class="tmrp-pcdebug">' +
-      '<section class="tmrp-card tmrp-pcdebug-copy"><div class="tmrp-card-title"><span>Class Minxin Bridge</span><small>copy current diagnostics snapshot</small></div><div class="tmrp-action-row"><button type="button" class="tmrp-btn" data-right-action="pcdebug-copy">Copy Diagnostics</button></div></section>' +
-      '<div class="tmrp-summary"><div class="tmrp-stat"><b>' + esc(signalCount) + '</b><span>signals</span></div><div class="tmrp-stat"><b>' + esc(memCount) + '</b><span>memory</span></div><div class="tmrp-stat"><b>' + esc(actionCount) + '</b><span>actions</span></div><div class="tmrp-stat"><b>' + esc(tinyiCount) + '</b><span>tinyi</span></div><div class="tmrp-stat"><b>' + esc(ccCount) + '</b><span>class-char</span></div></div>' +
-      rightPcSection('Minxin Ledger', 'truth / perception / matrix / uprising', rightPcMinxinLedgerRows(gm), 'No minxin ledger records') +
-      rightPcSection('Minxin Pressure Actions', 'memorial / tinyi / wendui / hongyan', rightPcMinxinPressureRows(gm), 'No minxin pressure actions') +
-      rightPcSection('Minxin Commitments', 'execution / cost / backlash', rightPcMinxinCommitmentRows(gm), 'No minxin commitments') +
-      rightPcSection('Minxin Responsibility Chain', 'executor / report / rumor / accountability', rightPcMinxinResponsibilityRows(gm), 'No minxin responsibility records') +
-      rightPcSection('Minxin Hard Links', 'fiscal / draft / hukou / execution', rightPcMinxinHardLinkRows(gm), 'No minxin hard-link records') +
-      rightPcSection('Minxin Hard Link Consumers', 'effective income / recruits / taxbase / edict cap', rightPcMinxinHardLinkConsumerRows(gm), 'No minxin consumer records') +
-      rightPcSection('Huji Runtime Bridge', 'hukou / corvee / service pool / player operations', rightPcHujiRuntimeBridgeRows(gm), 'No huji bridge records') +
-      rightPcSection('Huji Governance Loop', 'formal operations / commitments / execution', rightPcHujiGovernanceRows(gm), 'No huji governance commitments') +
-      rightPcSection('Institution Lifecycle', 'proposal / debate / trial / archive', rightPcInstitutionLifecycleRows(gm), 'No institution lifecycle records') +
-      rightPcSection('Class Minxin Bridge', 'audit / ledger / court / uprising', rightPcClassMinxinRows(gm), 'No class-minxin bridge records') +
-      rightPcSection('Social Political Signals', 'recent deterministic evidence', rightPcSignalRows(gm), 'No signals') +
-      rightPcSection('Maintenance / Escalation', 'decay, resolve, unresolved pressure', rightPcMaintenanceRows(gm), 'No maintenance records') +
-      rightPcSection('Actor Memory', 'agenda / grievance / belief ledger', rightPcActorMemoryRows(gm), 'No actor memory') +
-      rightPcSection('Actor Actions', 'party_actions / class_actions', rightPcActionRows(gm), 'No actor actions') +
-      rightPcSection('Class Character Relations', 'backing / resentment / evidence', rightPcClassCharacterRows(gm), 'No class-character records') +
-      rightPcSection('Tinyi Queue / Court Records', 'issue links and rulings', rightPcTinyiRows(gm), 'No tinyi/court records') +
+      '<section class="tmrp-card tmrp-pcdebug-copy"><div class="tmrp-card-title"><span>阶层民心桥</span><small>复制当前诊断快照</small></div><div class="tmrp-action-row"><button type="button" class="tmrp-btn" data-right-action="pcdebug-copy">复制诊断</button></div></section>' +
+      '<div class="tmrp-summary"><div class="tmrp-stat"><b>' + esc(signalCount) + '</b><span>信号</span></div><div class="tmrp-stat"><b>' + esc(memCount) + '</b><span>记忆</span></div><div class="tmrp-stat"><b>' + esc(actionCount) + '</b><span>动作</span></div><div class="tmrp-stat"><b>' + esc(tinyiCount) + '</b><span>廷议</span></div><div class="tmrp-stat"><b>' + esc(ccCount) + '</b><span>阶层人物</span></div></div>' +
+      rightPcSection('民心账目', '实情 / 观感 / 矩阵 / 民变', rightPcMinxinLedgerRows(gm), '暂无民心账目') +
+      rightPcSection('民情积压·待处置', '奏疏 / 廷议 / 问对 / 鸿雁', rightPcMinxinPressureRows(gm), '暂无民情积压') +
+      rightPcSection('民情承诺', '执行 / 代价 / 反弹', rightPcMinxinCommitmentRows(gm), '暂无民情承诺') +
+      rightPcSection('民情责任链', '承办 / 官报 / 风闻 / 问责', rightPcMinxinResponsibilityRows(gm), '暂无民情责任链记录') +
+      rightPcSection('民心硬链', '财赋 / 征调 / 户籍 / 执行', rightPcMinxinHardLinkRows(gm), '暂无民心硬链记录') +
+      rightPcSection('民心硬链·消费端', '实收 / 募兵 / 税基 / 诏令上限', rightPcMinxinHardLinkConsumerRows(gm), '暂无消费端记录') +
+      rightPcSection('户籍运行桥', '户籍 / 徭役 / 役源 / 玩家操作', rightPcHujiRuntimeBridgeRows(gm), '暂无户籍桥记录') +
+      rightPcSection('户籍治理环', '正式操作 / 承诺 / 执行', rightPcHujiGovernanceRows(gm), '暂无户籍治理承诺') +
+      rightPcSection('制度生命周期', '提案 / 廷议 / 试行 / 存档', rightPcInstitutionLifecycleRows(gm), '暂无制度生命周期记录') +
+      rightPcSection('阶层民心桥', '稽核 / 账目 / 朝堂 / 民变', rightPcClassMinxinRows(gm), '暂无阶层民心桥记录') +
+      rightPcSection('社会政治信号', '近期确定性证据', rightPcSignalRows(gm), '暂无信号') +
+      rightPcSection('维护 / 升级', '衰减、化解、未决积压', rightPcMaintenanceRows(gm), '暂无维护记录') +
+      rightPcSection('行动者记忆', '议程 / 积怨 / 信念账', rightPcActorMemoryRows(gm), '暂无行动者记忆') +
+      rightPcSection('行动者动作', '党派动作 / 阶层动作', rightPcActionRows(gm), '暂无行动者动作') +
+      rightPcSection('阶层人物关系', '拥护 / 怨望 / 证据', rightPcClassCharacterRows(gm), '暂无阶层人物记录') +
+      rightPcSection('廷议队列 / 朝议记录', '议题关联与裁决', rightPcTinyiRows(gm), '暂无廷议/朝议记录') +
       '</div>';
   }
 
@@ -2793,15 +2801,89 @@
     return null;
   }
 
+  // ── 社会层地基（2026-06-12）：趋势/势位/近账/议程条目 helpers ──
+  function rightSocGM(){ return (typeof GM === 'object' && GM) || {}; }
+  function rightSatTrend(c){
+    var t = 0, turn = Number(rightSocGM().turn) || 0;
+    ((c && c._satLedger) || []).forEach(function(e){ if (e && e.t >= turn - 1) t += (Number(e.d) || 0); });
+    return Math.round(t * 10) / 10;
+  }
+  function rightTrendTag(t){
+    if (!t) return '';
+    return '<i class="tmrp-trend ' + (t > 0 ? 'up' : 'down') + '">' + (t > 0 ? '▲' : '▼') + Math.abs(t) + '</i>';
+  }
+  function rightClassPressureTag(c){
+    var sat = rightSocNum(c, ['satisfaction','support','mood','loyalty'], 50);
+    var base = Number(c && c._structBaseline);
+    if (!isFinite(base)) return '';
+    if (base - sat >= 8) return '<i class="tmrp-trend up">回升中</i>';
+    if (sat - base >= 8) return '<i class="tmrp-trend down">承压</i>';
+    return '';
+  }
+  function rightSatLedgerRows(c){
+    var rows = ((c && c._satLedger) || []).slice(-4).reverse().map(function(e){
+      if (!e) return '';
+      var d = Number(e.d) || 0;
+      return '<div class="tmrp-ledger-row"><b class="' + (d >= 0 ? 'pos' : 'neg') + '">' + (d > 0 ? '+' : '') + d + '</b><small>' + esc('T' + (e.t != null ? e.t : '?') + ' · ' + rightSocialLocalizeText(String(e.why || e.src || '')).slice(0, 44)) + '</small></div>';
+    }).filter(Boolean).join('');
+    if (!rows) return '';
+    return '<div class="tmrp-ecology"><div class="tmrp-ecology-head"><b>满意近账</b><small>何因增减</small></div><div class="tmrp-ecology-list">' + rows + '</div></div>';
+  }
+  function rightAgendaChips(c){
+    var items = ((c && c._agenda && c._agenda.items) || []).slice()
+      .sort(function(a, b){ return (Number(b.urgency) || 1) - (Number(a.urgency) || 1); }).slice(0, 6);
+    if (!items.length) return '';
+    var turn = Number(rightSocGM().turn) || 0;
+    var chips = items.map(function(it){
+      var u = Math.max(1, Math.min(3, Number(it.urgency) || 1));
+      var dur = it.sinceTurn != null ? Math.max(0, turn - it.sinceTurn) : 0;
+      return '<span class="tmrp-pill tmrp-agenda u' + u + '" title="' + attr((it.kind === 'seed' ? '本位诉求' : (it.kind === 'ai' ? '时局诉求' : '结构诉求')) + (dur ? '·已持续' + dur + '回合' : '')) + '">' + esc(String(it.text || '').slice(0, 20)) + (dur >= 2 ? '<small>·' + dur + '回合</small>' : '') + '</span>';
+    }).join('');
+    return '<div class="tmrp-chip-list tmrp-agenda-list">' + chips + '</div>';
+  }
+  // 地域分账（2026-06-12）：同阶不同地境遇悬殊·取最艰 4 地
+  function rightClassRegionRows(c){
+    var vs = (Array.isArray(c && c.regionalVariants) ? c.regionalVariants : []).filter(function(v){ return v && v.region && isFinite(Number(v.satisfaction)); });
+    if (!vs.length) return '';
+    vs = vs.slice().sort(function(a, b){ return Number(a.satisfaction) - Number(b.satisfaction); }).slice(0, 4);
+    var rows = vs.map(function(v){
+      var sNum = Math.round(Number(v.satisfaction));
+      var base = Number(v._structBaseline);
+      return '<div class="tmrp-ledger-row"><b class="' + (sNum < 35 ? 'neg' : 'pos') + '">' + sNum + '</b><small>' + esc(String(v.region) + (isFinite(base) ? '（势位' + Math.round(base) + '）' : '') + (v.distinguishing ? ' · ' + String(v.distinguishing).slice(0, 22) : '')) + '</small></div>';
+    }).join('');
+    return '<div class="tmrp-ecology"><div class="tmrp-ecology-head"><b>地域分账</b><small>同阶不同地</small></div><div class="tmrp-ecology-list">' + rows + '</div></div>';
+  }
+  function rightPartyLedgerRows(p){
+    var ps = rightSocGM().partyState && rightSocGM().partyState[p && p.name];
+    var rows = ((ps && ps.historyLog) || []).slice(-4).reverse().map(function(e){
+      if (!e) return '';
+      var d = Number(e.delta != null ? e.delta : e.influenceDelta) || 0;
+      if (!d && !e.reason) return '';
+      var label = e.field === 'cohesion' ? '凝聚' : '影响';
+      return '<div class="tmrp-ledger-row"><b class="' + (d >= 0 ? 'pos' : 'neg') + '">' + label + (d > 0 ? '+' : '') + (Math.round(d * 10) / 10) + '</b><small>' + esc('T' + (e.turn != null ? e.turn : '?') + ' · ' + rightSocialLocalizeText(String(e.reason || '')).slice(0, 44)) + '</small></div>';
+    }).filter(Boolean).join('');
+    if (!rows) return '';
+    return '<div class="tmrp-ecology"><div class="tmrp-ecology-head"><b>党势近账</b><small>何因消长</small></div><div class="tmrp-ecology-list">' + rows + '</div></div>';
+  }
+  function rightPartyRelChips(p){
+    var ps = rightSocGM().partyState && rightSocGM().partyState[p && p.name];
+    var foes = [].concat((ps && ps.conflictWith) || p.enemies || p.rivals || []).filter(Boolean).slice(0, 3);
+    var allies = [].concat((ps && ps.alliedWith) || p.allies || []).filter(Boolean).slice(0, 3);
+    if (!foes.length && !allies.length) return '';
+    var chips = allies.map(function(x){ return '<span class="tmrp-pill tmrp-agenda u1">盟·' + esc(String(x).slice(0, 12)) + '</span>'; })
+      .concat(foes.map(function(x){ return '<span class="tmrp-pill tmrp-agenda u3">敌·' + esc(String(x).slice(0, 12)) + '</span>'; })).join('');
+    return '<div class="tmrp-chip-list">' + chips + '</div>';
+  }
+
   // 列表态·瘦卡(名+满意/影响+诉求·整卡可点进详情)
   function rightSocialClassHead(c){
     var sat = rightSocNum(c, ['satisfaction','support','mood','loyalty'], 50);
     var inf = rightSocNum(c, ['influence','power','weight'], 0);
     return '<section class="tmrp-card tmrp-social-head ' + (sat < 45 ? 'hot' : (sat > 62 ? 'ok' : '')) + '" data-right-action="outline-select" data-type="class" data-key="' + attr(rightSocialName(c)) + '">' +
-      '<div class="tmrp-card-title"><span>' + esc(c.name || c.label || c.id || '未名阶层') + '</span><small>满意 ' + esc(Math.round(sat)) + ' · 影响 ' + esc(Math.round(inf)) + ' ›</small></div>' +
+      '<div class="tmrp-card-title"><span>' + esc(c.name || c.label || c.id || '未名阶层') + '</span><small>满意 ' + esc(Math.round(sat)) + rightTrendTag(rightSatTrend(c)) + rightClassPressureTag(c) + ' · 影响 ' + esc(Math.round(inf)) + ' ›</small></div>' +
       rightArmyBar('满意', sat) + rightArmyBar('影响', inf) +
       rightArmyRows([['诉求', rightSocialBriefText(c.demands || c.currentDemand)]]) +
-      '<div class="tmrp-detail-hint">点击展开近因、民心、生态关系与行动链</div>' +
+      '<div class="tmrp-detail-hint">点击展开议程、近账、民心与行动链</div>' +
       '</section>';
   }
 
@@ -2809,9 +2891,14 @@
   function rightSocialClassDetail(c){
     var sat = rightSocNum(c, ['satisfaction','support','mood','loyalty'], 50);
     var inf = rightSocNum(c, ['influence','power','weight'], 0);
-    return '<section class="tmrp-card ' + (sat < 45 ? 'hot' : (sat > 62 ? 'ok' : '')) + '"><div class="tmrp-card-title"><span>' + esc(c.name || c.label || c.id || '未名阶层') + '</span><small>满意 ' + esc(Math.round(sat)) + ' · 影响 ' + esc(Math.round(inf)) + '</small></div>' +
+    var baseRow = isFinite(Number(c._structBaseline)) ? [['势位(应然)', String(Math.round(c._structBaseline)) + (Array.isArray(c._structParts) && c._structParts.length ? ' · ' + c._structParts.slice(0, 2).join(' · ') : '')]] : [];
+    var agendaHtml = rightAgendaChips(c);
+    return '<section class="tmrp-card ' + (sat < 45 ? 'hot' : (sat > 62 ? 'ok' : '')) + '"><div class="tmrp-card-title"><span>' + esc(c.name || c.label || c.id || '未名阶层') + '</span><small>满意 ' + esc(Math.round(sat)) + rightTrendTag(rightSatTrend(c)) + rightClassPressureTag(c) + ' · 影响 ' + esc(Math.round(inf)) + '</small></div>' +
       rightArmyBar('满意', sat) + rightArmyBar('影响', inf) +
-      rightArmyRows([['规模', rightSocialLocalizeText(c.size || c.population || c.scale)], ['经济角色', rightSocialLocalizeText(c.economicRole || c.role)], ['法律地位', rightSocialLocalizeText(c.status)], ['流动性', rightSocialLocalizeText(c.mobility)], ['特权', rightSocialLocalizeText(c.privileges)], ['义务', rightSocialLocalizeText(c.obligations)], ['诉求', rightSocialBriefText(c.demands || c.currentDemand)]]) +
+      rightArmyRows([['规模', rightSocialLocalizeText(c.size || c.population || c.scale)], ['经济角色', rightSocialLocalizeText(c.economicRole || c.role)], ['法律地位', rightSocialLocalizeText(c.status)], ['流动性', rightSocialLocalizeText(c.mobility)], ['特权', rightSocialLocalizeText(c.privileges)], ['义务', rightSocialLocalizeText(c.obligations)]].concat(baseRow)) +
+      (agendaHtml || rightArmyRows([['诉求', rightSocialBriefText(c.demands || c.currentDemand)]])) +
+      rightClassRegionRows(c) +
+      rightSatLedgerRows(c) +
       renderRightSocialCauses('class', c) +
       rightClassMinxinBridgeRows(c) +
       renderRightSocialEcology('class', c) +
@@ -2838,7 +2925,8 @@
       '<div class="tmrp-card-title"><span>' + esc(p.name || p.label || p.id || '未名党派') + '</span><small>' + esc(rightSocialLocalizeText(status)) + ' · 影响 ' + esc(Math.round(inf)) + ' ›</small></div>' +
       rightArmyBar('影响', inf) +
       rightArmyRows([['立场', rightSocialLocalizeText(p.ideology || p.stance)], ['当前议程', rightSocialBriefText(p.currentAgenda || p.agenda || p.shortGoal)]]) +
-      '<div class="tmrp-detail-hint">点击展开近因、生态关系与行动链</div>' +
+      rightPartyRelChips(p) +
+      '<div class="tmrp-detail-hint">点击展开近账、生态关系与行动链</div>' +
       '</section>';
   }
 
@@ -2850,6 +2938,8 @@
     return '<section class="tmrp-card ' + (/活跃|active/i.test(String(status)) ? 'hot' : '') + '"><div class="tmrp-card-title"><span>' + esc(p.name || p.label || p.id || '未名党派') + '</span><small>' + esc(rightSocialLocalizeText(status)) + ' · 影响 ' + esc(Math.round(inf)) + '</small></div>' +
       rightArmyBar('影响', inf) +
       rightArmyRows([['首领', p.leader || p.head], ['立场', rightSocialLocalizeText(p.ideology || p.stance)], ['支持群体', rightSocialLocalizeText(p.base || p.supportBase)], ['核心成员', rightSocialLocalizeText(p.members)], ['当前议程', rightSocialBriefText(p.currentAgenda || p.agenda)], ['短期目标', rightSocialBriefText(p.shortGoal)], ['长期追求', rightSocialBriefText(p.longGoal)]]) +
+      rightPartyRelChips(p) +
+      rightPartyLedgerRows(p) +
       renderRightSocialCauses('party', p) +
       renderRightSocialEcology('party', p) +
       renderRightSocialChain('party', p) +
@@ -2924,6 +3014,8 @@
   function rightOfficeTree(){
     var gm = window.GM || {};
     var p = window.P || {};
+    // 单一真相源:渲染前从人物 officialTitle 派生官制树任职者(状态未变则跳过)
+    try { if (typeof window._offSyncHoldersFromChars === 'function') window._offSyncHoldersFromChars({ ifChanged: true }); } catch (_) {}
     if (Array.isArray(gm.officeTree) && gm.officeTree.length) return gm.officeTree;
     if (Array.isArray(p.officeTree) && p.officeTree.length) return p.officeTree;
     if (p.government && Array.isArray(p.government.nodes) && p.government.nodes.length) return p.government.nodes;

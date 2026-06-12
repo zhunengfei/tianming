@@ -1980,9 +1980,35 @@
         var _pLines = [];
         Object.keys(GM.partyState).forEach(function(pn) {
           var ps = GM.partyState[pn]; if (!ps) return;
-          _pLines.push('  · ' + pn + '·影响' + ps.influence + '·凝聚' + ps.cohesion + '·占官' + ps.officeCount + '·清誉' + ps.reputationBalance + (ps.recentImpeachWin>0?('·近期弹劾胜'+Math.round(ps.recentImpeachWin)):'') + (ps.recentImpeachLose>0?('·近期弹劾败'+Math.round(ps.recentImpeachLose)):''));
+          var _pObj = null;
+          if (Array.isArray(GM.parties)) GM.parties.forEach(function(pp){ if (pp && pp.name === pn) _pObj = pp; });
+          var _pAgenda = _pObj && (_pObj.currentAgenda || _pObj.shortGoal) ? ('·议程:' + String(_pObj.currentAgenda || _pObj.shortGoal).slice(0, 24)) : '';
+          var _pFoes = (ps.conflictWith && ps.conflictWith.length) ? ('·敌:' + ps.conflictWith.slice(0, 2).join('/')) : '';
+          var _pAllies = (ps.alliedWith && ps.alliedWith.length) ? ('·盟:' + ps.alliedWith.slice(0, 2).join('/')) : '';
+          _pLines.push('  · ' + pn + '·影响' + ps.influence + '·凝聚' + ps.cohesion + '·占官' + ps.officeCount + '·清誉' + ps.reputationBalance + (ps.recentImpeachWin>0?('·近期弹劾胜'+Math.round(ps.recentImpeachWin)):'') + (ps.recentImpeachLose>0?('·近期弹劾败'+Math.round(ps.recentImpeachLose)):'') + _pAgenda + _pFoes + _pAllies);
         });
         if (_pLines.length) _tsBlock += '\n\n【党派数值】\n' + _pLines.join('\n');
+      }
+      // 阶层正册（2026-06-12）：旧版主推演对阶层全盲（无名单/数值/诉求），AI 只能瞎猜 class_changes。
+      if (Array.isArray(GM.classes) && GM.classes.length > 0) {
+        var _cLines = [];
+        GM.classes.slice(0, 12).forEach(function(c) {
+          if (!c || !c.name) return;
+          var _cSat = Math.round(Number(c.satisfaction) || 0);
+          var _cTrend = 0;
+          if (Array.isArray(c._satLedger)) c._satLedger.forEach(function(e) { if (e && e.t >= GM.turn - 1) _cTrend += (Number(e.d) || 0); });
+          _cTrend = Math.round(_cTrend * 10) / 10;
+          var _cDm = String(c.currentDemand || (Array.isArray(c.demands) ? c.demands.join('·') : c.demands) || '').slice(0, 34);
+          var _cPhase = (c.revoltState && c.revoltState.phase && c.revoltState.phase !== 'calm') ? ('·态:' + c.revoltState.phase) : '';
+          var _cWorst = '';
+          if (Array.isArray(c.regionalVariants)) {
+            var _wv = null;
+            c.regionalVariants.forEach(function(v) { if (v && v.region && isFinite(Number(v.satisfaction)) && (!_wv || Number(v.satisfaction) < Number(_wv.satisfaction))) _wv = v; });
+            if (_wv && Number(_wv.satisfaction) <= _cSat - 8) _cWorst = '·最艰:' + String(_wv.region).slice(0, 6) + Math.round(Number(_wv.satisfaction));
+          }
+          _cLines.push('  · ' + c.name + '·满意' + _cSat + (_cTrend ? ('(' + (_cTrend > 0 ? '+' : '') + _cTrend + ')') : '') + '·影响' + Math.round(Number(c.influence) || 0) + (c._structBaseline != null ? ('·势位' + Math.round(c._structBaseline)) : '') + _cPhase + _cWorst + (_cDm ? ('·求:' + _cDm) : ''));
+        });
+        if (_cLines.length) _tsBlock += '\n\n【阶层正册】\n' + _cLines.join('\n') + '\n  （满意=当下·势位=结构应然·求=当前诉求——class_changes 须以正册为准）';
       }
       if (Array.isArray(GM.armies) && GM.armies.length > 0) {
         var _riskArmies = GM.armies.filter(function(a){ return (a.mutinyRisk||0) >= 50 || (a.supply||100) < 30 || (a.morale||100) < 30 || (a.payArrearsMonths||0) >= 2; });
@@ -2493,8 +2519,9 @@
         sysP += '\n- 被压制党派可能暗中活动、投靠外部势力、甚至策动兵变';
       }
       if (GM.classes && GM.classes.length > 0) {
-        sysP += '\n社会阶层有各自的诉求：加税→满意度降，减负→满意度升';
-        sysP += '\n- 满意度极低→抗税、骚乱、流民、甚至起义';
+        sysP += '\n社会阶层各有本位诉求与当下议程（见【阶层正册】）：';
+        sysP += '\n- class_changes 只在本回合确有事件牵动该阶层时输出；惠政（蠲赈减免）让受害最深的阶层受惠最大，苛政（加征摊派）反向同理';
+        sysP += '\n- 叙事须与正册一致：满意度极低的阶层应表现出抗税、骚乱、流民乃至起义的迹象；诉求得偿的阶层应有称颂之声';
       }
     }
     try {
@@ -3058,7 +3085,8 @@
     sysP += '\n  ⚠ 涉及行军/围城的事件，必须在geoData中提供地理推算数据！';
     sysP += '\n- faction_relation_changes: 改变势力间关系';
     sysP += '\n- party_changes: \u4FEE\u6539\u515A\u6D3E\u72B6\u6001\uFF08influence_delta\u5F71\u54CD\u529B\u3001new_status\u6D3B\u8DC3/\u5F0F\u5FAE/\u88AB\u538B\u5236/\u5DF2\u89E3\u6563\u3001new_leader\u9996\u9886\u66F4\u66FF\u3001new_agenda\u8BAE\u7A0B\u53D8\u5316\u3001new_shortGoal\u77ED\u671F\u76EE\u6807\u53D8\u5316\uFF09';
-    sysP += '\n- class_changes: \u4FEE\u6539\u9636\u5C42\u72B6\u6001\uFF08satisfaction_delta\u6EE1\u610F\u5EA6\u3001influence_delta\u5F71\u54CD\u529B\u3001new_demands\u8BC9\u6C42\u968F\u5C40\u52BF\u53D8\u5316\u3001new_status\u5730\u4F4D\u53D8\u52A8\u3001partyOutcomeRef\u53EF\u6807\u6CE8\u515A\u6D3E\u80DC\u8D1F\u6765\u6E90\uFF09';
+    sysP += '\n- class_changes: 阶层状态变化。satisfaction_delta 为主信号（±12·正=该阶层切身受惠·负=受损）·influence_delta（±8）·reason 必须写明具体事由与方向（如「蠲免山东田赋」「加派辽饷」——蠲赈减免系惠政·加征摊派系苛政，引擎按方向校验）·本回合没有实际事件牵动的阶层不要输出·new_demands 仅当局势造就新诉求（并入诉求簿一槽，不覆盖本位诉求）·new_status 地位变动·partyOutcomeRef 可标注党派胜负来源·region 可指明地域（事件只牵动该阶层在当地的分账，如陕西大旱赈济写 region:"陕西"）';
+    sysP += '\n- party_relation_changes: 党派结盟/交恶（{party, target, relation:"ally|rival|neutral", reason}·对称生效写入双方盟敌名册·朝局斗争应随弹劾/廷议胜负演化关系）';
     sysP += '\n- class_alert_responses: \u56DE\u5E94\u9636\u5C42\u4E34\u754C\u8B66\u62A5\uFF08alertId\u3001action=address/defer/partial\u3001reason\uFF09';
     sysP += '\n- regent_decisions: \u6444\u653f\u51b3\u65ad\uFF08action\u3001subject\u3001regentName\u3001hardCeiling\u3001reason\uFF09';
     sysP += '\n- reissue_topics: \u5efa\u8bae\u5c06\u7559\u4e2d\u518c\u8bae\u9898\u8d77\u590d\u518d\u8bae\uff08topic\u3001reason\uff09';
@@ -3069,7 +3097,14 @@
     sysP += '\n- office_changes: 官制人事变动（appoint任命/dismiss罢免/promote晋升/demote降级/transfer调任/evaluate考评/reform改革）';
     sysP += '\n- vassal_changes: 封臣关系变动（establish建立/break解除/change_tribute调整贡奉）';
     sysP += '\n- title_changes: 头衔爵位变动（grant册封/revoke剥夺/inherit继承需指定from来源角色/promote晋升）';
-    sysP += '\n- building_changes: 建筑变动（build建造/upgrade升级/destroy拆除，需指定territory和type）';
+    sysP += '\n- building_changes: 建筑变动（build建造/custom_build自拟营造/upgrade升级/destroy拆除，需指定territory和type）';
+    sysP += '\n    build/custom_build 另给 feasibility(合理/勉强/不合理)、costActual实际费用(两)、timeActual工期(回合)、judgedEffects效果叙述、reason判语';
+    sysP += '\n    【自拟营造核定】custom_build（玩家自拟工役）必须另给 effectsStructured——结构化效果账，完工后照此入账（judgedEffects 叙述不入账）。格式示例：';
+    sysP += '\n    "effectsStructured":{"pct":{"economyBase.commerceVolume":0.05},"abs":{"militaryRecruits":1000},"minxin":1,"corruption":-1,"upkeepPerTurn":120}';
+    sysP += '\n    账目白名单（名单外引擎直接丢弃）：economyBase.{farmland,commerceVolume,commerceCoefficient,maritimeTradeVolume,saltProduction,mineralProduction,fishingProduction,horseProduction,postRelays,roadQuality,kejuQuota}、fortLevel、militaryRecruits、minxin(±2内)、corruption(±3内)';
+    sysP += '\n    【费效为度】小费小效：千两以下至多 1-3% 微利；万两可至 8%；两万两以上方可 15% 或城防+1；十万两巨役方可 25%。十两银修不出雄关——越界效果引擎会削顶。维护费 upkeepPerTurn 约为费用 2%/回合。';
+    sysP += '\n- region_status_changes: 地块状态变动（action:add/remove + region区划名 + name状态名 + kind:wonder奇观/disaster灾异/event风云/player圣裁 + econPct地方岁入乘数增减(±0.25内) + minxinPerTurn每回合民心(±2内) + durationTurns持续回合(缺省=永续·至多24) + desc叙述 + reason）';
+    sysP += '\n    凡落在具体地块上的持续境况都应写状态：奇观落成、蝗旱水震天灾、丰年祥瑞、兵燹匪患、瘟疫流行、玩家放赈/免税/巡幸的地方效应等。状态会乘进该地岁入、逐回合作用民心，并在地块方志「状态」卷向玩家可见。灾异消弭、境况终了须 remove。勿与 building_changes 重复记同一工程。';
     sysP += '\n- admin_changes: 行政区划变动——地方官任免(appoint_governor/remove_governor)和地方官自主治理效果(adjust: prosperity_delta繁荣/population_delta人口，反映该官员本回合的治绩)';
     sysP += '\n- admin_division_updates: 行政区划树结构变更。action类型：';
     sysP += '\n    add=新增行政区（推演中涉及史实存在但树中没有的行政区时必须用此添加，parentDivision指定上级）';

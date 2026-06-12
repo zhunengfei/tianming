@@ -665,8 +665,12 @@
 
   function ownerName(r){
     if (!r) return '';
-    var f = findFaction(ownerKey(r), r.factionName || r.ownerName);
-    return (f && (f.label || f.name || f.scenarioFactionName)) || r.factionName || r.ownerName || ownerKey(r) || '';
+    var key = ownerKey(r);
+    // 2026-06-12: 无任何归属线索时直接返回空——findFaction('') 会误回首个势力，
+    // 致无主地块显示「隶 明朝廷」（旧版同病·随册页重构一并修）。
+    if (!key && !r.factionName && !r.ownerName) return '';
+    var f = findFaction(key, r.factionName || r.ownerName);
+    return (f && (f.label || f.name || f.scenarioFactionName)) || r.factionName || r.ownerName || key || '';
   }
 
   function canonicalOwnerKey(r){
@@ -779,12 +783,7 @@
     return null;
   }
 
-  function heatColor(value, low, high, colors){
-    var n = Number(value);
-    if (!isFinite(n)) n = low;
-    var t = Math.max(0, Math.min(1, (n - low) / Math.max(1, high - low)));
-    return t < .34 ? colors[0] : (t < .67 ? colors[1] : colors[2]);
-  }
+  // heatColor 三档插值已删（2026-06-11）——着色统一走 GRADE_BANDS 五档（gradeOf）。
 
   function classPressureForRegion(r){
     var gm = window.GM || {};
@@ -836,12 +835,13 @@
   }
 
   function regionColor(r){
-    var b = regionBundle(r);
-    var data = b.data || {};
-    if (state.mapMode === 'tax') return heatColor(firstValue(b.fiscal.actualRevenue, r && r.tax, r && r.development), 0, 3000000, ['#6f8a72','#b8994c','#c65b3d']);
-    if (state.mapMode === 'mood') return heatColor(firstValue(data.minxinLocal, r && r.mood, r && r.prosperity), 20, 85, ['#b94a3c','#b69650','#6f9f88']);
-    if (state.mapMode === 'classPressure') return heatColor(classPressureForRegion(r).score, 0, 80, ['#6f9f88','#b8994c','#b94a3c']);
-    if (state.mapMode === 'army') return heatColor(firstValue(data.garrison, b.army.troops, data.armyPressure, r && r.troops, r && r.armyPressure), 0, 250000, ['#7b8467','#b98e4c','#b6533f']);
+    // 2026-06-11: 数据视图改五档色板（modeScore 动态结算→gradeOf 查档）·旧 heatColor 三档插值
+    // 按绝对量着色（实征 0-300 万/驻军 0-25 万）富省恒绿穷省恒红·看不出「该收的收没收上来」。
+    var mode = state.mapMode;
+    if (mode === 'tax' || mode === 'mood' || mode === 'army' || mode === 'office' || mode === 'classPressure') {
+      var g = gradeOf(mode, modeScore(r, mode));
+      if (g) return g.color;
+    }
     var f = findFaction(ownerKey(r), r.factionName || r.ownerName);
     return (f && (f.color || f.line)) || r.factionColor || r.color || '#b7914f';
   }
@@ -927,6 +927,21 @@
     return (n % 13) - 6;
   }
 
+  // 哨牌层（2026-06-11）：数据视图下每地块中心下方一枚圆牌显示 modeScore 数值/档字。
+  // 色不孤行——着色五档之外哨牌给精确读数，色弱玩家亦可读。owner 视图返回空（无哨牌）。
+  function sentinelLayer(map){
+    var mode = state.mapMode;
+    if (!mode || mode === 'owner' || !GRADE_BANDS[mode]) return '';
+    return (map.regions || []).map(function(r){
+      var score = modeScore(r, mode);
+      var grade = gradeOf(mode, score);
+      if (!grade) return '';
+      var c = actualCenter(r);
+      var label = (mode === 'army') ? grade.mark : (score === '' || score === null ? grade.mark : String(score));
+      return '<g class="tmf-sentinel' + (gradeIsWarn(mode, grade) ? ' warn' : '') + '" transform="translate(' + attr(c.x) + ' ' + attr(c.y + 17) + ')"><circle r="11"></circle><text>' + esc(label) + '</text></g>';
+    }).join('');
+  }
+
   function renderFormalMapSoon(){
     clearTimeout(state.mapRenderTimer);
     state.mapRenderTimer = setTimeout(renderFormalMap, 0);
@@ -988,8 +1003,11 @@
   function formalMapSignature(map){
     map = map || getMapData();
     if (!map || !Array.isArray(map.regions)) return '';
+    // 2026-06-11: 哨牌文本并入签名——同档异分(民心 46→48 同「忧」色不变)时哨牌数值也要跟上，
+    // 否则地图色对、牌上数字 stale。owner 视图无哨牌、贡献空串、签名与旧版等价。
+    var _sentinelMode = (state.mapMode && state.mapMode !== 'owner' && GRADE_BANDS[state.mapMode]) ? state.mapMode : '';
     return mapIdentity(map) + '|' + (state.mapMode || '') + '|' + (state.mapScale || '') + '|' + map.regions.map(function(r){
-      return (r.id || r.name || '') + ':' + canonicalOwnerKey(r) + ':' + regionColor(r);
+      return (r.id || r.name || '') + ':' + canonicalOwnerKey(r) + ':' + regionColor(r) + (_sentinelMode ? ':' + modeScore(r, _sentinelMode) : '');
     }).join(',');
   }
   function renderFormalMap(){
@@ -1093,6 +1111,7 @@
           '<g class="tmf-region-halos">' + regionHalos + '</g>' +
           '<g class="tmf-region-layer ming-admin-layer">' + regionPaths + '</g>' +
           '<g class="tmf-faction-label-layer">' + factionLabelLayer(map) + '</g>' +
+          '<g class="tmf-sentinel-layer">' + sentinelLayer(map) + '</g>' +
           '<rect class="tmf-map-grain" x="0" y="0" width="' + width + '" height="' + height + '"></rect>' +
         '</g>' +
       '</svg></div>';
@@ -1120,9 +1139,18 @@
       entries.push({ key: key, name: ownerName(r), color: regionColor(r) });
     });
     if (state.mapMode !== 'owner') {
+      // 2026-06-11: 数据视图图例改五档真色板（与 gradeOf 同源）+ 档字刻度——旧版「低中高」三字与实际着色无对应。
+      var gb = GRADE_BANDS[state.mapMode];
+      var bandsHtml = gb
+        ? '<div class="map-legend-main"><div class="map-legend-bar tmf-grade-bar">' + gb.bands.map(function(bd){
+            return '<i style="background:' + attr(bd[2]) + '"></i>';
+          }).join('') + '</div><div class="map-legend-scale tmf-grade-scale">' + gb.bands.map(function(bd){
+            return '<span>' + esc(bd[3]) + '</span>';
+          }).join('') + '</div></div>'
+        : '<div class="map-legend-main"><div class="map-legend-bar"></div><div class="map-legend-scale"><span>低</span><span>中</span><span>高</span></div></div>';
       host.innerHTML = '<div class="map-legend-title"><span class="map-legend-mode"><i class="map-legend-mark"></i><span class="map-legend-name">' + esc(mapModeTitle()) + '</span></span><span class="map-legend-sub">' + esc(mapScaleNote()) + '</span></div>' +
-        '<div class="map-legend-main"><div class="map-legend-bar"></div><div class="map-legend-scale"><span>低</span><span>中</span><span>高</span></div></div>' +
-        '<div class="map-legend-detail"><p class="map-legend-note">' + esc(mapModeNote()) + '。颜色随当前运行字段即时重绘，点击地块查看档案。</p></div>';
+        bandsHtml +
+        '<div class="map-legend-detail"><p class="map-legend-note">' + esc(mapModeNote()) + '。地块圆牌为本视图读数，颜色随运行账目即时重绘。</p></div>';
       return;
     }
     host.innerHTML = '<div class="map-legend-title"><span class="map-legend-mode"><i class="map-legend-mark"></i><span class="map-legend-name">势力版图</span></span><span class="map-legend-sub">' + esc(entries.length) + ' 方</span></div>' +
@@ -1223,6 +1251,103 @@
     if (!regions.length) return;
   }
 
+  // ── 签注内容（2026-06-11）：hover 小笺按视图给核心读数 + 判语 ──────────
+  function _tipRow(k, v, tone){
+    if (!hasDisplayValue(v)) return '';
+    return '<div class="tip-row"><span class="tip-k">' + esc(k) + '</span><span class="tip-v ' + (tone || '') + '">' + esc(ppValue(v)) + '</span></div>';
+  }
+  function mapTipVerdict(mode, r, b, score){
+    var data = b.data || {};
+    var n = Number(score);
+    if (mode === 'mood') {
+      var fug = hasDisplayValue(b.pop.fugitives) ? '，逃户 ' + ppValue(b.pop.fugitives) : '';
+      if (!isFinite(n)) return ['民情无册可稽。', ''];
+      if (n < 35) return ['民心 ' + n + '——已成干柴' + fug + '，一火即燃。', 'wei'];
+      if (n < 50) return ['民心 ' + n + '——民力已竭' + fug + '，有生变之虞。', 'wei'];
+      if (n < 65) return ['民心 ' + n + '——尚可支吾，不宜再加赋扰役。', ''];
+      return ['民心 ' + n + '——黎庶安业，可为根本之地。', 'an'];
+    }
+    if (mode === 'army') {
+      var note = firstValue(data.armyPressure, data.borderRisk, data.warRisk, data.threats);
+      var noteTxt = hasDisplayValue(note) ? '（' + ppValue(note) + '）' : '';
+      if (n >= 80) return ['边警之地' + noteTxt + '——宜厚饷固防，不可抽兵。', 'wei'];
+      if (n >= 60) return ['有警之地' + noteTxt + '——守备勿弛。', 'wei'];
+      if (n >= 40) return ['守备之地' + noteTxt + '。', ''];
+      return ['腹里安靖——可酌减冗兵以纾饷。', 'an'];
+    }
+    if (mode === 'office') {
+      var vac = Number(firstValue(data.officeVacancy, data.vacancy));
+      var vacTxt = isFinite(vac) && vac > 0 ? '，官缺 ' + vac + ' 员' : '';
+      if (n >= 80) return ['吏治已蠹' + vacTxt + '——非大狱不能清。', 'wei'];
+      if (n >= 60) return ['吏治浑浊' + vacTxt + '——赋税多漏，政令多阻。', 'wei'];
+      if (n >= 40) return ['吏治平平' + vacTxt + '——犹可整饬。', ''];
+      return ['吏治清明——可为他省式范。', 'an'];
+    }
+    if (mode === 'tax') {
+      if (score === '' || score === null || !isFinite(n)) return ['此地免科或未设税制——不入岁入之算。', ''];
+      var skim = ratio01(b.fiscal.skimmingRate);
+      var skimTxt = skim !== null && skim > 0 ? '，截留 ' + Math.round(skim * 100) + '%' : '';
+      if (n < 50) return ['实征不及应征之半' + skimTxt + '——欠征之地。', 'wei'];
+      if (n < 70) return ['足额率 ' + n + '%' + skimTxt + '——征解有漏。', ''];
+      if (n < 85) return ['足额率 ' + n + '%' + skimTxt + '——大体可观。', ''];
+      return ['足额率 ' + n + '%——足额上仓之地。', 'an'];
+    }
+    if (mode === 'classPressure') {
+      var cp = classPressureForRegion(r);
+      if (cp.count <= 0 && !(Number(cp.score) > 0)) return ['阶层账本于此地无近压。', 'an'];
+      return ['阶层压力 ' + ppValue(cp.score) + (cp.classNames.length ? '——牵动 ' + cp.classNames.join('、') : '') + '。', Number(cp.score) >= 50 ? 'wei' : ''];
+    }
+    return ['', ''];
+  }
+  function mapTipHtml(r){
+    var b = regionBundle(r);
+    var data = b.data || {};
+    var mode = (state.mapMode && state.mapMode !== 'owner' && GRADE_BANDS[state.mapMode]) ? state.mapMode : 'owner';
+    var rows = '';
+    if (mode === 'owner') {
+      rows = _tipRow('归属', ownerName(r)) +
+        _tipRow('主官', firstValue(data.governor, data.official)) +
+        _tipRow('驻军', firstValue(data.garrison, b.army.troops, r && r.troops)) +
+        _tipRow('民心', firstValue(data.minxinLocal, r && r.mood));
+      return '<b>' + esc(regionTitle(r)) + '</b><span class="tip-owner">' + esc(ownerName(r) || '') + '</span>' +
+        '<div class="tip-body">' + rows + '</div>' +
+        '<div class="tip-foot"><em>左键 翻方志</em><em>右键 展势力</em></div>';
+    }
+    var score = modeScore(r, mode);
+    var grade = gradeOf(mode, score);
+    var verdict = mapTipVerdict(mode, r, b, score);
+    if (mode === 'mood') {
+      rows = _tipRow('民心', score, gradeIsWarn(mode, grade) ? 'zhu' : '') +
+        _tipRow('逃户', b.pop.fugitives, 'zhu') +
+        _tipRow('灾异', firstValue(data.recentDisasters, (data.economyBase || {}).disasterRecord)) +
+        _tipRow('不稳', data.unrest);
+    } else if (mode === 'army') {
+      rows = _tipRow('军压', grade ? grade.mark + ' · ' + ppValue(score) : score, gradeIsWarn(mode, grade) ? 'zhu' : '') +
+        _tipRow('驻军', firstValue(data.garrison, b.army.troops, r && r.troops)) +
+        _tipRow('城防', firstValue(data.fortification, b.army.fortification)) +
+        _tipRow('边警', firstValue(data.borderRisk, data.warRisk, data.threats), 'zhu');
+    } else if (mode === 'office') {
+      rows = _tipRow('贪腐', firstValue(data.corruptionLocal, data.corruption), gradeIsWarn(mode, grade) ? 'zhu' : '') +
+        _tipRow('主官', firstValue(data.governor, data.official)) +
+        _tipRow('官缺', firstValue(data.officeVacancy, data.vacancy)) +
+        _tipRow('执行', firstValue(data.policyExecution, data.execution));
+    } else if (mode === 'tax') {
+      rows = _tipRow('应征', b.fiscal.claimedRevenue) +
+        _tipRow('实征', b.fiscal.actualRevenue) +
+        _tipRow('合规', hasDisplayValue(b.fiscal.compliance) ? pctValue(b.fiscal.compliance) : '') +
+        _tipRow('截留', hasDisplayValue(b.fiscal.skimmingRate) ? pctValue(b.fiscal.skimmingRate) : '', 'zhu');
+    } else if (mode === 'classPressure') {
+      var cp = classPressureForRegion(r);
+      rows = _tipRow('压力', cp.score, Number(cp.score) >= 50 ? 'zhu' : '') +
+        _tipRow('牵动', cp.classNames.join('、')) +
+        _tipRow('近因', cp.reason);
+    }
+    return '<b>' + esc(regionTitle(r)) + '</b><span class="tip-owner">' + esc(ownerName(r) || '') + '</span>' +
+      '<div class="tip-body">' + rows + '</div>' +
+      (verdict[0] ? '<div class="tip-verdict ' + verdict[1] + '">' + esc(verdict[0]) + '</div>' : '') +
+      '<div class="tip-foot"><em>左键 翻方志</em><em>右键 展势力</em></div>';
+  }
+
   function installMapInteraction(){
     var stage = mapStage();
     if (!stage || stage.__phase8MapBound) return;
@@ -1306,25 +1431,29 @@
       if (r) openFactionDossier(ownerKey(r), r);
     });
     // 性能·hover tooltip 改 rAF 节流 + 同省早退·避免每次 mousemove 都查找+重建 innerHTML+reflow
-    var _hoverEvt = null, _hoverRaf = null, _hoverLastId = null;
+    // 2026-06-11: 内容升级为「签注」——按当前视图给 3-4 行核心读数 + 一句判语（数字翻成人话）。
+    // hover key 含 mapMode：切视图后同省再悬停会重建内容（旧版只记 rid·切视图内容 stale）。
+    var _hoverEvt = null, _hoverRaf = null, _hoverLastKey = null;
     function _mapHoverTick(){
       _hoverRaf = null;
       var e = _hoverEvt; if (!e) return;
       var tip = document.getElementById('tmf-map-tip');
       if (!tip) return;
       var path = regionPathFromPoint(e);
-      if (!path) { tip.classList.remove('show'); _hoverLastId = null; return; }
-      // 位置每帧跟随鼠标（廉价·无 innerHTML 重建）
-      tip.style.left = (e.clientX + 12) + 'px';
-      tip.style.top = (e.clientY + 12) + 'px';
+      if (!path) { tip.classList.remove('show'); _hoverLastKey = null; return; }
+      // 位置每帧跟随鼠标（廉价·无 innerHTML 重建）·右/下越界翻转
+      var tx = e.clientX + 14, ty = e.clientY + 14;
+      if (tx + 270 > window.innerWidth) tx = e.clientX - 278;
+      if (ty + 190 > window.innerHeight) ty = e.clientY - 180;
+      tip.style.left = tx + 'px';
+      tip.style.top = ty + 'px';
       var rid = path.dataset.regionId || path.dataset.id;
-      if (rid === _hoverLastId) { tip.classList.add('show'); return; } // 同省·不再查找/不重建 innerHTML
-      _hoverLastId = rid;
+      var key = rid + '|' + (state.mapMode || 'owner');
+      if (key === _hoverLastKey) { tip.classList.add('show'); return; } // 同省同视图·不重建 innerHTML
+      _hoverLastKey = key;
       var r = findRegion(rid);
       if (!r) { tip.classList.remove('show'); return; }
-      var data = r.data || {};
-      var meta = [ownerName(r), data.officialPosition || r.terrain].filter(hasDisplayValue).join(' · ');
-      tip.innerHTML = '<b>' + esc(r.title || r.name) + '</b>' + (meta ? '<span>' + esc(meta) + '</span>' : '');
+      tip.innerHTML = mapTipHtml(r);
       tip.classList.add('show');
     }
     stage.addEventListener('mousemove', function(e){
@@ -1385,30 +1514,6 @@
     if (old) old.remove();
   }
 
-  var MAP_REGION_TABS = [
-    ['overview', '总览'],
-    ['mood', '民情'],
-    ['classPressure', '阶层'],
-    ['tax', '财赋'],
-    ['army', '军务'],
-    ['office', '官守'],
-    ['owner', '势力']
-  ];
-
-  var MAP_FACTION_TABS = [
-    ['records', '档案'],
-    ['overview', '总览'],
-    ['territory', '版图'],
-    ['military', '军务'],
-    ['finance', '财赋'],
-    ['relations', '关系']
-  ];
-
-  MAP_FACTION_TABS.sort(function(a, b){
-    var order = { overview: 1, territory: 2, military: 3, finance: 4, relations: 5, records: 6 };
-    return (order[a[0]] || 99) - (order[b[0]] || 99);
-  });
-
   var MAP_MODE_META = {
     overview: { title: '地块总览', mark: '览', note: '汇总地形、户口、财赋、军务、官守与势力归属，作为点击地块后的默认档案。' },
     owner: { title: '势力归属', mark: '势', note: '显示当前控制者、法理归属和所属势力，用来判断此地听命于谁。' },
@@ -1425,6 +1530,16 @@
       if (v !== undefined && v !== null && v !== '') return v;
     }
     return '';
+  }
+
+  // 正值优先取数（2026-06-12 零值覆盖病修）：live 源的 0 多为死缺省（provinceStats.soldiers=0、
+  // cascade 未触账的 0），不应抹掉剧本静态值——取第一个 >0 的数；全无正值返回 null。
+  function firstPositive(){
+    for (var i = 0; i < arguments.length; i += 1) {
+      var n = Number(arguments[i]);
+      if (isFinite(n) && n > 0) return n;
+    }
+    return null;
   }
 
   function hasDisplayValue(v){
@@ -1635,6 +1750,24 @@
       subTypes: '子类型', characterCorrections: '人物校正', isSupplement: '补充项',
       supplementId: '补充编号', supplementName: '补充名称'
     });
+    Object.assign(map, {
+      chars: '人物', armies: '军伍', parties: '党派', provinces: '辖省', summary: '概要',
+      charCount: '人物数', armyCount: '军伍数', provinceCount: '辖省数', partyCount: '党派数',
+      totalSoldiers: '总兵员', rebuiltTurn: '更新回合',
+      active: '现战', pending: '将起', recent: '近役',
+      taxation: '赋税', trade: '商贸', currency: '币制', labor: '役法', tribute: '贡赋',
+      amongGentry: '士绅', amongPeasantry: '农户', amongScholars: '士林',
+      in_manchu: '满洲', in_mongol: '蒙古', in_pirate: '海上',
+      consequences: '其变', self: '自居', ethnicities: '族裔',
+      rule: '承袭之制', designatedHeir: '所立之储', navigation: '航海', metallurgy: '冶铸',
+      printing: '印书', astronomy: '天文', event: '事', turn: '回合', impact: '其效',
+      tier: '门第', influenceDesc: '声势', base: '根基', org: '组织', longGoal: '长远之图',
+      rivalParty: '对头', policyStance: '政见', officePositions: '在朝之职',
+      belief: '信仰', learning: '学问', ethnicity: '族属', bio: '小传', gender: '性别', age: '年齿',
+      ancestralSeat: '祖宅', founder: '始祖', currentHead: '当主', politicalStance: '政论',
+      marriages: '姻娅', feuds: '世仇', tradition: '家风', recentFortunes: '近况',
+      prominence: '门望', warEnabled: '可启战端'
+    });
     var raw = String(k || '');
     if (map[raw]) return map[raw];
     if (/^[a-z][a-z0-9_-]*$/i.test(raw)) return readableUnknownField(raw);
@@ -1731,6 +1864,121 @@
     return s.length > max ? s.slice(0, max - 1) + '…' : s;
   }
 
+  // ── 军队↔地块对账层（2026-06-12）：GM.armies 与地块驻军此前两本账（驻地是城名·区划字段全空）。
+  //    驻地名 token 拆分 → 两遍匹配（先全等后包含·区划子树名册爬根）→ 按地块聚合活军。
+  //    剧本可在 region.data.aliases / division.aliases 扩别名（朝代地名不硬编进引擎）。──
+  var _armyRegionCache = { sig: '', byRegion: {}, unboundCount: 0, unbound: [] };
+  function armyRegionIndex(){
+    var gm = window.GM || {};
+    var armies = Array.isArray(gm.armies) ? gm.armies : [];
+    var map = getMapData() || {};
+    var regions = map.regions || [];
+    var sig = (gm.turn || 0) + ':' + armies.length + ':' +
+      armies.reduce(function(a, x){ return a + (Number(x && x.soldiers) || 0); }, 0) + ':' + regions.length;
+    if (_armyRegionCache.sig === sig) return _armyRegionCache;
+    // 聚落层名册（2026-06-12）：localityLayer 自带 regionId↔城名（宁远城/锦州城/皮岛/山海关…），
+    // 是城名驻地的通用解（朝代地名仍归剧本数据·引擎只读结构）。
+    var locByRegion = {};
+    (Array.isArray(map.localityLayer) ? map.localityLayer : []).forEach(function(x){
+      if (!x || !x.regionId || !x.localityName) return;
+      var k = String(x.regionId);
+      if (!locByRegion[k]) locByRegion[k] = [];
+      locByRegion[k].push(String(x.localityName));
+    });
+    var books = regions.map(function(r){
+      var names = regionNameKeys(r).slice();
+      var live = findLiveAdminDivision(r);
+      if (live) (function walk(d){
+        if (d && d.name) names.push(String(d.name));
+        if (d && Array.isArray(d.aliases)) d.aliases.forEach(function(a){ names.push(String(a)); });
+        var kids = d && (d.children || d.divisions);
+        if (kids && kids.length) kids.forEach(walk);
+      })(live);
+      var alias = (r.data && r.data.aliases) || (r.admin && r.admin.aliases);
+      if (Array.isArray(alias)) alias.forEach(function(a){ names.push(String(a)); });
+      var rid0 = String(r.id || r.name || '');
+      if (locByRegion[rid0]) names = names.concat(locByRegion[rid0]);
+      return {
+        id: rid0,
+        names: names.filter(function(n){ return n && n.length >= 2; }),
+        ownerKey: String(r.owner || r.currentOwner || (r.data && r.data.dejureOwner) || ''),
+        pop: Number(r.data && r.data.population) || 0
+      };
+    });
+    function matchRegion(token){
+      if (!token || token.length < 2) return null;
+      var i, j, ns;
+      for (i = 0; i < books.length; i += 1) {        // 第一遍：全等
+        ns = books[i].names;
+        for (j = 0; j < ns.length; j += 1) if (ns[j] === token) return books[i].id;
+      }
+      for (i = 0; i < books.length; i += 1) {        // 第二遍：双向包含
+        ns = books[i].names;
+        for (j = 0; j < ns.length; j += 1) {
+          if (ns[j].indexOf(token) >= 0 || token.indexOf(ns[j]) >= 0) return books[i].id;
+        }
+      }
+      return null;
+    }
+    var facIdByName = {};
+    (Array.isArray(gm.facs) ? gm.facs : []).forEach(function(f){
+      if (f && f.name && (f.id || f.sid)) facIdByName[String(f.name)] = String(f.id || f.sid);
+    });
+    var byRegion = {};
+    var unbound = [];
+    function addTo(rid, a, soldiers, label){
+      if (!byRegion[rid]) byRegion[rid] = { troops: 0, armies: [] };
+      byRegion[rid].troops += soldiers;
+      byRegion[rid].armies.push(label ? Object.assign({}, a, { name: String(a.name || '') + label, soldiers: soldiers }) : a);
+    }
+    armies.forEach(function(a){
+      if (!a || a.destroyed) return;
+      var soldiers = Math.max(0, Math.round(Number(a.soldiers || a.size || a.strength) || 0));
+      if (soldiers <= 0) return;
+      var garrisonText = String(a.garrison || a.location || '');
+      // ① 剧本 regionHint 直绑：不在区划树/聚落层的驻地（蓟州/固原/京师等）由剧本点名所属地块
+      var hint = a.regionHint || a.regionId;
+      var rid = hint ? matchRegion(String(hint)) : null;
+      // ② 驻地名 token 两遍匹配（区划子树+聚落层城名）
+      if (!rid) {
+        var tokens = garrisonText.split(/[·\-—~／/、()（）\s]+/).filter(Boolean);
+        for (var i = 0; i < tokens.length && !rid; i += 1) rid = matchRegion(tokens[i]);
+      }
+      // ③ 散驻天下（卫所总览类）：按本势力治下地块户口分摊（纸面分驻·卡名缀「分驻」）
+      if (!rid && /全国|各地|诸省|天下/.test(garrisonText)) {
+        var fid = facIdByName[String(a.faction || '')] || '';
+        var owned = books.filter(function(b){ return fid && b.ownerKey === fid; });
+        if (owned.length) {
+          var wsum = 0;
+          owned.forEach(function(b){ wsum += (b.pop > 0 ? b.pop : 1); });
+          owned.forEach(function(b){
+            var share = Math.round(soldiers * ((b.pop > 0 ? b.pop : 1) / wsum));
+            if (share > 0) addTo(b.id, a, share, '·分驻');
+          });
+          return;
+        }
+      }
+      // ④ 势力本部兜底：主力驻「游牧汗帐/诸部寨落」等无城名 → 势力名↔地块名匹配，或独块势力直绑
+      if (!rid && a.faction) {
+        rid = matchRegion(String(a.faction));
+        if (!rid) {
+          var fid2 = facIdByName[String(a.faction)] || '';
+          var owned2 = books.filter(function(b){ return fid2 && b.ownerKey === fid2; });
+          if (owned2.length === 1) rid = owned2[0].id;
+        }
+      }
+      if (!rid) { unbound.push({ name: String(a.name || ''), garrison: garrisonText, soldiers: soldiers }); return; }
+      addTo(rid, a, soldiers);
+    });
+    _armyRegionCache = { sig: sig, byRegion: byRegion, unboundCount: unbound.length, unbound: unbound };
+    return _armyRegionCache;
+  }
+  function regionArmies(r){
+    if (!r) return null;
+    var idx = armyRegionIndex();
+    return idx.byRegion[String(r.id || r.name || '')] || null;
+  }
+
   function regionBundle(r){
     var base = Object.assign({}, (r && r.admin) || {}, (r && r.data) || {});
     var liveDivision = findLiveAdminDivision(r);
@@ -1810,6 +2058,9 @@
       plainObject(liveDivision && liveDivision.fiscalDetail),
       plainObject(liveStats && liveStats.fiscalDetail)
     );
+    // 收支四账（应征/实征/起运/留用）+实征率/产出 正值优先：live 的 0 是「cascade 未触账/旧版零写入存档」
+    // 死缺省，不抹静态账。compliance 尤要：境外/边镇地块财赋分全靠它，live 0 盖掉静态即整片归零。
+    var REVENUE_KEYS = { actualRevenue: 1, claimedRevenue: 1, remittedToCenter: 1, retainedBudget: 1, compliance: 1, moneyOutput: 1, grainOutput: 1 };
     [
       ['actualRevenue', 'taxRevenue', 'revenue', 'actualRevenue'],
       ['claimedRevenue', 'claimedRevenue', 'expectedRevenue'],
@@ -1826,12 +2077,19 @@
       for (var i = 1; i < row.length; i += 1) {
         var key = row[i];
         var value = firstValue(liveStats && liveStats[key], liveDivision && liveDivision[key]);
+        if (REVENUE_KEYS[target] && hasValue(value) && !(Number(value) > 0)) continue; // 零值跳过·继续找
         if (hasValue(value)) {
           fiscal[target] = value;
           break;
         }
       }
     });
+    // 同源对账：实征空/零而起运+留用有值（跨源混账残留），以起运+留用重建实征
+    if (!(Number(fiscal.actualRevenue) > 0)) {
+      var _rebuilt = (Number(fiscal.remittedToCenter) > 0 ? Number(fiscal.remittedToCenter) : 0) +
+                     (Number(fiscal.retainedBudget) > 0 ? Number(fiscal.retainedBudget) : 0);
+      if (_rebuilt > 0) fiscal.actualRevenue = _rebuilt;
+    }
     if (hasValue(fiscal.actualRevenue)) data.taxRevenue = fiscal.actualRevenue;
     var treasury = assignKnown({},
       plainObject(base.publicTreasuryInit),
@@ -1874,10 +2132,21 @@
     );
     var liveDivisionArmy = plainObject(liveDivision && liveDivision.armyDetail);
     var liveStatsArmy = plainObject(liveStats && liveStats.armyDetail);
-    var troops = firstValue(liveStats && liveStats.soldiers, liveStats && liveStats.troops, liveStats && liveStats.garrison, liveStats && liveStats.strength, liveDivision && liveDivision.garrison, liveDivision && liveDivision.troops);
-    if (hasValue(troops)) {
+    // 驻军真账（2026-06-12 军地绑定）：第一优先 = GM.armies 按驻地聚合的活军；
+    // 次之 live 字段取正值（provinceStats.soldiers=0 是死缺省·不抹静态）；全无正值保静态。
+    var boundArmies = regionArmies(r);
+    var troops = firstPositive(
+      boundArmies && boundArmies.troops,
+      liveStats && liveStats.soldiers, liveStats && liveStats.troops, liveStats && liveStats.garrison, liveStats && liveStats.strength,
+      liveDivision && liveDivision.garrison, liveDivision && liveDivision.troops
+    );
+    if (troops !== null) {
       army.troops = troops;
       data.garrison = troops;
+    }
+    if (boundArmies && boundArmies.armies.length) {
+      army.liveArmies = boundArmies.armies;
+      army.liveArmyCount = boundArmies.armies.length;
     }
     var recruits = firstValue(liveStats && liveStats.militaryRecruits, liveStats && liveStats.recruits, liveStats && liveStats.levyPool, liveDivision && liveDivision.militaryRecruits, liveDivision && liveDivision.recruits);
     if (hasValue(recruits)) {
@@ -1965,7 +2234,11 @@
 
   function regionLevel(r){
     var data = regionBundle(r).data;
-    return [firstValue(data.regionType, data.level, r && r.type, r && r.level, '政区'), ownerName(r)].filter(Boolean).join(' · ');
+    // 2026-06-12: 剧本原始英文枚举(normal/jimi/tusi…)不直出 UI——映射中文，未知英文值跳过
+    var TYPE_CN = { normal: '直辖政区', province: '省级政区', jimi: '羁縻之地', tusi: '土司辖地', fanbang: '藩属之邦', fanguo: '藩国', imperial_clan: '宗藩封地', military: '军镇', capital: '京畿' };
+    var raw = firstValue(data.regionType, data.level, r && r.type, r && r.level, '');
+    var label = TYPE_CN[raw] || (/^[a-z_\- ]+$/i.test(String(raw)) ? '' : raw) || '政区';
+    return [label, ownerName(r)].filter(Boolean).join(' · ');
   }
 
   function regionIdentity(r){
@@ -1980,21 +2253,137 @@
     ];
   }
 
+  // ── 四视图计分（2026-06-11 重构）──────────────────────────────────
+  // 从 regionBundle 运行时字段动态结算·替代旧粗算（旧版军务直接拿驻军数当 0-100 分用、
+  // 官守是 100-corruption 但 riskClass 不反转致清廉显红）。每项可缺省、文本档位词可解析。
+  // 语义：mood=民心好坏(高=好) army=军务压力(高=险) office=吏治浊度(高=浊) tax=实征足额率(高=足·null=免科)
+  function parseLevelWord(v, fallback){
+    if (v === undefined || v === null || v === '') return fallback;
+    var n = Number(v);
+    if (isFinite(n)) {
+      if (n > 0 && n <= 1) return n * 100;
+      return Math.max(0, Math.min(100, n));
+    }
+    var s = String(v);
+    if (/极|危|甚急/.test(s)) return 90;
+    if (/高|重|急|紧/.test(s)) return 72;
+    if (/中|常|平/.test(s)) return 45;
+    if (/低|轻|缓|靖|安|无/.test(s)) return 20;
+    return fallback;
+  }
+  function ratio01(v){
+    var n = Number(v);
+    if (!isFinite(n)) return null;
+    return n > 1 ? Math.max(0, Math.min(1, n / 100)) : Math.max(0, Math.min(1, n));
+  }
+  function moodViewScore(r, b){
+    b = b || regionBundle(r);
+    var data = b.data || {};
+    var base = Number(firstValue(data.minxinLocal, r && r.mood, data.prosperity, 55));
+    if (!isFinite(base)) base = 55;
+    var mouths = Number(firstValue(b.pop.mouths, data.population, 0)) || 0;
+    var fug = Number(b.pop.fugitives) || 0;
+    var hid = Number(b.pop.hiddenCount) || 0;
+    var score = base;
+    if (mouths > 0 && fug > 0) score -= Math.min(15, (fug / mouths) * 120);
+    if (mouths > 0 && hid > 0) score -= Math.min(6, (hid / mouths) * 50);
+    if (hasDisplayValue(firstValue(data.recentDisasters, (data.economyBase || {}).disasterRecord))) score -= 6;
+    var unrest = Number(data.unrest);
+    if (isFinite(unrest) && unrest > 0) score -= Math.min(12, unrest * 0.12);
+    var live = b.liveDivision || {};
+    if (live._revoltActive) score -= 25;
+    else if (live._warZone) score -= 15;
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }
+  function armyViewScore(r, b){
+    b = b || regionBundle(r);
+    var data = b.data || {};
+    var live = b.liveDivision || {};
+    var pressure = parseLevelWord(firstValue(data.armyPressure, r && r.armyPressure), NaN);
+    var border = parseLevelWord(firstValue(data.borderRisk, data.warRisk), NaN);
+    var score;
+    if (!isFinite(pressure) && !isFinite(border)) {
+      score = hasDisplayValue(data.threats) ? 50 : 25;
+    } else {
+      score = Math.max(isFinite(pressure) ? pressure : 0, isFinite(border) ? border : 0);
+      if (hasDisplayValue(data.threats)) score = Math.min(100, score + 8);
+    }
+    if (live._revoltActive) score = Math.max(score, 78);
+    if (live._warZone) score = Math.max(score, 86);
+    var troops = Number(firstValue(data.garrison, b.army.troops, r && r.troops, 0)) || 0;
+    var mouths = Number(firstValue(b.pop.mouths, data.population, 0)) || 0;
+    if (score >= 60 && mouths > 0 && troops / mouths < 0.004) score = Math.min(100, score + 6);
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }
+  function officeViewScore(r, b){
+    b = b || regionBundle(r);
+    var data = b.data || {};
+    var corr = Number(firstValue(data.corruptionLocal, data.corruption));
+    var score = isFinite(corr) ? corr : 50;
+    var vac = Number(firstValue(data.officeVacancy, data.vacancy));
+    if (isFinite(vac) && vac > 0) score += Math.min(12, vac * 4);
+    var exec = ratio01(firstValue(data.policyExecution, data.execution));
+    if (exec !== null && exec < 0.5) score += (0.5 - exec) * 30;
+    if (!hasDisplayValue(firstValue(data.governor, data.official)) && hasDisplayValue(data.officialPosition)) score += 8;
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }
+  function taxViewScore(r, b){
+    b = b || regionBundle(r);
+    var data = b.data || {};
+    var actual = Number(b.fiscal.actualRevenue);
+    var claimed = Number(b.fiscal.claimedRevenue);
+    var remit = Number(b.fiscal.remittedToCenter);
+    var retain = Number(b.fiscal.retainedBudget);
+    // 同源守卫（2026-06-12 归零病修）：实征 0 而起运/留用有值 = 跨源混账（live 0 抹了静态实征），
+    // 此时实征以起运+留用重建，不让比值假归零。
+    if ((!isFinite(actual) || actual <= 0) && ((isFinite(remit) && remit > 0) || (isFinite(retain) && retain > 0))) {
+      actual = (isFinite(remit) ? remit : 0) + (isFinite(retain) ? retain : 0);
+    }
+    var score = null;
+    if (isFinite(claimed) && claimed > 0 && isFinite(actual) && actual > 0) score = (actual / claimed) * 100;
+    else {
+      // compliance=0 是旧版零写入/死缺省（实征率真为零的地块走不到这条分——它会有账可算），按缺账处理
+      var comp = ratio01(b.fiscal.compliance);
+      if (comp !== null && comp > 0) score = comp * 100;
+      else if (isFinite(actual) && actual > 0) score = 60;
+    }
+    if (score === null) return null; // 军镇免科/未设税制 → 图上「免」灰
+    var skim = ratio01(b.fiscal.skimmingRate);
+    if (skim !== null && skim > 0.25) score -= 5;
+    // 有征即非零：实征为正时哨牌至少 1（0 读起来像坏档，而非「征得极少」）
+    var floor = (isFinite(actual) && actual > 0) ? 1 : 0;
+    return Math.max(floor, Math.min(100, Math.round(score)));
+  }
+  // 五档色板（深色舆图底·对比≥3:1·档字供哨牌/图例·色不孤行）
+  var GRADE_BANDS = {
+    mood:   { inverse: true,  bands: [[0,35,'#8c2f26','危'],[35,50,'#a85a3a','忧'],[50,65,'#a8833a','平'],[65,80,'#7d9183','安'],[80,101,'#557f6f','乐']], nullColor:'#5a6258', nullMark:'—' },
+    army:   { inverse: false, bands: [[0,40,'#66796d','靖'],[40,60,'#a8833a','备'],[60,80,'#a85a3a','警'],[80,101,'#8c2f26','急']], nullColor:'#5a6258', nullMark:'—' },
+    office: { inverse: false, bands: [[0,40,'#557f6f','清'],[40,60,'#a8833a','中'],[60,80,'#9d5b4b','浊'],[80,101,'#7a2018','蠹']], nullColor:'#5a6258', nullMark:'—' },
+    tax:    { inverse: true,  bands: [[0,50,'#6e4a2a','欠'],[50,70,'#93702f','薄'],[70,85,'#b8923f','中'],[85,101,'#d8b96a','足']], nullColor:'#5a6258', nullMark:'免' },
+    classPressure: { inverse: false, bands: [[0,25,'#557f6f','缓'],[25,50,'#a8833a','起'],[50,75,'#a85a3a','压'],[75,101,'#8c2f26','激']], nullColor:'#5a6258', nullMark:'—' }
+  };
+  function gradeOf(mode, score){
+    var g = GRADE_BANDS[mode];
+    if (!g) return null;
+    var n = Number(score);
+    if (score === null || score === undefined || score === '' || !isFinite(n)) return { color: g.nullColor, mark: g.nullMark, idx: -1 };
+    for (var i = 0; i < g.bands.length; i += 1) {
+      if (n >= g.bands[i][0] && n < g.bands[i][1]) return { color: g.bands[i][2], mark: g.bands[i][3], idx: i };
+    }
+    var last = g.bands[g.bands.length - 1];
+    return { color: last[2], mark: last[3], idx: g.bands.length - 1 };
+  }
+  function gradeIsWarn(mode, grade){
+    var g = GRADE_BANDS[mode];
+    if (!g || !grade || grade.idx < 0) return false;
+    return g.inverse ? grade.idx <= 1 : grade.idx >= g.bands.length - 2;
+  }
   function modeScore(r, mode){
-    var b = regionBundle(r);
-    if (mode === 'mood') return firstValue(b.data.minxinLocal, r && r.mood, r && r.prosperity, 50);
+    if (mode === 'mood') return moodViewScore(r);
     if (mode === 'classPressure') return classPressureForRegion(r).score;
-    if (mode === 'tax') {
-      var actual = Number(firstValue(b.fiscal.actualRevenue, r && r.tax, r && r.development, 0));
-      var claimed = Number(firstValue(b.fiscal.claimedRevenue, actual || 0));
-      if (claimed > 0 && actual >= 0) return Math.max(0, Math.min(100, Math.round(actual / claimed * 100)));
-      return actual ? Math.min(100, Math.round(actual / 30000)) : 50;
-    }
-    if (mode === 'army') return firstValue(b.data.armyPressure, b.data.garrison, b.army.troops, r && r.armyPressure, r && r.troops, 50);
-    if (mode === 'office') {
-      var c = Number(firstValue(b.data.corruptionLocal, b.data.corruption, 50));
-      return isFinite(c) ? Math.max(0, Math.min(100, 100 - c)) : 50;
-    }
+    if (mode === 'tax') { var t = taxViewScore(r); return t === null ? '' : t; }
+    if (mode === 'army') return armyViewScore(r);
+    if (mode === 'office') return officeViewScore(r);
     if (mode === 'owner') return ownerName(r) ? 80 : 50;
     return 60;
   }
@@ -2016,510 +2405,10 @@
     return values.some(hasDisplayValue);
   }
 
-  function regionHasModeData(r, mode){
-    if (mode === 'overview') return true;
-    var b = regionBundle(r);
-    var data = b.data || {};
-    var econ = data.economyBase || {};
-    if (mode === 'mood') {
-      return anyDisplayValue([
-        data.population, b.pop.mouths, b.pop.households, b.pop.ding, b.pop.fugitives, b.pop.hiddenCount,
-        data.minxinLocal, data.prosperity, data.wealth, data.development, data.unrest,
-        data.carryingCapacity, data.baojia, data.recentDisasters, econ.disasterRecord,
-        data.byGender, data.byAge, data.byEthnicity, data.byFaith, data.bySettlement, data.religiousSites
-      ]);
-    }
-    if (mode === 'classPressure') {
-      var cp = classPressureForRegion(r);
-      return Number(cp.score) > 0 || (cp.classNames && cp.classNames.length > 0) || cp.count > 0 || hasDisplayValue(cp.reason);
-    }
-    if (mode === 'tax') {
-      return anyDisplayValue([
-        b.fiscal.claimedRevenue, b.fiscal.actualRevenue, b.fiscal.remittedToCenter, b.fiscal.retainedBudget,
-        b.fiscal.compliance, b.fiscal.skimmingRate, b.fiscal.autonomy, b.fiscal.taxBurden,
-        b.fiscal.moneyOutput, b.fiscal.grainOutput, data.taxLevel,
-        b.treasury.money, b.treasury.grain, b.treasury.cloth,
-        econ.farmland, econ.commerceVolume, econ.commerceCoefficient, econ.saltProduction,
-        econ.mineralProduction, econ.horseProduction, econ.fishingProduction, econ.imperialFarmland,
-        econ.postRelays, econ.roadQuality, econ.imperialAssets
-      ]);
-    }
-    if (mode === 'army') {
-      return anyDisplayValue([
-        data.garrison, b.army.troops, data.armyPressure, data.fortification, b.army.fortification,
-        data.commander, b.army.commander, data.borderRisk, data.warRisk, data.supply, b.army.supply,
-        data.strategicValue, data.threats, data.tradeRoutes, econ.roadQuality, econ.postRelays,
-        econ.horseProduction, data.navy, data.coastalDefense, data.militaryRecruits, b.army.recruits
-      ]);
-    }
-    if (mode === 'office') {
-      return anyDisplayValue([
-        data.officialPosition, data.governor, data.official, data.officeVacancy, data.vacancy,
-        data.corruptionLocal, data.corruption, data.policyExecution, data.execution,
-        data.localFaction, data.party, data.leadingGentry, data.academies, data.taxLevel,
-        data.tags, econ.kejuQuota, econ.imperialAssets, data.note
-      ]);
-    }
-    if (mode === 'owner') {
-      return anyDisplayValue([ownerKey(r), data.owner, data.ownerName, data.factionName, data.dejureOwner, data.controllerKey, data.coreStatus, data.borderStatus, data.ownerHistory]);
-    }
-    return false;
-  }
-
-  function regionTabsFor(r){
-    return MAP_REGION_TABS.filter(function(t){ return regionHasModeData(r, t[0]); });
-  }
-
-  function resolveRegionTab(r, active){
-    return regionHasModeData(r, active) ? active : 'overview';
-  }
-
-  function ppTabButtons(kind, active, region, faction, factionKey){
-    var tabs = kind === 'faction' ? factionTabsFor(faction, factionKey, region) : regionTabsFor(region);
-    return tabs.map(function(t){
-      return '<button type="button" class="pp-tab ' + (t[0] === active ? 'active' : '') + '" data-pp-tab="' + attr(t[0]) + '">' + esc(t[1]) + '</button>';
-    }).join('');
-  }
-
-  function ppStatusSealGrid(r){
-    var html = [
-      ppStatusSeal('mood', '民情', r),
-      ppStatusSeal('tax', '财赋', r),
-      ppStatusSeal('army', '军务', r),
-      ppStatusSeal('office', '官守', r),
-      ppStatusSeal('owner', '势力', r)
-    ].filter(Boolean).join('');
-    return html ? '<div class="pp-seal-grid wide">' + html + '</div>' : '';
-  }
-
-  function ppZone(title, rows, wide){
-    var html = rows.filter(rowHasDisplayValue).map(function(row){
-      return '<div class="pp-zr"><span class="pp-zk">' + esc(row[0]) + '</span><span class="pp-zv">' + esc(ppValue(row[1])) + '</span></div>';
-    }).join('');
-    if (!html) return '';
-    return '<section class="pp-zone ' + (wide ? 'wide' : '') + '"><div class="pp-zt">' + esc(title) + '</div>' + html + '</section>';
-  }
-
-  function ppModeBanner(r, active){
-    var mode = MAP_MODE_META[active] ? active : 'overview';
-    var meta = MAP_MODE_META[mode];
-    var b = regionBundle(r);
-    var value = '';
-    var note = meta.note;
-    if (mode === 'mood') value = firstValue(b.data.minxinLocal, r && r.mood, b.data.population, b.data.prosperity, b.data.unrest);
-    else if (mode === 'classPressure') {
-      var pressure = classPressureForRegion(r);
-      value = hasDisplayValue(pressure.score) ? (pressure.score + ' / 100') : (pressure.count > 0 ? pressure.count + ' 条' : '');
-      note = pressure.classNames.length ? ('牵动 ' + pressure.classNames.join('、')) : note;
-    }
-    else if (mode === 'tax') value = firstValue(b.fiscal.actualRevenue, b.fiscal.claimedRevenue, b.fiscal.moneyOutput, b.fiscal.grainOutput, b.treasury.money, r && r.tax, b.data.taxLevel);
-    else if (mode === 'army') value = firstValue(b.data.garrison, b.army.troops, b.data.armyPressure, b.data.militaryRecruits, b.army.recruits, r && r.troops);
-    else if (mode === 'office') value = firstValue(b.data.governor, b.data.officialPosition, b.data.corruptionLocal, b.data.policyExecution);
-    else if (mode === 'owner') value = ownerName(r);
-    else value = firstValue(regionTitle(r), ownerName(r));
-    var score = mode === 'overview' ? '' : modeScore(r, mode);
-    return '<div class="pp-mode-banner ' + (mode === 'overview' ? 'overview' : riskClass(score, mode === 'mood' || mode === 'tax')) + '">' +
-      '<div class="pp-mode-seal">' + esc(meta.mark) + '</div>' +
-      '<div class="pp-mode-copy"><div class="pp-mode-title">' + esc(meta.title) + '</div><div class="pp-mode-note">' + esc(note) + '</div></div>' +
-      '<div class="pp-mode-score"><span>' + esc(mode === 'overview' ? '档案' : '读数') + '</span><b>' + esc(ppValue(value)) + '</b></div>' +
-    '</div>';
-  }
-
-  function ppStatusSeal(mode, label, r){
-    if (!regionHasModeData(r, mode)) return '';
-    var score = modeScore(r, mode);
-    var inverse = mode === 'mood' || mode === 'tax';
-    return '<button type="button" class="pp-status-seal ' + riskClass(score, inverse) + (state.mapPanelTab === mode ? ' active' : '') + '" data-pp-tab="' + attr(mode) + '">' +
-      '<span class="pp-status-k">' + esc(label) + '</span><b class="pp-status-v">' + esc(ppValue(score)) + '</b><em class="pp-status-note">' + esc(MAP_MODE_META[mode].title) + '</em>' +
-      '</button>';
-  }
-
-  function ppDevTriplet(r){
-    var b = regionBundle(r);
-    var rows = [
-      ['户', firstValue(b.data.population, b.pop.mouths, b.pop.households, r && r.population), '户口 / 丁册'],
-      ['赋', firstValue(b.fiscal.actualRevenue, b.fiscal.claimedRevenue, r && r.tax), '实征 / 应征'],
-      ['兵', firstValue(b.data.garrison, b.army.troops, r && r.troops), '驻军 / 军压']
-    ];
-    var html = rows.filter(rowHasDisplayValue).map(function(row){
-      return '<div class="pp-dev-chip"><i>' + esc(row[0]) + '</i><b>' + esc(ppValue(row[1])) + '</b><span>' + esc(row[2]) + '</span><em>读数</em></div>';
-    }).join('');
-    return html ? '<div class="pp-dev-triplet">' + html + '</div>' : '';
-  }
-
-  function ppLedger(label, value, note, tone){
-    if (!hasDisplayValue(value)) return '';
-    return '<div class="pp-ledger-card ' + attr(tone || '') + '"><span>' + esc(label) + '</span><b>' + esc(ppValue(value)) + '</b><small>' + esc(note || '') + '</small></div>';
-  }
-
-  function ppLedgerGrid(cards){
-    var html = cards.filter(Boolean).join('');
-    return html ? '<div class="pp-ledger-grid wide">' + html + '</div>' : '';
-  }
-
-  function ppFieldChips(rows){
-    var html = rows.filter(rowHasDisplayValue).map(function(row){
-      return '<span class="pp-field-chip"><b>' + esc(row[0]) + '</b>' + esc(ppValue(row[1])) + '</span>';
-    }).join('');
-    return html ? '<div class="pp-field-chips wide">' + html + '</div>' : '';
-  }
-
-  function ppTableRows(rows){
-    var html = rows.filter(rowHasDisplayValue).map(function(row){
-      return '<div class="pp-table-row"><div><b>' + esc(fieldLabel(row[0])) + '</b><span>' + esc(ppValue(row[2] || '')) + '</span></div><em>' + esc(ppValue(row[1])) + '</em></div>';
-    }).join('');
-    return html ? '<div class="pp-table-list wide">' + html + '</div>' : '';
-  }
-
   function ppTagNames(tags){
     if (!tags || typeof tags !== 'object') return [];
     var label = { hasPort: '港口', saltRegion: '盐课', mineralRegion: '矿课', horseRegion: '马政', fishingRegion: '渔课', imperialDomain: '皇庄' };
     return Object.keys(tags).filter(function(k){ return !!tags[k]; }).map(function(k){ return label[k] || k; });
-  }
-
-  function ppIdChain(r){
-    var b = regionBundle(r);
-    var children = Array.isArray(b.data.children) ? b.data.children : [];
-    var html = [
-      ['归属', ownerName(r)],
-      ['官守', firstValue(b.data.officialPosition, b.data.governor)],
-      ['地块 ID', firstValue(r && r.id, r && r.mapRegionId, b.data.id)],
-      ['法理', firstValue(b.data.dejureOwner, ownerName(r))],
-      ['首府/子区', firstValue(b.data.capitalChildId, b.data.capital, children.length ? children.length + ' 项' : '')],
-      ['类型', firstValue(b.data.regionType, b.data.level, r && r.type)]
-    ].filter(rowHasDisplayValue).map(function(row){
-      return '<div class="pp-chain-item"><div class="pp-chain-k">' + esc(row[0]) + '</div><div class="pp-chain-v">' + esc(ppValue(row[1])) + '</div></div>';
-    }).join('');
-    return html ? '<div class="pp-id-chain wide">' + html + '</div>' : '';
-  }
-
-  function ppFacilities(r){
-    var b = regionBundle(r);
-    var econ = b.data.economyBase || {};
-    var assets = econ.imperialAssets || {};
-    var rows = [
-      ['耕地', econ.farmland], ['商贸', econ.commerceVolume], ['盐课', econ.saltProduction], ['矿课', econ.mineralProduction],
-      ['马政', econ.horseProduction], ['渔课', econ.fishingProduction], ['皇庄', econ.imperialFarmland], ['织造', assets.zhizao],
-      ['矿厂', assets.kuangchang], ['御窑', assets.yuyao], ['驿站', econ.postRelays], ['道路', econ.roadQuality]
-    ];
-    var html = rows.filter(rowHasDisplayValue).map(function(row){
-      return '<div class="pp-facility"><span>' + esc(row[0]) + '</span><b>' + esc(ppValue(row[1])) + '</b></div>';
-    }).join('');
-    return html ? '<section class="pp-zone pp-facilities wide"><div class="pp-zt">地方设施</div><div class="pp-facility-grid">' + html + '</div></section>' : '';
-  }
-
-  function ppAdminExtra(r){
-    var b = regionBundle(r);
-    var econ = b.data.economyBase || {};
-    var table = ppTableRows([
-      ['书院', b.data.academies, '地方士林'],
-      ['士绅', b.data.leadingGentry, '地方精英'],
-      ['宗教场所', b.data.religiousSites, '信仰网络'],
-      ['城镇聚落', b.data.bySettlement, '城乡构成'],
-      ['贸易路线', b.data.tradeRoutes, '商路/漕路'],
-      ['近期灾异', firstValue(b.data.recentDisasters, econ.disasterRecord), '灾害记录'],
-      ['威胁', b.data.threats, '军政风险'],
-      ['特殊文化', b.data.specialCulture, '地域叙述'],
-      ['战略价值', b.data.strategicValue, '军政判断']
-    ]);
-    return table ? '<div class="pp-section-strip wide">地方底账</div>' + table : '';
-  }
-
-  function ppRegionActionRow(r){
-    var b = regionBundle(r);
-    var actions = [];
-    var key = ownerKey(r);
-    if (hasDisplayValue(key)) {
-      actions.push('<button type="button" class="pp-action" onclick="TMPhase8FormalBridge.openFactionByKey(\'' + attr(key) + '\')">打开势力档案</button>');
-    }
-    var divId = firstValue(b.liveDivision && (b.liveDivision.id || b.liveDivision.name), r && r.name, r && r.id);
-    if (b.liveDivision && hasDisplayValue(divId) && (typeof window.openDivisionDetail === 'function' || typeof openDivisionDetail === 'function')) {
-      actions.push('<button type="button" class="pp-action" onclick="if(typeof openDivisionDetail===\'function\')openDivisionDetail(\'' + attr(divId) + '\')">打开地方账本</button>');
-    }
-    return actions.length ? '<div class="pp-action-row wide">' + actions.join('') + '</div>' : '';
-  }
-
-  function ppRegionTabDetail(r, active){
-    var b = regionBundle(r);
-    var data = b.data || {};
-    var econ = data.economyBase || {};
-    var children = Array.isArray(data.children) ? data.children : [];
-    var tagList = ppTagNames(data.tags);
-    var mode = MAP_MODE_META[active] ? active : 'overview';
-    var body = '';
-    if (mode === 'overview') {
-      body = ppZone('行政档案', [
-        ['地块名', regionTitle(r)],
-        ['行政层级', firstValue(data.level, data.regionType, r && r.level, r && r.type)],
-        ['官方 ID', firstValue(data.id, r && r.id, r && r.mapRegionId)],
-        ['主官职名', firstValue(data.officialPosition, data.office, r && r.office)],
-        ['主官', firstValue(data.governor, data.official, r && r.governor)],
-        ['治所 / 核心', firstValue(data.capital, data.capitalChildId, r && r.capital)],
-        ['法理归属', firstValue(data.dejureOwner, ownerName(r))],
-        ['下辖子区', children.length ? children.map(function(x){ return ppValue(x.name || x.title || x.id || x); }).join('、') : '']
-      ], true) + ppFieldChips([
-        ['地势', firstValue(data.terrain, r && r.terrain)],
-        ['特殊资源', firstValue(data.specialResources, r && r.resources)],
-        ['特殊文化', data.specialCulture],
-        ['战略价值', data.strategicValue],
-        ['标签', tagList]
-      ]) + ppIdChain(r);
-    } else if (mode === 'mood') {
-      body = ppZone('民情与人口', [
-        ['总人口', firstValue(data.population, b.pop.mouths, r && r.population)],
-        ['黄册户', b.pop.households],
-        ['丁口', b.pop.ding],
-        ['逃户', b.pop.fugitives],
-        ['隐户', b.pop.hiddenCount],
-        ['民心', firstValue(data.minxinLocal, r && r.mood)],
-        ['繁荣', firstValue(data.prosperity, r && r.prosperity)],
-        ['财富', data.wealth],
-        ['发展', data.development],
-        ['不稳', data.unrest],
-        ['承载上限', data.carryingCapacity],
-        ['保甲', data.baojia],
-        ['近期灾异', firstValue(data.recentDisasters, econ.disasterRecord)]
-      ], true) + ppFieldChips([
-        ['性别', data.byGender],
-        ['年龄', data.byAge],
-        ['族群', data.byEthnicity],
-        ['信仰', data.byFaith],
-        ['聚落', data.bySettlement],
-        ['宗教场所', data.religiousSites]
-      ]);
-    } else if (mode === 'classPressure') {
-      var cp = classPressureForRegion(r);
-      body = ppZone('阶层民心压力', [
-        ['压力读数', hasDisplayValue(cp.score) ? (cp.score + ' / 100') : ''],
-        ['牵动阶层', cp.classNames.length ? cp.classNames.join('、') : ''],
-        ['账本记录', cp.count],
-        ['最近近因', cp.reason || '']
-      ], true) + ppFieldChips([
-        ['地方民心', firstValue(data.minxinLocal, r && r.mood)],
-        ['逃户', b.pop.fugitives],
-        ['税负', firstValue(b.fiscal.taxBurden, data.taxBurden)],
-        ['腐败', firstValue(data.corruptionLocal, data.corruption)],
-        ['现有议题', firstValue(data.threats, r && r.issue)]
-      ]);
-    } else if (mode === 'tax') {
-      body = ppZone('财赋流水', [
-        ['应征税额', b.fiscal.claimedRevenue],
-        ['实收税额', b.fiscal.actualRevenue],
-        ['起运中枢', b.fiscal.remittedToCenter],
-        ['留用地方', b.fiscal.retainedBudget],
-        ['合规率', pctValueIfPresent(b.fiscal.compliance)],
-        ['截留率', pctValueIfPresent(b.fiscal.skimmingRate)],
-        ['财政自主', b.fiscal.autonomy],
-        ['税负', firstValue(b.fiscal.taxBurden, data.taxBurden)],
-        ['税级', data.taxLevel],
-        ['地方银', b.treasury.money],
-        ['地方粮', b.treasury.grain],
-        ['地方布', b.treasury.cloth],
-        ['本回合银产', b.fiscal.moneyOutput],
-        ['本回合粮产', b.fiscal.grainOutput]
-      ], true) + ppFacilities(r);
-    } else if (mode === 'army') {
-      body = ppZone('军务态势', [
-        ['驻军', firstValue(data.garrison, b.army.troops, r && r.troops)],
-        ['可募兵源', firstValue(data.militaryRecruits, b.army.recruits)],
-        ['军压', firstValue(data.armyPressure, r && r.armyPressure)],
-        ['城防', firstValue(data.fortification, b.army.fortification)],
-        ['主将', firstValue(data.commander, b.army.commander)],
-        ['边警', firstValue(data.borderRisk, data.warRisk)],
-        ['补给', firstValue(data.supply, b.army.supply)],
-        ['战略价值', data.strategicValue],
-        ['威胁', data.threats]
-      ], true) + ppFieldChips([
-        ['商路', data.tradeRoutes],
-        ['道路', econ.roadQuality],
-        ['驿站', econ.postRelays],
-        ['马政', econ.horseProduction],
-        ['水师 / 海防', firstValue(data.navy, data.coastalDefense)]
-      ]);
-    } else if (mode === 'office') {
-      body = ppZone('官守治理', [
-        ['官职', data.officialPosition],
-        ['主官', firstValue(data.governor, data.official)],
-        ['官缺', firstValue(data.officeVacancy, data.vacancy)],
-        ['腐败', firstValue(data.corruptionLocal, data.corruption)],
-        ['执行', firstValue(data.policyExecution, data.execution)],
-        ['地方派系', firstValue(data.localFaction, data.party)],
-        ['士绅', data.leadingGentry],
-        ['书院', data.academies],
-        ['税级', data.taxLevel]
-      ], true) + ppFieldChips([
-        ['治理标签', tagList],
-        ['科举名额', econ.kejuQuota],
-        ['官府资产', econ.imperialAssets],
-        ['地方备注', firstValue(data.note, r && r.note)]
-      ]);
-    } else if (mode === 'owner') {
-      var key = ownerKey(r);
-      var f = findFaction(key, r && (r.factionName || r.ownerName)) || {};
-      body = ppZone('势力归属', [
-        ['当前控制', ownerName(r)],
-        ['法理归属', firstValue(data.dejureOwner, ownerName(r))],
-        ['核心 / 边缘', firstValue(data.coreStatus, data.borderStatus)],
-        ['归属历史', data.ownerHistory]
-      ], true) + '<div class="pp-action-row wide"><button type="button" class="pp-action" onclick="TMPhase8FormalBridge.openFactionByKey(\'' + attr(key) + '\')">打开势力档案</button></div>';
-    }
-    return '<div class="pp-tab-detail">' + ppModeBanner(r, mode) + body + '</div>';
-  }
-
-  function ppRegionGrid(r, active){
-    var b = regionBundle(r);
-    var children = Array.isArray(b.data.children) ? b.data.children : [];
-    var desc = firstValue(b.data.description, r && r.description);
-    var descHtml = desc ? '<p class="pp-admin-desc">' + esc(desc) + '</p>' : '';
-    var tags = [];
-    if (b.data.tags && typeof b.data.tags === 'object') {
-      Object.keys(b.data.tags).forEach(function(k){ if (b.data.tags[k]) tags.push(k); });
-    }
-    return [
-      '<section class="pp-admin-brief wide"><div class="pp-admin-seal">' + esc(regionTitle(r).slice(0, 1)) + '</div><div><b>' + esc(firstValue(b.data.officialPosition, b.data.regionType, b.data.level, r && r.type, '地方政区')) + '</b>' + descHtml + '</div></section>',
-      ppDevTriplet(r),
-      ppStatusSealGrid(r),
-      ppZone('地形 · 户口', [
-        ['地势', firstValue(b.data.terrain, r && r.terrain)],
-        ['总口', firstValue(b.data.population, b.pop.mouths, r && r.population)],
-        ['黄册户', b.pop.households],
-        ['丁口', b.pop.ding],
-        ['逃户', b.pop.fugitives],
-        ['族群/风俗', firstValue(b.data.ethnicity, b.data.customs)]
-      ]),
-      ppZone('财赋 · 库藏', [
-        ['应征', b.fiscal.claimedRevenue],
-        ['实征', b.fiscal.actualRevenue],
-        ['留用', b.fiscal.retainedBudget],
-        ['税负', firstValue(b.fiscal.taxBurden, b.data.taxBurden)],
-        ['地方银', b.treasury.money],
-        ['地方粮', b.treasury.grain]
-      ]),
-      ppZone('军务 · 城防', [
-        ['驻军', firstValue(b.data.garrison, b.army.troops, r && r.troops)],
-        ['军压', firstValue(b.data.armyPressure, r && r.armyPressure)],
-        ['城防', firstValue(b.data.fortification, b.army.fortification)],
-        ['主将', firstValue(b.data.commander, b.army.commander)],
-        ['边警', firstValue(b.data.borderRisk, b.data.warRisk)],
-        ['补给', firstValue(b.data.supply, b.army.supply)]
-      ]),
-      ppZone('官守 · 治理', [
-        ['主官', firstValue(b.data.governor, b.data.official)],
-        ['官职', b.data.officialPosition],
-        ['官缺', firstValue(b.data.officeVacancy, b.data.vacancy)],
-        ['腐败', firstValue(b.data.corruptionLocal, b.data.corruption)],
-        ['执行', firstValue(b.data.policyExecution, b.data.execution)],
-        ['地方派系', firstValue(b.data.localFaction, b.data.party)]
-      ]),
-      ppZone('势力 · 归属', [
-        ['当前控制', ownerName(r)],
-        ['法理归属', firstValue(b.data.dejureOwner, ownerName(r))],
-        ['核心/边缘', firstValue(b.data.coreStatus, b.data.borderStatus)],
-        ['下辖子区', children.length ? children.map(function(x){ return ppValue(x.name || x.title || x); }).join('、') : ''],
-        ['标签', tags.length ? tags.join('、') : '']
-      ]),
-      ppRegionActionRow(r)
-    ].join('');
-  }
-
-  function ppRegionGridV2(r, active){
-    var b = regionBundle(r);
-    var children = Array.isArray(b.data.children) ? b.data.children : [];
-    var tagList = ppTagNames(b.data.tags);
-    var desc = firstValue(b.data.description, r && r.description);
-    var descHtml = desc ? '<p class="pp-admin-desc">' + esc(desc) + '</p>' : '';
-    var regionId = firstValue(r && r.id, b.data.id);
-    var regionIdHtml = regionId ? '<small>' + esc(regionId) + '</small>' : '';
-    return [
-      '<section class="pp-admin-brief wide"><div class="pp-admin-head"><div class="pp-admin-seal"><b>' + esc(regionTitle(r).slice(0, 1)) + '</b><span>' + esc(firstValue(b.data.level, r && r.level, '政区')) + '</span></div><div><div class="pp-admin-title"><span>' + esc(regionTitle(r)) + '</span>' + regionIdHtml + '</div>' + descHtml + '<div class="pp-badge-row">' + [firstValue(b.data.regionType, b.data.level, r && r.type), firstValue(b.data.officialPosition, b.data.governor), ownerName(r)].concat(tagList).filter(Boolean).slice(0, 9).map(function(x, i){ return '<span class="' + (i === 2 ? 'good' : '') + '">' + esc(ppValue(x)) + '</span>'; }).join('') + '</div></div></div></section>',
-      ppLedgerGrid([
-        ppLedger('在编人口', firstValue(b.data.population, b.pop.mouths, r && r.population), '官方剧本口径'),
-        ppLedger('黄册户口', b.pop.households, hasDisplayValue(b.pop.ding) ? ('丁 ' + ppValue(b.pop.ding)) : ''),
-        ppLedger('商业额', objectValue(b.data.economyBase, ['commerceVolume']), hasDisplayValue(objectValue(b.data.economyBase, ['commerceCoefficient'])) ? ('系数 ' + ppValue(objectValue(b.data.economyBase, ['commerceCoefficient']))) : ''),
-        ppLedger('实收税银', b.fiscal.actualRevenue, hasDisplayValue(b.fiscal.compliance) ? ('缴纳 ' + pctValue(b.fiscal.compliance)) : ''),
-        ppLedger('民心', firstValue(b.data.minxinLocal, r && r.mood), '地方读数'),
-        ppLedger('贪腐', firstValue(b.data.corruptionLocal, b.data.corruption), hasDisplayValue(b.fiscal.skimmingRate) ? ('截留 ' + pctValue(b.fiscal.skimmingRate)) : ''),
-        ppLedger('驿路', objectValue(b.data.economyBase, ['roadQuality']), hasDisplayValue(objectValue(b.data.economyBase, ['postRelays'])) ? ('驿站 ' + ppValue(objectValue(b.data.economyBase, ['postRelays']))) : ''),
-        ppLedger('灾异', firstValue(b.data.recentDisasters, objectValue(b.data.economyBase, ['disasterRecord'])), '近期记录'),
-        ppLedger('威胁', firstValue(b.data.threats, r && r.issue), '可入近事')
-      ]),
-      ppDevTriplet(r),
-      ppStatusSealGrid(r),
-      ppIdChain(r),
-      ppZone('地形 · 户口', [
-        ['地势', firstValue(b.data.terrain, r && r.terrain)],
-        ['总口', firstValue(b.data.population, b.pop.mouths, r && r.population)],
-        ['黄册户', b.pop.households],
-        ['丁口', b.pop.ding],
-        ['逃户', b.pop.fugitives],
-        ['隐户', b.pop.hiddenCount],
-        ['承载上限', b.data.carryingCapacity],
-        ['保甲', b.data.baojia],
-        ['性别 / 年龄', [b.data.byGender, b.data.byAge].filter(hasDisplayValue).map(ppValue).join(' / ')],
-        ['族群 / 信仰', [b.data.byEthnicity, b.data.byFaith].filter(hasDisplayValue).map(ppValue).join(' / ')],
-        ['繁荣', firstValue(b.data.prosperity, r && r.prosperity)],
-        ['财富', b.data.wealth],
-        ['发展', b.data.development],
-        ['不稳', b.data.unrest]
-      ]),
-      ppZone('财赋 · 库藏', [
-        ['应征', b.fiscal.claimedRevenue],
-        ['实征', b.fiscal.actualRevenue],
-        ['起运中枢', b.fiscal.remittedToCenter],
-        ['留用地方', b.fiscal.retainedBudget],
-        ['合规率', pctValueIfPresent(b.fiscal.compliance)],
-        ['截留率', pctValueIfPresent(b.fiscal.skimmingRate)],
-        ['税负', firstValue(b.fiscal.taxBurden, b.data.taxBurden)],
-        ['地方银', b.treasury.money],
-        ['地方粮', b.treasury.grain],
-        ['地方布', b.treasury.cloth],
-        ['税级', b.data.taxLevel],
-        ['本回合银产', b.fiscal.moneyOutput],
-        ['本回合粮产', b.fiscal.grainOutput]
-      ]),
-      ppZone('军务 · 城防', [
-        ['驻军', firstValue(b.data.garrison, b.army.troops, r && r.troops)],
-        ['可募兵源', firstValue(b.data.militaryRecruits, b.army.recruits)],
-        ['军压', firstValue(b.data.armyPressure, r && r.armyPressure)],
-        ['城防', firstValue(b.data.fortification, b.army.fortification)],
-        ['主将', firstValue(b.data.commander, b.army.commander)],
-        ['边警', firstValue(b.data.borderRisk, b.data.warRisk)],
-        ['补给', firstValue(b.data.supply, b.army.supply)],
-        ['商路', b.data.tradeRoutes],
-        ['战略价值', b.data.strategicValue]
-      ]),
-      ppZone('官守 · 治理', [
-        ['主官', firstValue(b.data.governor, b.data.official)],
-        ['官职', b.data.officialPosition],
-        ['官缺', firstValue(b.data.officeVacancy, b.data.vacancy)],
-        ['腐败', firstValue(b.data.corruptionLocal, b.data.corruption)],
-        ['执行', firstValue(b.data.policyExecution, b.data.execution)],
-        ['地方派系', firstValue(b.data.localFaction, b.data.party)],
-        ['士绅', b.data.leadingGentry],
-        ['书院', b.data.academies]
-      ]),
-      ppZone('势力 · 归属', [
-        ['当前控制', ownerName(r)],
-        ['法理归属', firstValue(b.data.dejureOwner, ownerName(r))],
-        ['核心/边缘', firstValue(b.data.coreStatus, b.data.borderStatus)],
-        ['下辖子区', children.length ? children.map(function(x){ return ppValue(x.name || x.title || x); }).join('、') : ''],
-        ['标签', tagList.length ? tagList.join('、') : '']
-      ]),
-      ppFacilities(r),
-      ppFieldChips([
-        ['资源', firstValue(b.data.specialResources, r && r.resources)],
-        ['文化', b.data.specialCulture],
-        ['聚落', b.data.bySettlement],
-        ['贸易', b.data.tradeRoutes],
-        ['灾异', b.data.recentDisasters],
-        ['威胁', b.data.threats],
-        ['地方士林', b.data.leadingGentry],
-        ['书院', b.data.academies],
-        ['宗教场所', b.data.religiousSites]
-      ]),
-      ppAdminExtra(r),
-      ppRegionActionRow(r)
-    ].join('');
   }
 
   function ensureMapPpop(){
@@ -2531,36 +2420,73 @@
     }
     if (!pop.__phase8MapBound) {
       pop.__phase8MapBound = true;
+      // 2026-06-12 册页委托：关闭(×)=真关闭·合册(—)=收成书脊·检签=滚卷·兴造=诏令建议库
       pop.addEventListener('click', function(e){
-        var close = e.target && e.target.closest ? e.target.closest('[data-pp-close]') : null;
-        if (close) {
-          closeMapDossier();
+        var hit = function(sel){ return e.target && e.target.closest ? e.target.closest(sel) : null; };
+        if (hit('[data-pp-close]')) { closeMapDossier(); return; }
+        var fold = hit('[data-bk-fold]');
+        if (fold) { pop.classList.toggle('bk-folded'); return; }
+        if (hit('.bk-spine')) { pop.classList.remove('bk-folded'); return; }
+        var jq = hit('[data-bk-jq]');
+        if (jq) {
+          var target = pop.querySelector('#' + jq.dataset.bkJq);
+          if (target && typeof target.scrollIntoView === 'function') target.scrollIntoView({ behavior: 'smooth', block: 'start' });
           return;
         }
-        var tab = e.target && e.target.closest ? e.target.closest('[data-pp-tab]') : null;
-        if (tab) {
-          var value = tab.dataset.ppTab || 'overview';
-          if (pop.dataset.panelKind === 'faction') {
-            state.mapFactionTab = value;
-          } else {
-            state.mapPanelTab = value;
-            if (MAP_MODE_META[value] && value !== 'overview') {
-              state.mapMode = value;
-              updateMapChrome();
-              renderFormalMap();
-            }
+        var desc = hit('[data-bk-desc]');
+        if (desc) { desc.classList.toggle('open'); return; }
+        var foldText = hit('[data-bk-fold-text]');
+        if (foldText) {
+          var box = foldText.closest('.bk-fold');
+          if (box) {
+            box.classList.toggle('open');
+            foldText.textContent = box.classList.contains('open') ? '收 起 ▴' : '展 读 全 文 ▾';
           }
-          refreshMapPpop();
           return;
         }
-        var action = e.target && e.target.closest ? e.target.closest('[data-pp-action]') : null;
-        if (action) {
-          var kind = action.dataset.ppAction;
-          if (kind === 'map') openPanel('map');
-          else if (kind === 'issue') openPanel('issue');
-          else if (kind === 'records') openModule('records');
-          else if (kind === 'finance') openPanel('finance');
+        var build = hit('[data-bk-build]');
+        if (build) {
+          var divName = build.dataset.bkBuild || '';
+          if (typeof window._dfBuildModal === 'function') window._dfBuildModal(divName);
+          else if (typeof toast === 'function') toast('营造入口未就绪');
+          return;
         }
+        var openFac = hit('[data-bk-open-faction]');
+        if (openFac) { openFactionDossier(openFac.dataset.bkOpenFaction || '', null); return; }
+        var openReg = hit('[data-bk-open-region]');
+        if (openReg) {
+          var rr = findRegion(openReg.dataset.bkOpenRegion || '');
+          if (rr) openRegionDossier(rr);
+          else if (typeof toast === 'function') toast('舆图上未录此地');
+          return;
+        }
+        var ledger = hit('[data-bk-ledger]');
+        if (ledger) {
+          var dn = ledger.dataset.bkLedger || '';
+          if (typeof window.openDivisionDetail === 'function') window.openDivisionDetail(dn);
+          return;
+        }
+      });
+      // 活账因果签：hover 展示「此数牵动什么」
+      pop.addEventListener('mouseover', function(e){
+        var el = e.target && e.target.closest ? e.target.closest('[data-bk-cause]') : null;
+        if (el) showBkCause(el);
+      });
+      pop.addEventListener('mouseout', function(e){
+        var el = e.target && e.target.closest ? e.target.closest('[data-bk-cause]') : null;
+        if (el) hideBkCause();
+      });
+      // 兴造录入诏令后：方志开着就重渲营造志（候诏卡即时可见）并滚到该卷
+      document.addEventListener('tm-yingzao-submitted', function(){
+        var p = document.getElementById('ppop');
+        if (!p || p.dataset.panelKind !== 'region' || p.className.indexOf('show') < 0) return;
+        var r = findRegion(p.dataset.regionId || '');
+        if (!r) return;
+        openRegionDossier(r);
+        setTimeout(function(){
+          var y = document.getElementById('bk-yingzao');
+          if (y && typeof y.scrollIntoView === 'function') y.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 60);
       });
     }
     return pop;
@@ -2586,23 +2512,441 @@
     document.body.classList.remove('province-panel-open');
   }
 
+  // ════════ 方志/谱牒册页（2026-06-12 重构）════════════════════════════
+  // 替代 codex 版 760px 大板+7tab+重复 grid：左缘窄册页 392px·检签六卷连续滚动·
+  // 可合册成书脊·×真关闭。数据与四视图计分同源(regionBundle/modeScore)，
+  // 营造志读 division.buildings（建筑工役引擎），因果账签展示字段牵动链。
+  function bkRow(k, v, tone, cause){
+    if (!hasDisplayValue(v)) return '';
+    var vs = ppValue(v);
+    return '<div class="bk-lr"' + (cause ? ' data-bk-cause="' + attr(cause) + '"' : '') + '><span class="bk-k">' + esc(k) + '</span><span class="bk-v ' + (tone || '') + (vs.length > 14 ? ' wrap' : '') + '">' + esc(vs) + '</span></div>';
+  }
+  function bkLan(rows, one){
+    var html = rows.join('');
+    return html ? '<div class="bk-lan' + (one ? ' one' : '') + '">' + html + '</div>' : '';
+  }
+  function bkJuan(id, no, title, hint, inner){
+    if (!inner) return '';
+    return '<section class="bk-juan" id="' + attr(id) + '"><div class="bk-jt"><span class="bk-jseal">' + esc(no) + '</span><b>' + esc(title) + '</b><small>' + esc(hint || '') + '</small></div>' + inner + '</section>';
+  }
+  function bkStat(k, v, note, warn, cause){
+    if (!hasDisplayValue(v)) return '';
+    return '<div class="bk-stat' + (warn ? ' warn' : '') + '"' + (cause ? ' data-bk-cause="' + attr(cause) + '"' : '') + '><span class="k">' + esc(k) + '</span><span class="v">' + esc(ppValue(v)) + '</span><span class="n">' + esc(note || '') + '</span></div>';
+  }
+  function bkStats(cards){
+    var html = cards.filter(Boolean).join('');
+    return html ? '<div class="bk-stats">' + html + '</div>' : '';
+  }
+  function bkWuGrid(rows){
+    var html = rows.filter(rowHasDisplayValue).map(function(row){
+      return '<div class="bk-wu"><span class="k">' + esc(row[0]) + '</span><span class="v">' + esc(ppValue(row[1])) + '</span></div>';
+    }).join('');
+    return html ? '<div class="bk-wu-grid">' + html + '</div>' : '';
+  }
+  function bkChips(rows){
+    var html = rows.filter(rowHasDisplayValue).map(function(row){
+      return '<span class="bk-chip"><b>' + esc(row[0]) + '</b>' + esc(ppValue(row[1])) + '</span>';
+    }).join('');
+    return html ? '<div class="bk-chips">' + html + '</div>' : '';
+  }
+  function bkFold(text){
+    if (!hasDisplayValue(text)) return '';
+    return '<div class="bk-fold"><pre>' + esc(ppValue(text)) + '</pre><button type="button" class="bk-fold-btn" data-bk-fold-text="1">展 读 全 文 ▾</button></div>';
+  }
+  function bkBar(title, items, totalLabel){
+    var sum = items.reduce(function(a, x){ return a + (Number(x[1]) || 0); }, 0);
+    if (sum <= 0) return '';
+    return '<div class="bk-bar-strip"><div class="bs-t"><span>' + esc(title) + '</span><span>' + esc(totalLabel || '') + '</span></div>' +
+      '<div class="bk-bar">' + items.map(function(x){ return '<i style="width:' + ((Number(x[1]) || 0) / sum * 100) + '%;background:' + attr(x[2]) + '"></i>'; }).join('') + '</div>' +
+      '<div class="bk-bar-legend">' + items.map(function(x){ return '<em style="--c:' + attr(x[2]) + '">' + esc(x[0]) + ' ' + esc(fmtNum(x[1])) + '</em>'; }).join('') + '</div></div>';
+  }
+  function bkHead(opts){
+    return '<div class="bk-head">' +
+      '<div class="bk-bigseal' + (opts.round ? ' round' : '') + '"><i>' + esc(opts.seal) + '</i></div>' +
+      '<div class="bk-kind"><span class="bk-tag">' + esc(opts.kind) + '</span>' +
+        '<button type="button" class="bk-close" data-bk-fold="1" title="合册成脊">—</button>' +
+        '<button type="button" class="bk-close x" data-pp-close="1" title="关闭">×</button></div>' +
+      '<div class="bk-title-row"><div class="bk-name">' + esc(opts.name) + '</div><div class="bk-name-sub">' + esc(opts.sub || '') + '</div></div>' +
+      '<div class="bk-govline">' + opts.pills.filter(Boolean).join('') + '</div>' +
+      (hasDisplayValue(opts.desc) ? '<p class="bk-desc" data-bk-desc="1">' + esc(ppValue(opts.desc)) + '</p>' : '') +
+    '</div>';
+  }
+  function bkSpine(label){
+    return '<div class="bk-spine"><div class="sp-seal">印</div><div class="sp-label">' + esc(label) + '<small>点 脊 展 册</small></div></div>';
+  }
+  function bkJianqian(items){
+    return '<div class="bk-jianqian">' + items.map(function(it, i){
+      return '<div class="bk-jq" data-bk-jq="' + attr(it[0]) + '"><span class="jq-no">' + '一二三四五六七八'.charAt(i) + '</span>' + esc(it[1]) + '</div>';
+    }).join('') + '</div>';
+  }
+  var BK_TAB_JUAN = { mood: 'bk-hukou', classPressure: 'bk-hukou', tax: 'bk-caifu', army: 'bk-junbei', office: 'bk-zhiguan' };
+  function bkScrollToTab(pop, tab){
+    var id = BK_TAB_JUAN[tab];
+    if (!id) return;
+    var el = pop.querySelector('#' + id);
+    if (el && typeof el.scrollIntoView === 'function') {
+      try { el.scrollIntoView({ block: 'start' }); } catch(_) { el.scrollIntoView(); }
+    }
+  }
+  var _bkSpy = null;
+  function bindBkSpy(pop){
+    if (_bkSpy) { try { _bkSpy.disconnect(); } catch(_) {} _bkSpy = null; }
+    var scroll = pop.querySelector('.bk-scroll');
+    if (!scroll || typeof IntersectionObserver !== 'function') return;
+    _bkSpy = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if (!en.isIntersecting) return;
+        pop.querySelectorAll('.bk-jq').forEach(function(x){ x.classList.toggle('active', x.dataset.bkJq === en.target.id); });
+      });
+    }, { root: scroll, rootMargin: '-8% 0px -78% 0px', threshold: 0 });
+    scroll.querySelectorAll('.bk-juan').forEach(function(s){ _bkSpy.observe(s); });
+    var first = pop.querySelector('.bk-jq');
+    if (first) first.classList.add('active');
+  }
+  // ── 活账因果签：字段牵动链（动态拼当前账面值·非死文案） ──
+  function bkCauseDef(key, r){
+    var b = regionBundle(r);
+    var data = b.data || {};
+    var corr = firstValue(data.corruptionLocal, data.corruption);
+    var skim = ratio01(b.fiscal.skimmingRate);
+    var comp = ratio01(b.fiscal.compliance);
+    var defs = {
+      corr: { t: '贪腐 ' + ppValue(corr) + ' · 牵动', items: [
+        ['截留', '贪腐推高税赋截留' + (skim !== null ? '——今截留 ' + Math.round(skim * 100) + '%' : '') + '，实征随减'],
+        ['税基', '征税公式按贪腐打折（罚至五成为限）'],
+        ['整饬', '肃贪诏令 / 换主官 / 派钦差可降之（走诏令）']] },
+      minxin: { t: '民心 ' + ppValue(moodViewScore(r, b)) + ' · 牵动', items: [
+        ['民变', '民变判级按各省民心，非全国均值——低于 50 入「忧」档'],
+        ['逃户', '民心愈低逃户愈众' + (hasDisplayValue(b.pop.fugitives) ? '——今逃 ' + ppValue(b.pop.fugitives) : '') + '，税基随减'],
+        ['回原', '民心由叶账聚合：税负、灾异、徭役、兵祸、贪腐皆摊入']] },
+      tax: { t: '实征 ' + ppValue(b.fiscal.actualRevenue) + ' · 牵动', items: [
+        ['央地', '实征按央地分成：起运入太仓，留用存地方库'],
+        ['合规', (comp !== null ? '合规率 ' + Math.round(comp * 100) + '%——' : '') + '应征与实征之差即欠征'],
+        ['加派', '强征可增实征，然民心叶账立扣——加派激变之鉴不远']] },
+      army: { t: '驻军 ' + ppValue(firstValue(data.garrison, b.army.troops)) + ' · 牵动', items: [
+        ['守御', '守城战力 = 驻军 × 城防档位乘成（围城结算实读）'],
+        ['军压', '边警与驻军共定军压——高军压日耗粮饷'],
+        ['抽调', '抽兵他调则本地守御立减，边警之地慎抽']] },
+      pop: { t: '户口 ' + ppValue(firstValue(data.population, b.pop.mouths)) + ' · 牵动', items: [
+        ['税基', '应征 = 田亩 × 税则 + 丁口 × 丁银——户口即税基'],
+        ['兵源', '可募兵源按丁口折算'],
+        ['逃隐', '逃户隐户不纳粮——清丈括户可收编（走诏令）']] },
+      fugitive: { t: '逃户 ' + ppValue(b.pop.fugitives) + ' · 牵动', items: [
+        ['税基', '逃户不纳粮——岁入随减'],
+        ['民变', '流民为民变之薪'],
+        ['安辑', '减赋、放赈、垦荒可招抚归籍（走诏令）']] },
+      hidden: { t: '隐户 ' + ppValue(b.pop.hiddenCount) + ' · 牵动', items: [
+        ['税基', '豪强荫庇之口，不在册——税基之漏'],
+        ['清丈', '清丈括户可收编入册，然必触士绅之怒']] },
+      ding: { t: '丁口 ' + ppValue(b.pop.ding) + ' · 牵动', items: [
+        ['丁银', '丁口 × 丁银入应征'],
+        ['徭役', '征发徭役按丁——大工役耗丁则民心叶账立扣'],
+        ['兵源', '募兵上限按丁口折算']] },
+      compliance: { t: '合规率 ' + (comp !== null ? Math.round(comp * 100) + '%' : '—') + ' · 牵动', items: [
+        ['实征', '起运净额 = 起运毛额 × 合规率——央地财政真账之闸'],
+        ['因由', '贪腐、士绅抗税、灾异共同压低'],
+        ['提振', '清吏治 / 安民心 / 缓灾年皆走叶账']] },
+      skim: { t: '截留 ' + (skim !== null ? Math.round(skim * 100) + '%' : '—') + ' · 牵动', items: [
+        ['去向', '截留入贪腐之囊，不入太仓不入地方库'],
+        ['根由', '与贪腐同涨同消——肃贪则截留自降']] },
+      fort: { t: '城防 · 牵动', items: [
+        ['守御', '守城战力按城防档位乘成（1-5 档 ×1.3 ～ ×3.0·围城结算实读）'],
+        ['营造', '营造志修城墙 / 敌台可升档（走诏令工役）']] },
+      vacancy: { t: '官缺 ' + ppValue(firstValue(data.officeVacancy, data.vacancy)) + ' · 牵动', items: [
+        ['执行', '官缺愈多政令执行愈低——无官则政不行'],
+        ['铨选', '吏部铨选 / 科举取士可补（走人事）']] },
+      exec: { t: '政令执行 ' + ppValue(firstValue(data.policyExecution, data.execution)) + ' · 牵动', items: [
+        ['诏效', '凡颁于此地之诏，效用按执行率打折'],
+        ['因由', '官缺、贪腐、地方派系共同拖累']] },
+      recruits: { t: '可募兵源 ' + ppValue(firstValue(data.militaryRecruits, b.army.recruits)) + ' · 牵动', items: [
+        ['上限', '募兵不得过此数——强拉则民心叶账立扣'],
+        ['营造', '卫所 / 军府类工役可增之']] },
+      post: { t: '驿路 · 牵动', items: [
+        ['政令', '驿密则政令时滞短——边报朝发夕至'],
+        ['裁驿', '裁驿省银而驿卒失业——流民之源，前车可鉴']] },
+      prosperity: { t: '繁荣 ' + ppValue(firstValue(data.prosperity, r && r.prosperity)) + ' · 牵动', items: [
+        ['税基', '繁荣即税基之一——繁则岁入随长'],
+        ['缓变', '每回合按民心、地方状态（奇观/灾异/营造之利）、兵燹缓变'],
+        ['状态', '状态卷之效皆乘入此地岁入——奇观增之，灾异削之']] }
+    };
+    return defs[key] || null;
+  }
+  // S7 近账：因果签下半显示该字段最近变更（div._fieldLedger 环账·FieldPipes/BuildingWorks 记入）
+  var BK_CAUSE_LEDGER_FIELD = { minxin: 'minxin', recruits: 'recruits', army: 'recruits', fort: 'fort', corr: 'corruption', prosperity: 'prosperity' };
+  function bkCauseLedgerHtml(key, r){
+    var field = BK_CAUSE_LEDGER_FIELD[key];
+    if (!field) return '';
+    var div = findLiveAdminDivision(r);
+    var ring = div && div._fieldLedger && Array.isArray(div._fieldLedger[field]) ? div._fieldLedger[field] : null;
+    if (!ring || !ring.length) return '';
+    return ring.slice(-3).reverse().map(function(en){
+      var d = Number(en.delta) || 0;
+      return '<div class="cp-led-row"><span class="lt">回合 ' + esc(String(en.turn)) + '</span><span class="ld ' + (d < 0 ? 'neg' : 'pos') + '">' + (d > 0 ? '+' : '') + esc(String(d)) + '</span><span class="lw">' + esc(en.why || '') + '</span></div>';
+    }).join('');
+  }
+  function ensureBkCausePop(){
+    var el = document.getElementById('tmf-bk-cause');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'tmf-bk-cause';
+      el.className = 'tmf-bk-cause';
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+  function showBkCause(el){
+    var pop = document.getElementById('ppop');
+    var rid = pop && pop.dataset.regionId;
+    var r = rid ? findRegion(rid) : null;
+    if (!r) return;
+    var def = bkCauseDef(el.dataset.bkCause, r);
+    if (!def) return;
+    var host = ensureBkCausePop();
+    var led = bkCauseLedgerHtml(el.dataset.bkCause, r);
+    host.innerHTML = '<div class="cp-hd"><span class="cp-seal">牵</span><b>' + esc(def.t) + '</b></div>' +
+      '<div class="cp-body">' + def.items.map(function(it){ return '<div class="cp-item"><span class="ck">' + esc(it[0]) + '</span><span class="cv">' + esc(it[1]) + '</span></div>'; }).join('') + '</div>' +
+      (led ? '<div class="cp-led"><b>近 账</b>' + led + '</div>' : '') +
+      '<div class="cp-ft">活账之义：此数每回合由叶账聚合而来，亦反向牵动他账。</div>';
+    var rect = el.getBoundingClientRect();
+    var x = rect.right + 12, y = rect.top - 6;
+    if (x + 280 > window.innerWidth) x = rect.left - 286;
+    if (y + 230 > window.innerHeight) y = window.innerHeight - 240;
+    host.style.left = x + 'px';
+    host.style.top = Math.max(52, y) + 'px';
+    host.classList.add('show');
+  }
+  function hideBkCause(){
+    var host = document.getElementById('tmf-bk-cause');
+    if (host) host.classList.remove('show');
+  }
+  // ── 营造志卡（建筑工役引擎数据） ──
+  function bkYeCard(bld, P){
+    var bw = (window.TM && TM.BuildingWorks) || null;
+    var typeDef = bw ? bw.typeDefFor(bld.name, P) : null;
+    var labels = bw ? bw.fxLabels(bld, typeDef) : [];
+    var doing = bld.status === 'building';
+    var neglected = bld.status === 'neglected';
+    var total = Number(bld.timeActual) || Number(typeDef && typeDef.buildTime) || Math.max(1, Number(bld.remainingTurns) || 1);
+    var prog = doing ? Math.round(Math.max(0, Math.min(1, (total - (Number(bld.remainingTurns) || 0)) / total)) * 100) : 100;
+    var stCls = doing ? 'doing' : (neglected ? 'ni' : 'done');
+    var stTxt = doing ? '工 役 中' : (neglected ? '失 修' : '完 好');
+    return '<div class="bk-ye' + (bld._proposal ? ' nijian' : '') + '">' +
+      '<div class="ye-hd"><b>' + esc(bld.name) + '</b><span class="lv">' + (bld._proposal ? '候 诏' : esc((bld.isCustom ? '自拟 · ' : '') + (bld.level || 1) + ' 级')) + '</span><span class="st ' + stCls + '">' + (bld._proposal ? '候 诏' : stTxt) + '</span></div>' +
+      (hasDisplayValue(bld.description) ? '<p>' + esc(compactText ? compactText(bld.description, 90) : String(bld.description).slice(0, 90)) + '</p>' : '') +
+      (hasDisplayValue(bld.judgedEffects) && !labels.length ? '<p>' + esc(String(bld.judgedEffects).slice(0, 90)) + '</p>' : '') +
+      (labels.length ? '<div class="fx">' + labels.map(function(x, i){ return '<em class="' + (i === labels.length - 1 && /维护/.test(x) ? 'cost' : '') + '">' + esc(x) + '</em>'; }).join('') + '</div>' : '') +
+      (doing ? '<div class="gq"><div class="gq-bar"><i style="width:' + prog + '%"></i></div><em>余 ' + esc(bld.remainingTurns) + ' 回合</em></div>' : '') +
+      '</div>';
+  }
+  function bkYingzao(r, b){
+    var live = b.liveDivision;
+    var P = window.P || {};
+    var divName = firstValue(live && live.name, r && r.name, r && r.title, '');
+    var cards = [];
+    if (live && Array.isArray(live.buildings) && live.buildings.length) {
+      live.buildings.forEach(function(bld){ if (bld) cards.push(bkYeCard(bld, P)); });
+    }
+    // 诏令建议库中候颁的本地营造案（_dfBuildModal 推入·source='工程'）
+    var gm = window.GM || {};
+    (Array.isArray(gm._edictSuggestions) ? gm._edictSuggestions : []).forEach(function(s){
+      if (s && !s.used && s.from === divName && String(s.source || '') === '工程') {
+        cards.push(bkYeCard({ name: String(s.content || '营造案').slice(0, 24) + '…', _proposal: true, description: '已录入诏令建议库，候颁行后由有司核定费用、工期与效用。' }, P));
+      }
+    });
+    var canBuild = !!live && hasDisplayValue(divName);
+    var buildBtn = canBuild
+      ? '<button type="button" class="bk-act zhu wide" data-bk-build="' + attr(divName) + '">⊕ 兴 造 · 录 入 诏 令</button>'
+      : '';
+    if (!cards.length && !buildBtn) return '';
+    var note = !cards.length ? '<p class="bk-ye-empty">此地尚无在册工役——可兴造以厚其本。</p>' : '';
+    return note + cards.join('') + buildBtn;
+  }
+  // ── 地块方志 ──
+  function renderRegionBook(r){
+    var b = regionBundle(r);
+    var data = b.data || {};
+    var econ = data.economyBase || {};
+    var assets = econ.imperialAssets || {};
+    var children = Array.isArray(data.children) ? data.children : [];
+    var tagList = ppTagNames(data.tags);
+    var oKey = ownerKey(r);
+    var moodS = moodViewScore(r, b);
+    var offS = officeViewScore(r, b);
+    var corr = firstValue(data.corruptionLocal, data.corruption);
+    var cp = classPressureForRegion(r);
+    var cpHtml = (cp.count > 0 || Number(cp.score) > 0) ? bkLan([
+      bkRow('阶层压力', hasDisplayValue(cp.score) ? cp.score + ' / 100' : '', Number(cp.score) >= 50 ? 'zhu' : ''),
+      bkRow('牵动阶层', cp.classNames.join('、')),
+      bkRow('最近近因', cp.reason)
+    ], true) : '';
+    var head = bkHead({
+      seal: '御览', round: false, kind: '方 志',
+      name: regionTitle(r), sub: regionLevel(r), desc: firstValue(data.description, r && r.description),
+      pills: [
+        hasDisplayValue(ownerName(r)) ? '<span class="bk-pill owner" data-bk-open-faction="' + attr(oKey) + '" title="展其谱牒"><span class="dot"></span>隶 <b>' + esc(ownerName(r)) + '</b></span>' : '',
+        hasDisplayValue(firstValue(data.governor, data.official)) ? '<span class="bk-pill">' + esc(firstValue(data.officialPosition, '主官')) + ' <b>' + esc(firstValue(data.governor, data.official)) + '</b></span>' : '',
+        hasDisplayValue(firstValue(data.terrain, r && r.terrain)) ? '<span class="bk-pill">' + esc(firstValue(data.terrain, r && r.terrain)) + '</span>' : '',
+        hasDisplayValue(data.taxLevel) ? '<span class="bk-pill">税 <b>' + esc(data.taxLevel) + '</b></span>' : ''
+      ]
+    });
+    var stats = bkStats([
+      bkStat('户口', firstValue(data.population, b.pop.mouths), hasDisplayValue(b.pop.ding) ? '丁 ' + ppValue(b.pop.ding) : '', false, 'pop'),
+      bkStat('实征', b.fiscal.actualRevenue, hasDisplayValue(b.fiscal.compliance) ? '合规 ' + pctValue(b.fiscal.compliance) : '', false, 'tax'),
+      bkStat('驻军', firstValue(data.garrison, b.army.troops, r && r.troops), firstValue(data.armyPressure, ''), false, 'army'),
+      bkStat('民心', hasDisplayValue(firstValue(data.minxinLocal, r && r.mood, data.prosperity)) ? moodS : '', (gradeOf('mood', moodS) || {}).mark || '', gradeIsWarn('mood', gradeOf('mood', moodS)), 'minxin'),
+      bkStat('吏治', hasDisplayValue(corr) ? offS : '', (gradeOf('office', offS) || {}).mark || '', gradeIsWarn('office', gradeOf('office', offS)), 'corr')
+    ]);
+    var hukou = bkLan([
+      bkRow('在册口数', firstValue(data.population, b.pop.mouths)),
+      bkRow('在册户', b.pop.households),
+      bkRow('丁口', b.pop.ding, null, 'ding'),
+      bkRow('逃户', b.pop.fugitives, 'zhu', 'fugitive'),
+      bkRow('隐户', b.pop.hiddenCount, 'zhu', 'hidden'),
+      bkRow('承载上限', data.carryingCapacity),
+      bkRow('保甲', data.baojia),
+      bkRow('繁荣', firstValue(data.prosperity, r && r.prosperity), null, 'prosperity'),
+      bkRow('财富', data.wealth),
+      bkRow('发展', data.development),
+      bkRow('不稳', data.unrest, 'zhu')
+    ]) + bkChips([
+      ['性别', data.byGender], ['年龄', data.byAge], ['族群', data.byEthnicity],
+      ['信仰', data.byFaith], ['聚落', data.bySettlement], ['宗教场所', data.religiousSites]
+    ]) + cpHtml;
+    var caifu = bkLan([
+      bkRow('应征', b.fiscal.claimedRevenue),
+      bkRow('实征', b.fiscal.actualRevenue, null, 'tax'),
+      bkRow('起运中枢', b.fiscal.remittedToCenter),
+      bkRow('留用地方', b.fiscal.retainedBudget),
+      bkRow('合规率', pctValueIfPresent(b.fiscal.compliance), null, 'compliance'),
+      bkRow('截留率', pctValueIfPresent(b.fiscal.skimmingRate), 'zhu', 'skim'),
+      bkRow('财政自主', b.fiscal.autonomy),
+      bkRow('税负', firstValue(b.fiscal.taxBurden, data.taxBurden)),
+      bkRow('税级', data.taxLevel),
+      bkRow('库藏银', b.treasury.money),
+      bkRow('库藏粮', b.treasury.grain),
+      bkRow('库藏布', b.treasury.cloth),
+      bkRow('本回合银产', b.fiscal.moneyOutput, 'jin'),
+      bkRow('本回合粮产', b.fiscal.grainOutput, 'jin')
+    ]);
+    var fortRow = hasDisplayValue(firstValue(data.fortification, b.army.fortification)) || (b.liveDivision && Number(b.liveDivision.fortLevel) > 0);
+    // 活军卡（军地绑定·2026-06-12）：GM.armies 驻此地者列于卷首——驻军数即其合计
+    var liveArmyHtml = '';
+    if (b.army.liveArmies && b.army.liveArmies.length) {
+      liveArmyHtml = '<div class="bk-jun-list">' + b.army.liveArmies.slice(0, 8).map(function(a){
+        var mor = Number(a.morale);
+        return '<div class="bk-jun"><span class="j-ni"></span><b>' + esc(String(a.name || '无名之师')) + '</b>' +
+          '<span class="j-n">' + esc(mapNum(Number(a.soldiers || a.size || a.strength) || 0)) + '</span>' +
+          (hasDisplayValue(a.commander) ? '<span class="j-cmd">' + esc(shortText(a.commander, 10)) + '</span>' : '') +
+          (isFinite(mor) ? '<span class="j-mor' + (mor < 45 ? ' low' : '') + '">气 ' + Math.round(mor) + '</span>' : '') +
+          '</div>';
+      }).join('') + (b.army.liveArmies.length > 8 ? '<div class="bk-jun-more">…另 ' + (b.army.liveArmies.length - 8) + ' 支</div>' : '') + '</div>';
+    }
+    var junbei = liveArmyHtml + bkLan([
+      bkRow('驻军', firstValue(data.garrison, b.army.troops, r && r.troops), null, 'army'),
+      liveArmyHtml ? bkRow('在驻之师', b.army.liveArmyCount + ' 支（驻军数即其合计）') : '',
+      bkRow('可募兵源', firstValue(data.militaryRecruits, b.army.recruits), null, 'recruits'),
+      bkRow('军压', firstValue(data.armyPressure, r && r.armyPressure), 'zhu'),
+      fortRow ? bkRow('城防', [firstValue(data.fortification, b.army.fortification), (b.liveDivision && Number(b.liveDivision.fortLevel) > 0) ? b.liveDivision.fortLevel + ' 档' : ''].filter(hasDisplayValue).map(ppValue).join(' · '), 'jin', 'fort') : '',
+      bkRow('主将', firstValue(data.commander, b.army.commander)),
+      bkRow('边警', firstValue(data.borderRisk, data.warRisk), 'zhu'),
+      bkRow('补给', firstValue(data.supply, b.army.supply)),
+      bkRow('水师 / 海防', firstValue(data.navy, data.coastalDefense)),
+      bkRow('威胁', data.threats, 'zhu'),
+      bkRow('战略价值', data.strategicValue)
+    ], true);
+    var zhiguan = bkLan([
+      bkRow('主官', firstValue(data.governor, data.official)),
+      bkRow('官职', data.officialPosition),
+      bkRow('官缺', firstValue(data.officeVacancy, data.vacancy), null, 'vacancy'),
+      bkRow('贪腐', corr, 'zhu', 'corr'),
+      bkRow('政令执行', firstValue(data.policyExecution, data.execution), null, 'exec'),
+      bkRow('地方派系', firstValue(data.localFaction, data.party)),
+      bkRow('士绅', data.leadingGentry),
+      bkRow('书院', data.academies),
+      bkRow('科举解额', econ.kejuQuota),
+      bkRow('官府资产', econ.imperialAssets),
+      bkRow('备注', firstValue(data.note, r && r.note))
+    ]);
+    var fengwu = bkWuGrid([
+      ['耕地', econ.farmland], ['商贸', econ.commerceVolume], ['商系数', econ.commerceCoefficient],
+      ['盐课', econ.saltProduction], ['矿课', econ.mineralProduction], ['马政', econ.horseProduction],
+      ['渔课', econ.fishingProduction], ['皇庄', econ.imperialFarmland], ['海贸', econ.maritimeTradeVolume],
+      ['织造', assets.zhizao], ['矿场', assets.kuangchang], ['御窑', assets.yuyao],
+      ['驿站', econ.postRelays], ['道路', econ.roadQuality]
+    ]) + bkLan([
+      bkRow('地势', firstValue(data.terrain, r && r.terrain)),
+      bkRow('特殊资源', firstValue(data.specialResources, r && r.resources)),
+      bkRow('特殊文化', data.specialCulture),
+      bkRow('商路', data.tradeRoutes),
+      bkRow('驿路', hasDisplayValue(econ.postRelays) ? ppValue(econ.postRelays) + ' 处' : '', null, 'post'),
+      bkRow('近期灾异', firstValue(data.recentDisasters, econ.disasterRecord), 'zhu'),
+      bkRow('标签', tagList.length ? tagList.join('、') : ''),
+      bkRow('法理归属', firstValue(data.dejureOwner, ownerName(r))),
+      bkRow('核心 / 边缘', firstValue(data.coreStatus, data.borderStatus)),
+      bkRow('归属历史', data.ownerHistory),
+      bkRow('下辖子区', children.length ? children.map(function(x){ return ppValue(x.name || x.title || x); }).join('、') : '')
+    ], true);
+    var yingzao = bkYingzao(r, b);
+    // 状态卷（2026-06-12）：奇观/灾异/圣裁/风云/营造之利——落在此地的持续境况（活账·乘进岁入）
+    var zhuangkuang = '';
+    var statusFx = (b.liveDivision && Array.isArray(b.liveDivision.statusEffects)) ? b.liveDivision.statusEffects.filter(Boolean) : [];
+    if (statusFx.length) {
+      var ZT_SEAL = { wonder: '观', disaster: '灾', player: '裁', event: '云', building: '营' };
+      var _gmTurn = Number(window.GM && GM.turn) || 0;
+      zhuangkuang = '<div class="bk-zt-list">' + statusFx.slice(0, 12).map(function(e){
+        var chips = [];
+        var ep = Number(e.econPct);
+        if (isFinite(ep) && ep) chips.push('<em class="' + (ep > 0 ? 'pos' : 'neg') + '">岁入 ' + (ep > 0 ? '+' : '') + Math.round(ep * 100) + '%</em>');
+        var mp = Number(e.minxinPerTurn);
+        if (isFinite(mp) && mp) chips.push('<em class="' + (mp > 0 ? 'pos' : 'neg') + '">民心 ' + (mp > 0 ? '+' : '') + mp + '/回合</em>');
+        var left = e.expiresTurn != null ? Math.max(0, Number(e.expiresTurn) - _gmTurn) : null;
+        return '<div class="bk-zt ' + esc(String(e.kind || 'event')) + '">' +
+          '<span class="zt-seal">' + esc(ZT_SEAL[e.kind] || '云') + '</span>' +
+          '<div class="zt-body"><b>' + esc(String(e.name || '')) + '</b>' +
+          (e.desc ? '<p>' + esc(String(e.desc)) + '</p>' : '') +
+          (chips.length ? '<div class="zt-fx">' + chips.join('') + '</div>' : '') + '</div>' +
+          '<span class="zt-term">' + (left === null ? '永 续' : '余 ' + left + ' 回合') + '</span>' +
+          '</div>';
+      }).join('') + '</div>' +
+      '<div class="bk-zt-note">状态之效乘入本地岁入、逐回合作用民心——非摆设。</div>';
+    }
+    var foot = '<div class="bk-foot">' +
+      (hasDisplayValue(ownerName(r)) ? '<button type="button" class="bk-act" data-bk-open-faction="' + attr(oKey) + '">展 势 力 谱</button>' : '') +
+      ((b.liveDivision && typeof window.openDivisionDetail === 'function') ? '<button type="button" class="bk-act" data-bk-ledger="' + attr(firstValue(b.liveDivision.id, b.liveDivision.name, '')) + '">地 方 账 本</button>' : '') +
+      '</div>';
+    // 卷与检签同源：空卷不渲染、签也不挂（不留点了不动的死签）
+    var juans = [
+      ['bk-hukou', '一', '户口志', '黄册口算', '户', hukou],
+      ['bk-caifu', '二', '财赋志', '岁入库藏', '赋', caifu],
+      ['bk-junbei', '三', '军备志', '戎政边防', '军', junbei],
+      ['bk-zhiguan', '四', '职官志', '官守治理', '官', zhiguan],
+      ['bk-fengwu', '五', '风物志', '物产设施', '物', fengwu],
+      ['bk-yingzao', '六', '营造志', '已建之业 · 工役', '营', yingzao],
+      ['bk-zhuangkuang', '七', '状态', '奇观灾异风云圣裁', '况', zhuangkuang]
+    ];
+    var live = juans.filter(function(j){ return !!j[5]; });
+    return bkSpine(regionTitle(r) + ' · 方志') +
+      '<div class="bk-inner">' + head + stats +
+      '<div class="bk-scroll">' +
+        live.map(function(j){ return bkJuan(j[0], j[1], j[2], j[3], j[5]); }).join('') +
+      '</div>' + foot + '</div>' +
+      bkJianqian(live.map(function(j){ return [j[0], j[4]]; })) +
+      '<div class="bk-straddle"><i>验讫</i></div>';
+  }
   function openRegionDossier(r){
     if (!r) return;
     var id = String(r.id || r.name || r.title || '');
-    state.mapPanelTab = state.mapPanelTab || 'overview';
-    var active = resolveRegionTab(r, MAP_MODE_META[state.mapPanelTab] ? state.mapPanelTab : 'overview');
-    state.mapPanelTab = active;
+    state.mapPanelTab = MAP_MODE_META[state.mapPanelTab] ? state.mapPanelTab : 'overview';
     var pop = ensureMapPpop();
     pop.dataset.panelKind = 'region';
     pop.dataset.regionId = id;
-    pop.className = 'tmf-map-ppop region-panel show';
-    pop.innerHTML =
-      '<div class="pp-top"><div class="pp-crest">' + esc(regionTitle(r).slice(0, 1)) + '</div><div class="pp-title-wrap"><div class="pp-name">' + esc(regionTitle(r)) + '</div><div class="pp-level">' + esc(regionLevel(r)) + '</div></div><span class="pp-top-mark">掌印</span><button type="button" class="pp-close" data-pp-close="1">×</button></div>' +
-      '<div class="pp-tabs">' + ppTabButtons('region', active, r) + '</div>' +
-      '<div class="pp-tab-body">' + ppRegionTabDetail(r, active) + '</div>' +
-      '<div class="pp-grid">' + ppRegionGridV2(r, active) + '</div>';
+    pop.removeAttribute('data-faction-key');
+    pop.className = 'tmf-map-ppop tmf-book region-panel show';
+    pop.innerHTML = renderRegionBook(r);
     document.body.classList.add('province-panel-open');
     markSelectedRegion(id);
+    bindBkSpy(pop);
+    bkScrollToTab(pop, state.mapPanelTab);
   }
 
   function sumFactionValues(regions, pick){
@@ -2703,183 +3047,262 @@
     return firstValue(runtimeFactionValue(f, 'treasury'), p.regions.length ? p.revenue : '', f.treasury);
   }
 
-  function factionHasTabData(f, key, region, tab){
-    f = f || {};
-    var p = factionProfile(f, key, region);
-    if (tab === 'overview') return true;
-    if (tab === 'territory') {
-      return p.regions.length > 0 || anyDisplayValue([f.territory, f.resources, f.mainResources, p.resources, p.threats]);
-    }
-    if (tab === 'military') {
-      return anyDisplayValue([
-        p.troops, runtimeFactionValue(f, 'militaryStrength'), f.militaryStrength, f.strength,
-        f.militaryBreakdown, f.warState, f.mobilization, f.manpower, f.strategicPriorities,
-        f.decisionHints, f.npcDecisionHints, f.tabooMoves, p.threats
-      ]);
-    }
-    if (tab === 'finance') {
-      return anyDisplayValue([
-        factionFinanceValue(f, p), factionTreasuryValue(f, p), p.regions.length ? p.grain : '',
-        f.economicStructure, f.economicPolicy, f.publicOpinion, f.techLevel, f.cultureLevel,
-        f.succession, f.cohesion, f.strengths, f.weaknesses, f.resources, f.mainResources, p.resources
-      ]);
-    }
-    if (tab === 'relations') {
-      return anyDisplayValue([
-        f.relations, f.allies, f.enemies, f.neutrals, f.attitudeDetail, f.attitude,
-        f.playerRelation, f.offendThresholds, f.internalParties, f.partyRelations, f.knownSpies
-      ]);
-    }
-    if (tab === 'records') {
-      return anyDisplayValue([
-        f.description, f.desc, f.history, f.historicalEvents, f.aiProfile,
-        f.longTermStrategy, f.victoryConditions, f.defeatConditions
-      ]);
-    }
-    return false;
+  // ── 势力谱牒 ──
+  var BK_LEADERSHIP_LABEL = { ruler: '君主', regent: '摄政', general: '主将', chancellor: '宰辅', spy: '耳目', heir: '继嗣' };
+  // 剧本数据里常见的英文枚举值 → 中文（只译整 token·按「·」分段各自比对·不破坏混排中文）
+  var BK_ENUM_CN = {
+    heavy_from_land: '重赋于田', light_touch: '轻徭薄赋', restricted: '有禁', open: '开放',
+    silver_standard: '银本位', coin_standard: '钱法', barter: '以物易物',
+    primogeniture: '嫡长承袭', election: '推举', tanistry: '幼子守灶', merit: '择贤',
+    declining: '渐衰', rising: '方兴', stable: '安稳', tribute_conquest: '贡赋掳掠',
+    corvee: '力役', imperial: '宗室', noble: '勋贵', gentry: '士绅', commoner: '庶民'
+  };
+  function bkEnumText(v){
+    var s = ppValue(v, '');
+    if (!s || !/[a-z_]/i.test(s)) return s;
+    return s.split('·').map(function(seg){
+      var t = seg.trim();
+      return BK_ENUM_CN[t] || seg;
+    }).join('·');
   }
-
-  function factionTabsFor(f, key, region){
-    return MAP_FACTION_TABS.filter(function(t){ return factionHasTabData(f, key, region, t[0]); });
+  // {键: 数值} → 评分徽签条（负值/低值朱显）
+  function bkScoreChips(title, obj, warnBelow){
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return '';
+    var keys = Object.keys(obj).filter(function(k){ return isFinite(Number(obj[k])); });
+    if (!keys.length) return '';
+    var lim = (warnBelow === undefined) ? 0 : warnBelow;
+    return '<div class="bk-lr"><span class="bk-k">' + esc(title) + '</span><span class="bk-v wrap"><span class="bk-score-chips">' +
+      keys.map(function(k){
+        var n = Number(obj[k]);
+        return '<em class="' + (n < lim ? 'neg' : '') + '">' + esc(fieldLabel(k)) + ' <b>' + esc(mapNum(n)) + '</b></em>';
+      }).join('') + '</span></span></div>';
   }
-
-  function resolveFactionTab(f, key, region, active){
-    return factionHasTabData(f, key, region, active) ? active : 'overview';
-  }
-
-  function factionLeaderCards(f){
-    var rows = [];
-    function push(title, person){
-      if (!person) return;
-      var text = typeof person === 'object' ? firstValue(person.name, person.ruler, person.general, person.chancellor, ppValue(person)) : person;
-      var meta = typeof person === 'object' ? [person.title, person.role, person.age, person.personality, person.bio].filter(Boolean).join(' / ') : '';
-      rows.push('<div class="pp-faction-person"><b>' + esc(title + ' · ' + ppValue(text)) + '</b><span>' + esc(meta || ppValue(person)) + '</span></div>');
-    }
-    push('君主', f.leaderInfo || f.leader || f.ruler);
-    push('继嗣', f.heirInfo || f.heir);
-    if (f.leadership && typeof f.leadership === 'object') {
-      Object.keys(f.leadership).slice(0, 4).forEach(function(k){ push(fieldLabel(k), f.leadership[k]); });
-    }
-    return rows.length ? '<div class="pp-faction-portrait-row wide">' + rows.join('') + '</div>' : '';
-  }
-
-  function factionTabDetail(f, key, region, active){
-    var p = factionProfile(f, key, region);
-    var name = firstValue(f.label, f.name, f.scenarioFactionName, p.sample && ownerName(p.sample), key);
-    var territoryRows = p.regions.map(function(r){
-      var b = regionBundle(r);
-      return [regionTitle(r), firstValue(b.data.population, b.pop.mouths, r.population), [firstValue(b.data.officialPosition, b.data.governor, '地块'), firstValue(b.data.terrain, r.terrain), firstValue(b.data.strategicValue, '')].filter(Boolean).join(' · ')];
+  // 势力级 relations {名: 亲疏分} → 邦交印泥条（≥50 盟 · <0 敌 · 余 中）
+  function bkRelationRows(relations){
+    if (!relations || typeof relations !== 'object' || Array.isArray(relations)) return [];
+    return Object.keys(relations).filter(function(k){ return isFinite(Number(relations[k])); }).map(function(k){
+      var n = Number(relations[k]);
+      return bkBangRow(k, n >= 50 ? 'meng' : (n < 0 ? 'di' : 'zhong'), '亲疏 ' + n);
     });
-    var tab = resolveFactionTab(f, key, region, active);
-    var desc = firstValue(f.description, f.desc, f.note);
-    var descHtml = desc ? '<p class="pp-faction-desc">' + esc(desc) + '</p>' : '';
-    var badges = [firstValue(f.type, f.factionType), firstValue(f.leaderTitle, f.rank), firstValue(f.attitude, f.playerRelation), p.regions.length ? ('领地 ' + p.regions.length) : ''].filter(Boolean);
-    var badgeHtml = badges.length ? '<div class="pp-badge-row">' + badges.map(function(x, i){ return '<span class="' + (i === 0 ? 'good' : '') + '">' + esc(ppValue(x)) + '</span>'; }).join('') + '</div>' : '';
-    var ledger = ppLedgerGrid([
-      ppLedger('首脑', firstValue(f.leader, f.leaderName, f.ruler, f.scenarioFactionName), '运行态势力字段'),
-      ppLedger('首府', firstValue(f.capital, f.home, p.sample && regionTitle(p.sample)), '政治中心'),
-      ppLedger('控制地块', p.regions.length ? (p.regions.length + ' 块') : '', p.regions.slice(0, 3).map(regionTitle).join('、')),
-      ppLedger('总人口', firstValue(p.regions.length ? p.pop : '', runtimeFactionValue(f, 'population'), f.population), '势力/地块聚合'),
-      ppLedger('总兵力', firstValue(p.troops, runtimeFactionValue(f, 'militaryStrength'), f.militaryStrength), '势力/地块聚合'),
-      ppLedger('实收财赋', p.regions.length ? p.revenue : '', '所辖地块合计'),
-      ppLedger('粮储', p.regions.length ? p.grain : '', '所辖地块合计'),
-      ppLedger('平均民心', p.avgMood, '所辖地块均值'),
-      ppLedger('平均腐败', p.avgCorr, '所辖地块均值')
+  }
+  // historicalEvents [{event, impact}] → 年表行
+  function bkEventLines(arr){
+    if (!Array.isArray(arr) || !arr.length) return '';
+    return arr.map(function(e){
+      if (!e || typeof e !== 'object') return ppValue(e, '');
+      var ev = firstValue(e.event, e.name, '');
+      var im = firstValue(e.impact, e.note, '');
+      return ev ? (ev + (im ? '——' + im : '')) : '';
+    }).filter(Boolean).join('\n');
+  }
+  // offendThresholds [{score, description, consequences[]}] → 阈值行
+  function bkThresholdLines(arr){
+    if (!Array.isArray(arr)) return ppValue(arr, '');
+    return arr.map(function(t){
+      if (!t || typeof t !== 'object') return ppValue(t, '');
+      var head = (isFinite(Number(t.score)) ? '至 ' + t.score + '：' : '') + firstValue(t.description, t.desc, '');
+      var cons = Array.isArray(t.consequences) ? t.consequences.join('·') : ppValue(t.consequences, '');
+      return head + (cons && cons !== '未记' ? '（' + cons + '）' : '');
+    }).filter(Boolean).join('\n');
+  }
+  function bkRenCard(title, person, main, emptyName){
+    if (!hasDisplayValue(person)) return '';
+    var isObj = person && typeof person === 'object';
+    var name = isObj ? firstValue(person.name, person.ruler, person.general, person.chancellor) : person;
+    if (isObj && !hasDisplayValue(name)) {
+      // 空名对象（如储位未定的 heirInfo）——有小传则以虚位示之·否则整卡不出
+      if (!hasDisplayValue(person.bio)) return '';
+      name = emptyName || '（虚位）';
+    }
+    var meta = isObj ? [person.title, person.role, person.age ? ppValue(person.age) + ' 岁' : '', person.personality].filter(hasDisplayValue).map(ppValue).join(' / ') : '';
+    if (isObj && hasDisplayValue(person.bio)) meta = meta ? meta + ' · ' + ppValue(person.bio) : ppValue(person.bio);
+    var label = title ? title + ' · ' : '';
+    return '<div class="bk-ren' + (main ? ' main' : '') + '"><div class="r-seal">' + esc(String(ppValue(name)).replace(/[\s（）()]/g, '').slice(0, 1)) + '</div><div class="r-body"><b>' + esc(label + ppValue(name)) + '</b><span>' + esc(shortText(meta, 46)) + '</span></div></div>';
+  }
+  function bkBangRow(name, rel, note){
+    if (!hasDisplayValue(name)) return '';
+    var relCls = rel === 'di' ? 'di' : (rel === 'meng' ? 'meng' : 'zhong');
+    var relTxt = rel === 'di' ? '敌 对' : (rel === 'meng' ? '盟 好' : '中 立');
+    return '<div class="bk-bang"><span class="b-ni ' + relCls + '"></span><b>' + esc(ppValue(name)) + '</b><span class="b-rel ' + relCls + '">' + relTxt + '</span><span class="b-note">' + esc(ppValue(note || '')) + '</span></div>';
+  }
+  function bkBangList(f){
+    var rows = [];
+    function many(v, rel){
+      if (!hasDisplayValue(v)) return;
+      if (Array.isArray(v)) v.forEach(function(x){ rows.push(bkBangRow(typeof x === 'object' ? firstValue(x.name, ppValue(x)) : x, rel, typeof x === 'object' ? firstValue(x.note, x.attitude, '') : '')); });
+      else rows.push(bkBangRow(ppValue(v), rel, ''));
+    }
+    many(f.allies, 'meng');
+    many(f.enemies, 'di');
+    many(f.neutrals, 'zhong');
+    // 势力级 relations {名: 亲疏分} → 同列印泥条·不再流水 dump
+    var relRows = bkRelationRows(f.relations);
+    relRows.forEach(function(x){ rows.push(x); });
+    var html = rows.filter(Boolean).join('');
+    var attitudeObj = f.attitude && typeof f.attitude === 'object' ? f.attitude : null;
+    var spies = f.knownSpies && typeof f.knownSpies === 'object' && !Array.isArray(f.knownSpies) ? f.knownSpies : null;
+    var thLines = Array.isArray(f.offendThresholds) ? bkThresholdLines(f.offendThresholds) : '';
+    var extra = bkLan([
+      relRows.length ? '' : bkRow('关系', f.relations),
+      attitudeObj ? bkRow('自居', attitudeObj.self) : bkRow('态度', firstValue(f.attitudeDetail, f.attitude)),
+      attitudeObj ? bkRow('所敌', attitudeObj.enemies, 'zhu') : '',
+      attitudeObj ? bkRow('所盟', attitudeObj.allies) : '',
+      attitudeObj ? bkRow('所持中立', attitudeObj.neutrals) : '',
+      bkRow('与本朝', f.playerRelation),
+      thLines ? '' : bkRow('冒犯阈值', f.offendThresholds),
+      bkRow('内部派系', f.internalParties),
+      bkRow('党派关系', f.partyRelations),
+      spies ? bkRow('已知耳目', Object.keys(spies).filter(function(k){ return isFinite(Number(spies[k])); }).map(function(k){ return fieldLabel(k) + ' ' + spies[k]; }).join(' · ')) : bkRow('已知耳目', f.knownSpies)
+    ], true);
+    var thHtml = thLines ? '<div class="bk-lan one"><div class="bk-lr"><span class="bk-k">冒犯阈值</span><span class="bk-v wrap zhu">' + esc(thLines).replace(/\n/g, '<br>') + '</span></div></div>' : '';
+    return (html ? '<div class="bk-bang-list">' + html + '</div>' : '') + extra + thHtml;
+  }
+  function renderFactionBook(f, key, r){
+    var p = factionProfile(f, key, r);
+    var name = firstValue(f.label, f.name, f.scenarioFactionName, r && ownerName(r), key, '未名势力');
+    var attitudeObj = f.attitude && typeof f.attitude === 'object' ? f.attitude : null;
+    var attitudeText = firstValue(attitudeObj ? attitudeObj.self : f.attitude, f.playerRelation);
+    var head = bkHead({
+      seal: shortText(f.short || name, 2) + '印', round: true, kind: '谱 牒',
+      name: name, sub: firstValue(f.type, f.factionType, '势力'), desc: firstValue(f.description, f.desc, f.note),
+      pills: [
+        hasDisplayValue(firstValue(f.leader, f.leaderName, f.ruler)) ? '<span class="bk-pill">' + esc(firstValue(f.leaderTitle, '首领')) + ' <b>' + esc(firstValue(f.leader, f.leaderName, f.ruler)) + '</b></span>' : '',
+        hasDisplayValue(firstValue(f.capital, f.home)) ? '<span class="bk-pill">都 <b>' + esc(firstValue(f.capital, f.home)) + '</b></span>' : '',
+        hasDisplayValue(attitudeText) ? '<span class="bk-pill' + (/敌/.test(String(attitudeText)) ? ' hostile' : '') + '">' + esc(shortText(attitudeText, 10)) + '</span>' : '',
+        hasDisplayValue(firstValue(f.government, f.ideology)) ? '<span class="bk-pill">' + esc(shortText(firstValue(f.government, f.ideology), 10)) + '</span>' : ''
+      ]
+    });
+    var stats = bkStats([
+      bkStat('领地', p.regions.length ? p.regions.length + ' 块' : '', p.regions.slice(0, 2).map(regionTitle).join('、')),
+      bkStat('总兵', firstValue(p.troops, runtimeFactionValue(f, 'militaryStrength'), f.militaryStrength), '势力/地块聚合'),
+      bkStat('户口', firstValue(p.regions.length ? p.pop : '', runtimeFactionValue(f, 'population'), f.population), '所辖合计'),
+      bkStat('实收', p.regions.length ? p.revenue : factionFinanceValue(f, p), '财赋'),
+      bkStat('民心', p.avgMood, '所辖均值', isFinite(Number(p.avgMood)) && Number(p.avgMood) < 50)
     ]);
-    var hero = '<section class="pp-faction-hero wide"><div class="pp-faction-head"><div class="pp-faction-seal"><b>' + esc(shortText(f.short || name, 2)) + '</b><span>' + esc(firstValue(f.leaderTitle, f.type, '势力')) + '</span></div><div><div class="pp-faction-title"><span>' + esc(name) + '</span><small>' + esc(firstValue(f.stableOwnerKey, key, f.mapFactionId, f.runtimeFactionId)) + '</small></div>' + descHtml + badgeHtml + '</div></div></section>';
-    if (tab === 'overview') {
-      return '<div class="pp-tab-detail">' + hero + ledger + factionLeaderCards(f) + ppZone('势力总览', [
-        ['政体 / 组织', firstValue(f.government, f.type, f.factionType)],
-        ['首领', firstValue(f.leader, f.leaderName, f.ruler)],
-        ['称号', firstValue(f.leaderTitle, f.rank)],
-        ['首府', firstValue(f.capital, f.home, p.sample && regionTitle(p.sample))],
-        ['战略目标', firstValue(f.goal, f.strategy, f.longTermStrategy)],
-        ['意识形态', firstValue(f.ideology, f.mainstream)],
-        ['文化', f.culture],
-        ['成员', f.members],
-        ['开局问题', f.openingProblems]
-      ], true) + '</div>';
+    var junchen = '';
+    var renCards = [];
+    renCards.push(bkRenCard(firstValue(f.leaderTitle, '首领'), firstValue(f.leaderInfo, f.leader, f.leaderName, f.ruler), true));
+    renCards.push(bkRenCard('继嗣', firstValue(f.heirInfo, f.heir), false, '储位未定'));
+    if (f.leadership && typeof f.leadership === 'object') {
+      Object.keys(f.leadership).slice(0, 6).forEach(function(k){
+        if (k === 'ruler' && renCards[0]) return;
+        renCards.push(bkRenCard(BK_LEADERSHIP_LABEL[k] || k, f.leadership[k]));
+      });
     }
-    if (tab === 'territory') {
-      return '<div class="pp-tab-detail">' + ledger + ppFieldChips([['剧本领土', f.territory], ['资源', firstValue(f.resources, f.mainResources, p.resources)], ['威胁/商路', p.threats]]) + ppTableRows(territoryRows) + '</div>';
+    var renHtml = renCards.filter(Boolean).join('');
+    // 运行时 members = FactionIndex 派生 {chars, armies, provinces, parties, summary}——只取人物名册
+    var memberChars = f.members && typeof f.members === 'object' && Array.isArray(f.members.chars) ? f.members.chars : (Array.isArray(f.members) ? f.members : null);
+    var memberNames = memberChars ? memberChars.map(function(c){ return typeof c === 'object' ? firstValue(c && c.name, '') : c; }).filter(hasDisplayValue) : [];
+    var memberText = memberNames.length ? '共 ' + memberNames.length + ' 人：' + shortText(memberNames.join('、'), 56) : (memberChars ? '' : (hasDisplayValue(f.members) ? shortText(ppValue(f.members), 60) : ''));
+    junchen = (renHtml ? '<div class="bk-ren-row">' + renHtml + '</div>' : '') + bkLan([
+      bkRow('在册人物', memberText),
+      bkRow('政体', firstValue(f.government, f.type)),
+      bkRow('战略目标', firstValue(f.goal, f.strategy)),
+      bkRow('意识形态', firstValue(f.ideology, f.mainstream)),
+      bkRow('文化', f.culture),
+      bkScoreChips('凝聚', f.cohesion, 50) || bkRow('凝聚', f.cohesion),
+      bkRow('开局问题', f.openingProblems)
+    ], true);
+    var bantu = (p.regions.length ? '<div class="bk-qian-links">' + p.regions.map(function(rg){
+      return '<button type="button" class="bk-qian" data-bk-open-region="' + attr(rg.id || rg.name || rg.title || '') + '">' + esc(regionTitle(rg)) + '</button>';
+    }).join('') + '</div>' : '') + bkLan([
+      bkRow('剧本领土', f.territory),
+      bkRow('资源', firstValue(f.resources, f.mainResources, p.resources.length ? p.resources.join('、') : '')),
+      bkRow('威胁 / 商路', p.threats.length ? p.threats.join('、') : '')
+    ], true);
+    var mb = f.militaryBreakdown && typeof f.militaryBreakdown === 'object' ? f.militaryBreakdown : null;
+    var ws = f.warState && typeof f.warState === 'object' && !Array.isArray(f.warState) ? f.warState : null;
+    var MB_LABEL = { elite: '精锐', standingArmy: '常备', militia: '民兵', fleet: '水师' };
+    var MB_COLOR = { elite: '#8e6aa8', standingArmy: '#a8833a', militia: '#7d6a48', fleet: '#4a5e8a' };
+    var junlue = (mb ? bkBar('兵力构成', Object.keys(mb).filter(function(k){ return Number(mb[k]) > 0; }).map(function(k){
+      return [MB_LABEL[k] || k, Number(mb[k]) || 0, MB_COLOR[k] || '#9d5b4b'];
+    }), '总 ' + fmtNum(Object.keys(mb).reduce(function(a, k){ return a + (Number(mb[k]) || 0); }, 0))) : '') + bkLan([
+      bkRow('总兵力', firstValue(p.troops, runtimeFactionValue(f, 'militaryStrength'), f.militaryStrength)),
+      mb ? '' : bkRow('军力构成', f.militaryBreakdown),
+      ws ? bkRow('现战', ws.active, 'zhu') : bkRow('战争状态', f.warState, 'zhu'),
+      ws ? bkRow('将起', ws.pending) : '',
+      ws ? bkRow('近役', ws.recent) : '',
+      bkRow('动员', firstValue(f.mobilization, f.manpower)),
+      bkRow('战略优先', f.strategicPriorities),
+      bkRow('决策提示', firstValue(f.decisionHints, f.npcDecisionHints)),
+      bkRow('禁忌动作', f.tabooMoves, 'zhu')
+    ], true);
+    var tre = f.treasury && typeof f.treasury === 'object' ? f.treasury : null;
+    var ecoPol = f.economicPolicy && typeof f.economicPolicy === 'object' ? f.economicPolicy : null;
+    var succ = f.succession && typeof f.succession === 'object' ? f.succession : null;
+    var fpop = f.population && typeof f.population === 'object' ? f.population : null;
+    var caiji = bkLan([
+      bkRow('经济', factionFinanceValue(f, p)),
+      bkRow('库藏银', tre ? tre.money : factionTreasuryValue(f, p)),
+      bkRow('库藏粮', firstValue(tre && tre.grain, p.regions.length ? p.grain : '')),
+      bkRow('库藏布', tre && tre.cloth),
+      bkRow('战马', tre && tre.horses, 'jin'),
+      bkRow('库藏注', tre && tre.note),
+      fpop ? bkRow('编户 / 实口', [mapNum(fpop.registered), mapNum(fpop.actual)].filter(function(s){ return s && s !== '未记'; }).join(' / ')) : '',
+      fpop && fpop.ethnicities ? bkScoreChips('族裔', fpop.ethnicities, -1) : '',
+      bkScoreChips('经济结构', f.economicStructure, -1) || bkRow('经济结构', f.economicStructure),
+      ecoPol ? bkRow('赋税之政', bkEnumText(ecoPol.taxation)) : bkRow('经济政策', f.economicPolicy),
+      ecoPol ? bkRow('商贸之政', bkEnumText(ecoPol.trade)) : '',
+      ecoPol ? bkRow('币制', bkEnumText(ecoPol.currency)) : '',
+      ecoPol ? bkRow('役法', bkEnumText(ecoPol.labor)) : '',
+      bkScoreChips('公共舆情', f.publicOpinion, 0) || bkRow('公共舆情', f.publicOpinion),
+      bkScoreChips('技术', f.techLevel, 40) || bkRow('科技', f.techLevel),
+      bkRow('文教', f.cultureLevel),
+      succ ? bkRow('继承', [bkEnumText(succ.rule), hasDisplayValue(succ.designatedHeir) ? '储 ' + ppValue(succ.designatedHeir) : '储位未定', isFinite(Number(succ.stability)) ? '稳定 ' + succ.stability : ''].filter(Boolean).join(' · ')) : bkRow('继承', f.succession)
+    ]);
+    var youlie = '';
+    var you = Array.isArray(f.strengths) ? f.strengths : (hasDisplayValue(f.strengths) ? [ppValue(f.strengths)] : []);
+    var lie = Array.isArray(f.weaknesses) ? f.weaknesses : (hasDisplayValue(f.weaknesses) ? [ppValue(f.weaknesses)] : []);
+    if (you.length || lie.length) {
+      youlie = '<div class="bk-youlie">' +
+        (you.length ? '<div class="yl you"><b>所 长</b>' + you.slice(0, 6).map(function(s){ return '<span>' + esc(ppValue(s)) + '</span>'; }).join('') + '</div>' : '') +
+        (lie.length ? '<div class="yl lie"><b>所 短</b>' + lie.slice(0, 6).map(function(s){ return '<span>' + esc(ppValue(s)) + '</span>'; }).join('') + '</div>' : '') +
+        '</div>';
     }
-    if (tab === 'military') {
-      return '<div class="pp-tab-detail">' + ppZone('军务与战略', [
-        ['总兵力', firstValue(p.troops, runtimeFactionValue(f, 'militaryStrength'), f.militaryStrength)],
-        ['军力构成', f.militaryBreakdown],
-        ['战争状态', f.warState],
-        ['动员', firstValue(f.mobilization, f.manpower)],
-        ['战略优先', f.strategicPriorities],
-        ['决策提示', firstValue(f.decisionHints, f.npcDecisionHints)],
-        ['禁忌动作', f.tabooMoves],
-        ['地缘威胁', p.threats]
-      ], true) + '</div>';
-    }
-    if (tab === 'finance') {
-      return '<div class="pp-tab-detail">' + ledger + ppZone('财赋与国力', [
-        ['经济', factionFinanceValue(f, p)],
-        ['库藏', factionTreasuryValue(f, p)],
-        ['经济结构', f.economicStructure],
-        ['经济政策', f.economicPolicy],
-        ['公共舆情', f.publicOpinion],
-        ['科技', f.techLevel],
-        ['文教', f.cultureLevel],
-        ['继承', f.succession]
-      ], true) + ppFieldChips([['凝聚', f.cohesion], ['优势', f.strengths], ['弱点', f.weaknesses], ['资源', firstValue(f.resources, f.mainResources, p.resources)]]) + '</div>';
-    }
-    if (tab === 'relations') {
-      return '<div class="pp-tab-detail">' + ppTableRows([
-        ['关系', f.relations, '外交'],
-        ['盟友', f.allies, '阵营'],
-        ['敌对', f.enemies, '敌情'],
-        ['中立', f.neutrals, '外交'],
-        ['态度', firstValue(f.attitudeDetail, f.attitude), '立场'],
-        ['玩家关系', f.playerRelation, '关系值'],
-        ['冒犯阈值', f.offendThresholds, '风险'],
-        ['内部派系', f.internalParties, '内政'],
-        ['党派关系', f.partyRelations, '内政'],
-        ['已知间谍', f.knownSpies, '情报']
-      ]) + '</div>';
-    }
-    return '<div class="pp-tab-detail">' + ppTableRows([
-      ['势力叙事', firstValue(f.description, f.desc), '设定'],
-      ['历史脉络', f.history, '设定'],
-      ['历史事件', f.historicalEvents, '年表'],
-      ['AI 画像', f.aiProfile, '推演'],
-      ['长期战略', f.longTermStrategy, '方略'],
-      ['胜利条件', f.victoryConditions, '目标'],
-      ['失败条件', f.defeatConditions, '败局']
-    ]) + '</div>';
+    var shilueText = [
+      hasDisplayValue(f.strategy) ? '【大略】' + ppValue(f.strategy) : '',
+      hasDisplayValue(f.longTermStrategy) ? '【长策】' + ppValue(f.longTermStrategy) : '',
+      hasDisplayValue(f.history) ? '【国史】' + ppValue(f.history) : '',
+      hasDisplayValue(f.historicalEvents) ? '【年表】\n' + (bkEventLines(f.historicalEvents) || ppValue(f.historicalEvents)) : '',
+      hasDisplayValue(f.aiProfile) ? '【画像】' + ppValue(f.aiProfile) : '',
+      hasDisplayValue(f.victoryConditions) ? '【胜局】' + ppValue(f.victoryConditions) : '',
+      hasDisplayValue(f.defeatConditions) ? '【败局】' + ppValue(f.defeatConditions) : ''
+    ].filter(function(s){ return s && s.length > 5; }).join('\n\n');
+    var shilue = youlie + bkFold(shilueText);
+    var foot = '<div class="bk-foot">' +
+      (p.regions.length ? '<button type="button" class="bk-act" data-bk-open-region="' + attr(p.regions[0].id || p.regions[0].name || '') + '">翻 其 首 地</button>' : '') +
+      '<button type="button" class="bk-act" data-pp-close="1">合 上 谱 牒</button>' +
+      '</div>';
+    var juans = [
+      ['bk-junchen', '一', '君臣', '首脑重臣', '君', junchen],
+      ['bk-bantu', '二', '版图', '所辖之地', '图', bantu],
+      ['bk-junlue', '三', '军略', '兵制方略', '军', junlue],
+      ['bk-caiji', '四', '财计', '库藏经济', '财', caiji],
+      ['bk-bangjiao', '五', '邦交', '与国之谊', '交', bkBangList(f)],
+      ['bk-shilue', '六', '史略', '优劣大略', '史', shilue]
+    ];
+    var live = juans.filter(function(j){ return !!j[5]; });
+    return bkSpine(name + ' · 谱牒') +
+      '<div class="bk-inner">' + head + stats +
+      '<div class="bk-scroll">' +
+        live.map(function(j){ return bkJuan(j[0], j[1], j[2], j[3], j[5]); }).join('') +
+      '</div>' + foot + '</div>' +
+      bkJianqian(live.map(function(j){ return [j[0], j[4]]; })) +
+      '<div class="bk-straddle"><i>验讫</i></div>';
   }
-
-  function factionSupplementRows(f, key, region, active){
-    var p = factionProfile(f || {}, key, region);
-    var regions = p.regions || [];
-    if (!regions.length) return '';
-    return '<section class="pp-zone wide"><div class="pp-zt">所辖地块</div><div class="tmf-region-links">' + regions.map(function(r){
-      return '<button type="button" onclick="TMPhase8FormalBridge.openRegionById(\'' + attr(r.id || r.name || r.title || '') + '\')">' + esc(regionTitle(r)) + '</button>';
-    }).join('') + '</div></section>';
-  }
-
   function openFactionDossier(key, region){
     var map = getMapData() || {};
     var f = findFaction(key, region && (region.factionName || region.ownerName)) || {};
     var r = region || factionControlledRegions(key, f)[0] || ((map.regions || []).find(function(x){ return ownerKey(x) === key; }) || null);
     key = key || (r && ownerKey(r)) || '';
-    var name = firstValue(f.label, f.name, f.scenarioFactionName, r && ownerName(r), key, '未名势力');
-    state.mapFactionTab = state.mapFactionTab || 'overview';
-    var active = resolveFactionTab(f, key, r, state.mapFactionTab);
-    state.mapFactionTab = active;
     var pop = ensureMapPpop();
     pop.dataset.panelKind = 'faction';
     pop.dataset.factionKey = key;
-    pop.className = 'tmf-map-ppop faction-panel show';
-    pop.innerHTML =
-      '<div class="pp-top"><div class="pp-crest">' + esc(shortText(f.short || name, 2)) + '</div><div class="pp-title-wrap"><div class="pp-name">' + esc(name) + '</div><div class="pp-level">' + esc(firstValue(f.type, f.factionType, '势力档案')) + '</div></div><span class="pp-top-mark">势力</span><button type="button" class="pp-close" data-pp-close="1">×</button></div>' +
-      '<div class="pp-tabs">' + ppTabButtons('faction', active, r, f, key) + '</div>' +
-      '<div class="pp-tab-body">' + factionTabDetail(f, key, r, active) + '</div>' +
-      '<div class="pp-grid">' + factionSupplementRows(f, key, r, active) + '</div>';
+    pop.removeAttribute('data-region-id');
+    pop.className = 'tmf-map-ppop tmf-book faction-panel show';
+    pop.innerHTML = renderFactionBook(f, key, r);
     document.body.classList.add('province-panel-open');
+    bindBkSpy(pop);
   }
 
   function refreshMapPpop(){

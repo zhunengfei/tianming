@@ -1155,55 +1155,74 @@ function _edictLiveForecast(textareaId) {
   }, 500); // 500ms 防抖
 }
 
-/** 修建建筑弹窗——玩家可选已有建筑类型或自定义 */
+/** 修建建筑弹窗——御案宣纸皮·剧本工籍 + 自拟营造（推诏令建议库·不直改账面） */
+var _DF_BUILD_CAT_CN = { economic: '经济', military: '军事', cultural: '文化', administrative: '行政', religious: '宗教', infrastructure: '基础设施' };
 function _dfBuildModal(divName) {
   var _old = document.getElementById('_dfBuildModal'); if (_old) _old.remove();
   var types = (P.buildingSystem && P.buildingSystem.buildingTypes) || [];
-  var html = '<div class="modal-bg show" id="_dfBuildModal" onclick="if(event.target===this)this.remove()">';
-  html += '<div class="modal-box" style="max-width:560px;">';
-  html += '<h3 style="color:var(--gold);margin:0 0 0.5rem;letter-spacing:0.08em;">\u3014 \u4FEE\u5EFA\u4E8E' + escHtml(divName) + ' \u3015</h3>';
-  html += '<div style="font-size:0.75rem;color:var(--txt-d);margin-bottom:0.6rem;line-height:1.5;">\u53EF\u9009\u5267\u672C\u5DF2\u5B9A\u4E49\u7684\u5EFA\u7B51\uFF0C\u6216\u81EA\u5B9A\u4E49\u65B0\u5EFA\u7B51\u3002AI\u5C06\u6839\u636E\u63CF\u8FF0\u5224\u5B9A\u5408\u7406\u6027\u3001\u8D39\u7528\u3001\u5DE5\u671F\u4E0E\u5B9E\u9645\u6548\u679C\u3002</div>';
+  var BW = (window.TM && TM.BuildingWorks) || null;
+  var enc = encodeURIComponent(divName);
+  var html = '<div class="modal-bg show tmjz-veil" id="_dfBuildModal" onclick="if(event.target===this)this.remove()">';
+  html += '<div class="tmjz">';
+  html += '<div class="tmjz-hd"><div class="tmjz-seal">营</div><div class="tmjz-ti"><b>兴 造</b><span>于 ' + escHtml(divName) + ' 营造工役 · 录入诏令建议库，纳入后颁行</span></div><button type="button" class="tmjz-x" onclick="var m=document.getElementById(\'_dfBuildModal\');if(m)m.remove();">×</button></div>';
+  html += '<div class="tmjz-tabs"><button type="button" class="tmjz-tab active" id="_bmTabPre" onclick="_dfBuildTab(\'pre\')">剧 本 工 籍</button><button type="button" class="tmjz-tab" id="_bmTabCustom" onclick="_dfBuildTab(\'cus\')">自 拟 营 造</button></div>';
+  html += '<div class="tmjz-body">';
 
-  // Tab切换
-  html += '<div style="display:flex;gap:4px;margin-bottom:0.5rem;">';
-  html += '<button class="bt bsm" id="_bmTabPre" style="flex:1;" onclick="document.getElementById(\'_bmPre\').style.display=\'block\';document.getElementById(\'_bmCustom\').style.display=\'none\';">\u9884\u5B9A\u5EFA\u7B51</button>';
-  html += '<button class="bt bsm" id="_bmTabCustom" style="flex:1;" onclick="document.getElementById(\'_bmPre\').style.display=\'none\';document.getElementById(\'_bmCustom\').style.display=\'block\';">\u81EA\u5B9A\u4E49</button>';
-  html += '</div>';
-
-  // 预定义建筑选择
+  // 剧本工籍
   html += '<div id="_bmPre">';
   if (types.length === 0) {
-    html += '<div style="color:var(--txt-d);padding:1rem;text-align:center;">\u5267\u672C\u672A\u5B9A\u4E49\u5EFA\u7B51\u7C7B\u578B\uFF0C\u8BF7\u7528\u300C\u81EA\u5B9A\u4E49\u300D</div>';
+    html += '<div class="tmjz-empty">剧本未定义工籍——请转「自拟营造」。</div>';
   } else {
-    html += '<div style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:0.3rem;">';
     types.forEach(function(b, i) {
-      html += '<div style="padding:0.5rem;background:var(--bg-2);border-left:3px solid var(--gold-d);border-radius:6px;cursor:pointer;" onclick="_dfSubmitBuild(&quot;' + encodeURIComponent(divName) + '&quot;,' + i + ',null)">';
-      html += '<div style="font-size:0.85rem;color:var(--gold);font-weight:700;">' + escHtml(b.name) + ' <span style="font-size:0.7rem;color:var(--txt-d);">[' + escHtml(b.category || '') + '] \u6700\u9AD8Lv' + (b.maxLevel||5) + ' \u57FA\u672C\u8D39' + (b.baseCost||0) + '\u4E24 \u5DE5\u671F' + (b.buildTime||3) + '\u56DE\u5408</span></div>';
-      if (b.description) html += '<div style="font-size:0.72rem;color:var(--txt-d);line-height:1.5;margin-top:0.2rem;">' + escHtml(b.description.substring(0, 180)) + (b.description.length>180?'\u2026':'') + '</div>';
+      var cat = b.category || '';
+      var catCN = _DF_BUILD_CAT_CN[cat] || (cat && !/^[a-z_\- ]+$/i.test(cat) ? cat : '工');
+      var fx = [];
+      try { if (BW) fx = BW.fxLabels({ name: b.name, category: cat }, b) || []; } catch (_e) {}
+      html += '<div class="tmjz-item" onclick="_dfSubmitBuild(&quot;' + enc + '&quot;,' + i + ',null)">';
+      html += '<div class="ji-seal ' + escHtml(cat || 'economic') + '">' + escHtml(String(catCN).slice(0, 2)) + '</div>';
+      html += '<div class="ji-body"><b>' + escHtml(b.name) + '</b>';
+      if (b.description) html += '<p>' + escHtml(b.description.substring(0, 110)) + (b.description.length > 110 ? '…' : '') + '</p>';
+      if (fx.length) html += '<div class="ji-fx">' + fx.slice(0, 4).map(function(x) { return '<em>' + escHtml(x) + '</em>'; }).join('') + '</div>';
+      html += '</div>';
+      html += '<div class="ji-meta">基费 <i>' + (b.baseCost || 0) + '</i> 两<br>工期 <i>' + (b.buildTime || 3) + '</i> 回合 · 至 ' + (b.maxLevel || 5) + ' 级</div>';
       html += '</div>';
     });
-    html += '</div>';
   }
   html += '</div>';
 
-  // 自定义建筑
+  // 自拟营造
   html += '<div id="_bmCustom" style="display:none;">';
-  html += '<div style="margin-bottom:0.5rem;"><label style="font-size:0.78rem;color:var(--gold);">\u5EFA\u7B51\u540D\u79F0</label><input id="_bmCustName" class="fd" placeholder="\u5982\uFF1A\u5174\u6587\u9986 / \u6C34\u8F66\u574A / \u7CAE\u5E93"></div>';
-  html += '<div style="margin-bottom:0.5rem;"><label style="font-size:0.78rem;color:var(--gold);">\u7C7B\u522B</label><select id="_bmCustCat" class="fd">';
-  ['economic:经济','military:军事','cultural:文化','administrative:行政','religious:宗教','infrastructure:基础设施'].forEach(function(p) {
-    var kv = p.split(':'); html += '<option value="' + kv[0] + '">' + kv[1] + '</option>';
-  });
+  html += '<div class="tmjz-field"><label>工 役 名 目</label><input id="_bmCustName" placeholder="如：兴文馆 / 水车坊 / 义仓"></div>';
+  html += '<div class="tmjz-field"><label>类 属</label><select id="_bmCustCat">';
+  Object.keys(_DF_BUILD_CAT_CN).forEach(function(k) { html += '<option value="' + k + '">' + _DF_BUILD_CAT_CN[k] + '</option>'; });
   html += '</select></div>';
-  html += '<div style="margin-bottom:0.5rem;"><label style="font-size:0.78rem;color:var(--gold);">\u63CF\u8FF0\uFF08\u544AAI\u4F60\u60F3\u4FEE\u4EC0\u4E48\u53CA\u9884\u671F\u6548\u679C\uFF09</label><textarea id="_bmCustDesc" rows="4" class="fd" placeholder="\u4F8B\uFF1A\u4FEE\u6587\u9986\u4EE5\u85CF\u4E66\u5200\u7248\uFF0C\u4F9B\u5C9A\u9633\u5B66\u8005\u5165\u5185\u8BAE\u4E8B\uFF0C\u4EE5\u5174\u6587\u98CE\u3001\u5B89\u78A8\u58EB"></textarea></div>';
+  html += '<div class="tmjz-field"><label>规 制 与 所 求（告示有司：欲修何物、预期何效）</label><textarea id="_bmCustDesc" rows="4" placeholder="例：修文馆以藏书刀版，供士子入内议事，以兴文风、安士心。"></textarea></div>';
+  html += '<div class="tmjz-rule"><b>有司核定之制：</b>自拟工役颁行后，由有司核其<b>合理性三档</b>（合理／勉强／不合理），定实际费用与工期；其效用只许落在<b>白名单账目</b>（田亩、商贸、盐铁、城防、驿路、解额、募兵、民心、吏治等），且以费用为度——小费小效，大费大效，断无十两银修出雄关之理。</div>';
   html += '</div>';
 
-  html += '<div style="display:flex;gap:8px;margin-top:0.8rem;justify-content:flex-end;">';
-  html += '<button class="bt bs" onclick="var m=document.getElementById(\'_dfBuildModal\');if(m)m.remove();">\u6492\u5E9C</button>';
-  html += '<button class="bt bp" onclick="_dfSubmitBuild(&quot;' + encodeURIComponent(divName) + '&quot;,-1,true)">\u63D0\u4EA4\u81EA\u5B9A\u4E49</button>';
   html += '</div>';
-  html += '</div></div>';
+  html += '<div class="tmjz-foot"><div class="tmjz-note">营造不直改账面——经诏令颁行后，由有司核其合理、费用、工期与实效。</div>';
+  html += '<button type="button" class="tmjz-bt" onclick="var m=document.getElementById(\'_dfBuildModal\');if(m)m.remove();">撤 案</button>';
+  html += '<button type="button" class="tmjz-bt zhu" id="_bmSubmit" style="display:none;" onclick="_dfSubmitBuild(&quot;' + enc + '&quot;,-1,true)">录 入 诏 令</button>';
+  html += '</div></div></div>';
 
   var tmp = document.createElement('div'); tmp.innerHTML = html; document.body.appendChild(tmp.firstChild);
+}
+
+/** 兴造弹窗页签切换 */
+function _dfBuildTab(which) {
+  var pre = document.getElementById('_bmPre');
+  var cus = document.getElementById('_bmCustom');
+  var tp = document.getElementById('_bmTabPre');
+  var tc = document.getElementById('_bmTabCustom');
+  var sb = document.getElementById('_bmSubmit');
+  if (!pre || !cus) return;
+  var isPre = which === 'pre';
+  pre.style.display = isPre ? 'block' : 'none';
+  cus.style.display = isPre ? 'none' : 'block';
+  if (tp) tp.classList.toggle('active', isPre);
+  if (tc) tc.classList.toggle('active', !isPre);
+  if (sb) sb.style.display = isPre ? 'none' : '';
 }
 
 /** 提交修建请求到诏令建议库 */
@@ -1214,19 +1233,21 @@ function _dfSubmitBuild(divNameEnc, typeIdx, isCustom) {
     var name = (document.getElementById('_bmCustName')||{}).value || '';
     var cat = (document.getElementById('_bmCustCat')||{}).value || 'economic';
     var desc = (document.getElementById('_bmCustDesc')||{}).value || '';
-    if (!name.trim() || !desc.trim()) { toast('请填写建筑名称与描述'); return; }
-    content = '于 ' + divName + ' 修建【自定义 · ' + cat + '】' + name + '：' + desc + '。——请AI判定此建筑的合理性、成本、工期与实际效果。';
+    if (!name.trim() || !desc.trim()) { toast('请填写工役名目与规制'); return; }
+    var catCN = _DF_BUILD_CAT_CN[cat] || cat;
+    content = '于 ' + divName + ' 修建【自定义 · ' + cat + '（' + catCN + '）】' + name + '：' + desc + '。——请AI判定此建筑的合理性、成本、工期与实际效果。';
   } else {
     var types = (P.buildingSystem && P.buildingSystem.buildingTypes) || [];
     var b = types[typeIdx]; if (!b) return;
     content = '于 ' + divName + ' 修建 ' + b.name + (b.baseCost?'（预计费用 '+b.baseCost+' 两，工期 '+(b.buildTime||3)+' 回合）':'') + '。——请AI按其描述综合判定实际效果。';
   }
   if (!GM._edictSuggestions) GM._edictSuggestions = [];
-  GM._edictSuggestions.push({ source: '\u5DE5\u7A0B', from: divName, content: content, turn: GM.turn, used: false });
+  GM._edictSuggestions.push({ source: '工程', from: divName, content: content, turn: GM.turn, used: false });
   _recordPlayerActionSignal('construction', content, { source: 'district-build-action', target: divName });
-  toast('\u5DF2\u5F55\u5165\u8BCF\u4EE4\u5EFA\u8BAE\u5E93\u2014\u2014\u8BF7\u5728\u8BCF\u4EE4\u533A\u7EB3\u5165\u540E\u9881\u8BCF');
+  toast('已录入诏令建议库——请在诏令区纳入后颁诏');
   if (typeof _renderEdictSuggestions === 'function') _renderEdictSuggestions();
   var m = document.getElementById('_dfBuildModal'); if (m) m.remove();
+  try { document.dispatchEvent(new CustomEvent('tm-yingzao-submitted', { detail: { divName: divName } })); } catch (_e) {}
 }
 
 /** 非直辖区划——中国化操作路径弹窗 */

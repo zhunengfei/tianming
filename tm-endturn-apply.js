@@ -930,7 +930,7 @@
             var _cap = GM._capital || '京城';
             if (!_nlCh) { _nlSkipNoChar++; _dbg('[npc_letters] 找不到角色: ' + nl.from + '·跳过'); return; }
             if (_nlCh.isPlayer) { _nlSkipMissing++; return; }
-            if (_nlCh.alive === false) { _nlSkipMissing++; return; }
+            if (_nlCh.alive === false || _nlCh.dead) { _nlSkipMissing++; return; }
             if (_isSameLocation(_nlCh.location, _cap)) {
               // 在京 NPC 不应走鸿雁——但 AI 已生成内容·改投奏疏避免内容浪费
               _nlSkipCapital++;
@@ -976,6 +976,8 @@
           if (!GM._pendingNpcCorrespondence) GM._pendingNpcCorrespondence = [];
           p1.npc_correspondence.forEach(function(nc) {
             if (!nc.from || !nc.to) return;
+            var _ncF = findCharByName(nc.from), _ncT = findCharByName(nc.to);
+            if ((_ncF && (_ncF.alive === false || _ncF.dead)) || (_ncT && (_ncT.alive === false || _ncT.dead))) return; // 死者不参与密信
             if (!_tmNpcLedgerPreflight({ source: 'main_ai:npc_correspondence', kind: 'npc_correspondence', actor: nc.from, type: nc.type || 'secret', behaviorType: nc.type || 'secret', target: nc.to, action: nc.content || nc.summary || '' }, 'AI NPC通信已阻止')) return;
             GM._pendingNpcCorrespondence.push({
               from: nc.from, to: nc.to,
@@ -1536,7 +1538,17 @@
                 // 三层读取：AI事件字段 → AI geoData → 地图区域 → 默认值
                 var _siegeRegion = (P.map&&P.map.regions||[]).find(function(r){return (r.id||r.name)===fe.target;});
                 var _geo = fe.geoData || {};
-                var _siegeFort = fe.fortLevel || _geo.fortLevel || (_siegeRegion ? (_siegeRegion.passLevel||0) : 2);
+                var _divFort = 0;
+                try { // 2026-06-12: 建筑工役引擎写的 division.fortLevel（城墙/敌台完工档位）进围城读链
+                  if (P.adminHierarchy) Object.keys(P.adminHierarchy).forEach(function(_fk){
+                    var _fh = P.adminHierarchy[_fk]; if (!_fh || !_fh.divisions) return;
+                    (function _wk(_ds){ _ds.forEach(function(_d){
+                      if (_d && _d.name === fe.target && _d.fortLevel > _divFort) _divFort = _d.fortLevel;
+                      if (_d && _d.children) _wk(_d.children); if (_d && _d.divisions) _wk(_d.divisions);
+                    }); })(_fh.divisions);
+                  });
+                } catch(_) {}
+                var _siegeFort = fe.fortLevel || _geo.fortLevel || _divFort || (_siegeRegion ? (_siegeRegion.passLevel||0) : 2);
                 var _siegeGarrison = fe.garrison || _geo.garrison || (_siegeRegion ? (_siegeRegion.troops||3000) : 3000);
                 SiegeSystem.createSiege(_siegeArmy, fe.target || '未知城池', _siegeFort, _siegeGarrison);
               }
@@ -1589,11 +1601,47 @@
               var oldI = party.influence || 50;
               party.influence = clamp(oldI + clamp(parseInt(pc.influence_delta)||0, -20, 20), 0, 100);
               recordChange('parties', pc.name, 'influence', oldI, party.influence, pc.reason || 'AI\u63A8\u6F14');
+              // 党派近账+引擎账即时镜像（单源对账：AI 写的是 canonical，立刻同步 partyState 防漂移）
+              try {
+                var _psn = GM.partyState && GM.partyState[pc.name];
+                if (_psn) {
+                  if (!Array.isArray(_psn.historyLog)) _psn.historyLog = [];
+                  _psn.historyLog.push({ turn: GM.turn, field: 'influence', delta: party.influence - oldI, reason: pc.reason || 'AI\u63A8\u6F14' });
+                  if (_psn.historyLog.length > 16) _psn.historyLog = _psn.historyLog.slice(-16);
+                  _psn.influence = party.influence;
+                  _psn._synced_influence = party.influence;
+                }
+              } catch(_psSyncE) {}
             }
             if (pc.new_status) { party.status = pc.new_status; addEB('\u515A\u6D3E', pc.name + '\u72B6\u6001\u53D8\u4E3A' + pc.new_status); }
             if (pc.new_leader) { party.leader = pc.new_leader; addEB('\u515A\u6D3E', pc.name + '\u65B0\u9996\u9886:' + pc.new_leader); }
-            if (pc.new_agenda) party.currentAgenda = pc.new_agenda;
+            if (pc.new_agenda) { party.currentAgenda = pc.new_agenda; party._agendaTurn = GM.turn; party._agendaSource = 'ai'; }
             if (pc.new_shortGoal) party.shortGoal = pc.new_shortGoal;
+          });
+        }
+
+        // 党派结盟/交恶（2026-06-12 backlog）：对称写入双方 partyState 盟敌名册 + 近账
+        if (p1.party_relation_changes && Array.isArray(p1.party_relation_changes)) {
+          p1.party_relation_changes.forEach(function(prc) {
+            if (!prc || !prc.party || !prc.target || !GM.partyState) return;
+            var rel = String(prc.relation || '').toLowerCase();
+            var relCn = (rel === 'ally' || rel === '\u76DF') ? '\u7ED3\u76DF' : (rel === 'rival' || rel === '\u654C') ? '\u4EA4\u6076' : '\u5F52\u5E73';
+            function applyOne(selfName, otherName) {
+              var ps = GM.partyState[selfName];
+              if (!ps) return false;
+              function arr(k) { if (!Array.isArray(ps[k])) ps[k] = []; return ps[k]; }
+              function drop(k) { ps[k] = arr(k).filter(function(x) { return String(x) !== otherName; }); }
+              if (relCn === '\u7ED3\u76DF') { drop('conflictWith'); if (arr('alliedWith').indexOf(otherName) < 0) ps.alliedWith.push(otherName); }
+              else if (relCn === '\u4EA4\u6076') { drop('alliedWith'); if (arr('conflictWith').indexOf(otherName) < 0) ps.conflictWith.push(otherName); }
+              else { drop('alliedWith'); drop('conflictWith'); }
+              if (!Array.isArray(ps.historyLog)) ps.historyLog = [];
+              ps.historyLog.push({ turn: GM.turn, field: 'relation', delta: 0, reason: relCn + '\u00B7' + otherName + (prc.reason ? '\u00B7' + String(prc.reason).slice(0, 40) : '') });
+              if (ps.historyLog.length > 16) ps.historyLog = ps.historyLog.slice(-16);
+              return true;
+            }
+            var ok1 = applyOne(String(prc.party), String(prc.target));
+            applyOne(String(prc.target), String(prc.party));
+            if (ok1) addEB('\u515A\u6D3E', String(prc.party) + '\u4E0E' + String(prc.target) + relCn + (prc.reason ? '\uFF1A' + String(prc.reason).slice(0, 40) : ''));
           });
         }
 
@@ -2808,12 +2856,14 @@
           var _officeMoveExitMap = _tmBuildOfficeMoveExitMap(GM, p1);
           p1.office_changes.forEach(function(oc) {
             if (!oc.dept || !oc.position || !oc.action) return;
+            var _ocMatchedTree = false; // 单一真相源:树是否精确匹配·未匹配则回退写人物 officialTitle
             // 遍历官制树查找匹配的部门和职位
             (function walkTree(nodes) {
               nodes.forEach(function(node) {
                 if (node.name === oc.dept && node.positions) {
                   node.positions.forEach(function(pos) {
                     if (pos.name === oc.position) {
+                      _ocMatchedTree = true;
                       if (oc.action === 'appoint' && oc.person) {
                         var oldHolder = pos.holder || '';
                         // 新模型：把旧 holder 转成占位再把新 holder 填入
@@ -3011,8 +3061,16 @@
                             _tmApplyLoyaltyDelta(dch, -10, '\u88AB\u514D\u53BB\u5B98\u804C', 'office-dismiss-remove');
                             dch.stress = Math.min(100, (dch.stress||0) + 15);
                           }
-                          if (dch.officialTitle === oc.position) dch.officialTitle = '';
-                          dch.title = _isRetire ? '致仕' : (_isMoveExit ? dch.title : '');
+                          // 单一真相源:规范卸任·title 同步为剩余主职(无职才空)·防误清成布衣(症状②)
+                          if (_isMoveExit) {
+                            if (dch.officialTitle === oc.position) dch.officialTitle = '';
+                          } else if (typeof _offRemoveCharOfficeTitle === 'function') {
+                            _offRemoveCharOfficeTitle(dch, oc.position);
+                            if (_isRetire) dch.title = '致仕';
+                          } else {
+                            if (dch.officialTitle === oc.position) dch.officialTitle = '';
+                            dch.title = _isRetire ? '致仕' : '';
+                          }
                           if (typeof recordCharacterArc === 'function') recordCharacterArc(dismissed, _isRetire ? 'retirement' : (_isMoveExit ? 'transfer' : 'dismissal'), (_isRetire ? '\u6069\u51C6\u81F4\u4ED5' : (_isMoveExit ? '\u8F6C\u4EFB\u5378\u804C' : '\u88AB\u514D\u53BB')) + oc.dept + oc.position + (oc.reason ? '：' + oc.reason : ''));
                           }
                           // 同步PostSystem
@@ -3043,6 +3101,23 @@
                 if (node.subs) walkTree(node.subs);
               });
             })(GM.officeTree);
+            // 单一真相源:树无精确匹配的人事变动·仍把意图写入人物 officialTitle(派生据此落座/卸座)·
+            //   否则推演叙事显示了官职变化但图志/树都不变(症状③)
+            if (!_ocMatchedTree && oc.action === 'appoint' && oc.person) {
+              var _ucCh = findCharByName(oc.person);
+              if (_ucCh) {
+                if (typeof _offAddCharOfficeTitle === 'function') _offAddCharOfficeTitle(_ucCh, oc.position, { concurrent: !!oc.concurrent });
+                else _ucCh.officialTitle = oc.position;
+                if (!_ucCh.title) _ucCh.title = (oc.dept || '') + oc.position;
+                addEB('任命', oc.person + '任' + (oc.dept || '') + oc.position + (oc.reason ? '(' + oc.reason + ')' : ''));
+              }
+            } else if (!_ocMatchedTree && oc.action === 'dismiss' && oc.person) {
+              var _ucCh2 = findCharByName(oc.person);
+              if (_ucCh2 && typeof _offRemoveCharOfficeTitle === 'function') {
+                _offRemoveCharOfficeTitle(_ucCh2, oc.position);
+                addEB('罢免', oc.person + '免去' + (oc.dept || '') + oc.position + (oc.reason ? '(' + oc.reason + ')' : ''));
+              }
+            }
             // reform动作——在walkTree之外处理（修改树结构）
             if (oc.action === 'reform' && oc.reformDetail) {
               var _rd = oc.reformDetail;
@@ -3227,6 +3302,9 @@
             }
           });
         }
+
+        // 单一真相源:office_changes 处理后从人物 officialTitle 重建官制树任职者
+        try { if (typeof _offSyncHoldersFromChars === 'function') _offSyncHoldersFromChars({ force: true }); } catch (_e) {}
 
         // 处理部门聚合事件（双层模型）
         if (p1.office_aggregate && Array.isArray(p1.office_aggregate) && GM.officeTree) {
@@ -3423,12 +3501,30 @@
                 if (_targetDiv) {
                   if (!_targetDiv.buildings) _targetDiv.buildings = [];
                   if (bc.action === 'destroy') {
+                    // 2026-06-12: 拆毁前按 appliedDelta 回退已入账效果（建筑工役引擎·存量可逆）
+                    _targetDiv.buildings.forEach(function(b) {
+                      if (b && b.name === bc.type && typeof TM !== 'undefined' && TM.BuildingWorks) {
+                        try { TM.BuildingWorks.revertBuilding(_targetDiv, b); } catch(_) {}
+                      }
+                    });
                     _targetDiv.buildings = _targetDiv.buildings.filter(function(b) { return b.name !== bc.type; });
                     addEB('\u5EFA\u8BBE', bc.territory + '拆除 ' + bc.type);
                   } else if (bc.action === 'upgrade') {
                     var _exB = _targetDiv.buildings.find(function(b) { return b.name === bc.type; });
                     if (_exB) {
                       _exB.level = (_exB.level || 1) + 1;
+                      // 2026-06-12: 升级即时再入账一级份效果（appliedDelta 累计·拆毁整体回退）
+                      if (typeof TM !== 'undefined' && TM.BuildingWorks) {
+                        try {
+                          var _bwPrevTurn = _exB.appliedTurn; delete _exB.appliedTurn;
+                          var _bwPrevDelta = _exB.appliedDelta || {}; delete _exB.appliedDelta;
+                          TM.BuildingWorks.applyCompletion(_targetDiv, _exB, P, GM);
+                          var _bwNewDelta = _exB.appliedDelta || {};
+                          Object.keys(_bwPrevDelta).forEach(function(k){ _bwNewDelta[k] = (_bwNewDelta[k] || 0) + _bwPrevDelta[k]; });
+                          _exB.appliedDelta = _bwNewDelta;
+                          if (_exB.appliedTurn == null && _bwPrevTurn != null) _exB.appliedTurn = _bwPrevTurn;
+                        } catch(_) {}
+                      }
                       addEB('\u5EFA\u8BBE', bc.territory + '的' + bc.type + '升级至' + _exB.level + '级');
                     }
                   } else {
@@ -3444,6 +3540,7 @@
                         isCustom: _isCustom,
                         description: bc.description || '',
                         judgedEffects: bc.judgedEffects || '',
+                        effectsStructured: (bc.effectsStructured && typeof bc.effectsStructured === 'object') ? bc.effectsStructured : null,
                         costActual: bc.costActual || null,
                         timeActual: bc.timeActual || null,
                         status: (bc.timeActual && bc.timeActual > 0) ? 'building' : 'completed',
@@ -3580,11 +3677,24 @@
             }
 
             // delta字段统一处理（所有action类型都可附带）
+            // S6（2026-06-12）：治理效果按本地政令执行率打折——官缺/主官出缺/驿路阻滞/贪腐全在执行率里。
+            var _s6ExecRate = 1;
+            try {
+              if (typeof TM !== 'undefined' && TM.FieldPipes && typeof TM.FieldPipes.policyExecRate === 'function') {
+                _s6ExecRate = TM.FieldPipes.policyExecRate(_targetDiv).rate;
+              }
+            } catch(_) {}
+            function _s6Scale(v) {
+              var n = parseInt(v) || 0;
+              if (!n || _s6ExecRate >= 1) return n;
+              var scaled = Math.round(n * _s6ExecRate);
+              return scaled === 0 ? (n > 0 ? 1 : -1) : scaled; // 不归零：至少存一分政令余效
+            }
             if (ac.prosperity_delta) {
-              _targetDiv.prosperity = clamp((_targetDiv.prosperity || 50) + clamp(parseInt(ac.prosperity_delta) || 0, -20, 20), 0, 100);
+              _targetDiv.prosperity = clamp((_targetDiv.prosperity || 50) + clamp(_s6Scale(ac.prosperity_delta), -20, 20), 0, 100);
             }
             if (ac.population_delta) {
-              _targetDiv.population = Math.max(0, (_targetDiv.population || 50000) + clamp(parseInt(ac.population_delta) || 0, -50000, 50000));
+              _targetDiv.population = Math.max(0, (_targetDiv.population || 50000) + clamp(_s6Scale(ac.population_delta), -50000, 50000));
             }
 
             // 同步到地方区划
@@ -3593,9 +3703,32 @@
               if (_targetDiv.governor !== undefined) _ps.governor = _targetDiv.governor;
               if (_targetDiv.prosperity !== undefined) _ps.wealth = _targetDiv.prosperity;
               if (_targetDiv.population !== undefined) _ps.population = _targetDiv.population;
-              if (ac.corruption_delta) _ps.corruption = clamp((_ps.corruption || 0) + clamp(parseInt(ac.corruption_delta) || 0, -20, 20), 0, 100);
-              if (ac.stability_delta) _ps.stability = clamp((_ps.stability || 50) + clamp(parseInt(ac.stability_delta) || 0, -20, 20), 0, 100);
-              if (ac.unrest_delta) _ps.unrest = clamp((_ps.unrest || 0) + clamp(parseInt(ac.unrest_delta) || 0, -20, 20), 0, 100);
+              if (ac.corruption_delta) _ps.corruption = clamp((_ps.corruption || 0) + clamp(_s6Scale(ac.corruption_delta), -20, 20), 0, 100);
+              if (ac.stability_delta) _ps.stability = clamp((_ps.stability || 50) + clamp(_s6Scale(ac.stability_delta), -20, 20), 0, 100);
+              if (ac.unrest_delta) _ps.unrest = clamp((_ps.unrest || 0) + clamp(_s6Scale(ac.unrest_delta), -20, 20), 0, 100);
+            }
+          });
+        }
+
+        // 处理地块状态变更（2026-06-12·状态系统）：奇观/灾异/风云/圣裁落地块持续境况·
+        // 效果硬闸（econPct ±25%·民心 ±2/回合·工期 ≤24·每地 ≤12 条）在 TM.RegionStatus.normalize
+        if (p1.region_status_changes && Array.isArray(p1.region_status_changes) && P.adminHierarchy) {
+          p1.region_status_changes.forEach(function(sc) {
+            if (!sc || !sc.region) return;
+            var _rsApi = (typeof TM !== 'undefined' && TM.RegionStatus) || null;
+            var _fpApi = (typeof TM !== 'undefined' && TM.FieldPipes) || null;
+            if (!_rsApi || !_fpApi) return;
+            var _scDiv = _fpApi.findDivisionByName(P, sc.region);
+            if (!_scDiv) return;
+            if (sc.action === 'remove') {
+              if (_rsApi.remove(_scDiv, sc.name || sc.id, undefined, GM)) {
+                addEB('地方', sc.region + '状态消解：' + (sc.name || sc.id) + (sc.reason ? '——' + sc.reason : ''));
+              }
+            } else {
+              var _scFx = _rsApi.add(_scDiv, { kind: sc.kind, name: sc.name, desc: sc.desc || sc.reason || '', econPct: sc.econPct, minxinPerTurn: sc.minxinPerTurn, durationTurns: sc.durationTurns, source: 'ai' }, GM);
+              if (_scFx) {
+                addEB('地方', sc.region + '现状态【' + _scFx.name + '】' + (_scFx.econPct ? '·岁入 ' + (_scFx.econPct > 0 ? '+' : '') + Math.round(_scFx.econPct * 100) + '%' : '') + (sc.reason ? '——' + sc.reason : ''));
+              }
             }
           });
         }

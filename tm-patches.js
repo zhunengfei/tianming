@@ -330,6 +330,24 @@ window._tmSetFitResolution = function(btn){
   try { if (typeof toast === 'function') toast('分辨率已保存·即将刷新生效'); } catch(_){}
   setTimeout(function(){ try { location.reload(); } catch(_){} }, 900);
 };
+// 显示模式：全屏 / 窗口 切换（设置·界面显示）。Electron 走主进程 setFullScreen（须随安装包重建生效）；
+// 浏览器/安卓 WebView 走 HTML5 Fullscreen API。偏好存 localStorage（只影响本设备）。
+window._tmSetFullscreen = function(want, btn){
+  want = !!want;
+  try { localStorage.setItem('tm.fullscreen', want ? '1' : '0'); } catch(_){}
+  var done = false;
+  try { if (window.tianming && typeof window.tianming.setFullScreen === 'function') { window.tianming.setFullScreen(want); done = true; } } catch(_){}
+  if (!done) {
+    try {
+      if (want) { var el = document.documentElement; var rf = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen; if (rf) { var _r = rf.call(el); if (_r && _r.catch) _r.catch(function(){}); } }
+      else { var ef = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen; if (ef && (document.fullscreenElement || document.webkitFullscreenElement)) ef.call(document); }
+    } catch(_){}
+  }
+  if (btn && btn.parentElement) { var sib = btn.parentElement.children; for (var i = 0; i < sib.length; i++) { sib[i].classList.remove('bp'); sib[i].classList.add('bs'); } btn.classList.remove('bs'); btn.classList.add('bp'); }
+  try { if (typeof toast === 'function') toast(want ? '已切换为全屏' : '已切换为窗口模式'); } catch(_){}
+};
+// 启动时按上次偏好应用窗口模式（默认全屏不动）。Electron 须重建出含 setFullScreen 的 preload 才生效。
+try { setTimeout(function(){ try { if (localStorage.getItem('tm.fullscreen') === '0' && window.tianming && typeof window.tianming.setFullScreen === 'function') window.tianming.setFullScreen(false); } catch(_){} }, 1200); } catch(_){}
 
 openSettings=function(){
   var bg=_$("settings-bg");
@@ -365,6 +383,11 @@ openSettings=function(){
         h += '<div style="font-size:0.78rem;color:var(--txt-d);margin:0.6rem 0 0.4rem;">渲染分辨率·「自适应」随窗口伸缩；选定分辨率后按固定舞台整体缩放（低于窗口 = 整体放大）·改后自动刷新</div>' +
           '<div style="display:flex;gap:0.3rem;">' + pillR('auto','自适应窗口') + pillR('1920x1080','1920×1080') + pillR('1600x900','1600×900') + pillR('1366x768','1366×768') + '</div>';
       }
+      // 显示模式·全屏 / 窗口（设置·界面显示）
+      var _fsPref = '1'; try { var _fp = localStorage.getItem('tm.fullscreen'); _fsPref = (_fp === '0') ? '0' : '1'; } catch(_){}
+      var pillFs = function(want, label){ var on = (_fsPref === (want ? '1' : '0')); return '<button class="bt ' + (on ? 'bp' : 'bs') + ' bsm" onclick="_tmSetFullscreen(' + want + ',this)" style="flex:1;">' + label + '</button>'; };
+      h += '<div style="font-size:0.78rem;color:var(--txt-d);margin:0.6rem 0 0.4rem;">显示模式·全屏沉浸或窗口化·只影响本设备</div>' +
+        '<div style="display:flex;gap:0.3rem;">' + pillFs(true, '全屏') + pillFs(false, '窗口') + '</div>';
       return h + '</div>';
     })()+
     // API
@@ -2529,6 +2552,9 @@ function doActualStart(sid){
     })(GM.officeTree);
     if (_syncCount > 0) _dbg('[Office] 自动匹配官制任职者 ' + _syncCount + ' 处');
   }
+
+  // 单一真相源:开局去重人物+从树回填officialTitle+派生任职者(与读档一致)
+  try { if (typeof _offSyncHoldersFromChars === 'function') _offSyncHoldersFromChars({ importSeats: true, dedupChars: true, force: true }); } catch (_e) {}
 
   // 构建索引系统（性能优化）
   showLoading('\u6784\u5EFA\u7D22\u5F15...', 50);
