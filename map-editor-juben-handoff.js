@@ -7,7 +7,39 @@
   'use strict';
   var HANDOFF_KEY = 'tm.scenarioEditorReset.mapHandoff.v1';
   var RETURN_KEY = 'tm.scenarioEditorReset.mapReturn.v1';
+  // 治 quota：大地图（含 raster）落 IndexedDB，localStorage 只留小信号触发御案 storage 事件。
+  // 复用 scenario-editor-reset-app.js 的同一库/表（键名 __mapReturn__），约定一致。
+  var BRIDGE_DB_NAME = 'tm-scenario-editor-reset-projects';
+  var BRIDGE_DB_STORE = 'projectBodies';
+  var RETURN_DB_ID = '__mapReturn__';
 
+  function openBridgeDb() {
+    return new Promise(function (resolve) {
+      try {
+        if (!window.indexedDB) { resolve(null); return; }
+        var req = indexedDB.open(BRIDGE_DB_NAME, 1);
+        req.onupgradeneeded = function (ev) {
+          var db = ev.target.result;
+          if (!db.objectStoreNames.contains(BRIDGE_DB_STORE)) db.createObjectStore(BRIDGE_DB_STORE, { keyPath: 'id' });
+        };
+        req.onsuccess = function (ev) { resolve(ev.target.result); };
+        req.onerror = function () { resolve(null); };
+      } catch (e) { resolve(null); }
+    });
+  }
+  function bridgePut(id, body) {
+    return openBridgeDb().then(function (db) {
+      if (!db) return false;
+      return new Promise(function (resolve) {
+        try {
+          var tx = db.transaction(BRIDGE_DB_STORE, 'readwrite');
+          tx.objectStore(BRIDGE_DB_STORE).put({ id: id, body: body });
+          tx.oncomplete = function () { db.close(); resolve(true); };
+          tx.onerror = function () { db.close(); resolve(false); };
+        } catch (e) { resolve(false); }
+      });
+    }).catch(function () { return false; });
+  }
   function fromJuben() {
     try { return /[?&]tmFromJuben=1/.test(location.search); } catch (e) { return false; }
   }
@@ -49,8 +81,22 @@
     // 提交 raster 脏改（同 exportJSON 前置）
     try { if (window.TM && TM.MapEditor && TM.MapEditor.rastermaps) TM.MapEditor.rastermaps.commitAllDirty(); } catch (e) {}
     var payload = { createdAt: new Date().toISOString(), source: 'map-editor', native: m.EDITOR.map };
-    try { localStorage.setItem(RETURN_KEY, JSON.stringify(payload)); }
-    catch (err) { alert('写回失败（地图可能过大）：' + (err && err.message || err)); return; }
+    // 大地图先落 IndexedDB（治 quota），成功后 localStorage 只写小信号触发御案 storage 事件。
+    bridgePut(RETURN_DB_ID, payload).then(function (ok) {
+      if (ok) {
+        try { localStorage.setItem(RETURN_KEY, JSON.stringify({ idb: true, createdAt: payload.createdAt, ts: Date.now() })); }
+        catch (e) { /* 信号仅几十字节，几乎不会爆；万一爆，数据已在 IDB，御案 focus 兜底仍可读 */ }
+        finishReturn();
+        return;
+      }
+      // IndexedDB 不可用：退回旧内联写法（小地图仍可），真爆配额则如实告知
+      try { localStorage.setItem(RETURN_KEY, JSON.stringify(payload)); }
+      catch (err) { alert('写回失败（地图可能过大且本地库不可用）：' + (err && err.message || err)); return; }
+      finishReturn();
+    });
+  }
+
+  function finishReturn() {
     try { localStorage.removeItem(HANDOFF_KEY); } catch (e) {}
     // 关闭本标签（御案靠 storage 事件接收）；关不掉则后退
     try { window.close(); } catch (e) {}

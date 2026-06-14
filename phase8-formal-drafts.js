@@ -748,11 +748,32 @@
       approved.push({ from: m.from, type: m.type, content: m.content || m.text || '', turn: gm.turn || 1, reply: reply, action: decision });
       if (approved.length > 30) approved.shift();
     }
+    // 发廷议·真接入廷议待议队列（旧行为：只设 status+toast，奏疏从不真付公议——此处补接，复用 _pendingTinyiTopics）
+    try {
+      if (!Array.isArray(gm._pendingTinyiTopics)) gm._pendingTinyiTopics = [];
+      if (m._tinyiQueuedId) { // 改主意：此前已排廷议、现改别的决定 → 撤回队列项，避免陈旧议题滞留
+        gm._pendingTinyiTopics = gm._pendingTinyiTopics.filter(function(x){ return !x || x._memTinyiId !== m._tinyiQueuedId; });
+        m._tinyiQueuedId = '';
+      }
+      if (decision === 'court_debate') {
+        var _qid = 'mem_' + (m.id || id || (m.from || '')) + '_' + (gm.turn || 0);
+        if (!gm._pendingTinyiTopics.some(function(x){ return x && x._memTinyiId === _qid; })) {
+          gm._pendingTinyiTopics.unshift({
+            topic: '奏疏议题·' + (m.from || '臣工') + '：' + compactText(m.content || m.text || m.body || m.title || '', 120),
+            from: '奏疏发廷议', sourceType: 'memorial', turn: gm.turn || 1, status: 'pending', priority: 72,
+            reason: reply || '着廷议', delegateCharacter: m.from || '', delegateCharacterId: m.from || '',
+            linkedCharacters: m.from ? [m.from] : [], _memTinyiId: _qid, _memId: m.id || id || ''
+          });
+          if (gm._pendingTinyiTopics.length > 80) gm._pendingTinyiTopics = gm._pendingTinyiTopics.slice(0, 80);
+          m._tinyiQueuedId = _qid;
+        }
+      }
+    } catch(_memTinyiE) {}
     deskRecord('朱批', (m.title || m.topic || '奏疏批复'), (m.from || '臣工') + '所奏：' + compactText(m.content || m.text || m.body || '', 100) + '。朱批：' + reply, ['奏疏','朱批']);
     deskDecision('memorial', (m.from || '臣工') + '所奏：' + (m.title || m.topic || compactText(m.content || m.text || '', 30)), '决定：' + decision + '；过回合前奏疏提交器会落实记忆与回传');
     if (decision !== 'hold') deskRemember(m.from, '奏疏已得朱批：' + reply, decision === 'rejected' ? '忧' : '敬', 5);
     deskRefreshLegacy();
-    toast(decision === 'approved' ? '已准奏，过回合前生效' : decision === 'rejected' ? '已驳回，过回合前生效' : decision === 'court_debate' ? '已发交廷议' : decision === 'referred' ? '已转交有司' : decision === 'hold' ? '已留中' : '已批示');
+    toast(decision === 'approved' ? '已准奏，过回合前生效' : decision === 'rejected' ? '已驳回，过回合前生效' : decision === 'court_debate' ? '已发交廷议·候朝议公议' : decision === 'referred' ? '已转交有司' : decision === 'hold' ? '已留中' : '已批示');
     recordDeskActionSignal('memorial-decision-desk', {
       id: m.id || id || '',
       decision: decision || '',

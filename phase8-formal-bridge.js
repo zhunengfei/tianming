@@ -257,7 +257,8 @@
     }
     var gm = window.GM || {};
     if (Array.isArray(gm.chars)) gm.chars.forEach(add);
-    if (window.P && Array.isArray(P.characters)) P.characters.forEach(add);
+    // 防串台：只补当前激活剧本的 P.characters（否则官方天启/上一局人物会漏进当前局名册）
+    if (window.P && Array.isArray(P.characters)) (typeof _tmActiveScenarioRows==='function'?_tmActiveScenarioRows(P.characters):P.characters).forEach(add);
     if (typeof window.renwuAllChars === 'function') {
       try { (window.renwuAllChars() || []).forEach(add); } catch(_) {}
     }
