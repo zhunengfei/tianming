@@ -853,8 +853,9 @@
     html += '<div class="vd-ov-row"><span class="vd-ov-label">真实民心</span><span class="vd-ov-value" style="color:' + trueCol + ';font-size:1.05rem;font-weight:600;">' + Math.round(trueIdx) + ' / 100</span></div>';
     html += '<div class="vd-ov-row"><span class="vd-ov-label">朝廷视野</span><span class="vd-ov-value">' + Math.round(perc) + '（粉饰 ' + (perc-trueIdx>=0?'+':'') + Math.round(perc-trueIdx) + '）</span></div>';
     html += '<div class="vd-ov-row"><span class="vd-ov-label">段位</span><span class="vd-ov-value" style="color:' + trueCol + ';"><b>' + (MX_PHASE_NAMES[phase]||phase) + '</b></span></div>';
-    // 后果传导
-    if (G._taxEfficiencyMult !== undefined) html += '<div class="vd-ov-row"><span class="vd-ov-label">征税效率</span><span class="vd-ov-value">' + (G._taxEfficiencyMult*100).toFixed(0) + '%</span></div>';
+    // 后果传导（只显真后果·避免假反馈）
+    // 「征税效率」已撤：_taxEfficiencyMult 不入真实征税（征税乘的是腐败派生 actualTaxRate），曾是误导性假显示。
+    //   民心→税收若要做真，须在财政 cascade 内接，风险高·留待专门治理（2026-06-15·#6 假数字）。
     if (G._conscriptEffMult !== undefined) html += '<div class="vd-ov-row"><span class="vd-ov-label">征兵效率</span><span class="vd-ov-value">' + (G._conscriptEffMult*100).toFixed(0) + '%</span></div>';
     if (G._reformToleranceMult !== undefined) html += '<div class="vd-ov-row"><span class="vd-ov-label">改革容忍度</span><span class="vd-ov-value">×' + G._reformToleranceMult.toFixed(2) + '</span></div>';
     if (G._scholarRecruitmentMult !== undefined) html += '<div class="vd-ov-row"><span class="vd-ov-label">士人投效</span><span class="vd-ov-value">×' + G._scholarRecruitmentMult.toFixed(2) + '</span></div>';

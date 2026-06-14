@@ -303,6 +303,25 @@ var CSS = [
 '#tm-zhi-overlay .pov-row .say.good{color:var(--jade-d);}',
 '#tm-zhi-overlay .pov-row .say.bad{color:var(--cinnabar-d);}',
 '#tm-zhi-overlay .chaoju,#tm-zhi-overlay .paihang{padding:16px 22px 30px;}',
+'#tm-zhi-overlay .dongtai{padding:16px 22px 30px;}',
+'#tm-zhi-overlay .dt-ctrl{display:flex;align-items:center;gap:5px;margin-bottom:12px;flex-wrap:wrap;}',
+'#tm-zhi-overlay .dt-ctrl .lb{font-size:12px;color:var(--ink-faint);}',
+'#tm-zhi-overlay .dt-group{margin-bottom:16px;}',
+'#tm-zhi-overlay .dt-turn{font-family:var(--zfont);font-size:13px;color:var(--cinnabar-d);letter-spacing:0.08em;margin-bottom:7px;border-bottom:1px solid rgba(168,131,58,0.2);padding-bottom:4px;}',
+'#tm-zhi-overlay .dt-turn small{color:var(--ink-faint);font-size:11px;margin-left:6px;}',
+'#tm-zhi-overlay .dt-item{padding:8px 11px;margin-bottom:6px;border-radius:8px;background:rgba(255,252,243,0.6);border-left:3px solid #9c8b6b;}',
+'#tm-zhi-overlay .dt-item.h{border-left-color:#a83228;background:rgba(168,50,40,0.05);}',
+'#tm-zhi-overlay .dt-item.f{border-left-color:#557f6f;background:rgba(85,127,111,0.05);}',
+'#tm-zhi-overlay .dt-head{font-size:13.5px;color:var(--ink);line-height:1.5;}',
+'#tm-zhi-overlay .dt-actor{color:var(--cinnabar-d);cursor:pointer;}',
+'#tm-zhi-overlay .dt-actor:hover{text-decoration:underline;}',
+'#tm-zhi-overlay .dt-verb{font-size:12px;padding:1px 7px;border-radius:10px;background:rgba(156,139,107,0.18);color:var(--ink-soft);}',
+'#tm-zhi-overlay .dt-verb.h{background:rgba(168,50,40,0.14);color:#a83228;}',
+'#tm-zhi-overlay .dt-verb.f{background:rgba(85,127,111,0.16);color:#557f6f;}',
+'#tm-zhi-overlay .dt-arrow{color:var(--ink-faint);}',
+'#tm-zhi-overlay .dt-tgt{color:var(--ink-soft);}',
+'#tm-zhi-overlay .dt-say{font-size:12.5px;color:var(--ink-soft);margin-top:3px;}',
+'#tm-zhi-overlay .dt-inner{font-size:12px;color:var(--ink-faint);font-style:italic;margin-top:2px;}',
 '#tm-zhi-overlay .chaoju-graph svg{width:100%;height:auto;display:block;}',
 '#tm-zhi-overlay .cnode{cursor:pointer;}',
 '#tm-zhi-overlay .cj-balance{margin-bottom:14px;padding:11px 15px;border-radius:9px;background:linear-gradient(170deg,rgba(255,253,247,0.7),rgba(246,239,218,0.3));border:1px solid rgba(168,131,58,0.22);}',
@@ -512,14 +531,15 @@ function loadPeople(force){
   try{if(GM&&window.TMPromotion&&TMPromotion.migrateAllMerit)TMPromotion.migrateAllMerit(GM);}catch(e){}
   function add(c){if(!c||!c.name||seen[c.name])return;seen[c.name]=true;try{out.push(adaptChar(c));}catch(e){}}
   (GM.chars||[]).forEach(add);(GM.allCharacters||[]).forEach(add);
-  if(window.P&&Array.isArray(P.characters))P.characters.forEach(add);
+  // 防串台：只补当前激活剧本的 P.characters（否则官方天启/上一局人物会漏进当前局图志名册）
+  if(window.P&&Array.isArray(P.characters))(typeof _tmActiveScenarioRows==='function'?_tmActiveScenarioRows(P.characters):P.characters).forEach(add);
   _peopleCache=out; return out;
 }
 function PEOPLE(){return loadPeople();}
 function findP(name){var l=PEOPLE();for(var i=0;i<l.length;i++)if(l[i].name===name)return l[i];return null;}
 
 /* ===================== 状态 ===================== */
-var state={sel:null,q:'',fac:'all',role:'all',sort:'loyalty',dead:false,tab:'overview',roleStat:'all',compare:null,compare2:null,view:'liezhuan',phSort:'loyalty'};
+var state={sel:null,q:'',fac:'all',role:'all',sort:'loyalty',dead:false,tab:'overview',roleStat:'all',compare:null,compare2:null,view:'liezhuan',phSort:'loyalty',dtWin:6};
 var _zhiRosterRenderTimer=0;
 
 /* ===================== 立绘字形 / SVG 基件 ===================== */
@@ -822,6 +842,41 @@ function renderFolioPaihang(){
   var fo=q('#tm-zhi-folio');if(!fo)return;var dim={};PH_DIMS.forEach(function(d){dim[d[0]]=d[1];});var list=PEOPLE().filter(function(p){return p.alive!==false;}).slice().sort(function(a,b){return (b[state.phSort]||0)-(a[state.phSort]||0);}).slice(0,3),mk=['①','②','③'];
   fo.innerHTML='<div class="fcard"><div class="ft">'+esc(dim[state.phSort]||'')+' 前 三</div><div class="relnet">'+list.map(function(p,i){return '<div class="relrow" onclick="TMZhi.selectP(\''+oj(p.name)+'\')"><span class="nm">'+mk[i]+' '+esc(p.name)+'</span><span class="sc">'+Math.round(p[state.phSort]||0)+'</span></div>';}).join('')+'</div></div><div class="fcard"><div class="ft">说 明</div><div class="fnote">点列首维度切排序，点任一行入其列传。维度皆取引擎真值。</div></div>';
 }
+/* ===================== 朝野动态（NPC 自主行动 feed·读 _npcActionLedger） ===================== */
+// behaviorType→中文：优先全局单一真源 TM.NPC.behaviorVerbCN，缺则本地兜底（镜像 tm-endturn-apply.js 的 _NPC_BEHAVIOR_CN·display-only）
+var _DT_BEHAVIOR_CN={appoint:'任用',dismiss:'罢黜',declare_war:'宣战',reward:'赏赐',punish:'惩处',request_loyalty:'拉拢',reform:'推行新政',betray:'背叛',conspire:'密谋串联',petition:'进谏',investigate:'查劾',impeach:'弹劾',obstruct:'阻挠',slander:'中伤',reconcile:'和解',mentor:'提携',train_troops:'操练',fortify:'整饬城防',patrol:'巡防',flee:'出逃',retire:'告老',travel:'游历',develop:'兴修',donate:'捐输',hoard:'囤积',smuggle:'走私',suppress:'镇压',petition_jointly:'联名上书',recruit:'招募',study:'查访',recommend:'举荐',confront:'对质',mediate:'调和',frame_up:'构陷',expose_secret:'揭发',share_intelligence:'通风报信',guarantee:'担保',gift_present:'馈赠',private_visit:'私访',invite_banquet:'宴请',correspond_secret:'通密信',form_clique:'结党',marriage_alliance:'联姻',master_disciple:'收徒',duel_poetry:'诗文唱和',mourn_together:'共哀',mourn:'致哀',rival_compete:'争胜',obey:'听命',desert:'哗变'};
+var _DT_TONE_HOSTILE={impeach:1,slander:1,frame_up:1,expose_secret:1,conspire:1,betray:1,obstruct:1,form_clique:1,desert:1,rival_compete:1,confront:1,smuggle:1,hoard:1,punish:1,declare_war:1,suppress:1,investigate:1};
+var _DT_TONE_FRIENDLY={recommend:1,guarantee:1,gift_present:1,invite_banquet:1,private_visit:1,correspond_secret:1,marriage_alliance:1,master_disciple:1,mentor:1,reconcile:1,mediate:1,duel_poetry:1,mourn_together:1,mourn:1,reward:1,request_loyalty:1,petition_jointly:1,share_intelligence:1,recruit:1};
+function _dtTone(bt){var k=String(bt||'').toLowerCase().trim();return _DT_TONE_HOSTILE[k]?'h':(_DT_TONE_FRIENDLY[k]?'f':'n');}
+function _dtVerb(bt){try{if(window.TM&&TM.NPC&&typeof TM.NPC.behaviorVerbCN==='function')return TM.NPC.behaviorVerbCN(bt);}catch(e){}var k=String(bt==null?'':bt).toLowerCase().trim();return _DT_BEHAVIOR_CN[k]||(/[a-z]/i.test(k)?'举动':(bt||'举动'));}
+function _dtLedger(){var L=(_g()&&_g()._npcActionLedger);return Array.isArray(L)?L:[];}
+function _dtRows(){var now=_g().turn||0,win=(state.dtWin==null?6:state.dtWin);return _dtLedger().filter(function(e){return e&&e.actor&&e.status!=='blocked'&&(!e.preflight||e.preflight.ok!==false)&&(win<=0||(now-(e.turn||0))<win);}).slice().sort(function(a,b){return (b.turn||0)-(a.turn||0)||(b.createdAt||0)-(a.createdAt||0);});}
+function renderDongtai(){
+  var ms=q('#tm-zhi-main');if(!ms)return;
+  var now=_g().turn||0,win=(state.dtWin==null?6:state.dtWin),rows=_dtRows();
+  var ctrl='<div class="dt-ctrl"><span class="lb">近：</span>'+[3,6,12,0].map(function(w){return '<button class="phb'+(win===w?' active':'')+'" onclick="TMZhi.setDtWin('+w+')">'+(w===0?'全部':w+'回合')+'</button>';}).join('')+'</div>';
+  if(!rows.length){ms.innerHTML='<div class="dongtai"><div class="sec-t" style="margin-bottom:8px">朝 野 动 态 <small>百官私下的招募、构陷、结纳、谋划</small></div>'+ctrl+'<div class="stub">'+(_dtLedger().length?'此窗内朝野无可见动静——可拉宽回合或择「全部」。':'朝野动态尚未生成——满朝文武的自主行动会在过回合后逐条记于此。')+'</div></div>';return;}
+  var groups={},order=[];rows.forEach(function(e){var t=e.turn||0;if(!groups[t]){groups[t]=[];order.push(t);}groups[t].push(e);});
+  var body=order.map(function(t){
+    var label=(t===now?'本回合':(t===now-1?'上回合':(now-t)+' 回合前'));
+    var items=groups[t].map(function(e){
+      var tone=_dtTone(e.behaviorType);
+      var head='<b class="dt-actor" onclick="TMZhi.selectP(\''+oj(e.actor)+'\')">'+esc(e.actor)+'</b> <span class="dt-verb '+tone+'">'+esc(_dtVerb(e.behaviorType))+'</span>';
+      if(e.target){head+=' <span class="dt-arrow">→</span> '+(findP(e.target)?'<b class="dt-actor" onclick="TMZhi.selectP(\''+oj(e.target)+'\')">'+esc(e.target)+'</b>':'<span class="dt-tgt">'+esc(e.target)+'</span>');}
+      var say=e.publicReason||e.action||'',inner=(e.motivePrivate&&e.motivePrivate!==say)?e.motivePrivate:'';
+      return '<div class="dt-item '+tone+'"><div class="dt-head">'+head+'</div>'+(say?'<div class="dt-say">称：'+esc(say)+'</div>':'')+(inner?'<div class="dt-inner">私心：'+esc(inner)+'</div>':'')+'</div>';
+    }).join('');
+    return '<div class="dt-group"><div class="dt-turn">'+esc(label)+' <small>'+groups[t].length+' 桩</small></div>'+items+'</div>';
+  }).join('');
+  ms.innerHTML='<div class="dongtai"><div class="sec-t" style="margin-bottom:8px">朝 野 动 态 <small>你诏令之外，群臣各自在动——招募、构陷、结纳、谋划</small></div>'+ctrl+body+'</div>';
+}
+function renderFolioDongtai(){
+  var fo=q('#tm-zhi-folio');if(!fo)return;
+  var win=(state.dtWin==null?6:state.dtWin),rows=_dtRows(),byActor={};
+  rows.forEach(function(e){byActor[e.actor]=(byActor[e.actor]||0)+1;});
+  var top=Object.keys(byActor).sort(function(a,b){return byActor[b]-byActor[a];}).slice(0,8);
+  fo.innerHTML='<div class="fcard"><div class="ft">动 态 提 要</div><div class="fnote">近 '+(win<=0?'全部回合':win+' 回合')+'，朝野共 '+rows.length+' 桩可见动静。<span style="color:#a83228">赤</span>者攻讦、<span style="color:#557f6f">绿</span>者结纳。点人物入其列传。</div></div><div class="fcard"><div class="ft">最 活 跃</div><div class="relnet">'+(top.length?top.map(function(n){return '<div class="relrow" onclick="TMZhi.selectP(\''+oj(n)+'\')"><span class="nm">'+esc(n)+'</span><span class="sc">'+byActor[n]+'</span></div>';}).join(''):'<div class="fnote">暂无。</div>')+'</div></div>';
+}
 /* ===================== 两/三人对参 ===================== */
 function cmpAxes(p){return [{label:'智',value:p.intelligence},{label:'武',value:p.valor},{label:'军',value:p.military},{label:'政',value:p.administration},{label:'管',value:p.management},{label:'交',value:p.diplomacy},{label:'魅',value:p.charisma},{label:'仁',value:p.benevolence}];}
 function renderCompare(){
@@ -873,6 +928,7 @@ function renderMain(){
   var ms=q('#tm-zhi-main');if(!ms)return;
   if(state.view==='chaoju'){renderChaoju();return;}
   if(state.view==='paihang'){renderPaihang();return;}
+  if(state.view==='dongtai'){renderDongtai();return;}
   if(state.compare){renderCompare();return;}
   var p=findP(state.sel)||PEOPLE()[0];if(!p){ms.innerHTML='<div class="stub" style="margin-top:60px">尚无人物数据。</div>';return;}
   state.sel=p.name;
@@ -883,6 +939,7 @@ function renderFolio(){
   var fo=q('#tm-zhi-folio');if(!fo)return;
   if(state.view==='chaoju')return renderFolioChaoju();
   if(state.view==='paihang')return renderFolioPaihang();
+  if(state.view==='dongtai')return renderFolioDongtai();
   var p=findP(state.sel)||PEOPLE()[0];if(!p){fo.innerHTML='';return;}
   var cap=inCapital(p);
   var rels=(p.relationships||[]).slice(0,5);
@@ -927,7 +984,7 @@ function buildOverlay(){
   ov.addEventListener('mousedown',function(e){if(e.target===ov)closePanel();});
   return ov;
 }
-function renderViewTabs(){var vs=[['liezhuan','列传'],['chaoju','朝局'],['paihang','排行']];var vt=q('#tm-zhi-viewtabs');if(vt)vt.innerHTML=vs.map(function(v){return '<button class="vtab'+(state.view===v[0]?' active':'')+'" onclick="TMZhi.setView(\''+v[0]+'\')">'+v[1]+'</button>';}).join('');}
+function renderViewTabs(){var vs=[['liezhuan','列传'],['chaoju','朝局'],['paihang','排行'],['dongtai','朝野动态']];var vt=q('#tm-zhi-viewtabs');if(vt)vt.innerHTML=vs.map(function(v){return '<button class="vtab'+(state.view===v[0]?' active':'')+'" onclick="TMZhi.setView(\''+v[0]+'\')">'+v[1]+'</button>';}).join('');}
 function renderChips(){var alive=PEOPLE().filter(function(p){return p.alive!==false;}).length,c=q('#tm-zhi-chips');if(c)c.innerHTML='<span class="chip green">入志 '+PEOPLE().length+'</span><span class="chip hot">存世 '+alive+'</span>';}
 function renderAll(){renderChips();renderFacOptions();renderViewTabs();renderStatbar();renderRoster();renderMain();renderFolio();}
 
@@ -979,6 +1036,7 @@ var TMZhi={
   setView:function(v){state.view=v;state.compare=null;renderViewTabs();renderMain();renderFolio();var ms=q('#tm-zhi-main');if(ms)ms.scrollTop=0;},
   filterFaction:function(f){state.fac=f;var sel=q('#tm-zhi-ffac');if(sel)sel.value=f;state.roleStat='all';var fd=factionData()[f];renderRoster();if(fd&&fd.lead)TMZhi.selectP(fd.lead.name);},
   setPhSort:function(k){state.phSort=k;renderPaihang();renderFolio();},
+  setDtWin:function(w){state.dtWin=w;renderDongtai();renderFolioDongtai();},
   onSearch:function(v){state.q=v;var a=q('#tm-zhi-gsearch'),b=q('#tm-zhi-rsearch');if(a&&a.value!==v)a.value=v;if(b&&b.value!==v)b.value=v;scheduleZhiRosterRender();},
   onFilter:function(){state.fac=(q('#tm-zhi-ffac')||{}).value||'all';state.role=(q('#tm-zhi-frole')||{}).value||'all';state.sort=(q('#tm-zhi-fsort')||{}).value||'loyalty';state.dead=!!(q('#tm-zhi-fdead')||{}).checked;state.roleStat='all';renderRoster();renderStatbar();},
   quickStat:function(k){

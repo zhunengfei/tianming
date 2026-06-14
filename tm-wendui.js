@@ -51,7 +51,8 @@ function _wdFindFaction(name) {
   if (!name) return null;
   var lists = [];
   if (typeof GM !== 'undefined' && GM) lists.push(GM.facs, GM.factions);
-  if (typeof P !== 'undefined' && P) lists.push(P.facs, P.factions);
+  // 防串台：只补当前激活剧本的 P 势力（否则按名查势力可能命中别的剧本的同名/异名势力）
+  if (typeof P !== 'undefined' && P) { var _af = (typeof _tmActiveScenarioRows==='function') ? _tmActiveScenarioRows : function(a){return a;}; lists.push(_af(P.facs), _af(P.factions)); }
   try {
     var sc = (typeof findScenarioById === 'function' && GM && GM.sid) ? findScenarioById(GM.sid) : null;
     if (sc) lists.push(sc.factions);

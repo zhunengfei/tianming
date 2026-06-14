@@ -499,48 +499,48 @@ openSettings=function(){
             '</div>' +
           '</label>';
         })()+
-        // ─── 科举 5 toggle (Phase G + H)·user audit Fix 1·默认 OFF·user 主动 opt-in ───
+        // ─── 科举特科 toggle·2026-06-14 特科默认开（D2/G2/G3/G5·!== false）·H 私学仍 opt-in ───
         // D2·特科 spawn 总开关 (gate 所有 G1/G2/G3/G5 trigger)
         (function(){
-          var _on = !!(P.conf && P.conf.useNewKejuD2 === true);
+          var _on = !!(P.conf && P.conf.useNewKejuD2 !== false);
           return '<label style="display:flex;align-items:flex-start;gap:0.5rem;padding:0.4rem 0;border-top:1px dotted var(--bdr);cursor:pointer;">' +
             '<input type="checkbox" id="s-keju-d2" ' + (_on?'checked ':'') + 'onchange="_togglePConf(\'useNewKejuD2\',this.checked)" style="margin-top:0.15rem;flex-shrink:0;">' +
             '<div style="flex:1;">' +
-              '<div style="font-size:0.82rem;color:var(--gold);font-weight:600;">🎓 科举·特科 spawn 总开关 (G1·default OFF)</div>' +
-              '<div style="font-size:0.7rem;color:var(--txt-d);line-height:1.55;margin-top:0.15rem;">G1 特科 spawn infra·控所有 G2/G3/G5 trigger 来源。开后特科按朝代/事件自然 spawn 进议程·关则无任何特科 event。</div>' +
+              '<div style="font-size:0.82rem;color:var(--gold);font-weight:600;">🎓 特科·总开关（默认开）</div>' +
+              '<div style="font-size:0.7rem;color:var(--txt-d);line-height:1.55;margin-top:0.15rem;">恩科、武举、童子科等特科的总闸。开启后，特科会按朝代与时机（改元、大婚、战事等）自然出现于朝堂议程；关闭则朝中不再有任何特科。</div>' +
             '</div>' +
           '</label>';
         })()+
         // G2·恩科 mini-keju
         (function(){
-          var _on = !!(P.conf && P.conf.useNewKejuG2 === true);
+          var _on = !!(P.conf && P.conf.useNewKejuG2 !== false);
           return '<label style="display:flex;align-items:flex-start;gap:0.5rem;padding:0.4rem 0;border-top:1px dotted var(--bdr);cursor:pointer;">' +
             '<input type="checkbox" id="s-keju-g2" ' + (_on?'checked ':'') + 'onchange="_togglePConf(\'useNewKejuG2\',this.checked)" style="margin-top:0.15rem;flex-shrink:0;">' +
             '<div style="flex:1;">' +
-              '<div style="font-size:0.82rem;color:var(--gold);font-weight:600;">🎓 科举·G2 恩科 (need D2)</div>' +
-              '<div style="font-size:0.7rem;color:var(--txt-d);line-height:1.55;margin-top:0.15rem;">寿诞/改元/大婚自动 spawn 恩科·3 路径 (议程·问礼部·下诏)·谢恩大典 LLM·恩科党·滥开贬值 5 lever。</div>' +
+              '<div style="font-size:0.82rem;color:var(--gold);font-weight:600;">🎓 恩科（需总开关）</div>' +
+              '<div style="font-size:0.7rem;color:var(--txt-d);line-height:1.55;margin-top:0.15rem;">逢万寿、改元、大婚等庆典加开的恩科。可经议程、问礼部或下诏三途开科，有谢恩大典；滥开则功名贬值。</div>' +
             '</div>' +
           '</label>';
         })()+
         // G3·武举 mini-keju
         (function(){
-          var _on = !!(P.conf && P.conf.useNewKejuG3 === true);
+          var _on = !!(P.conf && P.conf.useNewKejuG3 !== false);
           return '<label style="display:flex;align-items:flex-start;gap:0.5rem;padding:0.4rem 0;border-top:1px dotted var(--bdr);cursor:pointer;">' +
             '<input type="checkbox" id="s-keju-g3" ' + (_on?'checked ':'') + 'onchange="_togglePConf(\'useNewKejuG3\',this.checked)" style="margin-top:0.15rem;flex-shrink:0;">' +
             '<div style="flex:1;">' +
-              '<div style="font-size:0.82rem;color:var(--gold);font-weight:600;">🎓 科举·G3 武举 (need D2)</div>' +
-              '<div style="font-size:0.7rem;color:var(--txt-d);line-height:1.55;margin-top:0.15rem;">war_state ≥60 / 缺将 spawn 武举·校阅大典·派镇·战功·武勋世家·兵谏黑天鹅·1898 清末废武举。</div>' +
+              '<div style="font-size:0.82rem;color:var(--gold);font-weight:600;">🎓 武举（需总开关）</div>' +
+              '<div style="font-size:0.7rem;color:var(--txt-d);line-height:1.55;margin-top:0.15rem;">战事吃紧或将才匮乏时开武举选将。含校阅大典、派往边镇、战功累升、武勋世家，乱世亦有兵谏之险。</div>' +
             '</div>' +
           '</label>';
         })()+
         // G5·童子科 mini-keju
         (function(){
-          var _on = !!(P.conf && P.conf.useNewKejuG5 === true);
+          var _on = !!(P.conf && P.conf.useNewKejuG5 !== false);
           return '<label style="display:flex;align-items:flex-start;gap:0.5rem;padding:0.4rem 0;border-top:1px dotted var(--bdr);cursor:pointer;">' +
             '<input type="checkbox" id="s-keju-g5" ' + (_on?'checked ':'') + 'onchange="_togglePConf(\'useNewKejuG5\',this.checked)" style="margin-top:0.15rem;flex-shrink:0;">' +
             '<div style="flex:1;">' +
-              '<div style="font-size:0.82rem;color:var(--gold);font-weight:600;">🎓 科举·G5 童子科 (need D2)</div>' +
-              '<div style="font-size:0.7rem;color:var(--txt-d);line-height:1.55;margin-top:0.15rem;">9-14 岁神童·4 archetype (早卒/大器晚成/奇行隐/才尽)·抚摩大典·late_bloomer 50 岁真入会试·民心/解额联动。</div>' +
+              '<div style="font-size:0.82rem;color:var(--gold);font-weight:600;">🎓 童子科（需总开关）</div>' +
+              '<div style="font-size:0.7rem;color:var(--txt-d);line-height:1.55;margin-top:0.15rem;">为 9–14 岁神童特设。神童各有际遇（早夭、大器晚成、奇行避世、才尽），有抚摩大典；大器晚成者中年方真入会试。</div>' +
             '</div>' +
           '</label>';
         })()+
@@ -1981,6 +1981,10 @@ function doActualStart(sid){
   // 初始化GM（完整版，包含所有必要属性）
   var sc=_tmStartFindScenario(sid, 'doActualStart-find') || findScenarioById(sid);
   if(!sc){toast("\u672A\u627E\u5230");return;}
+  // 治剧本数据串台(漏洞):P 为跨剧本复用的全局配置,下方 if(sc.X) P.X=... 只在新剧本含该字段时覆盖,缺字段则残留上一个剧本的值。
+  // 绍宋无 government/military/map/mapData/mapRuntimeContract → 会漏天启的官制官员/军队/地图。故应用新剧本前先清空这些
+  // 非 sid 隔离的「整个世界」字段,缺则保持空,绝不继承别的剧本(sid 隔离的 characters/factions/... 已自带过滤,不在此列)。
+  ['government','military','map','mapData','mapRuntimeContract'].forEach(function(_lk){ try { delete P[_lk]; } catch(_le) { P[_lk] = undefined; } });
   var _prevSaveName=GM.saveName||'';GM={running:true,sid:sid,turn:1,vars:{},rels:{},chars:[],facs:[],items:[],armies:[],evtLog:[],conv:[],busy:false,memorials:[],qijuHistory:[],jishiRecords:[],biannianItems:[],officeTree:P.officeTree?deepClone(P.officeTree):[],wenduiTarget:null,wenduiHistory:{},officeChanges:[],shijiHistory:[],allCharacters:[],classes:[],parties:[],techTree:[],civicTree:[],autoSummary:"",summarizedTurns:[],currentDay:0,eraName:"",eraNames:[],eraState:sc.eraState?deepClone(sc.eraState):(P.eraState?deepClone(P.eraState):{politicalUnity:0.7,centralControl:0.6,legitimacySource:'hereditary',socialStability:0.6,economicProsperity:0.6,culturalVibrancy:0.7,bureaucracyStrength:0.6,militaryProfessionalism:0.5,landSystemType:'mixed',dynastyPhase:'peak',contextDescription:''}),taxPressure:52,playerAbilities:{management:0,military:0,scholarship:0,politics:0},currentIssues:[],pendingConsequences:[],memoryAnchors:[],provinceStats:{},playerPendingTasks:[],playerCharacterId:null,regentSignal:null,regentState:{},npcContext:null,turnChanges:{variables:[],characters:[],factions:[],parties:[],classes:[],military:[],map:[]},_listeners:{},_changeQueue:[],triggeredHistoryEvents:{},rigidTriggers:{},offendGroupScores:{},activeRebounds:[],triggeredOffendEvents:{},_indices:null,postSystem:null,mapData:null,eraStateHistory:[],factionRelations:[],factionEvents:[],_tyrantDecadence:0,_tyrantHistory:[],_varMapping:null,stateTreasury:0,privateTreasury:0,_bankruptcyTurns:0,enYuanRecords:[],patronNetwork:[],activeSchemes:[],schemeCooldowns:{},eventCooldowns:{},yearlyChronicles:[],activeBattles:[],battleHistory:[],_turnBattleResults:[],activeWars:[],treaties:[],marchOrders:[],activeSieges:[],_rngCheckpoints:[]};if(_prevSaveName)GM.saveName=_prevSaveName;
 
   // 根据era智能推断eraState缺失字段（当剧本未定义eraState时使用合理默认值）
@@ -2359,6 +2363,10 @@ function doActualStart(sid){
   GM.techTree=(P.techTree||[]).filter(function(t){return t.sid===sid;}).map(function(t){var c=deepClone(t);c.unlocked=false;return c;});
   GM.civicTree=(P.civicTree||[]).filter(function(c){return c.sid===sid;}).map(function(c){var cp=deepClone(c);cp.adopted=false;return cp;});
   GM.events=(P.events||[]).filter(function(e){return e.sid===sid;}).map(function(e){var ev=deepClone(e);if(ev.triggered===undefined)ev.triggered=false;return ev;});
+  // 单一真相源(剧本隔离根治):刚性史事此前只存在于跨剧本累积的 P.rigidHistoryEvents(官方天启快照常驻·sid=天启)·
+  // GM 没有对应数组→处理器/AI 被迫读 P 库→玩绍宋时会看到/触发天启的「魏忠贤自缢」等剧本事件。此处给当前局
+  // 建一份只含本剧本的干净副本·让 gameplay 只读 GM(单剧本世界)·不再伸手进多剧本的 P 库。
+  GM.rigidHistoryEvents=(P.rigidHistoryEvents||[]).filter(function(e){return e&&e.sid===sid;}).map(function(e){return deepClone(e);});
   _tmStartRepairRuntimeData(sid, sc, 'after-runtime-load');
   GM.allCharacters=GM.chars.map(function(c){return{name:c.name,title:c.title,age:c.age||"?",gender:c.gender||"\u7537",personality:c.personality,appearance:c.appearance,desc:c.desc,loyalty:c.loyalty,relationValue:c.loyalty,faction:c.faction,recruited:true,recruitTurn:0,source:"\u521D\u59CB",avatarUrl:""};});
 

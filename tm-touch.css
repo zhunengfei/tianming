@@ -106,4 +106,12 @@
     -webkit-user-select: none;
     user-select: none;
   }
+
+  /* ⑥ 舆图 / 官制树手势面：touch-action:none —— 让浏览器把单/双指手势全部交给
+     JS(tm-pinch-pan.js)做 pan / pinch 缩放，而不是抢去做页面滚动或整页缩放。
+     仅这两个手势面、仅触屏（桌面 pointer:fine 不匹配本 @media）⇒ 桌面零影响。 */
+  #ming-map-layer,
+  #office-tree-wrap-game {
+    touch-action: none;
+  }
 }

@@ -219,7 +219,11 @@
           }
         }
       }
-      transformers.env.useBrowserCache = true;
+      // Cache API 的 put 仅支持 http/https 请求·file://（桌面 Electron）/capacitor:// 等非 http 协议下
+      // 启用 useBrowserCache 会令 transformers 反复抛 "Failed to execute 'put' on 'Cache': scheme 'file' unsupported"·
+      // 拖住主线程致过回合动画冻结(模型反复加载失败重试)·故仅在 http(s) 下启用浏览器缓存(2026-06-14)
+      var _tmCacheOk = (typeof location !== 'undefined' && location && (location.protocol === 'http:' || location.protocol === 'https:'));
+      transformers.env.useBrowserCache = _tmCacheOk;
       if (hasLocalModel) {
         // 完全离线·从本地 vendor 加载
         transformers.env.localModelPath = localModelRoot;

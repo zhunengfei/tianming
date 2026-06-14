@@ -120,13 +120,12 @@ var CORE_METRIC_LABELS = {};
  */
 function buildCoreMetricLabels() {
   CORE_METRIC_LABELS = {};
-  if (typeof P === 'undefined' || !P.variables) return;
-  // P.variables 可能是数组或 { base:[], other:[], formulas:[] } 结构
-  var _allVars = [];
-  if (Array.isArray(P.variables)) {
-    _allVars = P.variables;
-  } else if (P.variables && typeof P.variables === 'object') {
-    _allVars = (P.variables.base || []).concat(P.variables.other || []);
+  // 剧本隔离根治：优先用当前局 GM.vars(每局按 sid 建·权威)·不读 set-once/跨剧本不可靠的 P.variables 库。
+  var _allVars = (typeof _tmActiveVars === 'function') ? _tmActiveVars() : [];
+  if (!_allVars.length) {
+    if (typeof P === 'undefined' || !P.variables) return;
+    if (Array.isArray(P.variables)) _allVars = P.variables;
+    else if (typeof P.variables === 'object') _allVars = (P.variables.base || []).concat(P.variables.other || []);
   }
   // 从变量列表中收集标记为核心的变量
   _allVars.forEach(function(v) {

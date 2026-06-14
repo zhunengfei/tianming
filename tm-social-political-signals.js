@@ -319,9 +319,31 @@
     var infDelta = impact.influenceDelta == null ? 0 : clamp(impact.influenceDelta, -20, 20);
     var changed = false;
     if (satDelta) {
-      cls.satisfaction = Math.round(clamp(before.satisfaction + satDelta, 0, 100) * 100) / 100;
-      recordFieldChange(root, 'classes', classNameOf(cls), 'satisfaction', before.satisfaction, cls.satisfaction, reason);
-      changed = true;
+      // 2026-06-14·满意度走 ClassEngine.gateSatisfaction 总闸(每回合每阶层 ±14 预算·跨信号/AI/foundation 共享),
+      // 防 ecology 等多源信号单回合各自直写 -6 把阶层从 73 连扣 19 次砸到 0(跳楼式下降)。
+      var _gateRes = null;
+      try {
+        if (TM.ClassEngine && typeof TM.ClassEngine.gateSatisfaction === 'function') {
+          _gateRes = TM.ClassEngine.gateSatisfaction(root, cls, satDelta, {
+            turn: turn,
+            source: signal.sourceSystem || options.source || 'social-political-signal',
+            reason: reason
+          });
+        }
+      } catch (_gateE) {}
+      if (_gateRes && typeof _gateRes.approved === 'number') {
+        // gate 已写 cls.satisfaction(含预算扣减/[0,100] 夹取);satDelta 收敛为实批准量·供下游 coupling/minxin 反馈
+        satDelta = _gateRes.approved;
+        if (_gateRes.approved) {
+          recordFieldChange(root, 'classes', classNameOf(cls), 'satisfaction', _gateRes.before, _gateRes.after, reason);
+          changed = true;
+        }
+      } else {
+        // 兜底:ClassEngine 不可用时退回旧直写(保证不因依赖缺失而失效)
+        cls.satisfaction = Math.round(clamp(before.satisfaction + satDelta, 0, 100) * 100) / 100;
+        recordFieldChange(root, 'classes', classNameOf(cls), 'satisfaction', before.satisfaction, cls.satisfaction, reason);
+        changed = true;
+      }
     }
     if (infDelta) {
       cls.influence = Math.round(clamp(before.influence + infDelta, 0, 100) * 100) / 100;

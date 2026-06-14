@@ -1091,12 +1091,16 @@
   // 开局事件(isOpeningEvent/triggerTurn:1)自动 push 到 GM.currentIssues·让玩家首回合看到并选择
   function _activateOpeningEvents() {
     if (!global.GM || !global.P) return;
-    if (!Array.isArray(P.events)) return;
     var turn = GM.turn || 1;
     // 仅在 T1 处理·避免重复
     if (turn !== 1) return;
     if (!GM.currentIssues) GM.currentIssues = [];
-    P.events.forEach(function(e) {
+    // 剧本隔离根治：开局事件只读当前局 GM.events(单剧本干净副本)·不读跨剧本累积的 P.events 库
+    // (官方天启快照常驻·会让绍宋首回合冒出天启的开局事件)。旧档无 GM.events 时按 sid 过滤 P 兜底。
+    var _evList = (GM && Array.isArray(GM.events)) ? GM.events
+      : (typeof _tmActiveScenarioRows==='function' ? _tmActiveScenarioRows(P.events) : (Array.isArray(P.events)?P.events:[]));
+    if (!_evList.length) return;
+    _evList.forEach(function(e) {
       if (!e || e._openingActivated) return;
       var shouldOpen = (e.isOpeningEvent === true) || (e.triggerTurn === 1);
       if (!shouldOpen) return;
