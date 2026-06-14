@@ -1,5 +1,13 @@
 // @ts-check
 /// <reference path="types.d.ts" />
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   剧本 authoring agent · S1 沙箱 + 工具层（暴露 TM.AuthoringAgent）
+//   §1 draft 沙箱   makeDraft / applyEdit·Push / validateDraft（旁路 PathUtils 运行时副作用）
+//   §2 provider     conversation → provider 消息抽象
+//   §3 刀C gemini   gemini 原生 provider（第三方中转走 openai-compat 不受影响）
+//   §4 刀A 规划     懂规格·知缺口
+//   §5 Export       TM.AuthoringAgent 对外接口
+// ─────────────────────────────────────────────
 /**
  * editor-authoring-agent.js — 剧本 authoring agent · S1 沙箱 + 工具层
  *

@@ -1,3 +1,12 @@
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   智能地图识别系统（4 代算法合并·Phase 4 P4-α-1）
+//   §1 图像核心   图像处理核心算法 · recognizeMapRegions / loadAndRecognizeMap
+//   §2 UI 集成    地图识别 UI 集成 + 进度条 + 导出函数
+//   §3 边界识别   基于边界线（merged map-recognition-borders）· smartRecognizeMap 自动选算法
+//   §4 快速版     优化边界线识别（merged -fast）
+//   §5 高质版     改进边界线识别（merged -improved）
+//   §6 EU4 风格   EU4 式地图识别（merged -eu4）
+// ─────────────────────────────────────────────
 // 智能地图识别系统
 // 自动识别地图图片中的地块并生成可编辑区域
 

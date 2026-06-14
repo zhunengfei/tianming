@@ -247,7 +247,7 @@
         + '- officialTitle(具体官职名如"兵部侍郎""左金吾卫大将军")\n'
         + '- age(具体数字), gender(男/女), ethnicity(民族), birthplace(籍贯), occupation(身份如"文臣""武将""宦官""僧侣")\n'
         + '- stance(政治立场如"保守""改革""中立""投机")\n'
-        + '- faith(信仰), culture(文化), learning(学识专长如"经学""兵法""天文""医术")\n'
+        + '- faith(信仰), culture(文化), learning(学识专长如"经学""兵法""天文""医术"；★入仕官员宜在此注明科第出身如"进士""举人""进士(翰林)""武举""荫生""监生"——驱动功名出身系统:科第/正异途/清浊流/仕途天花板)\n'
         + '- appearance(\u5916\u8C8C\u63CF\u5199,50-80\u5B57\u3002\u8981\u6C42\uFF1A\u2460\u53F2\u5B9E\u4EBA\u7269\u5148\u67E5\u627E\u53F2\u6599\u5BF9\u5176\u5BB9\u8C8C\u7684\u8BB0\u8F7D\u539F\u6587\u4F5C\u4E3A\u57FA\u7840 \u2461\u7ED3\u5408\u5176\u5728\u5267\u672C\u5F00\u59CB\u5E74\u4EFD\u65F6\u7684\u5B9E\u9645\u5E74\u9F84 \u2462\u5305\u542B\u9762\u90E8\u7279\u5F81/\u4F53\u578B/\u6C14\u8D28/\u670D\u9970\uFF08\u670D\u9970\u5FC5\u987B\u7B26\u5408' + (scriptData.dynasty||'') + '\u671D\u4EE3\u6C49\u670D\u5F62\u5236\uFF09)\n'
         + '- personality(性格关键词,如"刚毅果断、忠心耿耿、喜怒不形于色")\n'
         + '- personalGoal(个人目标,20字,如"匡扶社稷""独揽朝纲""建功立业")\n'

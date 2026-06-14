@@ -1,3 +1,11 @@
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   御案正式界面·总线（split paradigm 的 hub·state=window.TM_PHASE8_FORMAL·暴露 ~46 渲染入口）
+//   §1 状态/基建   STORE_KEY 钉人 · 邸抄 event feed helpers（v3.3）
+//   §2 已迁出      中央地图→phase8-formal-map.js · 起草/预览面板→-drafts.js
+//                  module dispatch/人物图志→-modules.js · 右 rail panels→-rightrail.js
+//   §3 共享导出    shared helper exposure（供 phase8-formal-{module}.js late-bind 用）
+//   注：这是 2026-05-26 Wave 拆分的主壳·各 wave 子文件靠 bridge._xxx + late-bound wrapper 回调
+// ─────────────────────────────────────────────
 (function(){
   'use strict';
 

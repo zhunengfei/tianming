@@ -1,4 +1,11 @@
 // @ts-check
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   剧本 authoring agent 对话面板 UI（S4·暴露 TM_AuthoringAgentUI·仅浏览器）
+//   自注入浮层：检测当前页属哪个编辑器（旧 editor.html / 新 scenario-editor-reset），注入启动按钮+面板
+//   流程：输入需求 → getScenario → makeDraft → runAuthoringLoop（实时 transcript）
+//         → computeDiff 预览 + finalValidation → 玩家「应用」走 adapter.commit / 「放弃」
+//   依赖 editor-authoring-agent.js（TM.AuthoringAgent）
+// ─────────────────────────────────────────────
 /**
  * editor-authoring-agent-ui.js — 剧本 authoring agent 的对话面板 UI（S4）
  *

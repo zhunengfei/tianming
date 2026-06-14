@@ -1,3 +1,11 @@
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   剧本全量生成+杂项（R140 从 editor.js 拆出·姊妹 editor.js 系统 CRUD）
+//   §1 全量生成   openFullGenModal（AI 一键生成全剧本）+ execFullGen
+//   §2 设定弹窗   Era / Game settings / Party modal / API 设置 / Image API
+//   §3 玩家定位   总述结构化引导 / 从已有势力·角色填充 / 领袖即玩家同步 / 一致性检查
+//   §4 深化配置   社会基础 / 议程演进 / 斗争焦点 / 凝聚力 / 跨势力
+//   §5 渲染杂项   renderAll / renderPlayerOverview / returnToMain / showToast / preview 切换
+// ─────────────────────────────────────────────
 // ============================================================
 // editor-fullgen.js — 剧本全量生成+杂项 (R140 从 editor.js L2380-end 拆出)
 // 姊妹: editor.js (L1-2379·系统 CRUD)
