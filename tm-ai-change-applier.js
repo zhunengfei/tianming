@@ -520,6 +520,7 @@
     } else if (/致仕|乞骸|归田|退休|乞归|休致|致政|退隐|retire/.test(_reasonStr)) {
       ch._retired = true;
       ch.retired = true;  // 兼容老字段
+      ch._retireTurn = G.turn || 0;
     } else if (/逃亡|潜逃|出奔|外逃|失踪|不知所终|畏罪潜逃|flee|missing/.test(_reasonStr)) {
       ch._fled = true;
       ch._missing = true;
@@ -3501,6 +3502,15 @@
         turn: G.turn || 0
       });
 
+      // 标记败方主帅(幸存败将)·供 NPC 战败涟漪反应(_npcDefeatRipple)。阵亡者 alive=false·走死亡涟漪不在此标。
+      try {
+        var _cfBR = aiOutput.battleResult.commanderFate;
+        if (_cfBR && _cfBR.name && /败|挫|溃|defeat|rout|擒|俘|captur|surrender|降|逃|escap|伤|wound/i.test(String(_cfBR.outcome || ''))) {
+          var _cfChBR = (G.chars || []).find(function(c){ return c && c.name === _cfBR.name; });
+          if (_cfChBR && _cfChBR.alive !== false) { _cfChBR._defeatTurn = G.turn || 0; _cfChBR._defeatReason = String(_cfBR.outcome || '战败'); }
+        }
+      } catch (_dfBR) {}
+
       // P-5TK 第二刀：玩家方军胜 → 皇威加分（病根②：军功此前几乎不接皇威，金州/喜峰口胜仗皇威累计≈0）
       // 确定性管「赢了必加 + 护栏 + 保守保底（防面板纹丝不动）」；量优先 AI(battleResult.huangweiDelta)，AI 没吐才走保底
       try {
@@ -4140,11 +4150,20 @@
 
     G.chars.forEach(function(ch) {
       if (!ch || !ch._travelTo) return;
-      // 用天数系统
-      if (typeof ch._travelRemainingDays === 'number') {
+      // ★赴任硬上限·按"天"计(与每回合天数刻度无关·1回合=1天的剧本不会被误伤)：
+      //  逐 tick 累计实耗天数(AI 重发同终点不清此计数→剩余天数被重置也兜得住)·
+      //  首 tick 锚定应耗天数(此后不被 AI 重置缩小)·实耗超「应耗×2 且 ≥40 天」即判卡死强制抵达。
+      //  正常 N 日旅程仍由下方天数分支在「走满 N 天」那一回合正常抵达·此闸只兜永不递减/被重置等卡死成因。
+      ch._travelElapsedDays = (Number(ch._travelElapsedDays) || 0) + daysPassed;
+      if (!(ch._travelExpectedDays > 0)) {
+        ch._travelExpectedDays = (typeof ch._travelRemainingDays === 'number' && ch._travelRemainingDays > 0) ? ch._travelRemainingDays : 20;
+      }
+      var _capDays = Math.max(ch._travelExpectedDays * 2, 40);
+      var _forceArrive = ch._travelElapsedDays >= _capDays;
+      if (!_forceArrive && typeof ch._travelRemainingDays === 'number') {
         ch._travelRemainingDays -= daysPassed;
         if (ch._travelRemainingDays > 0) { inflight++; return; }
-      } else if (typeof ch._travelArrival === 'number') {
+      } else if (!_forceArrive && typeof ch._travelArrival === 'number') {
         // 旧版回合系统兼容：未到回合则继续
         if ((G.turn || 0) < ch._travelArrival) { inflight++; return; }
       }
@@ -4235,6 +4254,8 @@
       delete ch._travelReason;
       delete ch._travelAssignPost;
       delete ch._travelAssignConcurrent;
+      delete ch._travelElapsedDays;
+      delete ch._travelExpectedDays;
       _syncCharacterLocationMirrors(G, ch, { location: toLoc }, [
         '_travelTo',
         '_travelFrom',
@@ -4243,7 +4264,9 @@
         '_travelArrival',
         '_travelReason',
         '_travelAssignPost',
-        '_travelAssignConcurrent'
+        '_travelAssignConcurrent',
+        '_travelElapsedDays',
+        '_travelExpectedDays'
       ]);
 
       // 写入本回合报告（供史记读取）

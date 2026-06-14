@@ -22,6 +22,8 @@ const PROMPT = fs.readFileSync(path.join(ROOT, 'tm-endturn-prompt.js'), 'utf8');
   assert(/_rk <= 4 \? 30 : \(_rk <= 8 \? 18 : \(_rk <= 12 \? 8 : 0\)\)/.test(PROMPT), 'A2: 品级阶梯权重 30/18/8');
   assert(/candidates\.push\(\{ ch: c, weight: weight, rk: _rk \}\)/.test(PROMPT), 'A3: rk 挂候选');
   assert(/var _allScored = candidates\.slice\(\)/.test(PROMPT), 'A4: 留全量已排序');
+  assert(/叙事热度——活跃故事弧/.test(PROMPT), 'A5: 叙事热度加权块存在(活跃弧/极端心绪/近期大事)');
+  assert(/weight \+= \(_heat > 25 \? 25 : _heat\)/.test(PROMPT), 'A5: 热度上限+25(不压过品级主导)');
   assert(/_injectNeglectedAuthority/.test(PROMPT), 'B: 实权重臣配额块存在');
   assert(/_cd\.rk == null \|\| _cd\.rk > 8\) continue/.test(PROMPT), 'B: rk<=8 高品闸');
   assert(/实权重臣[\s\S]{0,40}本回合 npc_actions 应让其中至少 1-2 人有所行止/.test(PROMPT), 'B: 软配额指令文案');
@@ -89,6 +91,11 @@ if (!fs.existsSync(SAVE)) {
   const hit = frontier.filter(n => ctx.tp.indexOf(n) >= 0);
   assert(hit.length >= 1, '③ 配额名单含边防/外任核心·实命中=' + hit.join('/'));
   console.log('  [③] 配额块命中边防核心: ' + hit.join('、'));
+
+  // ③b 叙事热度生效:活跃边帅/卷入剧情者被顶进深度名额(无热公式他们只在配额块·加热后进 top6)
+  const frontierInTop6 = frontier.filter(n => top6names.indexOf(n) >= 0);
+  assert(frontierInTop6.length >= 1, '③b 叙事热度把活跃边帅顶进 top6 深度名额(无热时落配额块外)·实命中=' + frontierInTop6.join('/'));
+  console.log('  [③b] 热度把边帅送入深度名额: ' + frontierInTop6.join('、'));
 
   // ④ 对照:旧公式(无 rank 抬升·不排玩家)会把玩家/后宫塞进 top6 → 证明修复有意义
   function oldTop6() {

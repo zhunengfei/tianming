@@ -61,10 +61,24 @@
       return a && (_normalizeArmyKey(a.name) === key || _normalizeArmyKey(a.id) === key);
     });
     if (exact) return exact;
-    return G.armies.find(function(a) {
+    var fuzzy = G.armies.find(function(a) {
       var ak = _normalizeArmyKey(a && a.name);
       return ak && key && (ak.indexOf(key) >= 0 || key.indexOf(ak) >= 0) && Math.abs(ak.length - key.length) <= 4;
-    }) || null;
+    });
+    if (fuzzy) return fuzzy;
+    // 末位兜底·按主帅姓名反查：AI 常以「代善 / 代善部 / 代善所部」指代敌军，
+    // 而军名是「后金·两红旗(代善领)」——名匹配被长度护栏卡掉 → 折损被丢弃(army not found)，
+    // 真实兵力纹丝不动 → 「每回合折几千却杀不完」。仅在名匹配全败后，按军队当前主帅精确等值兜底，
+    // 命中那支真军（与 vacateArmiesByCommander 同范式·主帅等值故误伤面极小）。
+    var cmdKey = _normalizeArmyKey(String(name).replace(/(?:所部|部队|部众|所统|麾下|部)$/, ''));
+    if (cmdKey) {
+      var byCmd = G.armies.find(function(a) {
+        var c = _armyCurrentCommander(a);
+        return c && _normalizeArmyKey(c) === cmdKey;
+      });
+      if (byCmd) return byCmd;
+    }
+    return null;
   }
 
   function _playerFactionNameForArmy(G, change) {
@@ -76,6 +90,65 @@
     if (pc && pc.faction) return pc.faction;
     var pf = G && Array.isArray(G.facs) ? G.facs.find(function(f){ return f && (f.isPlayer || f.player); }) : null;
     return (pf && pf.name) || '';
+  }
+
+  // ── [募兵开销·2026-06-14] 募兵/建军确定性扣国库（仅玩家自己的军；敌军不动玩家国库）　　
+  //   旧缺口：建军/募兵只设兵额、不扣银粮（仅 followup 在 AI 主动报 recruitment_costs 时才扣→不报即免费）。
+  //   现：单一扣费点·按增兵量×兵种单价扣国库银粮·国库不继则尽扣记欠+新军士气挫·标 army._recruitChargedTurn 让 followup 跳过防双扣。
+  var RECRUIT_UNIT_COST = {
+    base:    { money: 2,   grain: 1   },   // 步/募兵
+    cavalry: { money: 4,   grain: 1.5 },   // 骑兵·马价贵
+    firearm: { money: 5,   grain: 1   },   // 火器/炮·器械贵
+    navy:    { money: 4,   grain: 1   }    // 水师/舟师
+  };
+  function _recruitUnitCost(army, change) {
+    var s = String((army && (army.type || army.branch || army.armyType)) || (change && (change.branch || change.armyType || change.type)) || '');
+    if (/骑|马队|cavalry/i.test(s)) return RECRUIT_UNIT_COST.cavalry;
+    if (/火器|火铳|鸟铳|炮|铳|神机|firearm|artillery|cannon/i.test(s)) return RECRUIT_UNIT_COST.firearm;
+    if (/水师|舟|船|海|navy|naval|fleet/i.test(s)) return RECRUIT_UNIT_COST.navy;
+    return RECRUIT_UNIT_COST.base;
+  }
+  function _isPlayerOwnedArmy(G, army, source) {
+    if (!army) return false;
+    if (army._edictBuilt) return true;
+    if (/edict|player|玩家|诏/.test(String(source || army.source || ''))) return true;
+    var pfn = String(_playerFactionNameForArmy(G, null) || '').trim();
+    if (!pfn) return false;
+    var af = String(army.faction || army.owner || '').trim();
+    return !!af && af === pfn;
+  }
+  function _chargeRecruitment(G, army, addedTroops, change, reason, source) {
+    try {
+      addedTroops = Math.max(0, Math.round(Number(addedTroops) || 0));
+      if (addedTroops <= 0 || !army) return null;
+      if (!_isPlayerOwnedArmy(G, army, source)) return null;        // 只对玩家自己的军扣国库
+      var FE = global.FiscalEngine;
+      if (!FE || typeof FE.spendFromGuoku !== 'function') return null;
+      var unit = _recruitUnitCost(army, change);
+      var silver = Math.max(0, Math.round(addedTroops * unit.money));
+      var grain  = Math.max(0, Math.round(addedTroops * unit.grain));
+      if (silver + grain <= 0) return null;
+      var spend = FE.spendFromGuoku({ money: silver, grain: grain }, '募兵·' + (army.name || ''));
+      var prev = (army._recruitCost && army._recruitCost.turn === (G.turn || 0)) ? army._recruitCost : null;
+      army._recruitCost = {
+        silver: (prev ? prev.silver : 0) + silver,
+        grain:  (prev ? prev.grain  : 0) + grain,
+        cloth:  (prev ? prev.cloth  : 0),
+        turn: G.turn || 0
+      };
+      army._recruitChargedTurn = G.turn || 0;
+      var ded = (spend && spend.deducted) || {};
+      var def = [];
+      if (ded.money && ded.money.deficit > 0) def.push('银' + Math.round(ded.money.deficit));
+      if (ded.grain && ded.grain.deficit > 0) def.push('粮' + Math.round(ded.grain.deficit));
+      if (def.length && typeof army.morale === 'number') {        // 欠饷→新募士气挫（养不起的军是弱军）
+        army.morale = _clampNum(army.morale - 12, 0, 100);
+        army._recruitArrears = (G.turn || 0);
+      }
+      if (G._turnReport) G._turnReport.push({ type:'military', armyName: army.name || '', field:'recruitCost', silver: silver, grain: grain, deficit: def.join('/') || '', reason:'募兵开销', source: source || '', turn: G.turn || 0 });
+      if (typeof global.addEB === 'function') global.addEB('财政', '募' + (army.name || '') + '·' + addedTroops + '兵·开销银' + silver + (grain ? '·粮' + grain : '') + (def.length ? '（国库不继，欠' + def.join('/') + '·新军士气挫）' : ''));
+      return spend;
+    } catch (_) { return null; }
   }
 
   function _armyChangeDelta(change) {
@@ -232,6 +305,9 @@
     var changed = false;
     var created = false;
 
+    // 名匹配失败但 AI 另给了主帅 → 按主帅反查那支军（防「后金军」这类含糊名漏改真军）。
+    if (!army && commanderInput) army = _findArmyForAIChange(G, commanderInput);
+
     if (!army) {
       var _forceCreate = (change.action === 'create' || change.create === true || change.isNewArmy === true);
       if (delta <= 0 && !_forceCreate) return { ok:false, reason:'army not found', name:name };
@@ -285,6 +361,7 @@
       changed = true;
       G._turnReport.push({ type:'military', armyName:name, field:'soldiers', old:0, new:delta, delta:delta, created:true, reason:reason, source:opts.source || '', turn:G.turn||0 });
       if (!opts.silentEB && typeof global.addEB === 'function') global.addEB('军事', '新建' + name + '·' + delta + '兵' + (reason ? '：' + reason : ''));
+      _chargeRecruitment(G, army, Math.max(0, delta), change, reason, opts.source); // 募兵开销·新建即扣
     } else {
       if (commanderInput !== null) {
         var oldCommander = _armyCurrentCommander(army);
@@ -353,6 +430,9 @@
         army.soldiers = newS;
         army.size = newS;
         army.strength = newS;
+        if ((army._createdTurn === (G.turn || 0)) || /募|征兵|招兵|招募|抽丁|建军|扩编/.test(String(reason || '') + ' ' + String(change.action || ''))) {
+          _chargeRecruitment(G, army, delta, change, reason, opts.source); // 募兵性增兵才扣（调防/合军/援军不扣）
+        }
         if (typeof opts.recordChange === 'function') opts.recordChange('military', army.name || name, 'soldiers', oldS, newS, reason);
         G._turnReport.push({ type:'military', armyName:army.name || name, field:'soldiers', old:oldS, new:newS, delta:delta, reason:reason, source:opts.source || '', turn:G.turn||0 });
         if (newS <= 0) {

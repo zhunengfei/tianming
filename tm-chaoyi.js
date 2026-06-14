@@ -833,7 +833,8 @@ function _cc2_collectAgendaSources(opts) {
   var facs = [];
   if (Array.isArray(g.facs)) facs = facs.concat(g.facs);
   if (Array.isArray(g.factions)) facs = facs.concat(g.factions);
-  if (typeof P !== 'undefined' && P && Array.isArray(P.factions)) facs = facs.concat(P.factions);
+  // 防串台：只补当前激活剧本的 P.factions（否则官方天启/上一局势力会漏进当前局外部势力列表）
+  if (typeof P !== 'undefined' && P && Array.isArray(P.factions)) facs = facs.concat(typeof _tmActiveScenarioRows==='function'?_tmActiveScenarioRows(P.factions):P.factions);
   var facSeen = {};
   facs.filter(function(f) {
     if (!f || !f.name || facSeen[f.name]) return false;

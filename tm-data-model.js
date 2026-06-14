@@ -756,3 +756,38 @@ huangquan:{index:55,phase:'balance',subDims:{central:{value:60},provincial:{valu
 // 7. 皇威
 huangwei:{index:65,perceivedIndex:68,phase:'normal',subDims:{court:{value:70},provincial:{value:60},military:{value:65},foreign:{value:55}},tyrantSyndrome:{active:false,hiddenDamage:{unreportedMinxinDrop:0,concealedCorruption:0,wrongfulDeaths:0}},lostAuthorityCrisis:{active:false}}
 };
+
+// ── 跨剧本数据隔离（防串台）─────────────────────────────────────────────
+// P.characters/factions/parties/classes/events 等是「跨剧本累积」的全局表：官方天启运行时快照
+// 常驻 P、且玩过的任一剧本数据也按各自 sid 留在 P 里（doActualStart 只移除同 sid 旧行，不动别的剧本）。
+// GM.chars/GM.facs 已按当前 sid 严格过滤，所以正局数据本身是干净的；但不少消费方（人物图志名册、
+// 朝议外部势力、问对找势力、开局事件激活、自动生成势力表…）会在 GM 之外再「附加整份 P.xxx」，
+// 于是把别的剧本（典型如官方天启）的人物/势力/事件漏进当前局，表现为「载入绍宋却看到天启人物势力」。
+// 此助手按当前激活剧本 sid 收口：开局中(GM.sid 有值)→只留 sid 严格相等的行（与 GM.chars 同口径，
+// sid 缺失的孤儿行一并排除）；无激活剧本(预览/编辑)→原样返回，不改既有行为。
+function _tmActiveScenarioRows(arr){
+  if (!Array.isArray(arr)) return [];
+  var sid = (typeof GM !== 'undefined' && GM && GM.sid) ? GM.sid : null;
+  if (!sid) return arr;
+  return arr.filter(function(r){ return r && r.sid === sid; });
+}
+if (typeof window !== 'undefined') window._tmActiveScenarioRows = _tmActiveScenarioRows;
+
+// 当前局的变量定义列表(剧本隔离·同上不变量)。变量比别的数组多一层坑：
+//   ① GM.vars 是开局时按当前 sid 建的「每局权威」(object·键=变量名·保留 inversed/isCore/displayName/max 等)；
+//   ② P.variables 是「set-once」的不可靠库——只在为空时才设(_tmStartLoadVars)·玩第二个剧本时常停留在第一个剧本·
+//      且可能是数组或 {base,other,formulas} 编辑器结构。
+// 故 gameplay 读「当前局变量定义」必须优先 GM.vars(取其 values)·仅无局(预览/极早期)才回退 P.variables。
+// 这样升降红绿方向(inversed)/核心指标标签等不再串到别的剧本。
+function _tmActiveVars(){
+  if (typeof GM !== 'undefined' && GM && GM.vars && typeof GM.vars === 'object') {
+    var ks = Object.keys(GM.vars);
+    if (ks.length) return ks.map(function(k){ return GM.vars[k]; });
+  }
+  if (typeof P !== 'undefined' && P && P.variables) {
+    if (Array.isArray(P.variables)) return P.variables;
+    if (typeof P.variables === 'object') return (P.variables.base || []).concat(P.variables.other || []);
+  }
+  return [];
+}
+if (typeof window !== 'undefined') window._tmActiveVars = _tmActiveVars;

@@ -282,7 +282,9 @@ function generateChancellorSuggestions() {
   var suggestions = [];
   // 动态读取核心指标（由 buildCoreMetricLabels 从编辑器配置构建），检查哪些指标异常
   var _labels = (typeof CORE_METRIC_LABELS === 'object') ? CORE_METRIC_LABELS : {};
-  var _vars = (P.variables && Array.isArray(P.variables)) ? P.variables : [];
+  // 剧本隔离根治：变量定义(max/inversed)优先取当前局 GM.vars·不读 set-once/跨剧本的 P.variables。
+  var _vars = (typeof _tmActiveVars === 'function') ? _tmActiveVars()
+    : ((P.variables && Array.isArray(P.variables)) ? P.variables : []);
   for (var _ck in _labels) {
     if (!_labels.hasOwnProperty(_ck) || typeof GM[_ck] !== 'number') continue;
     var _vDef = _vars.find(function(v){return v.name===_ck;});
@@ -806,6 +808,152 @@ if (typeof GameEventBus !== 'undefined') {
       notifyUrgent((data.name||'\u52BF\u529B') + ' \u706D\u4EA1', data.reason || '');
     }
   });
+}
+
+// ============================================================
+// 2.7: NPC 死亡涟漪——至交哀恸 / 宿敌反应(走 AffinityMap·生成记忆喂 hearts)
+//   补现有 character:death 订阅者(只做叙事事实/官缺级联·零情绪反应)+ 自然病故根本不 emit 的双缺口。
+//   单 chokepoint 扫本回合新死者·不碰 ~20 个分散死亡点。幂等 + deathTurn 近1回合(避开剧本历史死者/首上线刷屏)。
+// ============================================================
+function _npcDeathRipple() {
+  if (typeof GM === 'undefined' || !GM.chars || typeof AffinityMap === 'undefined' || typeof AffinityMap.getRelations !== 'function') return;
+  GM.chars.forEach(function(d) {
+    if (!d || d.alive !== false || d._deathReacted) return;
+    var dt = (typeof d.deathTurn === 'number') ? d.deathTurn : (typeof d._deathTurn === 'number' ? d._deathTurn : null);
+    if (dt == null || ((GM.turn || 0) - dt) > 1) return; // 仅近1回合新死者·避开剧本开局历史死者/本功能首次上线刷屏
+    d._deathReacted = true;
+    var rels = AffinityMap.getRelations(d.name) || [];
+    var n = 0;
+    for (var i = 0; i < rels.length && n < 8; i++) {
+      var r = rels[i];
+      if (!r || !r.name || Math.abs(r.value || 0) < 25) continue; // 仅显著关系
+      var R = (typeof findCharByName === 'function') ? findCharByName(r.name) : null;
+      if (!R || R.alive === false || R.name === d.name) continue;
+      n++;
+      if (r.value > 0) {
+        // 至交/恩主之殁——哀恸:记忆(悲·importance 6-8 足以进 hearts)+ 小幅忠诚动摇 + 强纽带心绪转悲
+        var imp = r.value >= 60 ? 8 : (r.value >= 40 ? 7 : 6);
+        if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(R.name, d.name + '殁·痛失' + (r.value >= 60 ? '挚交' : '故旧'), '悲', imp, d.name);
+        if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(R, r.value >= 60 ? -3 : -2, '痛失' + d.name, { source: 'npc-death-grief' });
+        if (r.value >= 50) R._mood = '悲';
+      } else {
+        // 宿敌之殁——去一心病(强宿敌则如释重负·记一笔)
+        if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(R.name, '宿敌' + d.name + '已殁', r.value <= -50 ? '喜' : '平', r.value <= -50 ? 6 : 5, d.name);
+      }
+    }
+  });
+}
+if (typeof SettlementPipeline !== 'undefined' && typeof SettlementPipeline.register === 'function') {
+  SettlementPipeline.register('npcDeathReact', 'NPC死亡涟漪', function() { _npcDeathRipple(); }, 90, 'perturn');
+}
+
+// ============================================================
+// 2.8: 下狱 / 流放涟漪——党羽株连之忧(惧) / 政敌弹冠相庆(走 AffinityMap·生成记忆喂 hearts)
+//   复用死亡涟漪范式·单 chokepoint 幂等扫本回合新下狱/流放者·不碰各下狱/流放写入点。
+//   情绪用「惧」(株连·我是不是下一个)而非死亡的「悲」——朝局政治更贴切。
+// ============================================================
+function _npcDisgraceRipple() {
+  if (typeof GM === 'undefined' || !GM.chars || typeof AffinityMap === 'undefined' || typeof AffinityMap.getRelations !== 'function') return;
+  GM.chars.forEach(function(d) {
+    if (!d || d.alive === false) return;
+    var jailed = d._imprisoned && typeof d._imprisonedTurn === 'number' && ((GM.turn || 0) - d._imprisonedTurn) <= 1 && !d._imprisonReacted;
+    var exiled = d._exiled && typeof d._exileTurn === 'number' && ((GM.turn || 0) - d._exileTurn) <= 1 && !d._exileReacted;
+    if (!jailed && !exiled) return; // 仅近1回合新下狱/流放·避开存量在押者/首上线刷屏
+    var kind = jailed ? '下狱' : '流放';
+    if (jailed) d._imprisonReacted = true;
+    if (exiled) d._exileReacted = true;
+    var rels = AffinityMap.getRelations(d.name) || [];
+    var n = 0;
+    for (var i = 0; i < rels.length && n < 8; i++) {
+      var r = rels[i];
+      if (!r || !r.name || Math.abs(r.value || 0) < 25) continue;
+      var R = (typeof findCharByName === 'function') ? findCharByName(r.name) : null;
+      if (!R || R.alive === false || R.name === d.name) continue;
+      n++;
+      if (r.value > 0) {
+        // 党羽/至交——株连之忧(惧):记忆(惧·importance 6-8 进 hearts)+ 压力 + 小幅忠诚动摇
+        var imp = r.value >= 60 ? 8 : (r.value >= 40 ? 7 : 6);
+        if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(R.name, d.name + (kind === '下狱' ? '系狱·恐殃及己' : '遭谪戍·人人自危'), '惧', imp, d.name);
+        R.stress = Math.min(100, (R.stress || 0) + (r.value >= 60 ? 10 : 6));
+        if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(R, r.value >= 60 ? -3 : -2, kind + '株连之忧·' + d.name, { source: 'npc-disgrace-fear' });
+      } else {
+        // 政敌——弹冠相庆 / 落井下石(去一劲敌·伺机进取)
+        if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(R.name, '政敌' + d.name + kind + '·去一劲敌', r.value <= -50 ? '喜' : '平', r.value <= -50 ? 6 : 5, d.name);
+      }
+    }
+  });
+}
+if (typeof SettlementPipeline !== 'undefined' && typeof SettlementPipeline.register === 'function') {
+  SettlementPipeline.register('npcDisgraceReact', '下狱流放涟漪', function() { _npcDisgraceRipple(); }, 90, 'perturn');
+}
+
+// ============================================================
+// 2.9: 战败涟漪——败将羞愤(惧)/盟友忧/政敌借机参劾(走 AffinityMap·喂 hearts)
+//   依赖 _applyBattleResult 给幸存败将打的 _defeatTurn 标记。败将本身是主受者(自责+军心动摇)。
+// ============================================================
+function _npcDefeatRipple() {
+  if (typeof GM === 'undefined' || !GM.chars || typeof AffinityMap === 'undefined' || typeof AffinityMap.getRelations !== 'function') return;
+  GM.chars.forEach(function(d) {
+    if (!d || d.alive === false || d._defeatReacted) return;
+    if (typeof d._defeatTurn !== 'number' || ((GM.turn || 0) - d._defeatTurn) > 1) return; // 仅近1回合新败·避存量刷屏
+    d._defeatReacted = true;
+    // 败将自身——羞愤难当·军心动摇(主受者)
+    d.stress = Math.min(100, (d.stress || 0) + 12);
+    if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(d, -4, '兵败之耻·' + (d._defeatReason || '战败'), { source: 'npc-defeat-shame' });
+    if (typeof FaceSystem !== 'undefined' && typeof FaceSystem.loseFace === 'function') FaceSystem.loseFace(d, 12, '兵败');
+    if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(d.name, '兵败' + (d._defeatReason ? '·' + d._defeatReason : '') + '·羞愤难当', '惧', 8, '');
+    d._mood = '惧';
+    // 旁人按亲疏:盟友为之忧·政敌借机参劾
+    var rels = AffinityMap.getRelations(d.name) || [];
+    var n = 0;
+    for (var i = 0; i < rels.length && n < 8; i++) {
+      var r = rels[i];
+      if (!r || !r.name || Math.abs(r.value || 0) < 25) continue;
+      var R = (typeof findCharByName === 'function') ? findCharByName(r.name) : null;
+      if (!R || R.alive === false || R.name === d.name) continue;
+      n++;
+      if (r.value > 0) {
+        if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(R.name, d.name + '兵败·为之忧惧', '忧', 6, d.name);
+      } else {
+        if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(R.name, d.name + '兵败·正可借机参劾', r.value <= -50 ? '喜' : '平', 6, d.name);
+      }
+    }
+  });
+}
+if (typeof SettlementPipeline !== 'undefined' && typeof SettlementPipeline.register === 'function') {
+  SettlementPipeline.register('npcDefeatReact', '战败涟漪', function() { _npcDefeatRipple(); }, 90, 'perturn');
+}
+
+// ============================================================
+// 2.10: 致仕/告老涟漪——门生故旧失怙·离情(哀·gentle·致仕是荣退非失势·不重挫忠诚)
+// ============================================================
+function _npcRetireRipple() {
+  if (typeof GM === 'undefined' || !GM.chars || typeof AffinityMap === 'undefined' || typeof AffinityMap.getRelations !== 'function') return;
+  GM.chars.forEach(function(d) {
+    if (!d || d.alive === false || !d._retired || d._retireReacted) return;
+    var rt = (typeof d._retireTurn === 'number') ? d._retireTurn : (typeof d._retiredTurn === 'number' ? d._retiredTurn : null);
+    if (rt == null || ((GM.turn || 0) - rt) > 1) return; // 仅近1回合新致仕·避存量退隐者刷屏
+    d._retireReacted = true;
+    var rels = AffinityMap.getRelations(d.name) || [];
+    var n = 0;
+    for (var i = 0; i < rels.length && n < 6; i++) {
+      var r = rels[i];
+      if (!r || !r.name || Math.abs(r.value || 0) < 25) continue;
+      var R = (typeof findCharByName === 'function') ? findCharByName(r.name) : null;
+      if (!R || R.alive === false || R.name === d.name) continue;
+      n++;
+      if (r.value > 0) {
+        // 门生/故旧——失怙离情(哀·gentle):记忆为主·不挫忠诚(荣退非贬黜)
+        if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(R.name, d.name + '致仕归田·失一奥援·怅然', '哀', r.value >= 50 ? 6 : 5, d.name);
+      } else {
+        // 政敌——少一掣肘(muted·记一笔)
+        if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(R.name, d.name + '致仕·少一掣肘', '平', 5, d.name);
+      }
+    }
+  });
+}
+if (typeof SettlementPipeline !== 'undefined' && typeof SettlementPipeline.register === 'function') {
+  SettlementPipeline.register('npcRetireReact', '致仕涟漪', function() { _npcRetireRipple(); }, 90, 'perturn');
 }
 
 // 注册到结算流水线

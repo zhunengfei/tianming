@@ -25,12 +25,14 @@
 (function(global) {
 
   // ── NPC 行为类型→中文动词(供记忆/事件文案·复用 prompt 既有标签·防英文 behaviorType 漏进中文叙事·2026-06-13) ──
-  var _NPC_BEHAVIOR_CN = { appoint:'任用', dismiss:'罢黜', declare_war:'宣战', reward:'赏赐', punish:'惩处', request_loyalty:'拉拢', reform:'推行新政', betray:'背叛', conspire:'密谋串联', petition:'进谏', investigate:'查劾', impeach:'弹劾', obstruct:'阻挠', slander:'中伤', reconcile:'和解', mentor:'提携', train_troops:'操练', fortify:'整饬城防', patrol:'巡防', flee:'出逃', retire:'告老', travel:'游历', develop:'兴修', donate:'捐输', hoard:'囤积', smuggle:'走私', suppress:'镇压', recruit:'招募', study:'查访', recommend:'举荐', confront:'对质', mediate:'调和', frame_up:'构陷', expose_secret:'揭发', share_intelligence:'通风报信', guarantee:'担保', gift_present:'馈赠', private_visit:'私访', invite_banquet:'宴请', correspond_secret:'通密信', form_clique:'结党', marriage_alliance:'联姻', master_disciple:'收徒', duel_poetry:'诗文唱和', mourn_together:'共哀', mourn:'致哀', rival_compete:'争胜', obey:'听命', desert:'哗变' };
+  var _NPC_BEHAVIOR_CN = { appoint:'任用', dismiss:'罢黜', declare_war:'宣战', reward:'赏赐', punish:'惩处', request_loyalty:'拉拢', reform:'推行新政', betray:'背叛', conspire:'密谋串联', petition:'进谏', investigate:'查劾', impeach:'弹劾', obstruct:'阻挠', slander:'中伤', reconcile:'和解', mentor:'提携', train_troops:'操练', fortify:'整饬城防', patrol:'巡防', flee:'出逃', retire:'告老', travel:'游历', develop:'兴修', donate:'捐输', hoard:'囤积', smuggle:'走私', suppress:'镇压', petition_jointly:'联名上书', recruit:'招募', study:'查访', recommend:'举荐', confront:'对质', mediate:'调和', frame_up:'构陷', expose_secret:'揭发', share_intelligence:'通风报信', guarantee:'担保', gift_present:'馈赠', private_visit:'私访', invite_banquet:'宴请', correspond_secret:'通密信', form_clique:'结党', marriage_alliance:'联姻', master_disciple:'收徒', duel_poetry:'诗文唱和', mourn_together:'共哀', mourn:'致哀', rival_compete:'争胜', obey:'听命', desert:'哗变' };
   function _npcBehaviorVerbCN(bt) {
     var k = String(bt == null ? '' : bt).toLowerCase().trim();
     if (_NPC_BEHAVIOR_CN[k]) return _NPC_BEHAVIOR_CN[k];
     return /[a-z]/i.test(k) ? '处置' : (bt || '处置'); // 未知英文型→中性词·绝不漏英文;已中文则原样
   }
+  // 暴露 NPC 行为中文译名为单一真源（朝野动态 feed 等只读消费方复用·勿在别处复制此表）
+  try { global.TM = global.TM || {}; global.TM.NPC = global.TM.NPC || {}; if (typeof global.TM.NPC.behaviorVerbCN !== 'function') global.TM.NPC.behaviorVerbCN = _npcBehaviorVerbCN; } catch (_e) {}
   // ── 诏令类型 key→中文(未知/英文键则隐去括注·绝不显原始英文键) ──
   var _EDICT_TYPE_CN = { political:'朝政', policy:'朝政', personnel:'人事', military:'军务', military_order:'军务', military_reform:'军改', diplomatic:'外交', diplomacy:'外交', finance:'财赋', fiscal:'财赋', economy:'财赋', economic:'财赋', taxation:'赋税', agriculture:'农政', education:'教化', culture:'文教', education_culture:'文教', religion:'礼制', justice:'刑名', law:'律令', province:'地方', province_policy:'地方', social:'民生', minsheng:'民生', other:'其他' };
   function _edictTypeCN(et) {
@@ -873,6 +875,7 @@ inst._imprisonedTurn = GM.turn||0;
               if (_armyMatch) {
                 if (act.behaviorType === 'train_troops') _armyMatch.training = Math.min(100, (_armyMatch.training||50) + 5);
                 else if (act.behaviorType === 'patrol') _armyMatch.morale = Math.min(100, (_armyMatch.morale||50) + 3);
+                else if (act.behaviorType === 'fortify') { _armyMatch.morale = Math.min(100, (_armyMatch.morale||50) + 2); if (typeof _armyMatch.fortification === 'number') _armyMatch.fortification = Math.min(100, _armyMatch.fortification + 5); }
               }
               mechanicallyExecuted = true;
             } else if (act.behaviorType === 'flee' || act.behaviorType === 'retire' || act.behaviorType === 'travel') {
@@ -917,6 +920,82 @@ inst._imprisonedTurn = GM.turn||0;
               mechanicallyExecuted = true;
             } else if (act.behaviorType === 'suppress') {
               // 镇压——仅事件，不修改顶栏数值
+              mechanicallyExecuted = true;
+            } else if (act.behaviorType === 'gift_present' || act.behaviorType === 'invite_banquet' || act.behaviorType === 'private_visit' || act.behaviorType === 'correspond_secret' || act.behaviorType === 'share_intelligence' || act.behaviorType === 'duel_poetry' || act.behaviorType === 'mourn_together' || act.behaviorType === 'mourn' || act.behaviorType === 'master_disciple' || act.behaviorType === 'guarantee' || act.behaviorType === 'obey') {
+              // 社交结好——馈赠/宴请/私访/密信/通风报信/唱和/共哀/师徒/担保/听命:增进亲疏(软纽带·不碰编制/兵额)
+              if (act.target && typeof AffinityMap !== 'undefined') {
+                var _bondTbl = { master_disciple: 12, guarantee: 8, gift_present: 6, invite_banquet: 6, private_visit: 6, correspond_secret: 6, share_intelligence: 6, duel_poetry: 5, mourn_together: 5, mourn: 5, obey: 5 };
+                var _bd = _bondTbl[act.behaviorType] || 5;
+                AffinityMap.add(act.name, act.target, _bd, _npcBehaviorVerbCN(act.behaviorType));
+                AffinityMap.add(act.target, act.name, Math.round(_bd * 0.6), _npcBehaviorVerbCN(act.behaviorType));
+                if (act.behaviorType === 'master_disciple' || act.behaviorType === 'guarantee' || act.behaviorType === 'obey') {
+                  var _bondCh = findCharByName(act.behaviorType === 'obey' ? act.name : act.target);
+                  if (_bondCh && typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(_bondCh, act.behaviorType === 'master_disciple' ? 3 : 2, _npcBehaviorVerbCN(act.behaviorType), { source: 'npc-action-bond' });
+                }
+              }
+              mechanicallyExecuted = true;
+            } else if (act.behaviorType === 'frame_up' || act.behaviorType === 'expose_secret') {
+              // 构陷/揭发——重于中伤:损忠诚/加压力/掉面子/亲疏崩
+              if (act.target) {
+                var _fuCh = findCharByName(act.target);
+                if (_fuCh) {
+                  if (typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(_fuCh, -6, (act.name || 'NPC') + _npcBehaviorVerbCN(act.behaviorType), { source: 'npc-action-frameup' });
+                  _fuCh.stress = Math.min(100, (_fuCh.stress || 0) + 12);
+                  if (typeof FaceSystem !== 'undefined') FaceSystem.loseFace(_fuCh, 12, act.name + _npcBehaviorVerbCN(act.behaviorType));
+                }
+                if (typeof AffinityMap !== 'undefined') AffinityMap.add(act.target, act.name, -15, '被' + _npcBehaviorVerbCN(act.behaviorType));
+                if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(act.target, '遭' + act.name + _npcBehaviorVerbCN(act.behaviorType), '怒', 7, act.name);
+              }
+              mechanicallyExecuted = true;
+            } else if (act.behaviorType === 'confront' || act.behaviorType === 'rival_compete') {
+              // 对质/争胜——双向交恶·各添压力
+              if (act.target) {
+                if (typeof AffinityMap !== 'undefined') { AffinityMap.add(act.name, act.target, -8, _npcBehaviorVerbCN(act.behaviorType)); AffinityMap.add(act.target, act.name, -8, _npcBehaviorVerbCN(act.behaviorType)); }
+                var _cfCh = findCharByName(act.target);
+                if (_cfCh) _cfCh.stress = Math.min(100, (_cfCh.stress || 0) + 5);
+                var _cfSelf = findCharByName(act.name);
+                if (_cfSelf) _cfSelf.stress = Math.min(100, (_cfSelf.stress || 0) + 3);
+              }
+              mechanicallyExecuted = true;
+            } else if (act.behaviorType === 'impeach' || act.behaviorType === 'petition_jointly') {
+              // 弹劾/联名上书——同 investigate:被劾者加压·亲疏降
+              if (act.target) {
+                var _imCh = findCharByName(act.target);
+                if (_imCh) _imCh.stress = Math.min(100, (_imCh.stress || 0) + 8);
+                if (typeof AffinityMap !== 'undefined') AffinityMap.add(act.name, act.target, -8, _npcBehaviorVerbCN(act.behaviorType));
+              }
+              mechanicallyExecuted = true;
+            } else if (act.behaviorType === 'form_clique' || act.behaviorType === 'marriage_alliance') {
+              // 结党/联姻——缔结强纽带(软亲疏·派系归属仍走 faction_updates·此处不动编册)
+              if (act.target && typeof AffinityMap !== 'undefined') {
+                var _alD = act.behaviorType === 'marriage_alliance' ? 15 : 10;
+                AffinityMap.add(act.name, act.target, _alD, _npcBehaviorVerbCN(act.behaviorType));
+                AffinityMap.add(act.target, act.name, _alD, _npcBehaviorVerbCN(act.behaviorType));
+                if (act.behaviorType === 'marriage_alliance') {
+                  var _maCh = findCharByName(act.target);
+                  if (_maCh && typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(_maCh, 3, '联姻之好', { source: 'npc-action-marriage' });
+                }
+                if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(act.target, act.name + '与己' + _npcBehaviorVerbCN(act.behaviorType), '平', 6, act.name);
+              }
+              mechanicallyExecuted = true;
+            } else if (act.behaviorType === 'recommend') {
+              // 举荐——被荐者感念举主(亲疏+)·记一笔(擢用仍由铨政/功名系统定夺·此处只记人情)
+              if (act.target) {
+                if (typeof AffinityMap !== 'undefined') AffinityMap.add(act.target, act.name, 8, '荐拔之恩');
+                if (typeof NpcMemorySystem !== 'undefined') NpcMemorySystem.remember(act.target, act.name + '举荐提携', '喜', 5, act.name);
+              }
+              mechanicallyExecuted = true;
+            } else if (act.behaviorType === 'mediate') {
+              // 调和——居中转圜·弱化版和解(亲疏+)
+              if (act.target && typeof AffinityMap !== 'undefined') AffinityMap.add(act.name, act.target, 6, '居中调和');
+              mechanicallyExecuted = true;
+            } else if (act.behaviorType === 'recruit' || act.behaviorType === 'desert') {
+              // 募兵/哗变——只动军队士气训练(软)·兵额由 army_changes 权威通道结算·此处不重复计
+              var _milMatch = (GM.armies||[]).find(function(a){return !a.destroyed && (a.commander === act.name || (act.target && a.name === act.target));});
+              if (_milMatch) {
+                if (act.behaviorType === 'recruit') { _milMatch.morale = Math.min(100, (_milMatch.morale||50) + 3); }
+                else { _milMatch.morale = Math.max(0, (_milMatch.morale||50) - 6); _milMatch.training = Math.max(0, (_milMatch.training||50) - 5); }
+              }
               mechanicallyExecuted = true;
             }
 

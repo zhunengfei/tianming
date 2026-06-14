@@ -87,14 +87,15 @@ assert(isObject(tianqi.timeline),
   '天启 timeline should be object-shaped with past/future lanes');
 assert(Array.isArray(tianqi.timeline.past) || Array.isArray(tianqi.timeline.future),
   '天启 timeline should carry at least one of past/future arrays');
-assert(Array.isArray(shaosong.timeline),
-  '绍宋 timeline should be array-shaped');
+// 绍宋已按天启标准全面完善：timeline 升级为 object {past,future}（游戏 AI/endturn 消费端读 .past/.future）
+assert(isObject(shaosong.timeline) && (Array.isArray(shaosong.timeline.past) || Array.isArray(shaosong.timeline.future)),
+  '绍宋 timeline should be object-shaped {past,future} (对标天启·游戏消费端所读)');
 
-// rules: 天启 is object, 绍宋 is array (empty)
+// rules: 两本同为 object（绍宋已按天启标准补全 base/combat/economy/diplomacy）
 assert(isObject(tianqi.rules),
   '天启 rules should be object-shaped (legacy schema)');
-assert(Array.isArray(shaosong.rules),
-  '绍宋 rules should be array-shaped (new schema)');
+assert(isObject(shaosong.rules),
+  '绍宋 rules should be object-shaped {base,combat,economy,diplomacy} (对标天启已补全)');
 
 // --- Round-trip via JSON ------------------------------------------------------
 function deepKeyDigest(value, depth) {

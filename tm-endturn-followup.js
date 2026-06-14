@@ -1291,6 +1291,7 @@
                 if (!rc || !rc.name) return;
                 var _rcArmy = (GM.armies||[]).find(function(a){ return a && a.name === rc.name; });
                 if (!_rcArmy || _rcArmy._createdTurn !== (GM.turn||0)) return;
+                if (_rcArmy._recruitChargedTurn === (GM.turn||0)) return; // 已由 applyAIArmyChange 确定性扣过·防双扣
                 var _silver = Math.max(0, Math.round(Number(rc.silver != null ? rc.silver : rc.money) || 0));
                 var _grain  = Math.max(0, Math.round(Number(rc.grain) || 0));
                 var _cloth  = Math.max(0, Math.round(Number(rc.cloth) || 0));

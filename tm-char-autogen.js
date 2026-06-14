@@ -38,8 +38,10 @@
       buckets = buckets.concat(_tmCharListFromContainer(GM.factions));
     }
     if (typeof P !== 'undefined' && P) {
-      buckets = buckets.concat(_tmCharListFromContainer(P.facs));
-      buckets = buckets.concat(_tmCharListFromContainer(P.factions));
+      // 防串台：只补当前激活剧本的势力（否则会把别的剧本的势力混进自动生成的归属候选）
+      var _af = (typeof _tmActiveScenarioRows==='function') ? _tmActiveScenarioRows : function(a){return a;};
+      buckets = buckets.concat(_tmCharListFromContainer(_af(P.facs)));
+      buckets = buckets.concat(_tmCharListFromContainer(_af(P.factions)));
     }
     var seen = {};
     return buckets.filter(function(f){
@@ -56,7 +58,8 @@
   function _tmGetPartyList() {
     var buckets = [];
     if (typeof GM !== 'undefined' && GM) buckets = buckets.concat(_tmCharListFromContainer(GM.parties));
-    if (typeof P !== 'undefined' && P) buckets = buckets.concat(_tmCharListFromContainer(P.parties));
+    // 防串台：只补当前激活剧本的党派(否则会把别的剧本的党派混进自动生成候选)
+    if (typeof P !== 'undefined' && P) buckets = buckets.concat(_tmCharListFromContainer(typeof _tmActiveScenarioRows==='function'?_tmActiveScenarioRows(P.parties):P.parties));
     return buckets.filter(function(p){ return p && typeof p === 'object' && (p.name || p.id); });
   }
 

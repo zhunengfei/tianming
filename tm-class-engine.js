@@ -652,7 +652,9 @@
         source: options.source || 'party-outcome',
         reason: (outcome && (outcome.reason || outcome.topic || outcome.demandText)) || '党争胜负'
       });
-      if (!gatePo.approved) return;
+      // 2026-06-14·预算耗尽(approved=0)时不再整体 return:胜负结果的 history/court-record/coupling-log
+      // 是 UI 因果链所需·不应因满意度预算用尽(如同回合 social-political-signal 已用满 ±14)而丢失;
+      // 仅满意度数字被总闸夹住(classDelta 可为 0·下游 minxin 反馈自动随 0 无副作用)。
       classDelta = gatePo.approved;
       var oldSat = gatePo.before;
       var nextSat = gatePo.after;

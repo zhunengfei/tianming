@@ -1431,6 +1431,7 @@
     }, { passive: false });
     stage.addEventListener('pointerdown', function(e){
       if (e.button !== 0) return;
+      if (e.pointerType === 'touch') return; // 触屏 pan/缩放交给 attachPinchPan(touch 事件)·避免 pointer+touch 双重平移
       if (e.cancelable) e.preventDefault();
       clearMapSelection();
       state.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, tx: state.mapView.tx || 0, ty: state.mapView.ty || 0, moved: false };
@@ -1461,6 +1462,35 @@
         setTimeout(function(){ state.dragSuppressClick = false; }, 0);
       }
     });
+    // 触屏：单指拖动平移 + 双指捏合缩放（复用 wheel 的内容单位换算与 zoom-at-anchor 公式）
+    if (window.TM && typeof TM.attachPinchPan === 'function') {
+      TM.attachPinchPan(stage, {
+        onGesture: function(g){
+          var map = getMapData(); if (!map) return;
+          var rect = stage.getBoundingClientRect();
+          if (!rect.width || !rect.height) return;
+          if (!state.mapView) state.mapView = { scale: 1, tx: 0, ty: 0 };
+          var width = Number(map.width || 1200), height = Number(map.height || 720);
+          if (g.panDX || g.panDY) {
+            state.mapView.tx = (state.mapView.tx || 0) + g.panDX / rect.width * width;
+            state.mapView.ty = (state.mapView.ty || 0) + g.panDY / rect.height * height;
+          }
+          if (g.zoom && g.zoom !== 1) {
+            var ax = (g.cx - rect.left) / rect.width * width;
+            var ay = (g.cy - rect.top) / rect.height * height;
+            var old = state.mapView.scale || 1;
+            var next = Math.max(.85, Math.min(3.4, old * g.zoom));
+            state.mapView.tx = ax - (ax - (state.mapView.tx || 0)) * (next / old);
+            state.mapView.ty = ay - (ay - (state.mapView.ty || 0)) * (next / old);
+            state.mapView.scale = next;
+          }
+          applyMapTransform();
+        },
+        onEnd: function(g){
+          if (g && g.moved) { state.dragSuppressClick = true; setTimeout(function(){ state.dragSuppressClick = false; }, 60); }
+        }
+      });
+    }
     stage.addEventListener('dblclick', function(){
       state.mapView = { scale: 1, tx: 0, ty: 0 };
       applyMapTransform();

@@ -215,7 +215,10 @@ async function _onPostTurnCourtEnd() {
     // AI 还没好——关闭后朝标志让后续 AI 完成时直接 render
     GM._isPostTurnCourt = false;
     GM._pendingShijiModal.courtDone = true;
-    showLoading('\u5019\u6709\u53F8\u63A8\u6F14\u2026\u2026', 50);
+    // 退朝时推演未毕——启动过回合电影化动画(core-start 拍点'时移事去')·让剩余 pipeline 拍点(回合阶段 N/6→生成史记弹窗)驱动到落幕。
+    // 修「开朔朝·退朝后不进过回合动画·反显老 loading 弹窗」:朔朝期间 core.js 抑制了'时移事去'故电影化层未开闸·
+    // 此处补开闸(上方已置 _isPostTurnCourt=false / courtDone=true·朝会已退不会遮挡朝会)。'候有司推演……'不匹配任何拍点故走老 origShow。
+    showLoading('\u65F6\u79FB\u4E8B\u53BB', 50);
     return;
   }
   var _payload = GM._pendingShijiModal.payload;
