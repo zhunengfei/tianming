@@ -151,6 +151,8 @@
       if (alloc.dept) ch.dept = alloc.dept;
       // 科举按名次注入初始功名(状元>榜眼>探花>二甲>三甲)·入仕的功名来源·标已迁移防被 derive 覆盖
       try { if (window.TMPromotion) { if (!ch.resources) ch.resources = {}; var _rk = alloc.rank || 99; var _place = _rk === 1 ? 'zhuangyuan' : _rk === 2 ? 'bangyan' : _rk === 3 ? 'tanhua' : (_rk <= 20 ? 'jinshi_2' : 'jinshi_3'); var _grant = TMPromotion.kejuGrant(_place); ch.resources.virtueMerit = Math.max(ch.resources.virtueMerit || 0, _grant); ch.resources.virtueStage = TMPromotion.stageForMerit(ch.resources.virtueMerit); ch.resources._meritScale = TMPromotion.SCALE; } } catch (_kjvmE) {}
+      // 科举盖结构化出身(进士·一甲直授翰林荣衔→清流储相)·入仕的功名资格来源
+      try { if (window.TMGongming) { var _gmRk = alloc.rank || 99; var _gmHonors = _gmRk === 1 ? ['状元', '翰林'] : _gmRk === 2 ? ['榜眼', '翰林'] : _gmRk === 3 ? ['探花', '翰林'] : []; TMGongming.grant(ch, { path: 'keju', tier: '进士', honors: _gmHonors, source: 'keju', turn: (typeof GM !== 'undefined' && GM) ? GM.turn : 0 }); } } catch (_kjgmE) {}
       ch._allocationType = alloc.allocation;
       if (alloc.note) ch._allocationNote = alloc.note;
       applied++;

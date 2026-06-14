@@ -8,6 +8,14 @@
 // Refactor-only: preserves subcall prompts, queue order, and branch topology.
 // Exports: TM.Endturn.AI.followup.run(ctx).
 // ============================================================
+// ── 章节导航（§ 锚点；跳转请 grep 小节标题，行号会随改动漂移）──
+//   入口  run(ctx) 跑 endturn 主推演后的全部后续子调用，分三 Branch
+//   §A Branch A · NPC 深度推演   sc1.5 NPC 全面深度推演 · SC_MEMWRITE NPC 记忆回写(P8.1 移 post-turn)
+//   §B Branch B · 专项推演 batch  sc1.6/1.7(经济财政)/1.8(军事态势) · SC_CONSISTENCY_AUDIT 一致性审核 · sc1.9 新实体丰化
+//   §C Branch C · 后人戏说→叙事   sc2 后人戏说 · sc2.5c(tactical+strategic 并行) · sc2.5 伏笔+记忆压缩+情绪快照
+//        · sc2.7 叙事质量审查 · sc0.7 NPC 认知整合 · sc2.8 世界状态深度快照 · sc_consolidate 后台记忆固化
+//   §D 记忆压缩   根据模型上下文窗口自适应压缩（动态探测，无写死）
+// ============================================================
 (function(global) {
   if (typeof global.TM === "undefined") global.TM = {};
   if (typeof global.TM.Endturn === "undefined") global.TM.Endturn = {};

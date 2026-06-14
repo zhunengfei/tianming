@@ -1088,11 +1088,11 @@ function buildNpcContext() {
     month: getCurrentMonth(),
     timestamp: Date.now(),
 
-    // 核心数据快照（深拷贝，避免后续修改影响快照）
-    characters: GM.chars ? deepClone(GM.chars) : [],
-    factions: GM.facs ? deepClone(GM.facs) : [],
-    parties: GM.parties ? deepClone(GM.parties) : [],
-    classes: GM.classes ? deepClone(GM.classes) : [],
+    // 核心数据引用(轻量化·2026-06-13 NPC引擎优化):原每回合 deepClone 全量(数百角色·~数秒)·而 npcContext 全库无逻辑消费方(grep实证)·改零拷贝引用。下游无 mutate 故引用安全
+    characters: GM.chars || [],
+    factions: GM.facs || [],
+    parties: GM.parties || [],
+    classes: GM.classes || [],
 
     // 变量快照（转换为简单对象，便于访问）
     variables: {},
@@ -1141,86 +1141,8 @@ function buildNpcContext() {
     });
   }
 
-  // 3. 预计算人格缓存（从traitIds聚合8D维度，存入_dims不覆盖personality字符串）
-  context.characters.forEach(function(char) {
-    var dims = _aggregatePersonalityDims(char);
-    var key = char.id || char.name;
-    if (key) context.cache.personality[key] = dims;
-    char._dims = dims; // 独立字段，不覆盖原personality文本
-  });
-
-  // 4. 预计算好感度缓存（使用双轨好感系统）
-  context.characters.forEach(function(char) {
-    if (!char.name) return;
-    context.cache.opinion[char.name] = {};
-    // 优先使用 OpinionSystem（基础+事件双轨）
-    if (typeof OpinionSystem !== 'undefined') {
-      var charObj = findCharByName(char.name);
-      if (!charObj) return;  // 找不到本人对应实体·跳过（可能是已死/已删除）
-      context.characters.forEach(function(target) {
-        if (!target || !target.name || target.name === char.name) return;
-        var targetObj = findCharByName(target.name);
-        if (!targetObj) return;  // 防御：目标实体不存在
-        context.cache.opinion[char.name][target.name] = OpinionSystem.getTotal(charObj, targetObj);
-      });
-    } else if (char.opinions) {
-      // 回退到旧的 opinions 字段
-      Object.keys(char.opinions).forEach(function(targetId) {
-        context.cache.opinion[char.name][targetId] = char.opinions[targetId];
-      });
-    }
-  });
-
-  // 5. 预计算军事力量缓存
-  context.factions.forEach(function(faction) {
-    if (faction.id) {
-      var strength = 0;
-
-      // 从军队系统计算力量
-      if (GM.armies && GM.armies.length > 0) {
-        GM.armies.forEach(function(army) {
-          if (army.factionId === faction.id) {
-            strength += army.strength || 0;
-          }
-        });
-      }
-
-      // 从部队系统计算力量
-      if (GM.troops && GM.troops.length > 0) {
-        GM.troops.forEach(function(troop) {
-          if (troop.factionId === faction.id) {
-            strength += troop.count || 0;
-          }
-        });
-      }
-
-      context.cache.militaryStrength[faction.id] = Math.round(strength);
-    }
-  });
-
-  // 6. 预计算经济水平缓存
-  context.factions.forEach(function(faction) {
-    if (faction.id) {
-      var economicLevel = 0;
-
-      // 从变量中获取经济相关数值
-      var economicVars = ['treasury', 'wealth', 'economy', 'tax', 'trade', '国库', '财富', '经济'];
-      var count = 0;
-
-      economicVars.forEach(function(varName) {
-        if (context.variables[varName] && context.variables[varName].value !== undefined) {
-          economicLevel += context.variables[varName].value;
-          count++;
-        }
-      });
-
-      if (count > 0) {
-        economicLevel = Math.round(economicLevel / count);
-      }
-
-      context.cache.economicLevel[faction.id] = economicLevel;
-    }
-  });
+  // 3-6. 预计算缓存(人格/好感/军事/经济):原每回合遍历全角色/势力预算入 context.cache.*·全库无任何消费方(grep实证)·已移除空转
+  //       (人格按需走 getCharacterPersonalityBrief/_aggregatePersonalityDims·军经走各自引擎)·cache 保持空对象结构不变
 
   return context;
 }

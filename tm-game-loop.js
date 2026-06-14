@@ -1,5 +1,13 @@
 // @ts-check
 /// <reference path="types.d.ts" />
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   游戏运行时生命周期（R111 从 tm-game-engine.js 拆出·姊妹 tm-launch.js / tm-player-actions.js）
+//   §1 进入游戏   enterGame · startGame（注：startGame 被 tm-patches.js 覆盖）
+//   §2 校验       剧本完整性校验（游戏开始前自动执行）
+//   §3 外交       派遣使臣谈判（5.4）· 制度改革走变量系统（5.6）
+//   §4 面板       朝政中心（2.5）· 角色交互快捷面板（2.2）
+//   §5 问天       玩家与推演 AI 的元通信通道 · 移动导航 · _lookupCharDossier
+// ─────────────────────────────────────────────
 // ============================================================
 //  tm-game-loop.js — 游戏运行时生命周期（R111 从 tm-game-engine.js L7014-end 拆出）
 //  姊妹文件: tm-launch.js (L1-1140) + tm-player-actions.js (L1141-7013)

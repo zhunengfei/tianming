@@ -140,7 +140,13 @@
   }
   function anchorEl(el) {
     var st = el && el.style; if (!st) return;
-    if (st.position === 'fixed') st.position = 'absolute';   // 内联 fixed → absolute·就地改不移 DOM
+    if (st.position === 'fixed') {
+      st.position = 'absolute';   // 内联 fixed → absolute·就地改不移 DOM
+      // ★留痕:归一化抹掉 position:fixed 后·全游戏靠 this.closest('div[style*=fixed]') 关闭的弹窗按钮会全失效
+      //   (style 串不再含"fixed"→closest 落空→.remove() 抛错→辞旧/兼任/撤回等按钮点了没反应)。
+      //   用名字含"fixed"的自定义属性把"fixed"子串留在 style 串里·让该选择器仍命中·零改 43 处 callsite。
+      try { st.setProperty('--tm-ff-fixed', '1'); } catch (_) {}
+    }
     inlineVwVh(st);
   }
   function anchorTree(root) {

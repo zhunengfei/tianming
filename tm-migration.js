@@ -14,7 +14,7 @@
   var migrations = [];
 
   // ── 入狱关键词·与 tm-ai-change-applier.js onDismissal 同步 ──
-  var _IMPRISON_KW = /下狱|入狱|系狱|关押|羁押|拘押|拘禁|拘捕|缉拿|收押|监禁|捉拿|逮捕|imprison|jail/;
+  var _IMPRISON_KW = /诏狱|下狱|入狱|系狱|系于狱|关押|羁押|拘押|拘禁|拘捕|拘系|缉拿|收押|收监|监禁|囚禁|囚系|牢狱|大牢|天牢|死牢|下牢|捉拿|逮捕|逮治|逮问|拿问|拿办|锁拿|械系|械送|槛车|下廷尉|下大理寺|下镇抚司|送镇抚司|镇抚司狱|imprison|jail|prison/;
 
   function nowIso() {
     try { return (new Date()).toISOString(); }
@@ -246,7 +246,8 @@
       if (!ch._imprisoned && !ch.imprisoned) return;
       var reason = String(ch._imprisonReason || '').trim();
       // 无 reason 或 reason 不含明确入狱关键词 → 误标·清
-      if (!reason || !_IMPRISON_KW.test(reason)) {
+      var _kw = (global && global._TM_IMPRISON_RE) || _IMPRISON_KW;
+      if (!reason || !_kw.test(reason)) {
         ch._imprisoned = false;
         ch.imprisoned = false;
         if (typeof ch._imprisonedTurn !== 'undefined') ch._wasImprisonedTurn = ch._imprisonedTurn;

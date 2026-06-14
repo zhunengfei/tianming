@@ -1,5 +1,13 @@
 // @ts-check
 /// <reference path="types.d.ts" />
+// ── 章节导航（§ 已在正文标注·此处为顶层索引；grep §N 跳转）──
+//   武举主 runner + 校阅大典 + 派镇 + 战功 + 武勋世家（Phase G·G3·standalone mini-runner）
+//   §1-5   主考 pick / 元朝 gate / 和平期贬值 / pool count / 武进士字段（5 archetype）
+//   §6-9   外场成绩 / 赐物（校阅大典）/ 派镇（scan officeTree 非硬编 9 边镇）/ mark+spawn
+//   §10-13 校阅大典 LLM / 武勋派 / 兵谏黑天鹅 / 兵议体题目
+//   §14-17 主入口 _kjG3OnWujuApproved / 武勋世家 / 战功联动 / 长尾（health 损耗·战死·荫袭）
+//   §18-22 清末废武举 / LLM dialog tone / G1→keyi promote bridge / EDICT parser（Path C）/ RAA fixes
+// ─────────────────────────────────────────────
 /**
  * tm-keju-wuju.js — Phase G·G3·武举主 runner + 校阅大典 + 派镇 + 战功 + 武勋世家
  *

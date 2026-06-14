@@ -1,5 +1,12 @@
 // @ts-check
 /// <reference path="types.d.ts" />
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   私学/书院 mini-system 主 runner（Phase H·跟 G3 wuju 同 standalone paradigm·读 9 朝代 preset）
+//   §1 lifecycle   5 阶段 founding/flourishing/official/banned/restored/abolished（_kjpOn* 钩子）
+//   §2 山长 NPC    真 spawn 山长（_kjpSpawnShanzhang·G2/G3 jinshi schema 同深度·11 维/resources/career）
+//   §3 层级        5 类 academy（太学/郡学/私学/书院/讲会）· _kjpCalcSchoolNetworkTier
+//   §4 联动        真上人物面板 / 被弹劾·押·赐死（F4c）· _kjpMaybeSpawnSchoolParty · 山长世系
+// ─────────────────────────────────────────────
 /**
  * tm-keju-school-network.js — Phase H·私学/书院 mini-system 主 runner
  *

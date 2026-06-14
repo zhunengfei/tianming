@@ -1,5 +1,10 @@
 // @ts-check
 /// <reference path="types.d.ts" />
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   NPC 反馈机制（姊妹 tm-mechanics-world.js 世界机制）
+//   §1 软下限     SoftFloorSystem：变量接近下限时阻尼负向变动（防雪崩·正向不受影响）
+//   §2 其余机制   （grep 各 System 名定位；本文件聚合多个跨域反馈机制）
+// ─────────────────────────────────────────────
 // ============================================================
 // Soft Floor System - 软下限系统
 // Requires: tm-data-model.js (P, GM), tm-utils.js (_dbg)
@@ -1659,6 +1664,13 @@ var NpcMemorySystem = {
     if (!ch || ch.alive === false) return;
     if (!ch._memory) ch._memory = [];
     if (!ch._memArchive) ch._memArchive = [];
+
+    // 近窗口完全相同 event 去重(防同一事件每回合重复刷·人物图志记忆清爽·2026-06-13)
+    if (event && ch._memory.length) {
+      for (var _ddi = ch._memory.length - 1, _ddn = 0; _ddi >= 0 && _ddn < 8; _ddi--, _ddn++) {
+        if (ch._memory[_ddi] && ch._memory[_ddi].event === event) return;
+      }
+    }
 
     // 4.4: 结构化记忆类型推断
     var memType = (meta && meta.type) || 'general';

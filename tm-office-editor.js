@@ -1,5 +1,13 @@
 // @ts-check
 /// <reference path="types.d.ts" />
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   剧本编辑器桥接 + 官制 AI 生成 + 官制编辑器（R131 从 tm-audio-theme.js 拆出）
+//   §1 桥接       openEditorHtml（打开 editor.html）· bindMainMenuButtons
+//   §2 崩溃恢复   检测 IndexedDB autosave / pre_endturn 并提示恢复
+//   §3 AI Gen     _aiStylePrefix / aiGenOfficeEd / aiGenOfficeStaff（override 1+2）· aiGenChr/Fac/Var/...
+//   §4 官制编辑   _renderOfficeDept · 部门卡 / 职位 leaf 卡 / _office* CRUD
+//   §5 启动       阶段A 完整官制骨架 · 阶段B 生成关键角色 · openScenarioResetEditor
+// ─────────────────────────────────────────────
 // ============================================================
 // tm-office-editor.js — 剧本编辑器桥接+官制 AI 生成+官制编辑器 (R131 从 tm-audio-theme.js L1499-end 拆出)
 // 姊妹: tm-audio-theme.js (音频+主题) + tm-save-lifecycle.js (存档管道)

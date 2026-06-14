@@ -1,5 +1,12 @@
 // @ts-check
 /// <reference path="types.d.ts" />
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   LLM 接管 NPC 势力决策（Phase G·替代 F4 enrich·暴露 TM.FactionNpcLlmDecision）
+//   §1 buildPrompt   拼 fac state（派生数据 + chars + 派系 + 近事），让 LLM 全面理解再决策
+//   §2 callLLM       返回 structured JSON（NpcTurnDecision）
+//   §3 Apply         按 schema 改 fac/chars 数据（代码 apply 副作用）
+//   §4 Public API    单 fac LLM 决策（async·返回 summary）· 账本 GM._npcFactionLlmLedger
+// ─────────────────────────────────────────────
 /*
  * tm-faction-npc-llm-decision.js — LLM 接管 NPC 决策 (Phase G·2026-05-10)
  *

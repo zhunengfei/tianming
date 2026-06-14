@@ -202,17 +202,21 @@
     };
   }
 
+  // 上奏者中介:按官职职能择合适大臣代陈(辖地督抚→职能中枢民政/监察→言官兜底)·与官职职能相关
+  var _OFF_REGIONAL = /(巡抚|总督|总制|经略|巡按|布政使?|按察使?|分守|分巡|兵备|知府|知州|知县|府尹|道$)/;
+  var _OFF_FUNCTION = /(户部|通政|都察|御史|给事中|顺天府|应天府|礼部|吏部|侍郎|尚书|寺卿|少卿)/;
+  function _senderOffText(ch) { return [ch && ch.officialTitle, ch && ch.title, ch && ch.office, ch && ch.concurrentTitle, ch && ch.role].map(textOf).join(' '); }
+  function _senderAliveOk(ch) { return ch && ch.alive !== false && !/(罢|致仕|削籍|已殁|身故|遇刺|杖毙|鸩杀|伏诛|革职)/.test(_senderOffText(ch)); }
   function chooseMemorialSender(root, item) {
     var chars = toArray(root.chars || root.characters || (root.scriptData && root.scriptData.chars));
     var regionN = normalizeName(item.regionName);
-    var local = chars.find(function(ch) {
-      var hay = [ch && ch.name, ch && ch.title, ch && ch.office, ch && ch.location, ch && ch.region].map(textOf).join(' ');
-      return regionN && normalizeName(hay).indexOf(regionN) >= 0;
-    });
+    function locHay(ch) { return normalizeName([ch && ch.location, ch && ch.region, ch && ch.officialTitle, ch && ch.title, ch && ch.office].map(textOf).join(' ')); }
+    var local = chars.find(function(ch) { return _senderAliveOk(ch) && regionN && locHay(ch).indexOf(regionN) >= 0 && _OFF_REGIONAL.test(_senderOffText(ch)); });
+    if (!local) local = chars.find(function(ch) { return _senderAliveOk(ch) && regionN && locHay(ch).indexOf(regionN) >= 0; });
     if (local) return compact(local.name || local.title || '地方有司', 80);
-    var censor = chars.find(function(ch) {
-      return /censor|御史|都察|言官/i.test([ch && ch.title, ch && ch.office, ch && ch.role].map(textOf).join(' '));
-    });
+    var central = chars.find(function(ch) { return _senderAliveOk(ch) && _OFF_FUNCTION.test(_senderOffText(ch)); });
+    if (central) return compact(central.name || central.title || '部院大臣', 80);
+    var censor = chars.find(function(ch) { return _senderAliveOk(ch) && /御史|都察|言官|给事中/.test(_senderOffText(ch)); });
     if (censor) return compact(censor.name || censor.title || '都察言官', 80);
     return '地方陈情者';
   }
@@ -221,10 +225,20 @@
     return '民情积压·' + item.regionName + '·' + item.className;
   }
 
+  // 积压缘由:中文 reason 保留;内部英文推断标签(dynamic-inference/regionalVariant 等)→按实数据生成中文缘由
+  function _pressureReasonCN(item) {
+    var r = String(item.reason || '');
+    if (r && !/[a-zA-Z]/.test(r)) return r;
+    var t = Math.round(Number(item.true) || 0), p = (item.perceived != null) ? Math.round(Number(item.perceived)) : null;
+    if (p != null && (p - t) >= 12) return '朝堂观感虚高、实情壅于下情未达天听';
+    if (t <= 20) return '民心久困、怨望积聚，亟待绥抚';
+    if (t <= 40) return '民情未靖、隐忧渐显';
+    return '民情积滞，宜早绸缪';
+  }
   function itemBody(item) {
     return [
       item.regionName + '·' + item.className + '民心实情 ' + Math.round(item.true) + (item.perceived != null ? '，朝堂观感 ' + Math.round(item.perceived) : ''),
-      '积压缘由：' + (item.reason || '民心低落'),
+      '积压缘由：' + _pressureReasonCN(item),
       '可经奏疏批复、廷议、问对，或鸿雁查访核处。'
     ].join('\n');
   }
@@ -269,6 +283,7 @@
       sourceSystem: 'minxin-pressure-actions',
       sourceType: 'minxin_pressure',
       _minxinPressureActionId: item.id,
+      _needsAiBody: true, // 待AI代拟正文(同辅臣拟议范式·secondary)·失败保确定性中文兜底
       _minxinPressureCandidate: clone(item)
     };
     mems.unshift(mem);

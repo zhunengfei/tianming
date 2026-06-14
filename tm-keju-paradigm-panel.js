@@ -1,5 +1,13 @@
 // @ts-check
 /// <reference path="types.d.ts" />
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   科举改革议题构造 panel（Stage 2·Phase L·点「⚖️ 改革科举范式」开 reform proposal modal）
+//   §L2 议题构造   _kjpOpenReformProposal · 复选 11 大类 paradigm 字段 · _kjpBuildTopicText
+//   §L3 幅度/试点  改革幅度 · 试点 · 朝议预判（各党 stance 分布）· 召对
+//   §L4 策对       召史策对（b）· 对比策对（f2·timeline +/✓ 按钮）
+//   §提交         _kjpSubmitReform → keyi topicType=reform → tinyi v3 8 阶段议政 → L7 apply
+//   §回滚         _kjpL11OpenRollbackModal
+// ─────────────────────────────────────────────
 /**
  * tm-keju-paradigm-panel.js — Stage 2·Phase L·Slice L2·改革议题构造 panel
  * v1.2·post-audit·event delegation + 全 30+ 字段 UI 暴露 (P0+P1 修)

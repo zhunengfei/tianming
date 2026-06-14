@@ -801,17 +801,23 @@
       (GM.chars || []).forEach(function(c){
         if (!c || c.alive === false || c._fakeDeath) return;
         if (!Array.isArray(c._memory) || c._memory.length === 0) return;
+        if (c.isPlayer) return; // 玩家本人不生成 NPC 行为·不占用深度心声名额(2026-06-13)
         var weight = (c.historicalImportance || 0);
         if (c.officialTitle) weight += 20;
-        if (c.rank && c.rank <= 3) weight += 15;
+        // 品级抬升(朝代中立·c.rank 多未设令旧 +15 恒哑·改走运行时 rank 解析器·越高品权重越大·2026-06-13)
+        var _rk = null;
+        try { if (window.TMPromotion && typeof window.TMPromotion.resolveRankLevel === 'function') _rk = window.TMPromotion.resolveRankLevel(c, GM); } catch (_rkE) {}
+        if (_rk != null && _rk >= 1) weight += (_rk <= 4 ? 30 : (_rk <= 8 ? 18 : (_rk <= 12 ? 8 : 0)));
+        else if (c.rank && c.rank <= 3) weight += 15;
         if (GM.wenduiHistory && GM.wenduiHistory[c.name]) {
           var lastT = 0;
           GM.wenduiHistory[c.name].forEach(function(h){ if (h.turn > lastT) lastT = h.turn; });
           if (((GM.turn||0) - lastT) <= 3) weight += 25;
         }
-        candidates.push({ ch: c, weight: weight });
+        candidates.push({ ch: c, weight: weight, rk: _rk });
       });
       candidates.sort(function(a,b){ return b.weight - a.weight; });
+      var _allScored = candidates.slice(); // 全量已排序·供「实权重臣未入深度名额」配额(slice B)
       candidates = candidates.slice(0, maxChars);
 
       if (candidates.length === 0) return;
@@ -825,12 +831,15 @@
         if (heartCount >= totalCap) return;
         var c = cand.ch;
         var mood = c._mood || '平';
-        var curTitle = c.officialTitle || c.title || '';
+        // 完整官职（主⊕兼·走 office-system 真源·治"AI 只认主职、漏兼任高职"症状B）
+        var curTitle = (typeof _offFormatCharTitles === 'function') ? (_offFormatCharTitles(c, { fallback: c.officialTitle || c.title || '' }) || c.officialTitle || c.title || '') : (c.officialTitle || c.title || '');
         var activeArcs = (c._arcs || []).filter(function(a){ return a.phase !== 'resolved'; });
         var arcAttr = activeArcs.length ? ' active_arcs="' + _xE(activeArcs.slice(0,3).map(function(a){return a.title;}).join('·')) + '"' : '';
         var _gmAttr = '';
         try { if (window.TMPromotion && c.resources && c.resources.virtueMerit != null) { _gmAttr = ' gongming="' + Math.round(c.resources.virtueMerit) + '·' + TMPromotion.stageName(c.resources.virtueStage) + '"'; } } catch(_gmE){}
-        xmlLines.push('  <heart char="' + _xE(c.name||'') + '" mood="' + _xE(mood) + '" title="' + _xE(curTitle) + '"' + _gmAttr + arcAttr + '>');
+        var _csAttr = '';
+        try { if (window.TMGongming && TMGongming.summaryLine && !c.isPlayer) { _csAttr = ' chushen="' + _xE(TMGongming.summaryLine(c, GM)) + '"'; } } catch(_csE){}
+        xmlLines.push('  <heart char="' + _xE(c.name||'') + '" mood="' + _xE(mood) + '" title="' + _xE(curTitle) + '"' + _gmAttr + _csAttr + arcAttr + '>');
         var sorted = c._memory.slice().sort(function(a,b){ return (b.importance||0) - (a.importance||0); });
         var top = sorted.slice(0, perChar).filter(function(m){ return (m.importance||0) >= impMin; });
         top.forEach(function(m){
@@ -866,6 +875,27 @@
       });
       xmlLines.push('</npc-hearts>');
       tp += '\n' + xmlLines.join('\n') + '\n';
+      // 实权重臣行止配额(朝代中立·纯按品级 rk·防高品官员长期在叙事中沉寂/封疆边事静止·2026-06-13)
+      (function _injectNeglectedAuthority() {
+        var _NL = String.fromCharCode(10);
+        var _inHeart = {};
+        candidates.forEach(function(cd) { if (cd && cd.ch) _inHeart[cd.ch.name] = 1; });
+        var _neg = [];
+        for (var _ai = 0; _ai < _allScored.length && _neg.length < 8; _ai++) {
+          var _cd = _allScored[_ai];
+          if (!_cd || !_cd.ch || _inHeart[_cd.ch.name]) continue;
+          if (_cd.rk == null || _cd.rk > 8) continue; // 仅高品实权(数字品级·朝代中立)
+          _neg.push(_cd);
+        }
+        if (_neg.length === 0) return;
+        var _nl = [_NL + '【实权重臣·近来在叙事中未现身——本回合 npc_actions 应让其中至少 1-2 人有所行止（治政/边备/军务/人事/谋身），勿使封疆边镇与外任大员形同虚设】'];
+        _neg.forEach(function(_cd2) {
+          var c2 = _cd2.ch;
+          var t2 = (typeof _offFormatCharTitles === 'function') ? (_offFormatCharTitles(c2, { fallback: c2.officialTitle || c2.title || '' }) || c2.officialTitle || c2.title || '') : (c2.officialTitle || c2.title || '');
+          _nl.push('  · ' + c2.name + (t2 ? '（' + t2 + '）' : '') + '·' + (c2.faction || '') + '·心绪' + (c2._mood || '平'));
+        });
+        tp += _nl.join(_NL) + _NL;
+      })();
     })();
 
     // E4: 上回合全部已处理奏疏注入——AI必须体现因果延续
@@ -983,6 +1013,7 @@
     tp += '  · 任何其他深层字段（人物属性、忠诚、好感、记忆、派系关系、异象、科举阶段等）→ anyPathChanges op:"set/delta/push/merge"\n';
     tp += '  · 重大事件名望(resources.fame ±·经 char_updates/anyPathChanges)：平叛克捷/外交建功/百姓立生祠/退隐著书/著文传世 名望涨；重大冤案/党争失势贬谪/私德家族丑闻 名望跌；投敌叛乱 名望崩。仅限重大事件——日常往来好恶另有系统结算·勿在此重复。' + String.fromCharCode(10);
     tp += '※ 功名(gongming·见 npc-hearts·累积政绩资历·六阶 未识/有闻/清誉/儒望/朝宗/师表)是升迁举荐主要依据：擢人补缺优先功名高者(任人唯贤)；功名浅者骤擢高位=幸进，会招言官非议、清议哗然(应在叙事/npc_actions 体现)。功名低者勿越级保举。三品以上大员擢用尤重功名与资历。\n';
+    tp += '※ 出身(chushen·见 npc-hearts·功名的资格半边=入仕所凭)：路径(科举/门荫/纳赀捐纳/军功/吏进/布衣) · 科第(进士/举人/生员…) · 荣衔(翰林/庶吉士/科道) · 正途/异途 · 清流/中流/浊流 · 仕途天花板。规则：①仕途循资不得逾出身天花板——举人/监生/生员/捐纳之流难入阁部清要(政治区三品以上)，越次擢用招清议大哗、皇威损；②清流(翰林/科道)名望素著、阁部储望，异途(捐纳/恩幸)易为清议所讥；③党派归属顺出身——清流出身亲清流党、异途亲浊流恩幸。授功名走 gongming_grants(奏荫 menyin/捐例 nazi/录军功 junggong/吏进 lijin/特赐进士 enci/馆选加衔 honor)；捐纳卖官解国库燃眉但败坏铨政清议。\n';
     tp += '※ 叙事与数据一一对应·宁可不写·不可写而不改·也不可改而不叙。zhengwen/events 里出现的"实际变化"在本回合结束时必须真的落到 GM 状态。\n';
     tp += '※ 连锁义务：授某人为某官 → 该官 officialTitle 必新；给官职改名 → 所有持此官者同步改名；移驻某地 → location+_travelTo；仕途 careerHistory 必须追加（appoint/transfer/dismiss 类动作自动写入·但 AI 若写了"赐进太师衔"之类额外身份也要手动 careerEvent）。\n';
     // ═══ 走位/赴任·强制约束（避免"启程拖到下回合"和"重置剩余天数"两大 bug）═══

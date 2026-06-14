@@ -88,6 +88,7 @@
       var pf = action.effect.positionFrom || '';
       var pt = action.effect.positionTo || '';
       if (pt) posChange = ' (' + pf + '→' + pt + ')';
+      if (action.action === 'promote' && pf && pt && pf === pt) return false; // 升到同一官职=no-op·不入快报
     }
     var content = (action.ruler || '主君') + verb + action.target + posChange;
     return _push('人事', fac.name, content);
