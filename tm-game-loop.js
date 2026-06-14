@@ -1125,8 +1125,8 @@ async function _wtSend() {
     + '   · narrative — 叙事/规则控制：让剧情走向X、让AI行为Y、保护某人、禁止某事发生（例："不要让袁崇焕被处决"、"AI多写诗词"）\n'
     + '   · setting — 世界背景/设定注入：补充剧本的背景信息/状态/历史（例："此时倭寇已平"、"北方去年大旱未记入"）\n'
     + '   · hardChange — 直接修改数值或字段：要求直接改具体数值/字段（例："帑廪+1000万两"、"某NPC忠诚设为100"、"袁崇焕所在地改为京师"、"皇威+10"）\n'
-    + '       ★【识别规则】只要指令提到：具体金额(万两/石/匹)、具体数值(+N/-N/设为N)、具体字段(国库/帑廪/内帑/忠诚/所在地/位置/皇威/皇权/民心等)——必须归入 hardChange。不要误判为 narrative/directive。\n'
-    + '       ★【常见路径】白银=guoku.money·粮=guoku.grain·布=guoku.cloth·内帑银=neitang.money·皇威=huangwei.index·皇权=huangquan.index·腐败/吏治=corruption.trueIndex·民心=minxin.trueIndex·人物忠诚=chars[人物名].loyalty·人物所在地=chars[人物名].location·军队兵力=armies[军名].soldiers·军队主帅=armies[军名].commander·军队士气=armies[军名].morale·军队忠诚=armies[军名].loyalty·军队欠饷月数=armies[军名].payArrearsMonths\n'
+    + '       ★【识别规则】只要指令提到：具体金额(万两/石/匹)、具体数值(+N/-N/设为N)、具体字段(国库/帑廪/内帑/忠诚/所在地/位置/皇威/皇权/民心/阶层满意度/阶层影响力等)——必须归入 hardChange。不要误判为 narrative/directive。\n'
+    + '       ★【常见路径】白银=guoku.money·粮=guoku.grain·布=guoku.cloth·内帑银=neitang.money·皇威=huangwei.index·皇权=huangquan.index·腐败/吏治=corruption.trueIndex·民心=minxin.trueIndex·人物忠诚=chars[人物名].loyalty·人物所在地=chars[人物名].location·军队兵力=armies[军名].soldiers·军队主帅=armies[军名].commander·军队士气=armies[军名].morale·军队忠诚=armies[军名].loyalty·军队欠饷月数=armies[军名].payArrearsMonths·阶层满意度=classes[阶层名].satisfaction·阶层影响力=classes[阶层名].influence·阶层人口=classes[阶层名].population\n'
     + '       ★【操作符】"加/增/+"→op:add · "减/扣/-"→op:add(负数) · "设为/改为/="→op:set · "翻倍/x2"→op:mul\n'
     + '       ★【单位换算】1 万两=10000·50 万两=500000·100 万石=1000000·玩家说"100 万"一律写成 1000000 数字不要保留"万"字\n'
     + '   · edictSubstitute — 等同诏令：玩家实际想下诏令的事（例："拨银赈灾"、"罢某某官"、"遣使某国"——这些本该走诏令而非问天）\n'
@@ -1826,6 +1826,63 @@ function _wtResolveArmyHardChange(parts) {
   return { army: hit.army, index: hit.index, field: field };
 }
 
+// 阶层 hardChange 字段规范化（满意度/影响力等中文/英文别名 → 真实字段名）
+function _wtCanonicalClassHardChangeField(field) {
+  var f = String(field || '').trim().replace(/\s+/g, '');
+  var aliases = {
+    '满意度':'satisfaction','滿意度':'satisfaction','满意':'satisfaction','滿意':'satisfaction','支持度':'satisfaction','满意度值':'satisfaction','satisfaction':'satisfaction',
+    '影响力':'influence','影響力':'influence','影响':'influence','影響':'influence','话语权':'influence','話語權':'influence','影响力值':'influence','influence':'influence',
+    '人口':'population','人口数':'population','population':'population',
+    '凝聚力':'cohesion','凝聚':'cohesion','cohesion':'cohesion'
+  };
+  return aliases[f] || f;
+}
+
+// 按名查阶层（GM.classes / GM.socialClasses·精确优先·唯一模糊命中兜底·镜像军队查找）
+function _wtFindClassHardChangeTarget(name) {
+  var lists = [];
+  if (typeof GM !== 'undefined' && GM) {
+    if (Array.isArray(GM.classes)) lists.push({ list: GM.classes, name: 'classes' });
+    if (Array.isArray(GM.socialClasses)) lists.push({ list: GM.socialClasses, name: 'socialClasses' });
+  }
+  if (!lists.length || !name) return null;
+  var t = _wtNormalizeCharacterLookupToken(name);
+  if (!t) return null;
+  var loose = null, looseCount = 0;
+  for (var li = 0; li < lists.length; li++) {
+    var arr = lists[li].list;
+    for (var i = 0; i < arr.length; i++) {
+      var c = arr[i];
+      if (!c) continue;
+      var keys = [c.name, c.className, c.id].map(_wtNormalizeCharacterLookupToken).filter(Boolean);
+      if (keys.indexOf(t) >= 0) return { cls: c, index: i, listName: lists[li].name };
+      if (keys.some(function(k){ return k && (k.indexOf(t) >= 0 || t.indexOf(k) >= 0); })) { loose = { cls: c, index: i, listName: lists[li].name }; looseCount++; }
+    }
+  }
+  return (looseCount === 1) ? loose : null;
+}
+
+// 解析阶层 hardChange 路径：classes/阶层 前缀，或裸阶层名（裸名须命中真实 class 字段·防误伤 GM 字段路径）
+// 治"问天直改 classes[农户].满意度 → 通用导航写到数组幽灵属性 GM.classes['农户']、真阶层不动"的静默失败。
+function _wtResolveClassHardChange(parts) {
+  if (!parts || parts.length < 2) return null;
+  var prefixes = /^(classes|socialClasses|socialClass|class|阶层|階層|阶级|階級|社会阶层|社會階層)$/i;
+  var name, field;
+  if (prefixes.test(String(parts[0] || ''))) {
+    if (parts.length < 3) return null;
+    name = parts[1];
+    field = _wtCanonicalClassHardChangeField(parts.slice(2).join('.'));
+  } else {
+    name = parts[0];
+    field = _wtCanonicalClassHardChangeField(parts.slice(1).join('.'));
+  }
+  if (!name || !field) return null;
+  if (['satisfaction','influence','population','cohesion'].indexOf(field) < 0) return null; // 只认 class 真实字段·避免裸名误伤
+  var hit = _wtFindClassHardChangeTarget(name);
+  if (!hit || !hit.cls) return null;
+  return { cls: hit.cls, index: hit.index, listName: hit.listName, field: field };
+}
+
 function _wtApplyHardChange(path, op, value) {
   if (!path) return false;
   // 根据路径前缀决定 root
@@ -1885,6 +1942,23 @@ function _wtApplyHardChange(path, op, value) {
       if (_f === 'control') { _a.controlLevel = _nv; }
       try { if (typeof TM !== 'undefined' && TM.AIChange && TM.AIChange.Army && TM.AIChange.Army.refreshMilitaryViews) TM.AIChange.Army.refreshMilitaryViews(GM); } catch (_wtRmvE) {}
       _wtAfterHardChange(_armyPath, _oldA, _nv);
+      return true;
+    }
+    // 阶层按名解析（镜像军队/人物）·治"问天改 classes[农户].满意度 写到数组幽灵属性、真阶层不动"的静默失败。
+    // 问天=god-mode 直改·满意度/影响力直写真阶层对象(0-100 夹取)·不走 gateSatisfaction 总闸(那是每回合信号预算·此处是显式覆盖)。
+    var classChange = _wtResolveClassHardChange(parts);
+    if (classChange && classChange.cls) {
+      var _cls = classChange.cls, _cf = classChange.field;
+      var _classPath = classChange.listName + '.' + classChange.index + '.' + _cf;
+      var _oldC = _cls[_cf];
+      var _cscalar = _wtApplyScalarHardChange(_oldC, op || 'set', value);
+      if (!_cscalar.ok) return false;
+      var _cnv = Math.round(Number(_cscalar.value) || 0);
+      if (_cf === 'population') _cnv = Math.max(0, _cnv);
+      else _cnv = Math.max(0, Math.min(100, _cnv)); // satisfaction/influence/cohesion 0-100
+      _cls[_cf] = _cnv;
+      try { if (typeof TM !== 'undefined' && TM.ClassEngine && typeof TM.ClassEngine.refreshClassPhase === 'function') TM.ClassEngine.refreshClassPhase(GM, _cls); } catch (_wtClsE) {}
+      _wtAfterHardChange(_classPath, _oldC, _cnv);
       return true;
     }
   }

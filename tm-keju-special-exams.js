@@ -38,7 +38,7 @@
 
   function _isD2Enabled() {
     if (typeof P === 'undefined' || !P || !P.conf) return false;
-    return P.conf.useNewKejuD2 === true;
+    return P.conf.useNewKejuD2 !== false; // 默认开·2026-06-14·特科解锁（undefined→on·显式 false 才关）
   }
 
   function _getCurYear() {

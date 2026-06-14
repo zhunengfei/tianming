@@ -1205,6 +1205,29 @@ function _renderOfficeTreeSVG(container) {
       ox = e.clientX - drag.sx; oy = e.clientY - drag.sy; applyT();
     });
     document.addEventListener('mouseup', function() { drag = null; if (wrap) wrap.style.cursor = 'grab'; });
+    // 触屏：单指拖动平移 + 双指捏合缩放（复用 wheel 的屏幕 px 锚点公式·与桌面手感一致）
+    if (window.TM && typeof TM.attachPinchPan === 'function') {
+      TM.attachPinchPan(wrap, {
+        shouldStart: function(t){
+          if (!t) return true;
+          if (t.tagName === 'BUTTON' || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT') return false;
+          if (t.closest && t.closest('.og-pos-card, .og-dept-card, .og-v10-pos, .og-v10-dept, .og-node-group, .og-pe-undo, .og-v10-pending-undo, .og-tree-zoom-ctrl')) return false;
+          return true;
+        },
+        onGesture: function(g){
+          var rect = wrap.getBoundingClientRect();
+          if (g.panDX || g.panDY) { ox += g.panDX; oy += g.panDY; }
+          if (g.zoom && g.zoom !== 1) {
+            var mx = g.cx - rect.left, my2 = g.cy - rect.top;
+            var ns = Math.max(0.18, Math.min(3, scale * g.zoom));
+            ox = mx - (mx - ox) * (ns / scale);
+            oy = my2 - (my2 - oy) * (ns / scale);
+            scale = ns;
+          }
+          applyT();
+        }
+      });
+    }
 
     // 窗口 resize 防抖重新居中
     if (window._offResizeTimer) clearTimeout(window._offResizeTimer);

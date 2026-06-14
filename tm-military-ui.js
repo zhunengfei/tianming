@@ -50,7 +50,10 @@ function addArmy(){
 
 function editArmy(i){
   var a=P.military.armies[i];
-  var _facList = (P.factions || P.facs || []).filter(function(f){return f && f.name;});
+  // 剧本隔离根治：势力下拉只读当前局 GM.facs(单剧本)·不读多剧本 P 库·无局时按 sid 过滤兜底
+  var _facSrc = (typeof GM!=='undefined' && GM && Array.isArray(GM.facs) && GM.facs.length) ? GM.facs
+    : (typeof _tmActiveScenarioRows==='function' ? _tmActiveScenarioRows(P.factions||P.facs||[]) : (P.factions||P.facs||[]));
+  var _facList = _facSrc.filter(function(f){return f && f.name;});
   var _facOpts = '<option value="">（未指定）</option>' + _facList.map(function(f){
     var sel = (a.faction === f.name) ? ' selected' : '';
     return '<option value="' + f.name.replace(/"/g,'&quot;') + '"' + sel + '>' + f.name + (f.isPlayer?' ★本朝':'') + '</option>';

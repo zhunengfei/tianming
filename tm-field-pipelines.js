@@ -134,7 +134,11 @@
     if (!div) return null;
     var cap = recruitCap(div);
     if (cap === null) return null;
-    var approved = Math.min(delta, cap);
+    // 征兵效率（民心派生·realm-wide）真影响募兵池上限：民心崩则丁壮逃役、募不满额——
+    //   让「征兵效率」从空显示变成真后果（2026-06-15·#6 假数字治理）。clamp 0.3~1.3 与显示口径一致。
+    var _cEff = (GM && typeof GM._conscriptEffMult === 'number' && isFinite(GM._conscriptEffMult)) ? Math.max(0.3, Math.min(1.3, GM._conscriptEffMult)) : 1;
+    var effCap = Math.max(0, Math.round(cap * _cEff));
+    var approved = Math.min(delta, effCap);
     var overdraft = delta - approved;
     if (overdraft > 0) {
       // 强征越限：民心叶账立扣（地板 20·非玄幻——抽丁过池即扰民）
@@ -151,7 +155,7 @@
       div.militaryDetail.availableRecruits = Math.max(0, Math.round(num(div.militaryDetail.availableRecruits) - approved));
       ledgerPush(div, 'recruits', -approved, '募兵成军', GM);
     }
-    return { div: div, cap: cap, approved: approved, overdraft: overdraft };
+    return { div: div, cap: effCap, rawCap: cap, conscriptEff: _cEff, approved: approved, overdraft: overdraft };
   }
 
   // ── ④ 每回合确定性步：重税之地民心叶账缓跌（挂 endturn-core·aggregate 之前） ──

@@ -614,11 +614,11 @@ function _endTurn_render(shizhengji, zhengwen, playerStatus, playerInner, edicts
       if (d !== 0) {
         var label = CORE_METRIC_LABELS[k] || k;
         // 查编辑器变量定义判断升降好坏（inversed=true表示数值越高越差，如民变/党争）
+        // 剧本隔离根治：优先查当前局 GM.vars(每局权威)·不查 set-once/跨剧本不可靠的 P.variables。
         var vDef = null;
-        if (P.variables) {
-          var _varArr = Array.isArray(P.variables) ? P.variables : (P.variables.base || []).concat(P.variables.other || []);
-          vDef = _varArr.find(function(v){return v.name===k;});
-        }
+        var _varArr = (typeof _tmActiveVars === 'function') ? _tmActiveVars()
+          : (P.variables ? (Array.isArray(P.variables) ? P.variables : (P.variables.base || []).concat(P.variables.other || [])) : []);
+        vDef = _varArr.find(function(v){return v.name===k;});
         // fallback: 名称中含"变""乱""争""压""腐"等负面词的视为inversed
         var inversed = (vDef && vDef.inversed) || (!vDef && /变|乱|争|压|腐|threat|strife|unrest|corruption/.test(k));
         var col = inversed ? (d > 0 ? 'var(--vermillion-400)' : 'var(--celadon-400)') : (d > 0 ? 'var(--celadon-400)' : 'var(--vermillion-400)');

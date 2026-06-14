@@ -502,7 +502,13 @@ function showScnManage(){
     "</div>";
 }
 
-function backToLaunch(){_cleanupOverlays();resetLaunchRuntimeShell();_$("scn-page").classList.remove("show");_$("scn-page").innerHTML="";_$("bar").style.display="none";_$("E").style.display="none";_$("G").style.display="none";_$("launch").style.display="flex";var sf=_$("shiji-btn");if(sf)sf.classList.remove("show");var sb=_$("save-btn");if(sb)sb.classList.remove("show");if(window.TM&&TM.pauseFab&&typeof TM.pauseFab.refresh==='function')TM.pauseFab.refresh();saveP();GameHooks.run('backToLaunch:after');}
+function backToLaunch(){_cleanupOverlays();resetLaunchRuntimeShell();_$("scn-page").classList.remove("show");_$("scn-page").innerHTML="";_$("bar").style.display="none";_$("E").style.display="none";_$("G").style.display="none";_$("launch").style.display="flex";
+  // 还原启动页 hero：桌面端 showPanel（剧本选择/开始/模式面板）会把 .home-stage 设 display:none 并显示 #main-view；
+  // 退回启动页若不撤销，则 .home-stage 一直隐藏、只剩 position:fixed 的 .home-foot 可见 → 黑屏（仅余底栏）。
+  // 网页端 .home-stage 从不被 showPanel 隐藏、#main-view 恒为 none，这两步均为 no-op，故对网页零影响。
+  var _hero=document.getElementById('lt-menu')||document.querySelector('.home-stage')||document.querySelector('.home-menu');if(_hero)_hero.style.display='';
+  var _mv=document.getElementById('main-view');if(_mv){_mv.style.display='none';_mv.innerHTML='';}
+  var sf=_$("shiji-btn");if(sf)sf.classList.remove("show");var sb=_$("save-btn");if(sb)sb.classList.remove("show");if(window.TM&&TM.pauseFab&&typeof TM.pauseFab.refresh==='function')TM.pauseFab.refresh();saveP();GameHooks.run('backToLaunch:after');}
 
 function createNewScn(){
   var modal=document.createElement("div");modal.className="modal-bg show";modal.id="new-scn-modal";

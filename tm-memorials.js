@@ -1015,6 +1015,8 @@ function _commitMemorialDecisions() {
     if (m.turn != null && m.turn > GM.turn) return;
     var status = m.status;
     if (status !== 'approved' && status !== 'rejected' && status !== 'annotated' && status !== 'referred' && status !== 'court_debate') return;
+    // 批复差异化后果（施于上奏者·经各自闸门）：准奏抚慰、驳回挫面、批示嘉纳、转交平淡、发廷议受瞩
+    var fx = ({ approved:{loyalty:3,face:6,stress:-3,emo:'慰'}, rejected:{loyalty:-3,face:-8,stress:5,emo:'沮'}, annotated:{loyalty:1,face:2,stress:-1,emo:'敬'}, referred:{loyalty:0,face:0,stress:1,emo:'平'}, court_debate:{loyalty:1,face:0,stress:3,emo:'凛'} })[status] || { loyalty:0, face:0, stress:0, emo:'平' };
     var actionLbl = status === 'approved' ? '所奏准奏'
                   : status === 'rejected' ? '所奏驳回'
                   : status === 'annotated' ? '朱笔批注'
@@ -1028,13 +1030,22 @@ function _commitMemorialDecisions() {
     if (m.from && typeof NpcMemorySystem !== 'undefined' && NpcMemorySystem.remember) {
       var memText = '\u6240\u4E0A\u594F\u758F\u300C' + (m.content || '').slice(0, 30) + '\u300D' + memoryLbl;
       if (status !== 'annotated' && m.reply) memText += '\uFF0C\u6731\u6279\uFF1A' + m.reply;
-      try { NpcMemorySystem.remember(m.from, memText, '\u5E73', 5); } catch(e){try{window.TM&&TM.errors&&TM.errors.captureSilent(e,'tm-index-world');}catch(_){}}
+      try { NpcMemorySystem.remember(m.from, memText, fx.emo, 5); } catch(e){try{window.TM&&TM.errors&&TM.errors.captureSilent(e,'tm-index-world');}catch(_){}}
       // referred 也给被转交者留一条记忆
       if (status === 'referred' && m._referredTo) {
         try { NpcMemorySystem.remember(m._referredTo, '\u7687\u5E1D\u5C06' + (m.from||'某人') + '\u7684\u594F\u758F\u6279\u8F6C\u7ED9\u81EA\u5DF1\u8BAE\u5904', '\u5E73', 4); } catch(e){try{window.TM&&TM.errors&&TM.errors.captureSilent(e,'tm-index-world');}catch(_){}}
       }
     }
     try { if (typeof _memorialSendReply === 'function') _memorialSendReply(m, actionLbl); } catch(e){try{window.TM&&TM.errors&&TM.errors.captureSilent(e,'tm-index-world');}catch(_){}}
+    // 批复差异化后果·施于上奏者（活臣·非君上·经忠诚/面子闸门）——让准/驳/批/转/廷议各有不同后果，而非「批了等于没批」
+    try {
+      var _fromCh = (m.from && typeof findCharByName === 'function') ? findCharByName(m.from) : null;
+      if (_fromCh && _fromCh.alive !== false && !_fromCh.isPlayer) {
+        if (fx.loyalty && typeof adjustCharacterLoyalty === 'function') adjustCharacterLoyalty(_fromCh, fx.loyalty, '奏疏' + actionLbl, { source: 'memorial-disposition' });
+        if (fx.face && typeof FaceSystem !== 'undefined' && FaceSystem.changeFace) FaceSystem.changeFace(_fromCh, fx.face, '奏疏' + actionLbl);
+        if (fx.stress) _fromCh.stress = Math.max(0, Math.min(100, (Number(_fromCh.stress) || 0) + fx.stress));
+      }
+    } catch(_dispoFxE) {}
     m._commitApplied = true;
   });
 }

@@ -640,7 +640,17 @@ var MilitarySystems = (function(global) {
     });
     if (matches.length) return matches[0];
     matches = _armyRefs(G).filter(function(a) { return a && String(a.faction || '') === key; });
-    return matches.length === 1 ? matches[0] : null;
+    if (matches.length === 1) return matches[0];
+    // 兜底·委托 AIChange.Army 解析器（名模糊 + 按主帅名反查）：治 battleResult 里
+    // AI 用「代善」指代而军名是「后金·两红旗(代善领)」对不上 → 折损落空、敌军杀不完。
+    try {
+      var _sharedArmy = global.TM && global.TM.AIChange && global.TM.AIChange.Army;
+      if (_sharedArmy && typeof _sharedArmy.findArmyForAIChange === 'function') {
+        var byShared = _sharedArmy.findArmyForAIChange(G, key);
+        if (byShared) return byShared;
+      }
+    } catch (_e) {}
+    return null;
   }
 
   function _applyCasualty(army, loss) {

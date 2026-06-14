@@ -70,7 +70,7 @@
 
   function _isG3Enabled() {
     if (typeof P === 'undefined' || !P || !P.conf) return false;
-    return P.conf.useNewKejuG3 === true;
+    return P.conf.useNewKejuG3 !== false; // 默认开·2026-06-14·武举解锁
   }
 
   function _getCurYear() {

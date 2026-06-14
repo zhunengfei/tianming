@@ -814,6 +814,17 @@
           GM.wenduiHistory[c.name].forEach(function(h){ if (h.turn > lastT) lastT = h.turn; });
           if (((GM.turn||0) - lastT) <= 3) weight += 25;
         }
+        // 叙事热度——活跃故事弧/极端心绪/刚经历大事的角色加权(救"封疆边镇/卷入剧情者长期沉寂"·上限+25·压不过品级主导)
+        var _heat = 0;
+        if (Array.isArray(c._arcs) && c._arcs.some(function(_a){ return _a && _a.phase !== 'resolved'; })) _heat += 12;
+        if (/[怒惧悲恨惊狂]/.test(c._mood || '平')) _heat += 8;
+        if (Array.isArray(c._memory)) {
+          for (var _hi = c._memory.length - 1; _hi >= 0 && _hi >= c._memory.length - 4; _hi--) {
+            var _hmem = c._memory[_hi];
+            if (_hmem && (_hmem.importance || 0) >= 8 && ((GM.turn || 0) - (_hmem.turn || 0)) <= 2) { _heat += 10; break; }
+          }
+        }
+        weight += (_heat > 25 ? 25 : _heat);
         candidates.push({ ch: c, weight: weight, rk: _rk });
       });
       candidates.sort(function(a,b){ return b.weight - a.weight; });
@@ -840,6 +851,16 @@
         var _csAttr = '';
         try { if (window.TMGongming && TMGongming.summaryLine && !c.isPlayer) { _csAttr = ' chushen="' + _xE(TMGongming.summaryLine(c, GM)) + '"'; } } catch(_csE){}
         xmlLines.push('  <heart char="' + _xE(c.name||'') + '" mood="' + _xE(mood) + '" title="' + _xE(curTitle) + '"' + _gmAttr + _csAttr + arcAttr + '>');
+        // 驱动目标——该 NPC 当前所求(让 npc_actions 朝目标连贯·与图志/goal_updates 同源·补齐 heart 决策上下文「他想要什么」)
+        if (Array.isArray(c.personalGoals) && c.personalGoals.length) {
+          var _g0 = c.personalGoals.slice().sort(function(_x,_y){ return (_y.priority||5) - (_x.priority||5); })[0];
+          if (_g0 && (_g0.longTerm || _g0.shortTerm)) {
+            var _gAttrs = ['priority="' + (_g0.priority||5) + '"', 'progress="' + (_g0.progress||0) + '"'];
+            if (_g0.type) _gAttrs.push('type="' + _xE(_g0.type) + '"');
+            var _gtxt = (_g0.longTerm||'') + (_g0.shortTerm ? '｜近期：' + _g0.shortTerm : '') + (_g0.context ? '（' + _g0.context + '）' : '');
+            xmlLines.push('    <goal ' + _gAttrs.join(' ') + '>' + _xE(_gtxt.substring(0, 100)) + '</goal>');
+          }
+        }
         var sorted = c._memory.slice().sort(function(a,b){ return (b.importance||0) - (a.importance||0); });
         var top = sorted.slice(0, perChar).filter(function(m){ return (m.importance||0) >= impMin; });
         top.forEach(function(m){
@@ -871,6 +892,22 @@
             }
           });
         }
+        // 当前亲疏立场——top 盟友/宿敌(走 AffinityMap·与图志/问对/奏疏同源·闭合 npc_actions 行为后果的跨回合回路)
+        try {
+          if (typeof AffinityMap !== 'undefined' && typeof AffinityMap.getRelations === 'function') {
+            var _ties = AffinityMap.getRelations(c.name) || [], _ally = [], _foe = [];
+            for (var _ti = 0; _ti < _ties.length && (_ally.length < 3 || _foe.length < 3); _ti++) {
+              var _tr = _ties[_ti]; if (!_tr || !_tr.name || Math.abs(_tr.value || 0) < 20) continue;
+              if (_tr.value > 0) { if (_ally.length < 3) _ally.push(_tr); } else if (_foe.length < 3) _foe.push(_tr);
+            }
+            if (_ally.length || _foe.length) {
+              var _tl = [];
+              _ally.forEach(function(r){ _tl.push('<ally name="' + _xE(r.name) + '" favor="' + Math.round(r.value) + '"/>'); });
+              _foe.forEach(function(r){ _tl.push('<foe name="' + _xE(r.name) + '" favor="' + Math.round(r.value) + '"/>'); });
+              xmlLines.push('    <ties>' + _tl.join('') + '</ties>');
+            }
+          }
+        } catch (_tiesE) {}
         xmlLines.push('  </heart>');
       });
       xmlLines.push('</npc-hearts>');
@@ -2172,8 +2209,12 @@
 
     // 注入·剧本 events 含玩家选项 (playerChoices)·LLM 在 narrative surface·让玩家通过诏令应对·非 modal click
     try {
-      if (Array.isArray(P.events) && P.events.length > 0) {
-        var _evtsWithChoices = P.events.filter(function(e) { return e && Array.isArray(e.playerChoices) && e.playerChoices.length > 0; });
+      // 剧本隔离根治：只读当前局 GM.events(单剧本干净副本)·不注入跨剧本累积的 P.events 库
+      // (官方天启快照常驻·会把天启剧本事件喂进绍宋局的 AI 提示)。旧档无 GM.events 时按 sid 过滤 P 兜底。
+      var _evSrc = (GM && Array.isArray(GM.events) && GM.events.length) ? GM.events
+        : (typeof _tmActiveScenarioRows==='function' ? _tmActiveScenarioRows(P.events) : (Array.isArray(P.events)?P.events:[]));
+      if (_evSrc && _evSrc.length > 0) {
+        var _evtsWithChoices = _evSrc.filter(function(e) { return e && Array.isArray(e.playerChoices) && e.playerChoices.length > 0; });
         if (_evtsWithChoices.length > 0) {
           sysP += '\n\n【剧本 events·含玩家选项 (playerChoices) ' + _evtsWithChoices.length + ' 项】AI 推演时·若 event 触发条件满足·**在 shizhengji/zhengwen 中描述选项**（如"陛下面前两策·李纲奏 X·汪伯彦奏 Y"·或臣下分头进言两 / 三种策略）·**让玩家通过下次诏令应对**·★ 不可 LLM 自代选·须 surface 给玩家。';
           _evtsWithChoices.slice(0, 8).forEach(function(ev) {
@@ -2818,6 +2859,7 @@
     sysP += '\n- resource_changes: 修改任何资源变量';
     sysP += '\n- char_updates: 修改角色忠诚/野心/压力/所在地/立场/党派等（new_location/new_stance/new_party）';
     sysP += '\n- battleResult: 结构化战斗结果。若本回合明确发生战斗，请输出 {winnerFactionId, loserFactionId, occupiedCityIds, casualties:{attacker,defender}, affectedArmies:[{armyId,side,loss,moraleDelta,loyaltyDelta,state,commanderFate}], commanderFate:{name,outcome}, huangweiDelta, postBattleEffects[]}，胜负/占城/伤亡不得只写在叙事里。★【玩家胜仗必出 battleResult】玩家方（朝廷/官军）本回合只要交战并取胜，必须输出本字段且 winnerFactionId 填玩家势力——否则军胜不会结算进皇威（玩家会看到「军胜」项纹丝不动）；叙事一旦出现"大破/大捷/收复/克城/歼敌/平虏/破贼"等胜果字样，必须配套 battleResult，不能只写在叙事里。\n  ※ huangweiDelta 0~8：仅当赢家是玩家势力时按战果定皇威加分——灭国级大捷/收复重镇 6~8、击溃主力 3~5、小胜/边境摩擦 1~2；敌胜或平局给 0。漏给则引擎按保底 +2/场落地。';
+    sysP += '\n  ※ 伤亡定位：affectedArmies[].armyId 与败方军队引用，须用精确番号或主帅姓名（如"代善"），不能只给势力名——"后金"对应多支旗军，引擎无法定位到具体军，伤亡会落空、敌军杀不完。';
     _mark('base');
     sysP += '\n\n【NPC自主行为系统·核心——每回合必须生成】';
     sysP += '\nnpc_actions是世界活力的引擎。每回合应有5-10条NPC自主行为，涵盖不同层级的角色。';
@@ -3122,6 +3164,7 @@
     sysP += '\n- regent_decisions: \u6444\u653f\u51b3\u65ad\uFF08action\u3001subject\u3001regentName\u3001hardCeiling\u3001reason\uFF09';
     sysP += '\n- reissue_topics: \u5efa\u8bae\u5c06\u7559\u4e2d\u518c\u8bae\u9898\u8d77\u590d\u518d\u8bae\uff08topic\u3001reason\uff09';
     sysP += '\n- army_changes: 修改部队兵力/士气/训练/统帅（降至0→全军覆没；统帅或主将变更必须写 commander/newCommander，不能只写在叙事里）';
+    sysP += '\n  ★敌我任一方有折损/减员，必须落此处（soldiers_delta 用负数）或 battleResult，不能只写在叙事里。name 须是该军的精确番号或其主帅姓名（如"后金·两红旗(代善领)"或"代善"）；只写势力名（如"后金"含多支旗军）无法定位到具体军，折损会落空——敌军每回合"折几千却永远杀不完"正是此故。';
     sysP += '\n- item_changes: 让角色获得或失去物品';
     sysP += '\n- era_state_delta: 调整时代参数（社会稳定/经济/集权/军事等）';
     sysP += '\n- global_state_delta: 调整税压';

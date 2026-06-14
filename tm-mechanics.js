@@ -1815,9 +1815,18 @@ var NpcMemorySystem = {
   /** 更新角色当前情绪状态（基于近期记忆的主导情绪） */
   _updateMood: function(ch) {
     if (!ch._memory || ch._memory.length === 0) { ch._mood = '平'; return; }
-    var recent = ch._memory.slice(-3);
+    // 时近加权:越新的情绪记忆越主导当下心绪·过久(>8回合)的事件不再主导·跳过"平"噪声·
+    // 近期无显著情绪事件则归于"平"(防低活跃NPC心绪被陈年记忆冻结·衰减只在超容量触发不兜底·2026-06-14)
+    var _nowT = (typeof GM !== 'undefined' && GM && GM.turn) || 0;
+    var recent = ch._memory.slice(-5);
     var counts = {};
-    recent.forEach(function(m) { counts[m.emotion] = (counts[m.emotion] || 0) + m.importance; });
+    recent.forEach(function(m) {
+      if (!m || !m.emotion || m.emotion === '平') return;
+      var age = _nowT - (m.turn || 0);
+      if (age > 8) return;
+      var recencyW = age <= 1 ? 1 : (age <= 3 ? 0.6 : (age <= 6 ? 0.3 : 0.15));
+      counts[m.emotion] = (counts[m.emotion] || 0) + (m.importance || 5) * recencyW;
+    });
     var dominant = '平', maxW = 0;
     for (var e in counts) { if (counts[e] > maxW) { maxW = counts[e]; dominant = e; } }
     ch._mood = dominant;

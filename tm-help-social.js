@@ -38,6 +38,33 @@ var HelpSystem = {
       `
     },
 
+    apikey: {
+      title: '🔑 如何配置 AI 密钥',
+      content: `
+        <h4>为什么需要密钥</h4>
+        <p>天命以 AI 为引擎推演整个世界——臣子的回应、派系的博弈、史局的走向都由大语言模型当场演绎。<b>没有 API 密钥，过回合就只是空转：回合数变了，世界却毫无反应。这不是故障，而是缺了引擎的燃料。</b></p>
+
+        <h4>需要什么样的密钥</h4>
+        <p>任意一个 <b>OpenAI 兼容</b>的对话（Chat Completions）接口即可。你需要四样东西：</p>
+        <ul>
+          <li><strong>服务商</strong>：OpenAI / DeepSeek / Claude / 自定义（用中转站则选「自定义」）</li>
+          <li><strong>Key</strong>：服务商给你的 API 密钥（形如 <code>sk-…</code>）</li>
+          <li><strong>地址</strong>：接口 base URL，如 <code>https://api.openai.com/v1</code>；用中转站则填它给的地址</li>
+          <li><strong>模型</strong>：要调用的模型名（如 gpt-4o-mini、deepseek-chat 等）</li>
+        </ul>
+
+        <h4>在哪里填</h4>
+        <p>主页「典章·游戏设置」，或游戏内右栏「设置」→「API 连接」。填好后先点<b>「测试连接」</b>确认能通，再点「保存」。还可另配一个「次要 API」走快模型分流，留空则统一用主 API。</p>
+
+        <h4>常见问题</h4>
+        <ul>
+          <li><b>过回合没反应？</b>多半是没填或填错密钥——回到「API 连接」点「测试连接」核对。</li>
+          <li><b>连不上 / 证书报错？</b>检查「地址」是否完整；自架或中转站证书异常时，可在 API 连接处勾选「允许不安全证书」（仅对你填的地址生效）。</li>
+          <li>密钥只保存在本地设备，AI 请求仅发往你自己填的接口，不会上传到游戏服务器。</li>
+        </ul>
+      `
+    },
+
     gameplay: {
       title: '🎮 游戏玩法',
       content: `

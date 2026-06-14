@@ -35,7 +35,7 @@
 
   function _isG5Enabled() {
     if (typeof P === 'undefined' || !P || !P.conf) return false;
-    return P.conf.useNewKejuG5 === true;
+    return P.conf.useNewKejuG5 !== false; // 默认开·2026-06-14·童子科解锁
   }
 
   function _getCurYear() {

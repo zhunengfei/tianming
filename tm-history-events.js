@@ -29,13 +29,18 @@
  * - 事件去重（已触发不再触发）
  */
 function checkHistoryEvents() {
-  if (!P.rigidHistoryEvents || P.rigidHistoryEvents.length === 0) return;
+  // 剧本隔离根治：gameplay 只读当前局 GM.rigidHistoryEvents(doActualStart 已建的单剧本干净副本)·
+  // 绝不读跨剧本累积的 P.rigidHistoryEvents 库(官方天启快照常驻·会让绍宋触发天启的「魏忠贤自缢」等)。
+  // 旧存档无 GM.rigidHistoryEvents 时按当前 sid 过滤 P 兜底(纵深防御)。
+  var _rigids = (GM && Array.isArray(GM.rigidHistoryEvents)) ? GM.rigidHistoryEvents
+    : (typeof _tmActiveScenarioRows==='function'?_tmActiveScenarioRows(P.rigidHistoryEvents):(P.rigidHistoryEvents||[]));
+  if (!_rigids || _rigids.length === 0) return;
   if (!GM.triggeredHistoryEvents) GM.triggeredHistoryEvents = {};
 
   var currentYear = getCurrentYear();
   var currentMonth = getCurrentMonth();
 
-  P.rigidHistoryEvents.forEach(function(event) {
+  _rigids.forEach(function(event) {
     // 跳过已触发事件
     if (GM.triggeredHistoryEvents[event.id]) return;
 
@@ -123,7 +128,10 @@ function showHistoryEventModal(event) {
  * 应用事件分支效果
  */
 function applyEventBranch(eventId, branchIdx) {
-  var event = P.rigidHistoryEvents.find(function(e) { return e.id === eventId; });
+  // 剧本隔离根治：从当前局 GM.rigidHistoryEvents 找(单剧本)·不在多剧本 P 库里找·旧档按 sid 过滤兜底
+  var _rigids = (GM && Array.isArray(GM.rigidHistoryEvents)) ? GM.rigidHistoryEvents
+    : (typeof _tmActiveScenarioRows==='function'?_tmActiveScenarioRows(P.rigidHistoryEvents):(P.rigidHistoryEvents||[]));
+  var event = _rigids.find(function(e) { return e.id === eventId; });
   if (!event || !event.branches || !event.branches[branchIdx]) {
     closeModal();
     return;
