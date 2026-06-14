@@ -8,7 +8,37 @@
 // Refactor-only: preserves writeback order and runs inside the sc1 callback.
 // Exports: TM.Endturn.AI.apply.writeBack(ctx).
 // ============================================================
+// ── 章节导航（§ 锚点；跳转请 grep 小节标题，行号会随改动漂移）──
+//   入口  TM.Endturn.AI.apply.writeBack(ctx) —— endturn sc1 的回写主体，按下列顺序写回 GM
+//   §1 忠诚/基础   adjustCharacterLoyalty · setCharacterLoyalty · ensureGroups
+//   §2 玩家保护     grep「玩家保护」—— 禁 AI 改玩家角色的立场/党派/官职/势力外交
+//   §3 势力机制     势力自治事件 · 机械系统自动路由 · 势力间关系变化
+//   §4 党派演进     党派议程演进 · 党派分裂 · 党派合流 · 党派新建/覆灭
+//   §5 问对承诺     问对承诺进展更新
+//   §6 起义生命周期 起义前兆 → 爆发 → 进展 → 镇压/招安 → 转化（建政/编入/改朝）
+//   §7 实体增减     势力新建/覆灭 · 阶层兴起/消亡 · 势力关系动态变化 · 势力继承
+//   §8 议题/军事    _ty3_applyAIReissueTopics（重发议题）· applyAIArmyChange（军事变更）
+//   §9 著作效果     按动机应用差异化效果（grep「按动机应用差异化效果」）
+//   §10 autonomous  NPC 自主互动：名望/贤能涨跌 · 当事人记忆 · 对玩家分发 · 风闻录事
+//   §11 官职/账本   官职位移辅助(_tmFindOfficePosition…) · NPC 账本(_tmNpcLedger…) · addEB
+// ============================================================
 (function(global) {
+
+  // ── NPC 行为类型→中文动词(供记忆/事件文案·复用 prompt 既有标签·防英文 behaviorType 漏进中文叙事·2026-06-13) ──
+  var _NPC_BEHAVIOR_CN = { appoint:'任用', dismiss:'罢黜', declare_war:'宣战', reward:'赏赐', punish:'惩处', request_loyalty:'拉拢', reform:'推行新政', betray:'背叛', conspire:'密谋串联', petition:'进谏', investigate:'查劾', impeach:'弹劾', obstruct:'阻挠', slander:'中伤', reconcile:'和解', mentor:'提携', train_troops:'操练', fortify:'整饬城防', patrol:'巡防', flee:'出逃', retire:'告老', travel:'游历', develop:'兴修', donate:'捐输', hoard:'囤积', smuggle:'走私', suppress:'镇压', recruit:'招募', study:'查访', recommend:'举荐', confront:'对质', mediate:'调和', frame_up:'构陷', expose_secret:'揭发', share_intelligence:'通风报信', guarantee:'担保', gift_present:'馈赠', private_visit:'私访', invite_banquet:'宴请', correspond_secret:'通密信', form_clique:'结党', marriage_alliance:'联姻', master_disciple:'收徒', duel_poetry:'诗文唱和', mourn_together:'共哀', mourn:'致哀', rival_compete:'争胜', obey:'听命', desert:'哗变' };
+  function _npcBehaviorVerbCN(bt) {
+    var k = String(bt == null ? '' : bt).toLowerCase().trim();
+    if (_NPC_BEHAVIOR_CN[k]) return _NPC_BEHAVIOR_CN[k];
+    return /[a-z]/i.test(k) ? '处置' : (bt || '处置'); // 未知英文型→中性词·绝不漏英文;已中文则原样
+  }
+  // ── 诏令类型 key→中文(未知/英文键则隐去括注·绝不显原始英文键) ──
+  var _EDICT_TYPE_CN = { political:'朝政', policy:'朝政', personnel:'人事', military:'军务', military_order:'军务', military_reform:'军改', diplomatic:'外交', diplomacy:'外交', finance:'财赋', fiscal:'财赋', economy:'财赋', economic:'财赋', taxation:'赋税', agriculture:'农政', education:'教化', culture:'文教', education_culture:'文教', religion:'礼制', justice:'刑名', law:'律令', province:'地方', province_policy:'地方', social:'民生', minsheng:'民生', other:'其他' };
+  function _edictTypeCN(et) {
+    var k = String(et == null ? '' : et).toLowerCase().trim();
+    if (!k) return '';
+    if (_EDICT_TYPE_CN[k]) return '（' + _EDICT_TYPE_CN[k] + '）';
+    return /[a-z]/i.test(k) ? '' : '（' + et + '）'; // 英文键隐去·中文键保留
+  }
   if (typeof global.TM === "undefined") global.TM = {};
   if (typeof global.TM.Endturn === "undefined") global.TM.Endturn = {};
   if (typeof global.TM.Endturn.AI === "undefined") global.TM.Endturn.AI = {};
@@ -132,6 +162,42 @@
             }
           }
         } catch (_niyiErr) { /* 辅臣拟议失败不影响主流程 */ }
+
+        // 奏疏代拟正文·AI 生成(照辅臣拟议范式·decoupled secondary·失败不影响主流程·保确定性中文兜底·2026-06-13)
+        //   有司具题的程式化奏疏(民情积压等·_needsAiBody)以上奏大臣口吻代拟正经正文·AI失败/空/夹英文则保 _pressureReasonCN 中文兜底
+        try {
+          if (GM && Array.isArray(GM.memorials) && typeof callAI === 'function') {
+            var _NL10 = String.fromCharCode(10);
+            var _zsDraft = GM.memorials.filter(function(m){ return m && m._needsAiBody && !m._aiBodyDone && (m.status === 'pending' || m.status === 'pending_review'); }).slice(0, 6);
+            if (_zsDraft.length) {
+              var _zsList = _zsDraft.map(function(m, i){ var c = m._minxinPressureCandidate || {}; return (i + 1) + '. 上奏者【' + (m.from || '有司') + '】·' + (c.regionName || '') + '·' + (c.className || '') + '民心实情' + Math.round(c['true'] || 0) + (c.perceived != null ? '，朝堂观感' + Math.round(c.perceived) : '') + '·缘由：' + String(m.text || m.content || '').replace(/\s+/g, ' ').slice(0, 70); }).join(_NL10);
+              var _zsPrompt = '【奏疏代拟】' + _NL10 + '下列地方民情积压已由有司具题待呈御前。请以各自上奏者(大臣)的口吻·按本朝制度(勿用内阁/票拟等后世专名)·为每封代拟一道正经奏疏正文：陈情(实情与缘由)→略陈成因隐患→提出处置建议(安抚/赈济/蠲免/查劾/付廷议等)·150-240字·纯中文文言奏疏体·不夹英文字段名。' + _NL10 + _NL10 + '奏疏清单：' + _NL10 + _zsList + _NL10 + _NL10 + '只输出 JSON 数组·每项 {"i":序号,"body":"奏疏正文"}·勿输出其他文字。';
+              var _zsRaw = await callAI(_zsPrompt, 2400, undefined, 'secondary', { priority: 'low', timeoutMs: 50000, maxRetries: 1 });
+              if (_zsRaw) {
+                var _zsArr = null;
+                try { var _zm = String(_zsRaw).match(/\[[\s\S]*\]/); if (_zm) _zsArr = JSON.parse(_zm[0]); } catch (_zje) {}
+                if (Array.isArray(_zsArr)) {
+                  _zsArr.forEach(function(o){ if (!o || o.body == null) return; var _ix = Number(o.i) - 1; if (_ix < 0 || _ix >= _zsDraft.length) return; var _b = String(o.body).trim(); if (_b.length >= 20 && !/[a-zA-Z]{4,}/.test(_b)) { _zsDraft[_ix].content = _b; _zsDraft[_ix].text = _b; _zsDraft[_ix]._aiBodyDone = true; } });
+                }
+              }
+            }
+          }
+        } catch (_zsErr) { /* 奏疏代拟失败不影响主流程·保确定性中文兜底 */ }
+
+        // 空体奏疏兜底:sc1主推演等吐了空 content 的奏疏(图2「暂无正文」根治)→给确定性中文兜底体·绝不显「暂无正文」(2026-06-13)
+        try {
+          if (GM && Array.isArray(GM.memorials)) {
+            GM.memorials.forEach(function (m) {
+              if (!m || m._emptyFallbackDone) return;
+              if (String(m.text || m.content || '').trim()) return;
+              var _ttl = String(m.title || m.topic || '').trim();
+              if (!_ttl && !m.from && !m.type) return;
+              var _from = String(m.from || '有司').trim() || '有司';
+              var _fb = _ttl ? ('臣' + _from + '谨奏，为' + _ttl + '事：事由如题，谨具题上闻，所陈缘由轻重，伏乞圣鉴裁夺。') : ('臣' + _from + '谨奏：具题在案，容臣面陈缘由，伏乞圣鉴。');
+              m.content = _fb; m.text = _fb; m._emptyFallbackDone = true;
+            });
+          }
+        } catch (_efbErr) { /* 空体兜底失败不影响主流程 */ }
 
         // ═══════════════════════════════════════════════════════════════════
         // Wave 1c+2 · 二次 AI 自审 reconciliation·tool_use 强约束
@@ -532,7 +598,8 @@
                 if (inst && (_outcome === 'suppressed' || _action === 'plot_failed' || _action === 'coup_failed')) {
                   inst._imprisoned = true;
                   inst._conspiracyConvicted = true;
-                  inst._imprisonedTurn = GM.turn||0;
+inst._imprisonedTurn = GM.turn||0;
+                  inst._imprisonReason = '谋逆事发·下诏狱待勘';
                 }
                 if (!GM.turnChanges) GM.turnChanges = {};
                 if (!GM.turnChanges.variables) GM.turnChanges.variables = [];
@@ -873,7 +940,7 @@
                 if (_actChar && _actChar.faction) {
                   GM.chars.forEach(function(colleague) {
                     if (colleague.alive !== false && colleague.name !== act.name && colleague.name !== act.target && colleague.faction === _actChar.faction) {
-                      NpcMemorySystem.remember(colleague.name, act.name + '对' + act.target + '施以' + act.behaviorType, '忧', 3, act.name);
+                      NpcMemorySystem.remember(colleague.name, act.name + '对' + act.target + '施以' + _npcBehaviorVerbCN(act.behaviorType), '忧', 3, act.name);
                     }
                   });
                 }
@@ -909,8 +976,8 @@
                     if (_rpCh && _rpCh.alive !== false) {
                       var _rpEmo = _rpImp.favor > 0 ? (act.behaviorType === 'punish' || act.behaviorType === 'dismiss' || act.behaviorType === 'slander' ? '\u6012' : '\u559C') : '\u5E73';
                       var _rpDelta = _rpImp.favor > 0 ? -3 : 2; // 友被害→怨施害者；敌被害→对施害者好感
-                      NpcMemorySystem.remember(_rpn, act.target + '\u88AB' + act.name + act.behaviorType, _rpEmo, 4, act.name);
-                      if (typeof AffinityMap !== 'undefined') AffinityMap.add(_rpn, act.name, _rpDelta, act.target + '\u88AB' + act.behaviorType);
+                      NpcMemorySystem.remember(_rpn, act.target + '\u88AB' + act.name + _npcBehaviorVerbCN(act.behaviorType), _rpEmo, 4, act.name);
+                      if (typeof AffinityMap !== 'undefined') AffinityMap.add(_rpn, act.name, _rpDelta, act.target + '\u88AB' + _npcBehaviorVerbCN(act.behaviorType));
                     }
                   }
                 }
@@ -2857,12 +2924,19 @@
           p1.office_changes.forEach(function(oc) {
             if (!oc.dept || !oc.position || !oc.action) return;
             var _ocMatchedTree = false; // 单一真相源:树是否精确匹配·未匹配则回退写人物 officialTitle
+            // 单一真相源·robust 解析:AI 官衔常啰嗦(如"内阁首辅·建极殿大学士"·树座名"首辅·建极殿大学士"),
+            //   精确相等对不上→旧任职者不让位、新官溢出编制外(ghost 病)。先解析到正座·使任免可靠落座。
+            var _ocSeat = null;
+            if (/^(appoint|dismiss|promote|demote|transfer)$/.test(oc.action) && typeof _offResolveSeat === 'function') {
+              try { _ocSeat = _offResolveSeat(oc.dept, oc.position); } catch (_ocResErr) {}
+            }
             // 遍历官制树查找匹配的部门和职位
             (function walkTree(nodes) {
               nodes.forEach(function(node) {
-                if (node.name === oc.dept && node.positions) {
+                if (node.positions) {
                   node.positions.forEach(function(pos) {
-                    if (pos.name === oc.position) {
+                    var _ocMatchPos = _ocSeat ? (node === _ocSeat.node && pos === _ocSeat.pos) : (node.name === oc.dept && pos.name === oc.position);
+                    if (_ocMatchPos) {
                       _ocMatchedTree = true;
                       if (oc.action === 'appoint' && oc.person) {
                         var oldHolder = pos.holder || '';
@@ -2880,8 +2954,8 @@
                         var ch = findCharByName(oc.person);
                         if (ch) {
                           _tmApplyLoyaltyDelta(ch, 5, '\u83B7\u4EFB\u5B98\u804C', 'office-change-appoint');
-                          ch.officialTitle = oc.position;
-                          ch.title = oc.dept + oc.position;
+                          ch.officialTitle = _ocSeat ? pos.name : oc.position;  // 解析到正座→落 canonical 座名(derive 精确落座·免啰嗦衔/重名病)
+                          ch.title = _ocSeat ? pos.name : (oc.dept + oc.position);
                           // 举主追踪——从reason中提取"由某某举荐"
                           if (oc.reason) {
                             var _jzMatch = (oc.reason||'').match(/由(.{1,6})举荐|(.{1,6})推荐/);
@@ -2895,10 +2969,13 @@
                             CorruptionEngine.markAsRecentAppointment(ch);
                           }
                         }
-                        // 清除旧任职者的官职字段
-                        if (oldHolder) {
+                        // 单一真相源·让位:仅单编制座位自动腾退被顶替的现任(多编制靠 vacancy 容纳)·robust 按座撤衔治 ghost
+                        var _estab1 = (pos.establishedCount || pos.headCount || 1) <= 1;
+                        if (_estab1 && oldHolder && oldHolder !== oc.person) {
                           var _oldCh = findCharByName(oldHolder);
-                          if (_oldCh && _oldCh.officialTitle === oc.position) { _oldCh.officialTitle = ''; _oldCh.title = ''; }
+                          if (_oldCh && typeof _offVacateCharFromSeat === 'function') {
+                            if (_offVacateCharFromSeat(_oldCh, node.name, pos.name)) addEB('去位', oldHolder + '去' + node.name + pos.name + '（由' + oc.person + '接任）');
+                          } else if (_oldCh && _oldCh.officialTitle === oc.position) { _oldCh.officialTitle = ''; _oldCh.title = ''; }
                         }
                         // 同步PostSystem（如果有对应post）
                         if (typeof PostTransfer !== 'undefined' && GM.postSystem && GM.postSystem.posts) {
@@ -3061,16 +3138,16 @@
                             _tmApplyLoyaltyDelta(dch, -10, '\u88AB\u514D\u53BB\u5B98\u804C', 'office-dismiss-remove');
                             dch.stress = Math.min(100, (dch.stress||0) + 15);
                           }
-                          // 单一真相源:规范卸任·title 同步为剩余主职(无职才空)·防误清成布衣(症状②)
-                          if (_isMoveExit) {
-                            if (dch.officialTitle === oc.position) dch.officialTitle = '';
-                          } else if (typeof _offRemoveCharOfficeTitle === 'function') {
-                            _offRemoveCharOfficeTitle(dch, oc.position);
-                            if (_isRetire) dch.title = '致仕';
-                          } else {
-                            if (dch.officialTitle === oc.position) dch.officialTitle = '';
-                            dch.title = _isRetire ? '致仕' : '';
+                          // 单一真相源:规范卸任·robust 按座撤衔(治啰嗦/简衔精确相等清不掉的 ghost)·回退精确·title 同步剩余主职防误成布衣(症状②)
+                          var _dchVacated = false;
+                          if (typeof _offVacateCharFromSeat === 'function') _dchVacated = _offVacateCharFromSeat(dch, node.name, pos.name);
+                          if (!_dchVacated) {
+                            if (_isMoveExit) { if (dch.officialTitle === oc.position) dch.officialTitle = ''; }
+                            else if (typeof _offRemoveCharOfficeTitle === 'function') _offRemoveCharOfficeTitle(dch, oc.position);
+                            else if (dch.officialTitle === oc.position) dch.officialTitle = '';
                           }
+                          if (_isRetire) dch.title = '致仕';
+                          else if (!_dchVacated && typeof _offRemoveCharOfficeTitle !== 'function' && !_isMoveExit) dch.title = '';
                           if (typeof recordCharacterArc === 'function') recordCharacterArc(dismissed, _isRetire ? 'retirement' : (_isMoveExit ? 'transfer' : 'dismissal'), (_isRetire ? '\u6069\u51C6\u81F4\u4ED5' : (_isMoveExit ? '\u8F6C\u4EFB\u5378\u804C' : '\u88AB\u514D\u53BB')) + oc.dept + oc.position + (oc.reason ? '：' + oc.reason : ''));
                           }
                           // 同步PostSystem
@@ -3167,7 +3244,7 @@
                         var _dismissed = n.positions.filter(function(p){ return p.name === oc.position && p.holder; });
                         _dismissed.forEach(function(p) {
                           var dch = findCharByName(p.holder);
-                          if (dch) { dch.officialTitle = ''; dch.title = ''; }
+                          if (dch) { if (typeof _offVacateCharFromSeat === 'function') _offVacateCharFromSeat(dch, oc.dept, oc.position); else if (typeof _offRemoveCharOfficeTitle === 'function') _offRemoveCharOfficeTitle(dch, oc.position); else { dch.officialTitle = ''; dch.title = ''; } } // 单一真相源:裁撤官职并清兼职数组·否则派生从残留 officialTitles 进编制外幻影
                         });
                         n.positions = n.positions.filter(function(p) { return p.name !== oc.position; });
                       }
@@ -3370,6 +3447,13 @@
             // 贪腐查处
             if (oa.corruption_found) {
               addEB('吏治', oa.dept + '查出' + oa.corruption_found + '人贪腐' + ((oa.named_corrupt||[]).length > 0 ? '（' + oa.named_corrupt.join('、') + '等）' : ''));
+              // 贪腐案发 → 被查者减功名（FAILURE_DELTA corruption_exposed·激活既有失败表·功名=政绩·唯贪腐"案发"与廉洁相关）
+              if (Array.isArray(oa.named_corrupt) && window.CharEconEngine && window.TMPromotion) {
+                oa.named_corrupt.forEach(function(_cn) {
+                  var _cc = (typeof findCharByName === 'function') ? findCharByName(_cn) : null;
+                  if (_cc) CharEconEngine.adjustVirtueMerit(_cc, TMPromotion.failureDelta('corruption_exposed'), '贪腐案发');
+                });
+              }
             }
           });
         }
@@ -4588,7 +4672,7 @@
                   // 反对派 → 党员写入恨意记忆
                   if (info.agenda_impact === '反对' && typeof NpcMemorySystem !== 'undefined' && GM.chars) {
                     GM.chars.filter(function(c){return c.party === pn;}).slice(0, 3).forEach(function(c) {
-                      NpcMemorySystem.remember(c.name, '党议反对诏令(' + (u.edictType||'') + ')', '恨', 5);
+                      NpcMemorySystem.remember(c.name, '党议反对诏令' + _edictTypeCN(u.edictType), '恨', 5);
                     });
                   }
                 }
@@ -4611,7 +4695,7 @@
             // 阻力生成 → 反对派 NPC 记忆（恨意积累）
             if (Array.isArray(u.oppositionLeaders) && typeof NpcMemorySystem !== 'undefined') {
               u.oppositionLeaders.forEach(function(oppName) {
-                NpcMemorySystem.remember(oppName, '反对诏令(' + (u.edictType||'') + ')——深恶之', '恨', 6);
+                NpcMemorySystem.remember(oppName, '反对诏令' + _edictTypeCN(u.edictType) + '——深恶之', '恨', 6);
                 // 与执行者建立冲突级关系
                 if (u.executor && typeof applyNpcInteraction === 'function') {
                   // 这里不直接 applyNpcInteraction（避免叠加过多），只做记忆标记
@@ -4626,6 +4710,47 @@
               phaseTag = '·' + REFORM_PHASES[u.reformPhase].label;
             }
             addEB('\u8BCF\u4EE4', typeLabel + phaseTag + ' → ' + stageLabel + (u.executor ? '(' + u.executor + '督办)' : '') + (u.narrativeSnippet ? '：' + u.narrativeSnippet.substring(0,60) : ''));
+          });
+        }
+
+        // 处理 AI 授功名出身（门荫/捐纳/军功/吏进/特赐/加衔）——结构化出身生成路径
+        if (p1.gongming_grants && Array.isArray(p1.gongming_grants) && p1.gongming_grants.length > 0 && window.TMGongming) {
+          var _gmPName = (P.playerInfo && P.playerInfo.characterName) || '';
+          var _gmActLbl = { menyin: '荫叙', nazi: '捐纳例监', junggong: '录军功', lijin: '吏员升流', enci: '特赐进士出身' };
+          p1.gongming_grants.forEach(function(gg) {
+            if (!gg || !gg.name || !gg.action) return;
+            if (_gmPName && gg.name === _gmPName) { addEB('过滤', 'AI 试图改君上功名出身，已过滤'); return; }
+            var _gch = (typeof findCharByName === 'function') ? findCharByName(gg.name) : null;
+            if (!_gch) return;
+            try {
+              if (gg.action === 'honor' && gg.honor) {
+                TMGongming.addHonor(_gch, String(gg.honor), GM);
+                addEB('功名', gg.name + ' 加衔「' + gg.honor + '」' + (gg.reason ? '·' + gg.reason : ''));
+              } else if (TMGongming.PRODUCTION_PRESETS && TMGongming.PRODUCTION_PRESETS[gg.action]) {
+                TMGongming.grantPreset(_gch, gg.action, { tier: gg.tier, honors: gg.honor ? [String(gg.honor)] : undefined, turn: GM.turn }, GM);
+                addEB('功名', gg.name + ' 由' + (_gmActLbl[gg.action] || gg.action) + '授功名' + (gg.reason ? '·' + gg.reason : ''));
+              }
+            } catch (_gge) {}
+          });
+        }
+
+        // 处理 AI 功名升降（立功涨/失职减·失败全表由 AI 按情节报责任人·激活既有 FAILURE_DELTA 全表）
+        if (p1.merit_changes && Array.isArray(p1.merit_changes) && p1.merit_changes.length > 0 && window.CharEconEngine) {
+          var _mcPName = (P.playerInfo && P.playerInfo.characterName) || '';
+          p1.merit_changes.forEach(function(mc) {
+            if (!mc || !mc.name) return;
+            if (_mcPName && mc.name === _mcPName) return; // 君上功名不受 AI 改
+            var _mch = (typeof findCharByName === 'function') ? findCharByName(mc.name) : null;
+            if (!_mch) return;
+            try {
+              if (mc.kind === 'failure' && window.TMPromotion) {
+                var _fd = TMPromotion.failureDelta(mc.failureType || 'task_botched');
+                if (_fd) { CharEconEngine.adjustVirtueMerit(_mch, _fd, mc.reason || mc.failureType || '失职'); addEB('功名', mc.name + ' 因「' + (mc.reason || mc.failureType || '失职') + '」失功名 ' + Math.abs(_fd)); }
+              } else {
+                if (CharEconEngine.addAchievement) CharEconEngine.addAchievement(_mch, Math.min(20, Number(mc.amount) || 8), mc.reason || '立功');
+                addEB('功名', mc.name + ' 以「' + (mc.reason || '功绩') + '」著功名');
+              }
+            } catch (_mce) {}
           });
         }
 
@@ -4657,7 +4782,7 @@
                   if (_actorCh && _typeDef.fameActor) _cEng.adjustFame(_actorCh, _typeDef.fameActor, typeInfo+'→'+it.target);
                   if (_targetCh && _typeDef.fameTarget) _cEng.adjustFame(_targetCh, _typeDef.fameTarget, '被'+it.actor+typeInfo);
                   // 功名×SCALE 对齐 0-15000 尺度·仅正政绩(举荐/调和/师徒等)入功名;负的(构陷/背叛)属政治品行·#3 功名=政绩不直接扣
-                  if (_actorCh && _typeDef.virtueActor > 0) _cEng.adjustVirtueMerit(_actorCh, Math.round(_typeDef.virtueActor * (window.TMPromotion ? TMPromotion.SCALE : 1)), typeInfo);
+                  if (_actorCh && _typeDef.virtueActor > 0) { _cEng.adjustVirtueMerit(_actorCh, Math.round(_typeDef.virtueActor * (window.TMPromotion ? TMPromotion.SCALE : 1)), typeInfo); if (_cEng.addAchievement) _cEng.addAchievement(_actorCh, Math.min(8, _typeDef.virtueActor), typeInfo); }
                   if (_targetCh && _typeDef.virtueTarget > 0) _cEng.adjustVirtueMerit(_targetCh, Math.round(_typeDef.virtueTarget * (window.TMPromotion ? TMPromotion.SCALE : 1)), '被'+typeInfo);
                 }
               } catch(_fve){}

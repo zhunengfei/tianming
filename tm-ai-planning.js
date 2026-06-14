@@ -1,5 +1,12 @@
 // @ts-check
 /// <reference path="types.d.ts" />
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   启动 AI 规划（R138 从 tm-endturn-prep.js 拆出·姊妹 -prep / -ai-infer / -core）
+//   §1 剧本深读   aiDeepReadScenario
+//   §2 预演规划   aiPlanScenarioForInference（启动一次性）
+//   §3 势力矩阵   aiPlanFactionMatrix + openMemoryAnchors
+//   §4 事件钩子   endTurn 事件钩子系统 EndTurnHooks · Fragment API（slice 3b.1）
+// ─────────────────────────────────────────────
 // ============================================================
 // tm-ai-planning.js — 启动 AI 规划 (R138 从 tm-endturn-prep.js L1-1698 拆出)
 // 姊妹: tm-endturn-prep.js (L1699-end·真正的 endTurn 前置 init/collect)

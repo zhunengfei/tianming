@@ -344,8 +344,12 @@ function applyEdictActions(actions) {
           var prevCh = findCharByName(prevHolder);
           if (prevCh) {
             prevCh._displaced = { from: a.position, by: a.character, turn: GM.turn };
-            if (typeof _offRemoveCharOfficeTitle === 'function') _offRemoveCharOfficeTitle(prevCh, a.position);
-            else if (prevCh.officialTitle === a.position) { prevCh.officialTitle = ''; prevCh.title = ''; }
+            // 单一真相源·robust 让位:啰嗦/异写旧衔精确清不掉→派生回座 ghost·按座撤衔(回退精确)
+            var _edVac = (typeof _offVacateCharFromSeat === 'function') && _offVacateCharFromSeat(prevCh, (String(hit.deptPath || '').split(/[·\/]/).pop() || ''), (hit.pos && hit.pos.name) || a.position);
+            if (!_edVac) {
+              if (typeof _offRemoveCharOfficeTitle === 'function') _offRemoveCharOfficeTitle(prevCh, a.position);
+              else if (prevCh.officialTitle === a.position) { prevCh.officialTitle = ''; prevCh.title = ''; }
+            }
             // ⑤ 确定性夺位党争:被夺位者生怨(loyalty 降·stress 升)·对接替者积怨(AffinityMap)·跨党倾轧更烈
             var _crossParty = !!(prevCh.party && char.party && prevCh.party !== char.party);
             var _dpLoss = _crossParty ? 6 : 4;

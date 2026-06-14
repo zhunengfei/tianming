@@ -47,6 +47,8 @@
     army_changes: 'array', battleResult: 'object', item_changes: 'array',
     office_changes: 'array', office_assignments: 'array', office_spawn: 'array',
     personnel_changes: 'array',
+    gongming_grants: 'array',
+    merit_changes: 'array',
     vassal_changes: 'array', title_changes: 'array', building_changes: 'array',
     region_status_changes: 'array',
     admin_changes: 'array', admin_division_updates: 'array',

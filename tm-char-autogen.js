@@ -1,5 +1,11 @@
 // @ts-check
 /// <reference path="types.d.ts" />
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   角色自动生成系统（v5·统一接口）·三路入口：
+//   §A 诏令征召   edictRecruitCharacter(name, opts)
+//   §B 文本扫描   推演文本扫描 → 只登记 pending 人名，不直接生成
+//   §C 具象化     crystallizePendingCharacter(name)（点击时真生成）
+// ─────────────────────────────────────────────
 /**
  * 角色自动生成系统 (v5·统一接口)
  *

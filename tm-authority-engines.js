@@ -1,5 +1,13 @@
 // @ts-check
 /// <reference path="types.d.ts" />
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   皇威/皇权/民心 三系统 + 变量联动（暴露 AuthorityEngines · _adjAuthority · TM.MinxinLedger）
+//   §1 皇威   14 升 + 14 降 + 5 段 + 暴君/失威 + 感知扭曲 · 按源差异化封顶 · 天象扣分衰减
+//   §2 皇权   8 升 + 8 降 + 3 段 + 四象限 · 选择性衰减（按前因判定回暖·无信号绝不假回血）
+//   §3 民心   14 来源 + 5 级 + 8 传导 + 分区分阶层
+//   §4 联动   7×6=42 项联动矩阵：帑廪/内帑/户口/腐败/民心/皇权/皇威 → 其他
+//   其他   applyTyrantExecutionAmplification · checkDecreeRealtime · PhaseF1
+// ─────────────────────────────────────────────
 /**
  * tm-authority-engines.js — 皇威/皇权/民心三系统 + 变量联动
  *

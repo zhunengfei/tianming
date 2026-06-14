@@ -1,5 +1,12 @@
 // @ts-check
 /// <reference path="types.d.ts" />
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   诏令识别与制度演化（暴露 EdictParser · EdictComplete）
+//   §1 六类诏书   六大诏书类型 + 判定分流 + 二阶段 + 抗疏（设计方案-制度设计与演化.md）
+//   §2 虚空渠道   P0/P1 五大虚空渠道 UI 路径（设计方案-诏令识别补完.md）
+//   §3 派发       诏令落子系统：徭役/调拨/强征/派遣御史/区域拨款/政策/税种/自定义官
+//   §4 澄清       openClarificationPanel / _answerClarification / processImperialAssentExtended
+// ─────────────────────────────────────────────
 /**
  * tm-edict-parser.js — 诏令识别与制度演化
  *

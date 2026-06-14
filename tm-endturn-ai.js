@@ -8,6 +8,16 @@
 // Refactor-only: preserves API call count, prompt text, order, and side effects.
 // Exports: TM.Endturn.AI.subcalls.setupInfra(ctx), runMain(ctx, afterSc1).
 // ============================================================
+// ── 章节导航（§ 锚点；跳转请 grep 小节标题，行号会随改动漂移）──
+//   入口  setupInfra(ctx) 装配子调用基建；runMain(ctx, afterSc1) 跑主推演链
+//   §1 预处理     等待上回合 post-turn 任务 + 同步本地记忆保鲜
+//   §2 sc0 / sc1q 并行：sc0 局势分析 · sc1q 对话承诺推演（6 GM 字段 7 渠道，max 8s wall-clock）
+//   §3 SC_RECALL  按 sc0 生成的 memoryQueries 从永久档检索 → 注入后续 prompt
+//   §4 sc0.5      深度记忆回顾
+//   §5 sc1 主推演 结构化数据（时政记/数值变化/事件/角色状态）[always]
+//        内含：七变量+深化字段 · 民心分阶层/分区域 · 腐败 6 部门 · 14 源累积 · 行政区划深化 · 输出格式
+//   §6 sc1 派发   5 字段 concat 合并 · npc_schemes/hidden_moves 内联 · fengwen_snippets 入风闻录事+actors 心绪
+// ============================================================
 (function(global) {
   if (typeof global.TM === "undefined") global.TM = {};
   if (typeof global.TM.Endturn === "undefined") global.TM.Endturn = {};

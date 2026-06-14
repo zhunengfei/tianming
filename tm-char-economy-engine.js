@@ -1,5 +1,11 @@
 // @ts-check
 /// <reference path="types.d.ts" />
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   角色经济系统·核心引擎（暴露 CharEconEngine·设计方案-角色经济.md）
+//   §1 6 资源保障   公库（只读镜像）/ 私产（5 类）/ 名望 / 贤能 / 健康 / 压力
+//   §2 收支         14 类收入 / 14 类支出计算
+//   §3 阶层分化     8 类独立经济逻辑
+// ─────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════
 // 角色经济系统 · 核心引擎
 // 设计方案：设计方案-角色经济.md（3100 行）
@@ -1151,20 +1157,31 @@
 
   function tickVirtueMerit(ch, mr) {
     var r = ch.resources;
-    // 每月微积累（按能力 + 政绩）
     var TP = (typeof window !== 'undefined' ? window : (typeof global !== 'undefined' ? global : this)).TMPromotion;
+    // 状态闸：在押/流放/逃亡/守丧/革职待罪 → 功名冻结（不在位尽职则不攒资历）。近期功绩仍消退。
+    if (ch._imprisoned || ch.imprisoned || ch._exiled || ch.exiled || ch._fled || ch._missing || ch._mourning) {
+      if (ch._recentAchievements) ch._recentAchievements = Math.max(0, ch._recentAchievements * 0.6);
+      return;
+    }
+    // 每月微积累（在职底 + 近期功绩 + 八维能臣度）
     var base = 0;
     if (ch.officialTitle) base += 0.3;                                  // 在职底(庸臣也有基本积累)
-    if (ch._recentAchievements) base += ch._recentAchievements * 0.5;   // 近期功绩
-    // 八维能臣度驱动(能者多得·拉大能力差距)·替代原死字段 ch.abilities·#3 功名与廉洁解耦(去掉 integrity>70 加成)
+    if (ch._recentAchievements) base += ch._recentAchievements * 0.5;   // 近期功绩（由 addAchievement 喂·下方衰减·激活原死字段）
+    // 八维能臣度驱动(能者多得·拉大能力差距)·#3 功名与廉洁解耦
     var _cap = TP ? TP.capability(ch, (typeof getEffectiveAttr === 'function' ? getEffectiveAttr : null)) : 50;
     base += Math.max(0, (_cap - 45) / 100 * 1.0);                       // 能力加成只加不减·斜率大(能臣远多于庸臣)
     if (base < 0) base = 0;
+    // 方向/状态调制：怠政（重压≥75/重病≤25）挣取打折·致仕减半（退而不攒资历）·均不改 owner 锁定的 EARN 数值
+    var dutyMul = 1;
+    if ((ch.stress || 0) >= 75 || (ch.health != null && ch.health <= 25)) dutyMul = 0.4;
+    if (ch._retired) dutyMul = Math.min(dutyMul, 0.5);
+    base *= dutyMul;
     var _gain = base * (TP ? TP.capabilityFactor(_cap) : 1) * mr;
     if (TP) _gain *= TP.diminishFactor(r.virtueMerit || 0) * TP.SCALE;  // 高位递减 + 对齐 0-15000 尺度
     var _capT = TP ? TP.EARN.perTurnCapBase * mr : 1e9;                 // 单回合封顶(随回合长 mr 缩放)
     if (_gain > _capT) _gain = _capT;
     r.virtueMerit = (r.virtueMerit || 0) + _gain;
+    if (ch._recentAchievements) ch._recentAchievements = Math.max(0, ch._recentAchievements * 0.6); // 近期功绩衰减·避免永久驱动
     updateVirtueStage(ch);
   }
 
@@ -1675,11 +1692,38 @@
     return delta;
   }
 
-  // 贤能变更
+  // 功名近账：记一笔功名升降/功绩事由（玩家可见谁因何升降·tick 被动积累不记·避免淹没）
+  function recordMeritChange(ch, delta, reason, kind) {
+    if (!ch || !ch.name) return;
+    var d = Math.round(delta || 0);
+    if (!d && !reason) return;
+    var G = (typeof window !== 'undefined' ? window : (typeof global !== 'undefined' ? global : this)).GM;
+    var turn = (G && G.turn) || 0;
+    var k = kind || (d > 0 ? 'gain' : d < 0 ? 'loss' : 'note');
+    if (G) {
+      if (!Array.isArray(G._meritLedger)) G._meritLedger = [];
+      G._meritLedger.push({ turn: turn, name: ch.name, delta: d, reason: reason || '', kind: k, stage: ch.resources && ch.resources.virtueStage });
+      if (G._meritLedger.length > 200) G._meritLedger.splice(0, G._meritLedger.length - 200);
+    }
+    if (!Array.isArray(ch._meritLog)) ch._meritLog = [];
+    ch._meritLog.push({ turn: turn, delta: d, reason: reason || '', kind: k });
+    if (ch._meritLog.length > 10) ch._meritLog.splice(0, ch._meritLog.length - 10);
+  }
+
+  // 近期功绩缓冲：政绩事件累加（驱动 tickVirtueMerit 持续小涨数回合·tick 衰减）·激活原死字段 _recentAchievements·不直接改 merit（由 tick 体现·防双计）
+  function addAchievement(ch, amount, reason) {
+    if (!ch || !(amount > 0)) return;
+    ensureCharResources(ch);
+    ch._recentAchievements = Math.min(40, (ch._recentAchievements || 0) + amount); // 缓冲上限防滚雪球
+    recordMeritChange(ch, 0, reason || '近期功绩', 'achievement');
+  }
+
+  // 贤能变更（功名直接升降·记近账）
   function adjustVirtueMerit(ch, delta, reason) {
     ensureCharResources(ch);
     ch.resources.virtueMerit = Math.max(0, (ch.resources.virtueMerit || 0) + delta);
     updateVirtueStage(ch);
+    recordMeritChange(ch, delta, reason);
   }
 
   // ═════════════════════════════════════════════════════════════
@@ -1713,6 +1757,8 @@
     FAME_EVENTS: FAME_EVENTS,
     tickCharVariableLinkages: tickCharVariableLinkages,
     adjustVirtueMerit: adjustVirtueMerit,
+    addAchievement: addAchievement,
+    recordMeritChange: recordMeritChange,
     CLASS_PARAMS: CLASS_PARAMS,
     VIRTUE_STAGES: VIRTUE_STAGES,
     getVirtueStageName: getVirtueStageName,

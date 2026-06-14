@@ -356,10 +356,12 @@
           if (removed2 && removed2.name) {
             evicted = removed2.name;
             var prevCh2 = _findChar(removed2.name);
-            if (prevCh2 && typeof global._offRemoveCharOfficeTitle === 'function') {
+            // 单一真相源·robust 让位:啰嗦/异写旧衔精确相等清不掉→ghost·按座撤衔(回退精确)
+            var _vac2 = (prevCh2 && typeof global._offVacateCharFromSeat === 'function') && global._offVacateCharFromSeat(prevCh2, (hit.node && hit.node.name) || '', pos.name || position);
+            if (!_vac2 && prevCh2 && typeof global._offRemoveCharOfficeTitle === 'function') {
               global._offRemoveCharOfficeTitle(prevCh2, pos.name || position);
               if (position && position !== pos.name) global._offRemoveCharOfficeTitle(prevCh2, position);
-            } else if (prevCh2 && (prevCh2.officialTitle === pos.name || prevCh2.officialTitle === position)) {
+            } else if (!_vac2 && prevCh2 && (prevCh2.officialTitle === pos.name || prevCh2.officialTitle === position)) {
               prevCh2.officialTitle = '';
               prevCh2.title = ''; // 同步·否则被逐出者 title 仍是旧官职·廷议回退显示
             }
@@ -422,11 +424,30 @@
           if (global.AuthorityEngines && typeof global.AuthorityEngines.adjustHuangwei === 'function') global.AuthorityEngines.adjustHuangwei('promotion_unqualified', _hwDelta, charName + ' 功名浅而骤擢·' + _pen.label);
           if (global.addEB) global.addEB('清议', '言官论 ' + charName + ' ' + _pen.label + '·功名未孚而骤膺重任·物议沸然');
         }
+        // 出身天花板(硬):越出身典型上限擢用=破铨政名分·异途骤升清要尤遭物议·叠加皇威损+清议(独立于功名缺口)
+        var _TG = global.TMGongming;
+        var _cg = (_TG && _TG.ceilingGap) ? _TG.ceilingGap(ch, _newLv, G) : 0;
+        if (_cg > 0) {
+          var _og = (_TG && _TG.describe) ? _TG.describe(ch, G) : null;
+          var _ohw = -Math.min(10, 3 + _cg * 2) - (_TPp.isPoliticalZone(_newLv) ? 2 : 0);
+          if (global.AuthorityEngines && typeof global.AuthorityEngines.adjustHuangwei === 'function') global.AuthorityEngines.adjustHuangwei('promotion_overceiling', _ohw, charName + ' 出身' + (_og ? ('（' + _og.title + '）') : '') + '·越次逾品·名分有亏');
+          if (global.addEB) global.addEB('清议', '言官劾 ' + charName + ' 出身' + (_og && _og.yi ? '异途' : '资浅') + '·骤膺逾品之任' + (_og && _og.qing === false && _TPp.isPoliticalZone(_newLv) ? '·玷污清班' : '') + '·清议大哗');
+        }
       }
     } catch (_penE) {}
     // 身份转换：入仕/受封升阶（捐纳/科举→官身·世袭→勋贵）
     try { if (global.CharEconEngine && typeof global.CharEconEngine.reconcileSocialClassOnAppointment === 'function') global.CharEconEngine.reconcileSocialClassOnAppointment(ch); } catch (_scE) {}
     return { ok: true, treeUpdated: treeUpdated, evicted: evicted };
+  }
+
+  // ── 下狱识别·单一真源(onDismissal/叙事校验器/migration 共用·防三处正则漂移) ──
+  // 正面涵盖明代常见入狱说法·避开歧义裸字(监只用复合·廷尉/大理寺/镇抚司须下送)
+  var _TM_IMPRISON_RE = /诏狱|下狱|入狱|系狱|系于狱|关押|羁押|拘押|拘禁|拘捕|拘系|缉拿|收押|收监|监禁|囚禁|囚系|牢狱|大牢|天牢|死牢|下牢|捉拿|逮捕|逮治|逮问|拿问|拿办|锁拿|械系|械送|槛车|下廷尉|下大理寺|下镇抚司|送镇抚司|镇抚司狱|打入(?:诏狱|大牢|天牢|死牢|牢|监|狱)|投入(?:诏狱|大牢|牢|监|狱)|关进(?:诏狱|大牢|牢|监|狱)|imprison|jail|prison/;
+  // 否决:仅 AVOID 类复合(免于/幸免/未予…)·不含裸"免/不/未"(防误杀 免官下狱/免死下狱/不法下狱)·标点边界锁同句
+  var _TM_IMPRISON_NEG_RE = /(?:免于|免遭|免被|免予|幸免|得免|获免|避免|以免|险些|差点|差些|未予|不予|未曾|未尝|从未|无须)(?:[^，。；！？、]{0,3})?(?:诏狱|下狱|入狱|系狱|逮捕|捉拿|缉拿|拘押|羁押|拘禁|收押|收监|监禁|囚禁|牢狱|大牢|镇抚司|槛车|锁拿|械系|拿问|逮治)|(?:未|不)(?:诏狱|下狱|入狱|系狱|逮捕)/;
+  function _tmReasonIsImprison(reason) {
+    var s = String(reason || '');
+    return _TM_IMPRISON_RE.test(s) && !_TM_IMPRISON_NEG_RE.test(s);
   }
 
   function onDismissal(charName, reason) {
@@ -486,7 +507,7 @@
         ch._recalledTurn = G.turn || 0;
         ch._recallReason = _reasonStr;
       }
-    } else if (/下狱|入狱|系狱|关押|羁押|拘押|拘禁|拘捕|缉拿|收押|监禁|捉拿|逮捕|imprison|jail/.test(_reasonStr)) {
+    } else if (_tmReasonIsImprison(_reasonStr)) {
       ch._imprisoned = true;
       ch._imprisonedTurn = G.turn || 0;
       ch._imprisonReason = _reasonStr;
@@ -1830,7 +1851,7 @@
     // 状态动词字典·区分 7 大动作类型
     var statusVerbs = {
       execute:    ['处决', '赐死', '诛戮', '凌迟', '腰斩', '弃市', '绞刑', '斩首', '诛九族'],
-      imprison:   ['下狱', '入狱', '系狱', '收押', '关押', '捉拿下狱', '逮捕下狱', '锁拿'],
+      imprison:   ['诏狱', '下诏狱', '入诏狱', '下狱', '入狱', '系狱', '收押', '收监', '关押', '囚禁', '拿问', '逮治', '槛车', '捉拿下狱', '逮捕下狱', '锁拿'],
       arrest:     ['捉拿', '逮捕', '抓捕', '缉拿', '锁拿'],   // 不一定下狱·区分对待
       exile:      ['流放', '发配', '戍边', '充军', '远谪', '贬谪边远'],
       retire:     ['致仕', '乞骸骨', '归田', '退休', '告老'],
@@ -4261,6 +4282,8 @@
   global.applyAIArmyChange = applyAIArmyChange;
   global.onAppointment = onAppointment;
   global.onDismissal = onDismissal;
+  global._tmReasonIsImprison = _tmReasonIsImprison;
+  global._TM_IMPRISON_RE = _TM_IMPRISON_RE;
   global._resolveBinding = _resolveBinding;
   global.renderTurnReport = renderTurnReport;
   global.buildFullAIContext = buildFullAIContext;
