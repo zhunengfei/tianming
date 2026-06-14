@@ -97,7 +97,7 @@ assert((sandbox.GM.memorials || []).some(m => m && m._minxinPressureActionId ===
 assert(sandbox.GM._pendingTinyiTopics.some(t => t && t.sourceType === 'minxin_pressure' && t.linkedIssue === issue.id), 'pressure should enter pending tinyi queue');
 assert((sandbox.GM._minxinWenduiHints || []).some(h => h && h.linkedIssue === issue.id && /Li Censor|Zhang Prefect/.test(h.personName)), 'pressure should create wendui clues for relevant people');
 assert((sandbox.GM._minxinLetterHints || []).some(h => h && h.linkedIssue === issue.id), 'pressure should create hongyan letter clues');
-assert(/Minxin Pressure Actions/.test(PA.formatForPrompt(sandbox.GM, { limit: 8 })), 'pressure prompt should identify itself');
+assert(/民情积压/.test(PA.formatForPrompt(sandbox.GM, { limit: 8 })), 'pressure prompt should identify itself');
 assert(/Canal Ward/.test(PA.formatForPrompt(sandbox.GM, { limit: 8 })) && /Farmers/.test(PA.formatForPrompt(sandbox.GM, { limit: 8 })), 'pressure prompt should include region and class');
 
 const before = sandbox.GM.adminHierarchy.player.divisions[0].minxin;

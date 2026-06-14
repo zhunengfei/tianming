@@ -117,6 +117,9 @@ const changeClass = {
   status: '良'
 };
 changeRoot.classes = [changeClass];
+// 2026-06-12 契约有意更新（满意度治本·详见 docs/class-party-overhaul-2026-06.md）：
+// 旧契约锁的是病根行为——矩阵基线压倒 AI（+99 被夹成 +2·净 -3）。
+// 新契约：AI delta 为主信号（±12/±8），矩阵为方向感知先验（异号信 AI），统一过满意度总闸。
 const change = CE.applyClassChange(changeRoot, changeClass, {
   name: '士绅',
   satisfaction_delta: 99,
@@ -126,23 +129,26 @@ const change = CE.applyClassChange(changeRoot, changeClass, {
   reason: '加税徭役特权'
 }, { turn: 12, source: 'smoke' });
 assert(change.ok === true, 'applyClassChange must succeed');
+assert(change.direction === -1, 'reason 含加税 → 苛政方向');
 assert(change.baseline.satisfaction === -5, 'baseline satisfaction mismatch');
 assert(change.baseline.influence === 0, 'baseline influence mismatch');
-assert(change.clamp.satisfaction === 2, 'AI satisfaction clamp should stay within 30% of baseline');
-assert(change.clamp.influence === 1, 'AI influence clamp should stay within 30% of baseline');
-assert(change.ai.satisfaction === 2, 'AI satisfaction delta not clamped correctly');
-assert(change.ai.influence === -1, 'AI influence delta not clamped correctly');
-assert(change.after.satisfaction === 47, 'final satisfaction mismatch');
-assert(change.after.influence === 49, 'final influence mismatch');
+assert(change.clamp.satisfaction === 12, 'AI satisfaction clamp is now ±12 (authority inversion)');
+assert(change.clamp.influence === 8, 'AI influence clamp is now ±8');
+assert(change.ai.satisfaction === 12, 'AI satisfaction delta clamped to +12');
+assert(change.ai.influence === -8, 'AI influence delta clamped to -8');
+assert(change.applied.satisfaction === 12, 'conflict resolves toward AI signal');
+assert(change.after.satisfaction === 62, 'final satisfaction mismatch');
+assert(change.after.influence === 42, 'final influence mismatch');
 assert(changeClass.demands === '更重徭役', 'new_demands was not applied');
 assert(changeClass.status === '激化', 'new_status was not applied');
+assert(Array.isArray(changeClass._satLedger) && changeClass._satLedger.length === 1, 'satisfaction gate must write ledger');
 
 assert(change.partyCoupling && change.partyCoupling.ok === true, 'applyClassChange must forward party coupling');
 assert(change.partyCoupling.applied.length === 2, 'applyClassChange should couple two supporting parties');
-assert(Math.abs(changeClass.supportingParties[0].cohesionDelta + 2.4) < 1e-9, 'first supporting party delta mismatch');
-assert(Math.abs(changeClass.supportingParties[1].cohesionDelta + 0.9) < 1e-9, 'second supporting party delta mismatch');
-assert(Math.abs(changeRoot.partyState['东林党'].cohesion - 47.6) < 1e-9, 'first supporting party cohesion mismatch');
-assert(Math.abs(changeRoot.partyState['浙党'].cohesion - 49.1) < 1e-9, 'second supporting party cohesion mismatch');
+assert(Math.abs(changeClass.supportingParties[0].cohesionDelta - 9.6) < 1e-9, 'first supporting party delta mismatch');
+assert(Math.abs(changeClass.supportingParties[1].cohesionDelta - 3.6) < 1e-9, 'second supporting party delta mismatch');
+assert(Math.abs(changeRoot.partyState['东林党'].cohesion - 59.6) < 1e-9, 'first supporting party cohesion mismatch');
+assert(Math.abs(changeRoot.partyState['浙党'].cohesion - 53.6) < 1e-9, 'second supporting party cohesion mismatch');
 
 const couplingRoot = makeRoot();
 EC.applyTemplate(couplingRoot, 'ming');

@@ -25,6 +25,9 @@ const allCode = files.map(f => fs.readFileSync(f, 'utf8')).join('\n');
 // ─── 1. 文件数 + 大小分布 ───
 const sizes = files.map(f => ({ f: path.relative(ROOT, f).replace(/\\/g, '/'), n: fs.readFileSync(f, 'utf8').split('\n').length }));
 const big5k = sizes.filter(x => x.n >= 5000).length;
+// 排除生成物/数据/备份/godot 副本，只在「手维护代码」里找最大单文件（头条意图：盯住最该拆的巨石）
+const GENERATED = /(^|\/)(preview|godot|backups?|vendor|data|scenarios)\/|(-data|-bundle|reset-app)\.js$|\.pre-split\.js$/;
+const maxFile = sizes.filter(x => !GENERATED.test(x.f)).reduce((a, b) => (b.n > a.n ? b : a), { f: '(none)', n: 0 });
 const big2k = sizes.filter(x => x.n >= 2000 && x.n < 5000).length;
 const big1k = sizes.filter(x => x.n >= 1000 && x.n < 2000).length;
 const small = sizes.filter(x => x.n < 1000).length;
@@ -85,7 +88,10 @@ const big15 = sizes.filter(x => x.n >= 1500 && !x.f.includes('/'));
 let tocCovered = 0;
 for (const x of big15) {
   const head = fs.readFileSync(path.join(ROOT, x.f), 'utf8').split('\n').slice(0, 25).join('\n');
-  if (/章节导航|§[1-9]|TOC|目录|R\d+ 导航/.test(head)) tocCovered++;
+  // 「可导航」= 顶部 25 行内有以下任一真实约定：① 章节导航/TOC/目录 ② §段落标记(数字或字母·economy/tinyi 等用 §A-§E)
+  //   ③ Module:/Domain: 金标准模块契约头(guoku/hongyan/fiscal/province 用·比 TOC 信息更全)。
+  //   注：仅一行 `// Exports: f()` 的薄头不算(导航价值不足)，须有 Module:/Domain: 才计。
+  if (/章节导航|§\s*[0-9A-Za-z]|TOC|目录|R\d+ 导航|^\s*(?:\/\/|\*)\s*(?:Module|Domain)[:：]/m.test(head)) tocCovered++;
 }
 
 // ─── 输出 ───
@@ -101,7 +107,7 @@ console.log('');
 console.log('📁 代码量');
 console.log('   .js 文件总数: ' + total);
 console.log('   总行数: ' + totalLines.toLocaleString());
-console.log('   ≥5000 行: ' + big5k + ' (单巨函数 tm-endturn-ai-infer 10565 行)');
+console.log('   ≥5000 行: ' + big5k + ' (最大代码文件 ' + maxFile.f + ' ' + maxFile.n.toLocaleString() + ' 行·已排除生成/数据/备份)');
 console.log('   2000-5000 行: ' + big2k);
 console.log('   1000-2000 行: ' + big1k);
 console.log('   <1000 行: ' + small);

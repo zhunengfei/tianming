@@ -521,13 +521,14 @@ assertNone(allFactionTabsHtml, ['\u63a8\u6f14\u8bfb\u5199\u8d26\u672c', 'GM.mapD
 
 sandbox.TMPhase8FormalBridge.openFactionByKey('empty-faction');
 const emptyFactionHtml = ppopHtml();
-assertAll(emptyFactionHtml, [EMPTY_FACTION_LABEL, 'data-pp-tab="overview"'], 'empty faction shell');
+// 2026-06-12 册页重构：tab DOM(data-pp-tab) 改为检签(data-bk-jq)·空势力=册首在、空卷与死签不渲染
+assertAll(emptyFactionHtml, [EMPTY_FACTION_LABEL, 'bk-head'], 'empty faction shell');
 assertNone(emptyFactionHtml, [
-  'data-pp-tab="territory"',
-  'data-pp-tab="military"',
-  'data-pp-tab="finance"',
-  'data-pp-tab="relations"',
-  'data-pp-tab="records"',
+  'data-bk-jq="bk-bantu"',
+  'data-bk-jq="bk-junlue"',
+  'data-bk-jq="bk-caiji"',
+  'data-bk-jq="bk-bangjiao"',
+  'data-bk-jq="bk-shilue"',
   'pp-ledger-grid',
   '\u6682\u65e0\u5730\u5757',
   '\u5f53\u524d\u5730\u56fe\u672a\u627e\u5230\u5f52\u5c5e\u5730\u5757',
@@ -573,13 +574,14 @@ sandbox.GM.mapData.regions.push({
 });
 sandbox.TMPhase8FormalBridge.openRegionById('region-sparse-empty');
 const sparseRegionHtml = ppopHtml();
-assertAll(sparseRegionHtml, [SPARSE_REGION, LIVE_HOUJIN_LABEL, 'data-pp-tab="overview"', 'data-pp-tab="owner"'], 'sparse region shell');
+// 2026-06-12 册页重构：sparse 地块=册首+归属签在（风物卷承载法理归属），无数据卷与死签不渲染
+assertAll(sparseRegionHtml, [SPARSE_REGION, LIVE_HOUJIN_LABEL, 'bk-head', 'data-bk-open-faction'], 'sparse region shell');
 assertNone(sparseRegionHtml, [
-  'data-pp-tab="mood"',
-  'data-pp-tab="classPressure"',
-  'data-pp-tab="tax"',
-  'data-pp-tab="army"',
-  'data-pp-tab="office"',
+  'data-bk-jq="bk-hukou"',
+  'data-bk-jq="bk-caifu"',
+  'data-bk-jq="bk-junbei"',
+  'data-bk-jq="bk-zhiguan"',
+  'data-bk-jq="bk-yingzao"',
   '地方设施',
   '地方底账',
   'pp-ledger-grid',
@@ -601,14 +603,15 @@ sandbox.GM.mapData.regions.push({
 });
 sandbox.TMPhase8FormalBridge.openRegionById('region-unowned-empty');
 const unownedRegionHtml = ppopHtml();
-assertAll(unownedRegionHtml, [UNOWNED_REGION, 'data-pp-tab="overview"'], 'unowned region shell');
+assertAll(unownedRegionHtml, [UNOWNED_REGION, 'bk-head'], 'unowned region shell');
 assertNone(unownedRegionHtml, [
-  'data-pp-tab="owner"',
-  'data-pp-tab="mood"',
-  'data-pp-tab="classPressure"',
-  'data-pp-tab="tax"',
-  'data-pp-tab="army"',
-  'data-pp-tab="office"',
+  'data-bk-open-faction',
+  'data-bk-jq="bk-hukou"',
+  'data-bk-jq="bk-caifu"',
+  'data-bk-jq="bk-junbei"',
+  'data-bk-jq="bk-zhiguan"',
+  'data-bk-jq="bk-fengwu"',
+  'data-bk-jq="bk-yingzao"',
   '\u672a\u8bb0',
   '\u6253\u5f00\u52bf\u529b\u6863\u6848'
 ], 'unowned region dead ui');
@@ -636,6 +639,43 @@ const bridgeSource = fs.readFileSync(path.join(ROOT, 'phase8-formal-bridge.js'),
 const rightRailSource = fs.readFileSync(path.join(ROOT, 'phase8-formal-rightrail.js'), 'utf8');
 assert((bridgeSource + rightRailSource).includes("garrison: '驻防'"), 'right army detail should localize raw garrison state');
 assert(/validRegionMapTab[\s\S]*classPressure/.test(bridgeSource), 'openRegionTab should accept classPressure tab');
+
+// ── 军地绑定（2026-06-12）：驻地名匹配区划子树 → 活军卡入军备志 · 驻军 = 绑定军合计 ──
+sandbox.GM.armies.push({
+  id: 'army-bound-liaodong',
+  name: '辽东驻防军', // 辽东驻防军
+  faction: HOUJIN,
+  soldiers: 4422,
+  morale: 38,
+  commander: '阿敏',
+  garrison: LIAODONG + '·前哨' // 「辽东·前哨」——token 拆分后首段命中区划名
+});
+sandbox.GM.turn = (sandbox.GM.turn || 0) + 1; // 破军地索引缓存签名
+sandbox.TMPhase8FormalBridge.openRegionById('region-liaodong');
+const boundHtml = ppopHtml();
+assertAll(boundHtml, ['辽东驻防军', '在驻之师', '4422', 'bk-jun'], 'army-region binding cards');
+// 零值不覆盖：去掉绑定军后 liveStats.soldiers=0 不得把驻军清零（回落 armyDetail.troops 1234）
+sandbox.GM.armies = sandbox.GM.armies.filter((a) => a.id !== 'army-bound-liaodong');
+sandbox.GM.provinceStats[LIAODONG].soldiers = 0;
+sandbox.GM.turn += 1;
+sandbox.TMPhase8FormalBridge.openRegionById('region-liaodong');
+const zeroGuardHtml = ppopHtml();
+assert(zeroGuardHtml.includes('1234'), 'zero live soldiers must not clobber static garrison');
+
+// ── 状态卷（2026-06-12）：statusEffects → 「状态」卷卡片 + 检签「况」 ──
+sandbox.GM.adminHierarchy.player.divisions[0].statusEffects = [
+  { id: 'zt1', kind: 'disaster', name: '辽河冬灾', desc: '大雪封道', econPct: -0.12, minxinPerTurn: -1, startTurn: 1, expiresTurn: 99, source: 'ai' },
+  { id: 'zt2', kind: 'building', name: '「驿道」之利', econPct: 0.02, minxinPerTurn: 0, startTurn: 1, expiresTurn: null, source: 'building:驿道' }
+];
+sandbox.GM.turn += 1;
+sandbox.TMPhase8FormalBridge.openRegionById('region-liaodong');
+const statusHtml = ppopHtml();
+assertAll(statusHtml, ['bk-zhuangkuang', '辽河冬灾', '「驿道」之利', '岁入 -12%', '民心 -1/回合', '永 续', 'data-bk-jq="bk-zhuangkuang"'], 'region status juan');
+// 空状态不挂签
+sandbox.GM.adminHierarchy.player.divisions[0].statusEffects = [];
+sandbox.GM.turn += 1;
+sandbox.TMPhase8FormalBridge.openRegionById('region-liaodong');
+assertNone(ppopHtml(), ['data-bk-jq="bk-zhuangkuang"'], 'empty status juan must not mount jianqian');
 
 console.log('[smoke-phase8-map-live-panels] PASS');
 process.exit(0);

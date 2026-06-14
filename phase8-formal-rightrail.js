@@ -1,3 +1,10 @@
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   御案·右 rail panels + data helpers（9 dispatch renderers + handleRightPanelAction·Wave 3 从 bridge 拆出）
+//   §1 alias 块       cross-closure helpers from bridge._xxx
+//   §2 module body    迁入主体（body 0 改动）：右栏各面板渲染 + 问对/求见入口（_wd*）
+//   §3 社会层地基     趋势/势位/近账/议程条目 helpers（2026-06-12）
+//   §4 attach         public API（panels + dispatch）
+// ─────────────────────────────────────────────
 // phase8-formal-rightrail.js·右 rail panels + data helpers (9 dispatch renderers + handleRightPanelAction + bindRightPanelActions)
 // split from phase8-formal-bridge.js·2026-05-26·Wave 3
 // paradigm·head alias 块·body 0 改动·跨闭包 helper 通过 bridge._xxx + late-bound wrapper
@@ -107,6 +114,7 @@
   }
 
   function rightIssuePersonTitle(p){
+    try { if (typeof window._offFormatCharTitles === 'function') { var _multi = window._offFormatCharTitles(p, { fallback: '' }); if (_multi) return _multi; } } catch(_) {}
     return rightIssueFirst(p, ['officialTitle','office','title','role','position'], '未仕');
   }
 
@@ -3015,7 +3023,7 @@
     var gm = window.GM || {};
     var p = window.P || {};
     // 单一真相源:渲染前从人物 officialTitle 派生官制树任职者(状态未变则跳过)
-    try { if (typeof window._offSyncHoldersFromChars === 'function') window._offSyncHoldersFromChars({ ifChanged: true }); } catch (_) {}
+    try { if (typeof window._offSyncHoldersFromChars === 'function') window._offSyncHoldersFromChars(((window.GM&&window.GM.chars||[]).some(function(c){return c&&c.alive!==false&&c.officialTitle;})?{ force: true }:{ ifChanged: true })); } catch (_) {}
     if (Array.isArray(gm.officeTree) && gm.officeTree.length) return gm.officeTree;
     if (Array.isArray(p.officeTree) && p.officeTree.length) return p.officeTree;
     if (p.government && Array.isArray(p.government.nodes) && p.government.nodes.length) return p.government.nodes;

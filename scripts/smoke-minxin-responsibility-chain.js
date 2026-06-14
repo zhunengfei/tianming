@@ -161,7 +161,7 @@ assert((sandbox.GM.memorials || []).some(m => m && m.sourceType === 'minxin_acco
 assert((sandbox.GM._pendingTinyiTopics || []).some(t => t && t.sourceType === 'minxin_accountability' && t.linkedCommitment === bad.id), 'accountability should create pending tinyi topic');
 
 const prompt = RC.formatForPrompt(sandbox.GM, { limit: 8 });
-assert(/Minxin Responsibility Chain/.test(prompt), 'prompt should identify responsibility chain');
+assert(/民情执行·责任链/.test(prompt), 'prompt should identify responsibility chain');
 assert(/officialReports/.test(prompt) && /rumors/.test(prompt), 'prompt should include reports and rumors');
 assert(/Canal Ward/.test(prompt), 'prompt should include target region');
 

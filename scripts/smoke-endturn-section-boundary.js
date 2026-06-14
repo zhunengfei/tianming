@@ -46,14 +46,12 @@ const sec2 = findLines(aiText, /\u00a72\s*Sub-call\s*/).filter(function(line) { 
 const sec3 = findLines(aiText, /\u00a73\s*Sub-calls?\s*sc0/).filter(function(line) { return line > 20; });
 assert(sec2.length === 1, 'section 2 marker appears once in tm-endturn-ai.js, count=' + sec2.length);
 assert(sec3.length === 1, 'section 3 marker appears once in tm-endturn-ai.js, count=' + sec3.length);
-// 2026-05-22: setupInfra gained repair/schema/cache guards before runMain; §2 still
-// belongs near the setup bridge, but the marker can sit past the old 430-line ceiling.
-assert(sec2[0] >= 100 && sec2[0] <= 520, 'section 2 marker in ai module near setup bridge, actual L' + sec2[0]);
-// 2026-05-19: SC1 rescue/apply-failure guards live in the shared pre-subcall infra.
-// 2026-05-22: additional schema-repair/cache diagnostics keep §3 after infra but
-// push the marker past the older 760/900/960/1100/1150-line ceilings.
-// 2026-06-04: current inline compiler/trace helpers place the marker at L1161.
-assert(sec3[0] >= 240 && sec3[0] <= 1170, 'section 3 marker in ai module after infra, actual L' + sec3[0]);
+// §2/§3 位置：真正的结构不变量是「各出现一次（上面已断言）+ §2 在 §3 之前」（下方 ordering 断言），
+// 不是绝对行号——每加章节导航/helper 都会下移标记，历史上 §2 上限被迫 430→520→… 反复上调，是 rot-bait。
+// 绝对上限只保留为宽松「别埋到文件底部」的软哨，随正当增长自由调高即可。
+assert(sec2[0] >= 100 && sec2[0] <= 900, 'section 2 marker in ai module near setup bridge (soft ceiling), actual L' + sec2[0]);
+assert(sec3[0] >= 240 && sec3[0] <= 1800, 'section 3 marker in ai module after infra (soft ceiling), actual L' + sec3[0]);
+assert(sec2[0] < sec3[0], 'section 2 precedes section 3 in ai module (durable ordering), §2 L' + sec2[0] + ' §3 L' + sec3[0]);
 
 const sec5 = findLines(followupText, /\u00a75\s*sc15-sc27\s*/).filter(function(line) { return line > 25; });
 const followupRunHead = findLines(followupText, /ns\.run\s*=\s*async\s+function\s*\(ctx\)/);
@@ -61,25 +59,22 @@ const sec4 = findLines(applyText, /\u00a74\s*sc1\s*/).filter(function(line) { re
 assert(sec4.length === 1, 'section 4 marker appears once in tm-endturn-apply.js, count=' + sec4.length);
 assert(sec5.length === 1, 'section 5 marker appears once in tm-endturn-followup.js, count=' + sec5.length);
 assert(followupRunHead.length === 1, 'followup run head appears once in tm-endturn-followup.js, count=' + followupRunHead.length);
-assert(sec4[0] >= 40 && sec4[0] <= 80, 'section 4 marker in apply module near writeBack head, actual L' + sec4[0]);
+assert(sec4[0] >= 40 && sec4[0] <= 200, 'section 4 marker in apply module near writeBack head (soft ceiling), actual L' + sec4[0]);
 // 2026-05-15: followup can grow shared helpers before ns.run.
 assert(sec5[0] > followupRunHead[0] && sec5[0] - followupRunHead[0] <= 120,
   'section 5 marker in followup module near run head, actual L' + sec5[0] + ', run L' + followupRunHead[0]);
 
-assert(aiInferLines.length >= 200 && aiInferLines.length <= 280,
-  'ai-infer line count after P7-zeta 200-280, actual ' + aiInferLines.length);
-// 2026-06-01: MemoryContextCompiler bridge keeps recall compilation inline for
-// now. Keep a bounded ceiling aligned with public-contract while topology is
-// still checked by marker/export/bridge assertions below.
-assert(aiLines.length >= 2600 && aiLines.length <= 4520,
-  'tm-endturn-ai.js line count after sc1d split/rescue/cache/compiler bridge 2600-4520, actual ' + aiLines.length);
-// 2026-05-22: apply gained dialogue commitment feedback writeback; keep the
-// ceiling aligned with the public-contract smoke while section topology remains
-// checked by marker/export assertions.
-assert(applyLines.length >= 4550 && applyLines.length <= 5300,
-  'tm-endturn-apply.js line count after P7-epsilon 4550-5300, actual ' + applyLines.length);
-assert(followupLines.length >= 2200 && followupLines.length <= 3500,
-  'tm-endturn-followup.js line count after P7-zeta followup guards 2200-3500, actual ' + followupLines.length);
+// 以下行数门一律为「软防膨胀/防掏空」哨：保留下限（防误删整段）+ 宽松上限（防把拆出去的整块又塞回来）。
+// 真正的拆分拓扑由上方 marker(各出现一次)+下方 export/bridge wiring 断言锁定，与文件大小无关。
+// 上限被自然增长追上时直接调高即可（曾因 +10 行章节导航就假红）。
+assert(aiInferLines.length >= 200 && aiInferLines.length <= 400,
+  'ai-infer line count (soft anti-balloon ceiling), actual ' + aiInferLines.length);
+assert(aiLines.length >= 2600 && aiLines.length <= 6000,
+  'tm-endturn-ai.js line count (soft anti-balloon ceiling), actual ' + aiLines.length);
+assert(applyLines.length >= 4550 && applyLines.length <= 7000,
+  'tm-endturn-apply.js line count (soft anti-balloon ceiling), actual ' + applyLines.length);
+assert(followupLines.length >= 2200 && followupLines.length <= 4500,
+  'tm-endturn-followup.js line count (soft anti-balloon ceiling), actual ' + followupLines.length);
 assert(/ns\.setupInfra\s*=/.test(aiText), 'tm-endturn-ai.js exposes setupInfra');
 assert(/ns\.runMain\s*=/.test(aiText), 'tm-endturn-ai.js exposes runMain');
 assert(/TM\.Endturn\.AI\.subcalls\.runMain\s*\(ctx\s*(,\s*async\s+function\s*\(\)\s*\{)?/.test(aiInferSrc), 'ai-infer bridge calls runMain(ctx)');

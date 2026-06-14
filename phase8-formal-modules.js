@@ -1,3 +1,10 @@
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   御案·中央内容区（12 kind dispatch + tmfRenwu* 人物图志 + renwu filter UI·Wave 5 从 bridge 拆出）
+//   §1 alias 块       cross-closure helpers from bridge._xxx
+//   §2 late-bound     wrappers（into bridge / window）
+//   §3 module body    迁入主体（body 0 改动）：renderRenwuModule · 时政 _shizheng* · 朝议/科举/密召入口
+//   §4 attach         public API + re-attach bridge 导出
+// ─────────────────────────────────────────────
 // phase8-formal-modules.js·module 中央内容区 (12 kind dispatch + tmfRenwu* 人物图志 + renwu filter UI)
 // split from phase8-formal-bridge.js·2026-05-26·Wave 5
 // paradigm·head alias 块·body 0 改动·跨闭包 helper 通过 bridge._xxx + late-bound wrapper

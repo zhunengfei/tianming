@@ -3507,7 +3507,7 @@
         initialTroops: [
           // ═══ 京营 ═══
           {
-            name: '京营·五军营', armyType: '禁军', soldiers: 60000, garrison: '京师',
+            name: '京营·五军营', armyType: '禁军', soldiers: 60000, garrison: '京师', regionHint: '北直隶',
             quality: '普通', morale: 48, training: 35, loyalty: 55, control: 65,
             commander: '崔呈秀', commanderTitle: '兵部尚书·督京营戎政',
             ethnicity: '汉', activity: '宿卫京师·久未实战',
@@ -3532,7 +3532,7 @@
             description: '名员 12 万实 6 万，多老弱空额，甲胄朽烂。阉党崔呈秀把持，军制废弛。包括中/左/右/前/后五军营。'
           },
           {
-            name: '京营·三千营', armyType: '禁军', soldiers: 8000, garrison: '京师',
+            name: '京营·三千营', armyType: '禁军', soldiers: 8000, garrison: '京师', regionHint: '北直隶',
             quality: '普通', morale: 52, training: 48, loyalty: 62, control: 78,
             commander: '(崔呈秀总督·都指挥分统)', commanderTitle: '(崔呈秀总督·都指挥分统)',
             ethnicity: '汉为主·蒙古降兵', activity: '扈驾·缉察',
@@ -3554,7 +3554,7 @@
             description: '侍卫骑兵。扈驾兼缉察。明初由归附的蒙古骑兵编成，今多汉化。'
           },
           {
-            name: '京营·神机营', armyType: '禁军', soldiers: 12000, garrison: '京师',
+            name: '京营·神机营', armyType: '禁军', soldiers: 12000, garrison: '京师', regionHint: '北直隶',
             quality: '普通', morale: 55, training: 52, loyalty: 60, control: 72,
             commander: '', commanderTitle: '提督神机营',
             ethnicity: '汉', activity: '守九门·阅兵',
@@ -3740,7 +3740,7 @@
           },
           // ═══ 九边(关外+长城诸镇) ═══
           {
-            name: '蓟州镇军', armyType: '边军', soldiers: 28000, garrison: '蓟州',
+            name: '蓟州镇军', armyType: '边军', soldiers: 28000, garrison: '蓟州', regionHint: '北直隶',
             quality: '普通', morale: 52, training: 48, loyalty: 65, control: 75,
             commander: '朱梅', commanderTitle: '蓟州总兵',
             ethnicity: '汉', activity: '长城关隘守御·卫京师北屏',
@@ -3898,7 +3898,7 @@
             description: '河西走廊。与番部、吐鲁番对峙。'
           },
           {
-            name: '固原镇军', armyType: '边军', soldiers: 20000, garrison: '固原',
+            name: '固原镇军', armyType: '边军', soldiers: 20000, garrison: '固原', regionHint: '陕西',
             quality: '普通', morale: 53, training: 50, loyalty: 60, control: 70,
             commander: '武之望(兼)', commanderTitle: '三边总督直辖',
             ethnicity: '汉', activity: '陕西腹地军备',
@@ -7233,7 +7233,7 @@
         resources: { privateWealth: { cash: 120000, grain: 2000, cloth: 800 } },
       },
       {
-        name: '黄立极', title: '内阁首辅·建极殿大学士', officialTitle: '内阁首辅·建极殿大学士', alive: true,
+        name: '黄立极', title: '内阁首辅·建极殿大学士·少傅', officialTitle: '内阁首辅·建极殿大学士·少傅', alive: true,
         age: 59, gender: '男', personality: '谨小·附势·无骨',
         location: '京师·文渊阁', loyalty: 30, ambition: 40, intelligence: 65, benevolence: 40,
         administration: 55, integrity: 20,
@@ -7243,7 +7243,7 @@
         resources: { privateWealth: { cash: 85000, grain: 1800, cloth: 550 } },
       },
       {
-        name: '施凤来', title: '文华殿大学士', officialTitle: '文华殿大学士', alive: true,
+        name: '施凤来', title: '文华殿大学士·少傅', officialTitle: '文华殿大学士·少傅', alive: true,
         age: 63, gender: '男', personality: '圆滑·附势·工诗', party: '阉党',
         loyalty: 35, ambition: 35, intelligence: 62, integrity: 25,
         stance: '阉党文臣', faction: '明朝廷', family: '施氏', location: '京师',

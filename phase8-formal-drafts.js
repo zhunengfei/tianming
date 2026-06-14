@@ -1,3 +1,11 @@
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   御案·起草面板 + desk overlay + 诏书/奏疏/书信/记录/朝政时政预览面板（Wave 4·从 bridge 拆出）
+//   §1 alias 块       cross-closure helpers from bridge._xxx
+//   §2 late-bound     wrappers（orchestration calls into bridge）
+//   §3 module body    迁入主体（body 0 改动）：拟诏/主角行止 tab · 三栏主体
+//   §4 御案 CSS       纳入选类菜单/有司润色卡/议事清册卡 优先级修正 + footer 布局修
+//   §5 attach         public API + re-attach bridge.X / window.* 导出
+// ─────────────────────────────────────────────
 // phase8-formal-drafts.js·起草面板·desk overlay·CSS·诏书/奏疏/书信/记录/朝政时政预览面板
 // split from phase8-formal-bridge.js·2026-05-26·Wave 4
 // paradigm·head alias 块·body 0 改动·跨闭包 helper 通过 bridge._xxx + late-bound wrapper
@@ -2072,10 +2080,10 @@
 + '.ed-yuan .cell-seal.inked::before{background:var(--sc,var(--gold-d));border-radius:4px 5px 4px 5px;background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'40\' height=\'40\'%3E%3Cfilter id=\'ik\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.85\' numOctaves=\'2\' seed=\'3\'/%3E%3CfeColorMatrix type=\'saturate\' values=\'0\'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type=\'linear\' slope=\'0.45\'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23ik)\'/%3E%3C/svg%3E");background-size:30px 30px;background-blend-mode:soft-light;box-shadow:inset 0 0 0 3px rgba(255,255,255,0.32),0 1px 4px rgba(80,56,24,0.32),0 0 14px var(--sc-glow,transparent);}'
 + '.ed-yuan .cell-seal.inked .cs-1,.ed-yuan .cell-seal.inked .cs-2{color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.32);}'
 + '.ed-yuan .erow-body{flex:1;min-height:0;display:flex;flex-direction:column;}'
-+ '.ed-yuan .cat-field{flex:1;min-height:44px;width:100%;font-family:var(--font);font-size:15px;line-height:1.95;color:var(--ink);background:repeating-linear-gradient(180deg,rgba(0,0,0,0) 0 29px,rgba(168,131,58,0.085) 29px 30px);background-position:0 9px;border:none;border-radius:3px;padding:2px 6px;resize:none;outline:none;overflow-y:auto;scrollbar-width:none;transition:background .18s;}'
++ '.ed-yuan .cat-field{flex:1;min-height:44px;width:100%;font-family:var(--font);font-size:16px;line-height:1.95;color:var(--ink);background-color:#faf4e6;background-image:repeating-linear-gradient(180deg,rgba(0,0,0,0) 0 29px,rgba(168,131,58,0.10) 29px 30px);background-position:0 9px;border:none;border-radius:3px;padding:3px 7px;resize:none;outline:none;overflow-y:auto;scrollbar-width:none;transition:background .18s;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;}'
 + '.ed-yuan .cat-field::-webkit-scrollbar{width:0;height:0;display:none;}'
-+ '.ed-yuan .cat-field::placeholder{color:rgba(140,124,96,0.6);line-height:1.6;}'
-+ '.ed-yuan .cat-field:focus{background-color:rgba(255,255,255,0.45);}'
++ '.ed-yuan .cat-field::placeholder{color:rgba(120,104,76,0.62);line-height:1.6;}'
++ '.ed-yuan .cat-field:focus{background-color:#fffdf6;}'
 + '.ed-yuan .ed-forecast{flex:0 0 auto;position:relative;font-size:11.5px;line-height:1.45;color:#3c6053;letter-spacing:0.02em;padding:3px 6px 0 16px;}'
 + '.ed-yuan .ed-forecast::before{content:"批";position:absolute;left:0;top:3px;font-size:10px;color:var(--cinnabar);border:1px solid var(--cinnabar);border-radius:2px;padding:0 1px;line-height:1.3;opacity:0.78;transform:rotate(-6deg);}'
 + '.ed-yuan .ed-polish-bar{flex:0 0 auto;display:flex;align-items:center;gap:10px;margin:8px 2px 6px;}'

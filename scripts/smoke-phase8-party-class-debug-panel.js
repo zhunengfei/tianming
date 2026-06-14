@@ -200,19 +200,19 @@ assert(bridge._lastPanel === 'pcdebug', 'pcdebug action should open debug panel'
 
 html = bridge.rightrail.renderers.pcdebug();
 assert(/tmrp-pcdebug/.test(html), 'pcdebug renderer should use debug shell class');
-assert(/Social Political Signals/.test(html), 'debug panel should show signal ledger section');
+assert(/社会政治信号/.test(html), 'debug panel should show signal ledger section');
 assert(/tax-pressure/.test(html) && /issue-levy/.test(html), 'debug panel should show recent unresolved signal with issue');
 assert(/pre-submit-signal-maintenance/.test(html), 'debug panel should show signal maintenance source');
 assert(/unresolved levy pressure/.test(html), 'debug panel should show escalation reason');
-assert(/Actor Memory/.test(html), 'debug panel should show actor memory section');
+assert(/行动者记忆/.test(html), 'debug panel should show actor memory section');
 assert(/social-political-signal-escalation/.test(html), 'debug panel should show actor memory source');
-assert(/party_actions/.test(html) && /class_actions/.test(html), 'debug panel should show actor action ledgers');
-assert(/Tinyi Queue/.test(html) && /party_class_calibration/.test(html), 'debug panel should show pending tinyi source');
-assert(/Court Records/.test(html) && /issued B/.test(html), 'debug panel should show recent court record status and grade');
-assert(/Class Minxin Bridge/.test(html), 'debug panel should show class-minxin bridge section');
-assert(/audit FAIL|FAIL audit|duplicates|drifts/i.test(html), 'debug panel should show class-minxin audit warnings');
+assert(/党派动作/.test(html) && /阶层动作/.test(html), 'debug panel should show actor action ledgers');
+assert(/廷议队列/.test(html) && /party_class_calibration/.test(html), 'debug panel should show pending tinyi source');
+assert(/朝议记录/.test(html) && /颁行 B/.test(html), 'debug panel should show recent court record status and grade');
+assert(/阶层民心桥/.test(html), 'debug panel should show class-minxin bridge section');
+assert(/稽核|重复|漂移|FAIL/i.test(html), 'debug panel should show class-minxin audit warnings');
 assert(/Canal Ward/.test(html) && /tax pressure hit Farmers/.test(html), 'debug panel should show class-minxin region and reason');
-assert(/Uprising Candidates/.test(html) && /mxuc-21-farmers-canal/.test(html), 'debug panel should show uprising candidates');
+assert(/民变候选/.test(html) && /mxuc-21-farmers-canal/.test(html), 'debug panel should show uprising candidates');
 assert(/data-right-action="pcdebug-copy"/.test(html), 'debug panel should expose copy diagnostic snapshot action');
 
 bridge.rightrail.handleRightPanelAction('pcdebug-copy', {});

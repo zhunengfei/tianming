@@ -1,3 +1,13 @@
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   御案·中央地图（renderFormalMap·region/faction dossier·alerts·basemap·tile·121 函数·Wave 6 从 bridge 拆出）
+//   §1 alias 块       cross-closure helpers from bridge._xxx
+//   §2 late-bound     wrappers（into bridge / window）
+//   §3 module body    迁入主体（body 0 改动）：bindRuntimeMapState / 地图渲染
+//   §4 签注          hover 小笺按视图给核心读数 + 判语（2026-06-11）
+//   §5 四视图计分     2026-06-11 重构 + 活账因果签（字段牵动链）
+//   §6 卡片          营造志卡 / 地块方志 / 势力谱牒 · openDivisionDetail
+//   §7 attach         public API + re-attach bridge 导出
+// ─────────────────────────────────────────────
 // phase8-formal-map.js·中央地图 (renderFormalMap·region dossier·faction dossier·alerts·basemap·tile rendering·121 functions)
 // split from phase8-formal-bridge.js·2026-05-26·Wave 6
 // paradigm·head alias 块·body 0 改动·跨闭包 helper 通过 bridge._xxx + late-bound wrapper
@@ -588,6 +598,45 @@
     if (!best) return null;
     if (best.kind === 'key') return Object.assign({ name: best.objectKey }, best.node);
     return best.objectKey && !best.node.name ? Object.assign({ name: best.objectKey }, best.node) : best.node;
+  }
+
+  // 活态地块要素（2026-06-13 死字段修）：地块真实民心/吏治/繁荣/民变 = 活区划「叶子」的人口加权聚合。
+  // 病根钉死：minxin/corruption/prosperity 引擎(tm-minxin-hard-links / fiscal / region-status)只逐回合更新
+  // 叶子(顺天府…)，省级节点与地图 r.data 是另一对象、开局后从不回滚——故视图/册页读 r.data.minxinLocal /
+  // 省节点 .minxin 恒显开局死值。此处一次聚合活叶供 regionBundle 覆盖静态字段。按(回合)失效·与本文件其余索引同策。
+  var _liveVitalsCache = { turn: -1, byRegion: {} };
+  function liveRegionVitals(r, liveDivision){
+    var turn = (window.GM && GM.turn) || 0;
+    if (_liveVitalsCache.turn !== turn) _liveVitalsCache = { turn: turn, byRegion: {} };
+    var rid = String((r && (r.id || r.name)) || '');
+    if (rid && _liveVitalsCache.byRegion[rid]) return _liveVitalsCache.byRegion[rid];
+    var root = liveDivision || findLiveAdminDivision(r);
+    var mxW = 0, mxWsum = 0, corrW = 0, corrWsum = 0, prosW = 0, prosWsum = 0, unrestMax = NaN, leaves = 0;
+    function leafWeight(d){
+      var p = (d.population && typeof d.population === 'object') ? (Number(d.population.mouths) || 0)
+            : (typeof d.population === 'number' ? d.population : 0);
+      return p > 0 ? p : 1;
+    }
+    (function walk(d){
+      if (!d || typeof d !== 'object') return;
+      var kids = d.children || d.divisions;
+      if (kids && kids.length) { for (var i = 0; i < kids.length; i += 1) walk(kids[i]); return; }
+      leaves += 1;
+      var w = leafWeight(d);
+      if (typeof d.minxin === 'number' && isFinite(d.minxin)) { mxW += d.minxin * w; mxWsum += w; }
+      if (typeof d.corruption === 'number' && isFinite(d.corruption)) { corrW += d.corruption * w; corrWsum += w; }
+      if (typeof d.prosperity === 'number' && isFinite(d.prosperity)) { prosW += d.prosperity * w; prosWsum += w; }
+      var u = Number(d.unrest); if (isFinite(u)) unrestMax = isFinite(unrestMax) ? Math.max(unrestMax, u) : u;
+    })(root);
+    var out = {
+      minxin: mxWsum ? Math.round((mxW / mxWsum) * 10) / 10 : null,
+      corruption: corrWsum ? Math.round((corrW / corrWsum) * 10) / 10 : null,
+      prosperity: prosWsum ? Math.round((prosW / prosWsum) * 10) / 10 : null,
+      unrest: isFinite(unrestMax) ? unrestMax : null,
+      leaves: leaves
+    };
+    if (rid) _liveVitalsCache.byRegion[rid] = out;
+    return out;
   }
 
   // perf round7: 原版每地块全扫 GM._provinceToFaction 的 Object.keys·逐省 = renderFormalMap 主峰之一(111ms)。
@@ -2206,25 +2255,46 @@
       army.supply = regionSupply;
       data.supply = regionSupply;
     }
-    var minxin = firstValue(liveStats && liveStats.minxin, liveStats && liveStats.mood, liveStats && liveStats.stability, liveDivision && liveDivision.minxinLocal, liveDivision && liveDivision.minxin);
-    if (hasValue(minxin)) data.minxinLocal = minxin;
-    var prosperity = firstValue(liveStats && liveStats.prosperity, liveStats && liveStats.wealth, liveStats && liveStats.development, liveDivision && liveDivision.prosperity, liveDivision && liveDivision.wealth);
+    // 活态要素（2026-06-13 死字段修）：民心/吏治/繁荣/民变 优先取「活叶人口加权聚合」——
+    // liveStats 对省级地块恒空（provinceStats 按府级叶键存）、liveDivision 是开局冻结的省节点，
+    // 二者都读不到引擎逐回合更新的叶值；vitals 才是真实活账，置于 firstValue 首位。
+    var vitals = liveRegionVitals(r, liveDivision);
+    var minxin = firstValue(
+      vitals.minxin,
+      liveStats && liveStats.minxin, liveStats && liveStats.mood, liveStats && liveStats.stability,
+      liveDivision && liveDivision.minxinLocal, liveDivision && liveDivision.minxin
+    );
+    if (hasValue(minxin)) { data.minxinLocal = minxin; data.minxin = minxin; }
+    var prosperity = firstValue(
+      vitals.prosperity,
+      liveStats && liveStats.prosperity, liveStats && liveStats.wealth, liveStats && liveStats.development,
+      liveDivision && liveDivision.prosperity, liveDivision && liveDivision.wealth
+    );
     if (hasValue(prosperity)) data.prosperity = prosperity;
     var development = firstValue(liveStats && liveStats.development, liveDivision && liveDivision.development);
     if (hasValue(development)) data.development = development;
-    var unrest = firstValue(liveStats && liveStats.unrest, liveStats && liveStats.revoltRisk, liveDivision && liveDivision.unrest, liveDivision && liveDivision.revoltRisk);
+    var unrest = firstValue(
+      vitals.unrest,
+      liveStats && liveStats.unrest, liveStats && liveStats.revoltRisk,
+      liveDivision && liveDivision.unrest, liveDivision && liveDivision.revoltRisk
+    );
     if (hasValue(unrest)) data.unrest = unrest;
-    var corruption = firstValue(liveStats && liveStats.corruption, liveStats && liveStats.corruptionLocal, liveDivision && liveDivision.corruptionLocal, liveDivision && liveDivision.corruption);
+    var corruption = firstValue(
+      vitals.corruption,
+      liveStats && liveStats.corruption, liveStats && liveStats.corruptionLocal,
+      liveDivision && liveDivision.corruptionLocal, liveDivision && liveDivision.corruption
+    );
     if (hasValue(corruption)) {
       data.corruptionLocal = corruption;
       data.corruption = corruption;
     }
+    data.liveVitals = vitals;
     data.populationDetail = pop;
     data.fiscalDetail = fiscal;
     data.publicTreasuryInit = treasury;
     data.economyBase = economy;
     data.armyDetail = army;
-    return { data: data, pop: pop, fiscal: fiscal, treasury: treasury, army: army, liveStats: liveStats, liveDivision: liveDivision };
+    return { data: data, pop: pop, fiscal: fiscal, treasury: treasury, army: army, liveStats: liveStats, liveDivision: liveDivision, vitals: vitals };
   }
 
   function regionTitle(r){
@@ -2310,6 +2380,20 @@
     }
     if (live._revoltActive) score = Math.max(score, 78);
     if (live._warZone) score = Math.max(score, 86);
+    // 活态军情（2026-06-13 死字段修）：驻军兵变险/欠饷/低气/缺粮——军务舆图须反映当下危局，
+    // 而非只读开局静态威胁词（armyPressure/borderRisk）。取绑定活军(GM.armies)的最坏一项。
+    var liveArmies = (b.army && b.army.liveArmies) || [];
+    var garrisonStress = 0;
+    for (var _ia = 0; _ia < liveArmies.length; _ia += 1) {
+      var _a = liveArmies[_ia]; if (!_a) continue;
+      var _s = 0;
+      var _mut = Number(_a.mutinyRisk); if (isFinite(_mut)) _s = Math.max(_s, _mut);
+      var _arr = Number(_a.payArrearsMonths); if (isFinite(_arr) && _arr > 0) _s = Math.max(_s, Math.min(100, _arr * 18));
+      var _mor = Number(_a.morale); if (isFinite(_mor) && _mor < 40) _s = Math.max(_s, (40 - _mor) * 1.6);
+      var _sup = Number(_a.supply); if (isFinite(_sup) && _sup < 35) _s = Math.max(_s, (35 - _sup) * 1.4);
+      if (_s > garrisonStress) garrisonStress = _s;
+    }
+    if (garrisonStress > 0) score = Math.max(score, Math.min(100, garrisonStress));
     var troops = Number(firstValue(data.garrison, b.army.troops, r && r.troops, 0)) || 0;
     var mouths = Number(firstValue(b.pop.mouths, data.population, 0)) || 0;
     if (score >= 60 && mouths > 0 && troops / mouths < 0.004) score = Math.min(100, score + 6);
