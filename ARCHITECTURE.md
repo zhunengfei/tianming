@@ -2,7 +2,9 @@
 
 > 目的：让任何维护者（包括三个月后的你自己）在 30 分钟内定位 80% 的代码。
 > 这是当前**实然**架构，不是理想架构。理想参见文末"长期演化方向"。
-> 最后更新：2026-04-24
+> 最后更新：2026-06-13（数字全部按当日 `web/` 实测重校；上次 2026-04-24 的文件数/行号已大幅过期）
+
+> **速览（2026-06-13 实测）**：`web/` 共约 **662** 个 `.js`、约 **138 万行**（含 4.6MB 生成剧本包与 vendor）；`index.html` 顺序加载 **310** 段 `<script>`；对外挂载点 `window.* =` 约 **1258** 个；`GM.` 被引用 **15,668** 次、`P.` **4,467** 次，统一门面 `DA.*` 仅 **205** 次（建好但采用率仍停在路线图第一步，见 §10）。平铺层 ≥5000 行文件 3 个（`tm-tinyi-v3` 6938 / `tm-endturn-apply` 5378 / `tm-chaoyi-changchao` 5100），2000–5000 行 41 个。
 
 ---
 
@@ -53,7 +55,7 @@
 
 ## 3. 文件加载顺序（重要！全局 window.* 靠顺序）
 
-index.html 按依赖顺序加载 **161 个 JS 文件**（截至 2026-04-28，含拆分后的 tm-* 模块 ~157 个 + 编辑器/工具 4 个）。关键分层：
+index.html 按依赖顺序加载 **310 段 `<script>`**（2026-06-13 实测；2026-04-28 时为 161，半年内随功能扩张近翻倍）。**加载顺序 = 依赖关系**：靠前的先就位。下面的分层是"心智骨架"，非逐文件清单——逐行以 `index.html` 为准。关键分层：
 
 ```
 第 1 层 · 基础数据 & 工具
@@ -178,67 +180,48 @@ index.html 按依赖顺序加载 **161 个 JS 文件**（截至 2026-04-28，含
 
 ## 6. 回合结算管道（endTurn 调用链）
 
+> ⚠️ 旧版此节用 `tm-endturn.js:9636` 一类**行号**做锚点，早已全部失效——单体 `tm-endturn.js` 已不存在，结算被拆成 **23 个 `tm-endturn-*.js`** 并**管道化重构**为 6 个可替换 step。下面只用**文件名 + 函数名/step 名**这类稳定锚点；**不写行号**（行号每改一次就腐，是上版此节烂掉的根因）。权威逐字段数据流见 `web/docs/endturn-data-flow.md`。
+
+**入口**：`endTurn()` @ `tm-endturn-core.js`（搜函数名）→ 末尾 `TM.Endturn.Pipeline.run(ctx)` 驱动 6 step。step 名是契约（见 `tm-endturn-pipeline-types.js`）：
+
 ```
-endTurn()  ← tm-endturn.js 入口
+endTurn()                          ← tm-endturn-core.js（入口 + 前置 actor 推进）
   │
-  ├─ Phase A · 收集玩家输入
-  │    extractEdictActions()           从 GM._edicts 抽诏令动作
-  │    collectChaoyiInput()            朝议结果
-  │    collectZoushuBatches()          奏疏批注
-  │
-  ├─ Phase B · 构建 AI prompt（巨型字符串拼接，~5000 token）
-  │    inject: GM.chars/facs/parties/classes 摘要
-  │    inject: 时局要务 GM.currentIssues
-  │    inject: 近 3 回合 yearlyChronicles
-  │    inject: 当前国策 GM.customPolicies
-  │    inject: 省份概况 GM.provinceStats
-  │    inject: 官职健康/任期超标/考课
-  │    inject: TM_AI_SCHEMA 描述的输出字段（单一真源）
-  │
-  ├─ Phase C · 调用 AI（主调用 subcall1）
-  │    支持流式（callAIMessagesStream）或非流式 fetch
-  │    extractJSON(c1) → p1
-  │    >>> TM.validateAIOutput(p1, 'subcall1')  ← 新增校验层
-  │    GM._turnAiResults.subcall1 = p1
-  │
-  ├─ Phase C · 并行子调用 1b/1c
-  │    subcall1b: 文事/势力专项（独立 8k 预算）
-  │    subcall1c: 诏令问责（directive_compliance）
-  │
-  ├─ Phase D · 应用变更
-  │    applyAITurnChanges(p1) → tm-ai-change-applier.js
-  │    p1.character_deaths → tm-endturn.js:9636 处理
-  │    p1.office_changes → tm-endturn.js:11115 处理
-  │    p1.admin_division_updates → tm-endturn.js:12009 处理
-  │    p1.harem_events → tm-endturn.js:12260 处理
-  │    p1.current_issues_update → tm-endturn.js:9597 处理
-  │
-  ├─ Phase E · 子系统推进（tm-endturn-province.js + *-helpers.js）
-  │    每省更新 population/unrest/prosperity
-  │    经济推进 FiscalCascade
-  │    角色经济推进 CharEconomyEngine
-  │    户籍推进 HujiEngine
-  │    环境推进 EnvCapacityEngine
-  │    科举推进 advanceKejuByDays
-  │    权威推进 AuthorityEngines
-  │    腐败推进 CorruptionEngine
-  │
-  ├─ Phase F · 记录与渲染（tm-endturn-render.js）
-  │    yearlyChronicles.push 本回合摘要
-  │    memorialsLog 归档
-  │    showPostTurnCourtBanner
-  │    renderShiji / renderChronicle
-  │
-  └─ Phase G · 回合推进
-     GM.turn++
-     GM.date = getTSText(GM.turn)
-     autoSave (slot 0) 每 N 回合
+  └─ TM.Endturn.Pipeline.run(ctx)  ← tm-endturn-pipeline-executor.js（每 step 独立 onError + ctx.crossTurn/deferredSteps）
+     │   step 定义集中在 tm-endturn-pipeline-steps.js
+     │
+     ├─ step 'prep'                 ← tm-endturn-prep.js
+     │     收集玩家输入：诏令动作 / 朝议结果 / 奏疏批注
+     │
+     ├─ step 'plan-prefetch'        ← tm-endturn-ai.js（预取/规划）
+     │
+     ├─ step 'ai'                   ← tm-endturn-prompt.js（建 prompt）+ tm-endturn-ai.js（调用）
+     │     prompt 注入 chars/facs/parties/classes 摘要、currentIssues、近 3 回合 chronicles、
+     │       国策、provinceStats、官职健康/考课、TM_AI_SCHEMA 字段（单一真源）
+     │     主调 subcall1 → extractJSON → p1；TM.validateAIOutput(p1,'subcall1') 校验
+     │     并行子调用：subcall1b（文事/势力专项）、subcall1c（诏令问责 directive_compliance）
+     │     ⚠️ 安卓侧子调用默认串行 + 响应体积闸（防 WebView OOM，见 memory）
+     │
+     ├─ step 'post-ai-edict'        ← tm-endturn-edict.js + tm-ai-change-applier.js
+     │     applyAITurnChanges(p1) @ tm-ai-change-applier.js ← 写回 GM 的主门面
+     │     各 p1.* 段（character_deaths / office_changes / admin_division_updates /
+     │       harem_events / current_issues_update）的消费分散在 tm-endturn-apply.js
+     │       与 applier；按 p1 字段名 grep 定位，别记行号
+     │
+     ├─ step 'systems'              ← tm-endturn-systems.js + tm-endturn-province.js + *-helpers.js
+     │     每省 population/unrest/prosperity；经济 FiscalCascade；角色经济 CharEconomyEngine；
+     │     户籍 HujiEngine；环境 EnvCapacityEngine；科举 advanceKejuByDays；
+     │     权威 AuthorityEngines；腐败 CorruptionEngine
+     │
+     └─ step 'render-and-finalize'  ← tm-endturn-render.js
+           yearlyChronicles.push 摘要 / memorialsLog 归档 / showPostTurnCourtBanner /
+           renderShiji / renderChronicle；GM.turn++；GM.date=getTSText()；autoSave(slot0)
 ```
 
 **调试技巧**：
-- 每阶段卡住：看浏览器 console，搜 `[catch]` `[ai-validator]` `[SaveMigration]`
+- 每 step 卡住：看 console，搜 `[catch]` `[ai-validator]` `[SaveMigration]`；step 级错误看 `ctx.stepLog`
 - AI 返回格式异常：`TM.getLastValidation()` 查最近一次校验
-- 变更应用异常：搜 `applyAITurnChanges` 的 try/catch
+- 变更应用异常：搜 `applyAITurnChanges` 的 try/catch（@ `tm-ai-change-applier.js`）
 
 ---
 
@@ -310,9 +293,9 @@ tm-var-drawers / -ext / -final · 变量抽屉的 3 代版本
 
 ## 9. 新维护者 15 分钟上手路径
 
-1. 打开 `index.html` 看 `<script src=...>` 列表（~161 行），建立文件分层心智（见 §3）
+1. 打开 `index.html` 看 `<script src=...>` 列表（~310 段），建立文件分层心智（见 §3）
 2. 读 `tm-data-model.js` 了解 GM/P 字段大致形状
-3. 读 `tm-game-engine.js` 的 `startGame/enterGame/fullLoadGame`（生命周期入口）
+3. 读生命周期入口（已不在单一文件）：`startGame` @ `tm-patches.js`（补丁覆盖原始定义）、`enterGame` @ `tm-game-loop.js`、`fullLoadGame` @ `tm-save-lifecycle.js`
 4. 打开 `?test=1` 跑 smoke test，看 DA / Schema / Validator 都正常
 5. 浏览器控制台试：`DA.chars.player()` `DA.guoku.money()` `DA.turn.current()`
 6. 读 `tm-endturn.js` 顶 200 行（endTurn 函数的头部，感受结算流程开端）
@@ -322,13 +305,20 @@ tm-var-drawers / -ext / -final · 变量抽屉的 3 代版本
 
 ## 10. 长期演化方向（路线图）
 
-当前架构处于**可维护但增速放缓**的阶段。下一年若要保持可持续开发，建议以下演化：
+当前架构处于**可维护但增速放缓**的阶段。下面区分「已落地」与「仍欠」（2026-06-13 复核）：
 
-1. **2026 Q3**：把 60+ 文件中直接访问 `GM.guoku/officeTree/chars` 的代码逐步迁移到 `DA.*`（不破坏，加标注）
-2. **2026 Q4**：合并 `tm-guoku-p2/p4/p5/p6` 为单文件，用 feature flag 保留历史行为
-3. **2027 Q1**：把 `tm-endturn.js` 的 Phase A-G 显式拆为管道步骤（每步可替换、可测试、可 dry-run）
-4. **2027 Q2**：发布 JSDoc + TypeScript d.ts，生成 API 文档站点
-5. **持续**：每新增 AI 字段必经 `TM_AI_SCHEMA`，每新增数据字段必经 `DA.*`
+**已落地（原路线图项）**
+- ✅ 合并 `tm-guoku-p2/p4/p5/p6` → 现仅存 `tm-guoku-engine.js`（`tm-corruption`/`tm-neitang` 的 p2/p4 后补也已并）
+- ✅ endTurn 拆为显式管道：6 step（`prep/plan-prefetch/ai/post-ai-edict/systems/render-and-finalize`，见 §6），每 step 独立 onError
+- ✅ JSDoc/类型：`@ts-check` 已覆盖 `tm-*.js` 的 **78%**（239/306）
+- ✅ 导航债清零：1500+ 行根文件 TOC 覆盖 **62/62 = 100%**（2026-06-13 一刀补齐；`debt-report.js` 已认 `§字母`/`Module:` 等约定）。各大文件顶部均有「章节导航」块，靠 grep 小节标题跳转、不写行号
+
+**仍欠（按杠杆排序，优先做上面的）**
+1. **DA 门面采用率停滞**：`DA.*` 仅 **205** 次调用 vs `GM.` 裸访问 **15,668** 次。门面建好了却没人用 → 解耦收益没兑现。该按文件分批把热路径 `GM.guoku/officeTree/chars` 迁到 `DA.*`（不破坏、加标注、逐文件验 smoke）。
+2. **巨石文件**：平铺层 `tm-tinyi-v3.js`(6938)/`tm-endturn-apply.js`(5378)/`tm-chaoyi-changchao.js`(5100) 仍是单 IIFE，且有 ~3200 行单函数。按 DEV-GUIDE 小步切，保持 `window.*` 挂载名不变。
+3. **回退项**：`localStorage` 未 try 从 0 涨回 33；空 catch 159。lint 工具已能逐个定位。
+4. **持续**：每新增 AI 字段必经 `TM_AI_SCHEMA`，每新增数据字段优先经 `DA.*`（别再加裸 `GM.` 访问扩大 #1 的债）。
+5. **文件名规范化**：`tm-tinyi-v3.js`/`phase8-formal-*` 等违例改名见 `NAMING-PLAN.md`（搭车整包热更发，别单发）。
 
 ---
 

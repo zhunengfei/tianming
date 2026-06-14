@@ -1,6 +1,6 @@
 # 天命 · 文档索引
 
-> 所有技术文档的一页纸入口。2026-04-24 R79 整合 · R102 路径重组 · 2026-04-25 R150 加 scripts/ 工具链。
+> 所有技术文档的一页纸入口。2026-04-24 R79 整合 · R102 路径重组 · 2026-04-25 R150 加 scripts/ 工具链 · **2026-06-13 数字/导航段刷新**。
 > 目录：`ARCHITECTURE.md`/`INDEX.md` 在根；其余 38 份文档归入 `docs/{design,dev,maps,external,misc}/`；零依赖工具链在 `scripts/`。
 
 ---
@@ -66,19 +66,9 @@
 
 ## 📂 按文件顶部导航
 
-**核心 3 大文件已内嵌导航**（打开文件直接看顶部注释）：
+**2026-06-13 起：所有 ≥1500 行的根文件（62/62 = 100%）顶部都内嵌「章节导航」块**——打开任一大文件直接看头部注释即可定位。靠 grep 小节标题跳转（不写行号，避免随改动腐化）。
 
-| 文件 | 行数 | 导航轮次 |
-|------|------|---------|
-| `tm-endturn-ai-infer.js` | 10,565 | **R147**（5 段：sysP/Sub-call/sc1主推/写回/sc15-27） |
-| `tm-game-engine.js` | 9,043 | R53 |
-| `tm-chaoyi-keju.js` | 9,454 | R54 |
-| `tm-index-world.js` | 8,820 | R78 |
-| `tm-audio-theme.js` | 3,430 | R78 |
-| `tm-dynamic-systems.js` | 2,976 | R78 |
-| `tm-patches.js` | 2,186 | R58（含 6 段切分清单） |
-| `tm-ai-change-applier.js` | 2,091 | **R150**（8 段：路径/白名单/实体/绑定/钩子/机构/applyAITurnChanges/v2 通道） |
-| `tm-endturn.js` | 已拆 | R110 拆为 prep+core+ai-infer 三 |
+> 旧版此处手维护一张「文件→行数→导航轮次」表，已删——它会随每次拆分/增长腐化（曾把拆分前的 `tm-endturn-ai-infer.js (10,565 行)` 等幽灵长期挂着）。**实时清单与 TOC 覆盖率改跑 `web/scripts/debt-report.js`**（「1500+ 行文件 TOC 覆盖」一行 + 「最大代码文件」头条）。文件分层心智见 `ARCHITECTURE.md` §3。
 
 ---
 
