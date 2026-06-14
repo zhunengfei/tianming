@@ -1,5 +1,13 @@
 // @ts-check
 /// <reference path="types.d.ts" />
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   工具函数（最早加载层之一·暴露 TM.errors / TM.safeEval / TM.loyalty / findCharByName 等）
+//   §1 ErrorMonitor   8.6 · R114 降级为 TM.errors 兼容 shim
+//   §2 safeEval       受限表达式求值（替代 new Function 直评）
+//   §3 RNG            确定性随机（seedrandom）· 子种子工厂 · 每回合 RNG 检查点（存档重放）
+//   §4 时间换算       机械系统统一以「月」为基准·运行时按回合时长缩放
+//   §5 其他           NotificationSystem · NpcMemorySystem · loyalty 调整 · _dbg*
+// ─────────────────────────────────────────────
 // ============================================================
 //  工具函数
 // ============================================================

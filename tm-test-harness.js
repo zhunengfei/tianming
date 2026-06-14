@@ -1,5 +1,12 @@
 // @ts-check
 /// <reference path="types.d.ts" />
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   零依赖测试框架（浏览器原生·?test=1 自动跑 / TM.test.run()·暴露 TM.test）
+//   §1 断言       expect assertions
+//   §2 辅助/运行  辅助 helpers · 运行器
+//   §3 smoke      最小 smoke：DA / Schema / Validator
+//   §4 E2E        R109 E2E chain：boot → save → load → 3 turns → exit
+// ─────────────────────────────────────────────
 /* ============================================================
  * tm-test-harness.js — 零依赖测试框架（浏览器原生）
  *

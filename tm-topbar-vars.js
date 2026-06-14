@@ -1,5 +1,12 @@
 // @ts-check
 /// <reference path="types.d.ts" />
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   顶栏·七官方变量显示 + 悬停详情 + 全部变量模态（TOP_BAR_VARS 顺序即显示顺序）
+//   §1 渲染       各变量渲染逻辑 · 主渲染函数
+//   §2 Tooltip    悬停详情：富版（glyph+state pill+stocks+flows+alerts）/ Legacy rows
+//   §3 跳转       点变量 → 详情面板：帑廪/户口/吏治/民心/皇权/皇威（各含子系统）
+//   §4 模态       全部变量模态弹窗
+// ─────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════
 // 顶栏 · 七官方变量显示 + 悬停详情 + 全部变量模态
 // 依赖：GM.guoku / GM.neitang / GM.hukou / GM.corruption / GM.minxin / GM.huangquan / GM.huangwei

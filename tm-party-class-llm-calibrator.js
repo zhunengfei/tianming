@@ -1,4 +1,9 @@
 // @ts-check
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   玩家行为 LLM 校准（剧本特定的党派/阶层动态·暴露 TM.* calibrator）
+//   监听玩家 UI 点击（P.conf.partyClassLlmObserveUiClicks 开关）→ debounce → callAI 校准党派/阶层信号
+//   与 tm-social-political-signals.js（信号账本）配合
+// ─────────────────────────────────────────────
 /*
  * tm-party-class-llm-calibrator.js
  * Player-action LLM calibration for scenario-specific party/class dynamics.

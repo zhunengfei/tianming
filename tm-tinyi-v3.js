@@ -1137,7 +1137,7 @@ function _ty3_actionFlogging(ch, opts) {
   // 廷杖入诏狱可能 +20%·prison 集成 (verified runtime field _imprisoned·非 _inPrison)
   if (Math.random() < 0.20) {
     ch._imprisoned = true;
-    ch._imprisonReason = (opts && opts.reason) || '廷杖致重伤';
+    ch._imprisonReason = (opts && opts.reason) || '廷杖下诏狱·重伤候勘';
     ch._imprisonedTurn = (GM && GM.turn) || 0;
     if (typeof addEB === 'function') addEB('廷议', '廷杖入诏狱：' + ch.name);
   }
@@ -1150,6 +1150,10 @@ function _ty3_actionStrip(ch, opts) {
   ch.loyalty = 0;  // 革除·loyalty 归零
   ch.officialTitle = '';
   ch.title = ''; // 同步·否则廷议革除官职后 `officialTitle||title` 回退仍显示原官职
+  if (Array.isArray(ch.officialTitles)) ch.officialTitles = [];   // 单一真相源:并清兼职数组·否则派生从 officialTitles 回座(革除不彻底致仍在职)
+  ch.concurrentTitle = '';
+  if (Array.isArray(ch.concurrentTitles)) ch.concurrentTitles = [];
+  if (typeof window !== 'undefined' && window._offSyncHoldersFromChars) { try { window._offSyncHoldersFromChars(); } catch (_offSyncE) {} } // 单一真相源:免官/革职传播到官制树·从 char claims 重建 holder 清本人残留座位·否则反向派生(importSeats/tm-patches)按残留 holder 把官职还原(治「免官后官职还在」·2026-06-13)
   // 从 attendees 移除
   if (typeof CY !== 'undefined' && CY._ty3 && Array.isArray(CY._ty3.attendees)) {
     var idx = CY._ty3.attendees.indexOf(ch.name);
@@ -1203,6 +1207,7 @@ function _ty3_actionRevoke(ch, opts) {
   if (Array.isArray(ch.officialTitles)) ch.officialTitles = [];
   ch.concurrentTitle = '';
   if (Array.isArray(ch.concurrentTitles)) ch.concurrentTitles = [];
+  if (typeof window !== 'undefined' && window._offSyncHoldersFromChars) { try { window._offSyncHoldersFromChars(); } catch (_offSyncE) {} } // 单一真相源:免官/革职传播到官制树·从 char claims 重建 holder 清本人残留座位·否则反向派生(importSeats/tm-patches)按残留 holder 把官职还原(治「免官后官职还在」·2026-06-13)
   ch._revoked = { turn: (typeof GM !== 'undefined' && GM.turn) || 0, neverReappoint: true }; // 革职·永不叙用
   if (typeof CY !== 'undefined' && CY._ty3 && Array.isArray(CY._ty3.attendees)) {
     var idx = CY._ty3.attendees.indexOf(ch.name);
@@ -2358,7 +2363,7 @@ function _ty3_baselineDumpAll() {
 }
 
 function _ty3_baselineClearAll() {
-  if (typeof localStorage !== 'undefined') localStorage.removeItem('ty3_baselines');
+  if (typeof localStorage !== 'undefined') { try { localStorage.removeItem('ty3_baselines'); } catch (_) {} }
   console.log('[baseline] localStorage cleared');
 }
 

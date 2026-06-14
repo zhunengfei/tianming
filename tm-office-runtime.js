@@ -1,5 +1,11 @@
 // @ts-check
 /// <reference path="types.d.ts" />
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   官员表游戏内 UI（R132 从 tm-memorials.js 拆出·暴露 OfficeDynastification）
+//   §1 tab 配置   三朝 tab（OFFICE_SUBTABS·通用古制跨朝代适配）
+//   §2 v10 显示   v10 官制显示层 · 渲染部门树 · 快捷切换 · 缩放（_offZoomIn/Out/Reset）
+//   §3 摘要/预警  三栏摘要 · 预警条 · _offOpenZhongtui
+// ─────────────────────────────────────────────
 // ============================================================
 // tm-office-runtime.js — 官员表游戏内 UI (R132 从 tm-memorials.js L3058-end 拆出)
 // 姊妹: tm-memorials.js + tm-wendui.js + tm-office-panel.js + tm-office-editor.js
@@ -535,7 +541,7 @@ function renderOfficeTree(force){
     return;
   }
   // 单一真相源:渲染前从人物 officialTitle 派生官制树任职者(状态未变则跳过)
-  try { if (typeof _offSyncHoldersFromChars === 'function') _offSyncHoldersFromChars({ ifChanged: true }); } catch (_) {}
+  try { if (typeof _offSyncHoldersFromChars === 'function') _offSyncHoldersFromChars((((typeof GM!=="undefined"&&GM.chars)||[]).some(function(c){return c&&c.alive!==false&&c.officialTitle;})?{ force: true }:{ ifChanged: true })); } catch (_) {}
   // v10·初始化默认折叠+分类
   if (typeof _officeInitDefaults === 'function') _officeInitDefaults();
   // 视图模式·v10 默认 tree（预览同）·仅当玩家手动切过才保留其选择
@@ -1653,7 +1659,8 @@ function officeApplyDismissalPressure(root) {
         ch._dismissedTurn = root.turn || 0;
         ch._dismissedReason = 'impeach_lose_' + grade;
         ch.prestige = Math.max(0, (_officeCharStat(ch, 'prestige', 50) || 0) - config.prestige);
-        if (ch.position === item.pos.name || ch.officialTitle === item.pos.name) {
+        var _impVac = (typeof _offVacateCharFromSeat === 'function') && _offVacateCharFromSeat(ch, item.dept && item.dept.name, item.pos.name); // robust 按座撤衔·治弹劾罢黜啰嗦衔清不掉→派生回座 ghost
+        if (!_impVac && (ch.position === item.pos.name || ch.officialTitle === item.pos.name)) {
           ch.position = '';
           ch.officialTitle = '';
           ch.title = ''; // 同步·否则弹劾罢黜后廷议等 `officialTitle||title` 回退仍显示原官职

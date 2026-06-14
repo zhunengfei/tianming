@@ -1,5 +1,13 @@
 // @ts-check
 /// <reference path="types.d.ts" />
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   户口/民心/皇权/皇威 侧边抽屉（纯数据展示·R116a 三代合并）
+//   §v1 基础层   定义 open/close/render*
+//   §v2 Rich     覆盖 render* 为富内容版（原 -ext.js）
+//   §v3 Extra    wrap render* 末尾追加 extra（原 -final.js）
+//   入口集   openHujiDashboard / openMinxinHeatmap / openTianweiInspection / openQianGangInspection /
+//            openMemorialsPanel / openRevoltInterventionPanel / openInstitutionsChronicle 等（grep open*）
+// ─────────────────────────────────────────────
 /**
  * tm-var-drawers.js — 户口/民心/皇权/皇威 侧边抽屉（纯数据展示）
  *

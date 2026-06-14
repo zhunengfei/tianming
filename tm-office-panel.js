@@ -1,5 +1,12 @@
 // @ts-check
 /// <reference path="types.d.ts" />
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   官制选任 + 编年（R124 从 tm-world.js 拆出·姊妹 tm-world.js / tm-memorials.js）
+//   §1 选任       _offPickerFilter / _offPickerConfirm · _offImpeach 弹劾 · _npcAutoAppointVacancies
+//   §2 廷推       _offTingTui · _offShowCareer · 三层统计（编制/缺员/已具名）· 俸禄理论/实际
+//   §3 编年       renderBiannian / processBiannian
+//   §4 结束回合   confirmEndTurn 确认弹窗
+// ─────────────────────────────────────────────
 // ============================================================
 // tm-office-panel.js — 官制选任+编年 (R124 从 tm-world.js L6550-end 拆出)
 // 姊妹: tm-world.js (AI 上下文) + tm-memorials.js (奏疏)
@@ -369,7 +376,9 @@ function _offPickerConfirm(charName, deptName, posName, oldHolder, mode) {
     }
   }
   if (oldChar) {
-    if (typeof _offRemoveCharOfficeTitle === 'function') {
+    var _pnVac = (typeof _offVacateCharFromSeat === 'function') && _offVacateCharFromSeat(oldChar, deptName, posName); // robust 按座撤衔治 ghost
+    if (_pnVac) { /* 已按座撤衔 */ }
+    else if (typeof _offRemoveCharOfficeTitle === 'function') {
       _offRemoveCharOfficeTitle(oldChar, posName);
     } else {
       if (oldChar.officialTitle === posName) { oldChar.officialTitle = ''; oldChar.title = ''; }

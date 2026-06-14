@@ -1,4 +1,9 @@
 // @ts-check
+// ── 章节导航（grep 小节标题跳转，行号会漂）──
+//   标准社会/政治信号账本（阶层·党派·朝堂动态·暴露 SocialPoliticalSignals·MAX_ITEMS=160）
+//   recordChange 记录信号 → 派生趋势/势位 → 供御案社会层地基 helpers 读
+//   与 tm-party-class-llm-calibrator.js（LLM 校准）配合
+// ─────────────────────────────────────────────
 /*
  * tm-social-political-signals.js
  * Standard social/political signal ledger for class, party, and court dynamics.

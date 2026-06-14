@@ -100,13 +100,18 @@
 
   // 高阶差遣/勋衔补充表(officeTree 编制常漏的临时差遣与加衔·关键字→level·resolveRankLevel 末级兜底)。
   //   按通用概念给近似品(剧本可覆盖)；只兜 officeTree 查不到的，正常官职走 officeTree。
+  // 官衔关键字→品级 level(1-18)。补充表·配合「最长关键字匹配」(右副都御史取「副都御史」不被「都御史」截胡)。
+  //   大学士本官正五品(owner 决策:本官+识别加衔·加衔靠拆段取最高·见 _rankFromTitleStr)。
   var SUPPLEMENTARY_OFFICE_RANK = {
-    '太师': 1, '太傅': 1, '太保': 1,
+    '太师': 1, '太傅': 1, '太保': 1, '宗人令': 1, '左宗正': 1, '右宗正': 1,
     '少师': 2, '少傅': 2, '少保': 2,
-    '经略': 3, '督师': 3, '总督': 3, '总制': 3, '都御史': 3,
-    '巡抚': 4, '提督': 4, '总兵': 4, '布政使': 4,
-    '副都御史': 5, '按察使': 5, '参将': 5, '指挥使': 5,
+    '太子太师': 2, '太子太傅': 2, '太子太保': 2, '太子少师': 3, '太子少傅': 3, '太子少保': 3,
+    '尚书': 3, '经略': 3, '督师': 3, '总督': 3, '总制': 3, '都御史': 3, '詹事': 5, '太常寺卿': 5, '大理寺卿': 5,
+    '巡抚': 4, '提督': 4, '总兵': 4, '布政使': 4, '少詹事': 7,
+    '大学士': 9, '学士': 9, '侍郎': 5, '通政使': 5, '副都御史': 5, '佥都御史': 7, '按察使': 5, '参将': 5, '指挥使': 5,
+    '祭酒': 8, '太仆寺卿': 6, '光禄寺卿': 6, '鸿胪寺卿': 7, '苑马寺卿': 6,
     '参政': 6, '游击': 6, '参议': 8, '兵备': 7, '知府': 7,
+    '少卿': 9, '司业': 11, '都给事中': 13, '给事中': 14,
     '同知': 9, '副将': 8, '知州': 10, '通判': 11, '守备': 9,
     '推官': 13, '知县': 13, '县丞': 15, '主簿': 17
   };
@@ -213,9 +218,40 @@
     return Math.round(lo + frac * (hi - lo));
   }
 
-  // 解析角色实际品级 level(1-18)·权威源=officeTree(剧本定义·朝代通用·职位带 rank 品级)。
-  //   ①按 holder 在 officeTree 命中职位→其 rank ②(剥前后缀的)官衔关键字配 officeTree 职位名表
-  //   ③getRankLevel(官衔含品级串) ④存的 rankLevel(1-17 真值·18 是默认堆不认) ⑤末 18。多命中取最高(level 最小)。
+  // 单段官衔→品级 level(officeTree 职位名表 + SUPPLEMENTARY 最长关键字匹配)·去状态/括注·非官名返 99。
+  function _rankOfSeg(seg, nameRank) {
+    seg = String(seg || '').replace(/[（(].*?[)）]/g, '')
+      .replace(/南京|留都|已罢归|已罢|罢归|罢免|罢|致仕|丁忧|守制|待召还|待召|养病|归乡|赋闲|原任|前任|前|署理|署|权|试|赠|追|候起|候简|闲居|闲住/g, '')
+      .replace(/\s/g, '').trim();
+    if (seg.length < 2) return 99;
+    var best = 99, i;
+    for (i = 0; i < nameRank.length; i += 1) {
+      var nr = nameRank[i];
+      if (nr.name && (seg.indexOf(nr.name) >= 0 || nr.name.indexOf(seg) >= 0) && nr.level < best) best = nr.level;
+    }
+    // 最长关键字匹配：右副都御史取「副都御史」(正三品)而非被「都御史」(正二品)截胡
+    var hitKw = '', hitLv = 99, keys = Object.keys(SUPPLEMENTARY_OFFICE_RANK);
+    for (i = 0; i < keys.length; i += 1) {
+      if (seg.indexOf(keys[i]) >= 0 && keys[i].length > hitKw.length) { hitKw = keys[i]; hitLv = SUPPLEMENTARY_OFFICE_RANK[keys[i]]; }
+    }
+    if (hitKw && hitLv < best) best = hitLv;
+    return best;
+  }
+  // 复合官衔串→最高品。按「·兼加」等拆段·逐段取品·跨段取最高(min level)→ 本官+加衔自然合流。
+  function _rankFromTitleStr(raw, nameRank) {
+    if (!raw) return 99;
+    var segs = String(raw).split(/[·、，,；;\/]|兼署|兼理|兼管|兼|加授|加官|加衔|加|带管|协理/);
+    var best = 99;
+    for (var i = 0; i < segs.length; i += 1) {
+      var lv = _rankOfSeg(segs[i], nameRank);
+      if (lv < best) best = lv;
+    }
+    return best;
+  }
+
+  // 解析角色实际品级 level(1-18)·单一真相源=实职官衔串(officialTitle∪title)。
+  //   ① officeTree holder 命中职位→其 rank ② 官衔串拆段·最长匹配 officeTree 名表+SUPPLEMENTARY(本官+加衔取最高)
+  //   ③ 存的 rankLevel(1-17 真值·18 默认堆不认)散阶候选 ④末 18。多源取最高(level 最小)。
   function resolveRankLevel(ch, G) {
     if (!ch) return 18;
     G = G || (typeof GM !== 'undefined' ? GM : null);
@@ -234,20 +270,11 @@
         if (isH && lv < best) best = lv;
       });
     }
-    // 有 officeTree holder(实职)则以其为准·跳过官衔关键字猜测(避免误配)·仅无 holder 时才靠官衔解析。
-    if (best >= 99) {
-      // 官衔关键字配 officeTree 名表。剧本数据乱:官职后常括注「已罢/丁忧/待召」等状态。
-      //   ①先去括注 ②若整体都在括注内则改去括号符保留内容 ③再剥状态词/南京等纯修饰·留官名核心。
-      //   功名=累积资历·不因免职蒸发·故已罢官仍按其官职解析(复出凭据)。
-      var raw = String(ch.officialTitle || ch.title || '');
-      var t = raw.replace(/[（(].*?[)）]/g, '');
-      if (t.replace(/\s/g, '').length < 2) t = raw.replace(/[（()）·、]/g, '');
-      t = t.replace(/南京|留都|已罢归|已罢|罢归|罢免|罢|致仕|丁忧|守制|待召还|待召|养病|归乡|赋闲|原任|前任|兼|署|权|试|加官|赠|追|协理|管理|带管|提督/g, '');
-      if (t) nameRank.forEach(function (nr) { if (nr.name && (t.indexOf(nr.name) >= 0 || nr.name.indexOf(t) >= 0) && nr.level < best) best = nr.level; });
-      if (gRL) { var g2 = gRL(ch.officialTitle || ch.title); if (g2 != null && g2 > 0 && g2 < best) best = g2; }
-      var rawT = String(ch.officialTitle || ch.title || '');
-      Object.keys(SUPPLEMENTARY_OFFICE_RANK).forEach(function (kw) { if (rawT.indexOf(kw) >= 0 && SUPPLEMENTARY_OFFICE_RANK[kw] < best) best = SUPPLEMENTARY_OFFICE_RANK[kw]; });
-    }
+    // 官衔解析（单一真相源·实职复合串 officialTitle∪title 拆段·最长匹配·总参与不依赖 holder）。
+    //   功名=累积资历·不因免职蒸发·故已罢官仍按其官职解析（复出凭据）。officeTree holder 漏掉的（如阁臣）靠此救回。
+    //   合并 officialTitle 与 title：title 常含 officialTitle 缺的兼职（如张瑞图 title 含礼部尚书、officialTitle 不含）。
+    var _t2 = Math.min(_rankFromTitleStr(ch.officialTitle, nameRank), _rankFromTitleStr(ch.title, nameRank));
+    if (_t2 < best) best = _t2;
     // 散阶:ch.rankLevel(累积晋升品级·自动升迁/任免写入·1-17)算候选·取最高(可高于实职=加衔晋阶·自动引擎靠此被认到)
     if (ch.rankLevel != null && ch.rankLevel >= 1 && ch.rankLevel <= 17 && ch.rankLevel < best) best = ch.rankLevel;
     return best < 99 ? best : 18;
@@ -303,6 +330,8 @@
         if (merit < fl - (fl - pf) * 0.5) { ch.rankLevel = Math.min(18, (ch.rankLevel || lv) + 1); demoted.push({ name: ch.name, from: lv, to: lv + 1 }); continue; }
       }
       if (promoted.length >= cap) continue;
+      // 出身天花板：循资自动升迁不得逾出身典型上限(举人/监生/生员/捐纳止步·须特简恩擢方破)
+      if (glob.TMGongming && glob.TMGongming.canReach && !glob.TMGongming.canReach(ch, lv - 1, G)) continue;
       if (calcP) {
         var p = calcP(ch) * mr;
         if (p > 0 && Math.random() < Math.min(0.9, p)) {

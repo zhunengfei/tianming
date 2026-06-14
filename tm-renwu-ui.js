@@ -342,7 +342,7 @@ function _rwRenderCard(c,ctx) {
 
   // 官职行
   var _offRow = '';
-  if (_ch.officialTitle) _offRow += '<span class="rw-pos">'+escHtml(_ch.officialTitle)+'</span>';
+  if (_ch.officialTitle) _offRow += '<span class="rw-pos">'+escHtml((typeof _offFormatCharTitles==='function'?_offFormatCharTitles(_ch,{fallback:_ch.officialTitle}):_ch.officialTitle))+'</span>';
   else if (_ch.title) _offRow += '<span class="rw-pos">'+escHtml(_ch.title)+'</span>';
   else if (_ch.role) _offRow += '<span class="rw-pos" style="color:#d4c9b0;">'+escHtml(_ch.role)+'</span>';
   else if (_ch.occupation) _offRow += '<span class="rw-pos" style="color:#d4c9b0;">'+escHtml(_ch.occupation)+'</span>';
@@ -563,7 +563,7 @@ function viewRenwu(i){
   // 双重身份概览（所有角色通用——公职身份+私人身份）
   (function() {
     // 公职身份
-    var _pubRole = ch.officialTitle || ch.title || '';
+    var _pubRole = (typeof _offFormatCharTitles==='function'?_offFormatCharTitles(ch,{fallback:(ch.officialTitle||ch.title||'')}):(ch.officialTitle||ch.title||''));
     var _pubFaction = ch.faction || '';
     // 判断是否势力领袖
     var _isLeader = false;

@@ -137,6 +137,8 @@ function _offUniqueTitles(list) {
   return out;
 }
 
+// 官职后缀（识别 title 段是否真官职·防吸收描述/状态垃圾）
+var _OFF_TITLE_SUFFIX = /(尚书|侍郎|大学士|学士|都御史|通政使|寺卿|少卿|祭酒|司业|总督|总制|经略|督师|提督|巡抚|总兵|副总兵|参将|游击|布政使|按察使|参政|参议|知府|同知|知州|知县|给事中|詹事|洗马|修撰|编修|检讨|监正|监副|院使|宗人令|宗正|都督|都指挥|指挥使|镇抚|太师|太傅|太保|少师|少傅|少保)/;
 function _offGetCharOfficeTitles(ch) {
   if (!ch) return [];
   var arr = [];
@@ -144,7 +146,27 @@ function _offGetCharOfficeTitles(ch) {
   if (Array.isArray(ch.officialTitles)) arr = arr.concat(ch.officialTitles);
   if (Array.isArray(ch.concurrentTitles)) arr = arr.concat(ch.concurrentTitles);
   if (ch.concurrentTitle) String(ch.concurrentTitle).split(/[、,，;；\s]+/).forEach(function(t){ arr.push(t); });
+  // 补：title 字段里 officialTitle 缺的官职段（剧本完整描述常落 title·治兼职丢高职，如张瑞图 title 含礼部尚书）。
+  //   保留 officialTitle 原项不拆（保状态）；官职后缀过滤防垃圾；跳含罢/致仕等状态段。
+  if (ch.title && ch.title !== ch.officialTitle && !/罢|致仕|削籍|闲住|闲居|告归|乞休|夺职|守制|丁忧/.test(ch.officialTitle || '')) {
+    String(ch.title).split(/[·、，,；;]/).forEach(function(seg){
+      var raw = String(seg || '').trim();
+      if (!raw || /罢|致仕|丁忧|守制|削籍|闲住|闲居|告归|养病|候起|候简|前任|原任/.test(raw)) return;
+      var clean = raw.replace(/[（(].*?[)）]/g, '').replace(/^(前|原|署理?|权|试|兼署?|兼理|兼管|兼|加授?|加衔|加|赠|追|带管|协理)/, '').trim();
+      if (clean.length >= 2 && _OFF_TITLE_SUFFIX.test(clean) && !arr.some(function(x){ return String(x).indexOf(clean) >= 0; })) arr.push(clean);
+    });
+  }
   return _offUniqueTitles(arr);
+}
+
+// 显示用·把某人全部官职(主职⊕兼职)拼为一行供 UI 显示多职(非仅主职)·主兼以「兼」连·兼职间顿号
+// opts.fallback: 无规范官职时兜底文案(默认 '')
+function _offFormatCharTitles(ch, opts) {
+  opts = opts || {};
+  var titles = _offGetCharOfficeTitles(ch);
+  if (!titles.length) return (opts.fallback != null) ? opts.fallback : '';
+  if (titles.length === 1) return titles[0];
+  return titles[0] + '　兼　' + titles.slice(1).join('、');
 }
 
 function _offIsConcurrentAppointment(spec, text) {
@@ -1030,6 +1052,75 @@ var _OFF_DYN_DEPT_LABEL = {
   shuji:'（编制外）枢辅词臣', taijian:'（编制外）台谏风宪', liucao:'（编制外）部院属官', sijian:'（编制外）寺监杂职', xunqi:'（编制外）勋戚加衔'
 };
 
+/** 部门名是否相容(AI 写的 oc.dept vs 树节点名·容忍含/被含) */
+function _offDeptCompatible(deptN, nodeName) {
+  var nn = _offNormalizeTitleName(nodeName);
+  if (!deptN || !nn) return false;
+  return deptN === nn || nn.indexOf(deptN) >= 0 || deptN.indexOf(nn) >= 0;
+}
+
+/**
+ * 把 AI 写的(部门,官职)字符串解析到官制树的正式座位。
+ * 病根:AI 的官衔常啰嗦(如"内阁首辅·建极殿大学士"·而树座名"首辅·建极殿大学士"),
+ *   endturn-apply 旧靠 pos.name===oc.position 精确相等→对不上→旧任职者不让位、新官溢出编制外。
+ * 治本:用与派生同一套评分(_offTitleSlotScore)找最佳座·使任免可靠落到正座。
+ * 返回 {node, pos, score} 或 null(解析不到→视为编制外职·不入正座·此为正确兜底)。
+ */
+function _offResolveSeat(dept, position) {
+  if (typeof GM === 'undefined' || !GM || !Array.isArray(GM.officeTree)) return null;
+  var claim = _offNormalizeTitleName(position);
+  var deptN = _offNormalizeTitleName(dept);
+  if (!claim) return null;
+  var best = null;
+  _offWalkOfficeTree(GM.officeTree, function(n) {
+    if (!n || n._offDynamic) return true;            // 不往动态(编制外)部门解析
+    var dc = _offDeptCompatible(deptN, n.name);
+    (n.positions || []).forEach(function(p) {
+      if (!p || !p.name) return;
+      var s = _offTitleSlotScore(position, n.name, p.name, false);
+      if (deptN) { var s2 = _offTitleSlotScore(deptN + claim, n.name, p.name, false); if (s2 > s) s = s2; }  // 容 AI 只写"尚书"靠 dept 补全
+      if (s < 60 && p.name.indexOf('·') > 0) {        // 容 AI 写简衔(首辅/次辅/右侍郎)命中座名"·"前的衔头
+        var head = _offNormalizeTitleName(String(p.name).split('·')[0]);
+        if (head && (claim === head || (head.indexOf(claim) >= 0 && claim.length >= 2))) s = Math.max(s, 82);
+      }
+      if (s > 0 && deptN) s += dc ? 6 : -30;          // dept 提示:符则微升·不符重罚(防"尚书"跨部门误解析)
+      var vac = Math.max(0, (p.establishedCount || p.headCount || 1) - _offMaterializedCount(p));
+      if (vac > 0 && s > 0) s += 1;                    // 同分优先空座(勿把现任挤去占同名空缺)
+      if (s >= 60 && (!best || s > best.score)) best = { node: n, pos: p, score: s };
+    });
+    return true;
+  });
+  return best;
+}
+
+/**
+ * 把某人从"映射到该座位"的官衔上撤下(robust·治啰嗦官衔旧任职者清不掉的 ghost 病)。
+ * 删除该人所有评分>=阈值映射到此座的衔·重建主/兼职·同步描述性 title(防 137 处 officialTitle||title 回退显旧职)。
+ * 返回是否真撤了衔。
+ */
+function _offVacateCharFromSeat(ch, dept, posName) {
+  if (!ch) return false;
+  var titles = _offGetCharOfficeTitles(ch);
+  if (!titles.length) return false;
+  var deptN = _offNormalizeTitleName(dept);
+  var kept = [], removed = false;
+  titles.forEach(function(t) {
+    var s = _offTitleSlotScore(t, dept, posName, false);
+    if (deptN) { var s2 = _offTitleSlotScore(deptN + _offNormalizeTitleName(t), dept, posName, false); if (s2 > s) s = s2; }
+    if (s >= 60) { removed = true; return; }          // 该衔即此座→撤
+    kept.push(t);
+  });
+  if (!removed) return false;
+  var main = kept[0] || '';
+  ch.officialTitles = _offUniqueTitles(kept);
+  ch.officialTitle = main;
+  ch.concurrentTitles = ch.officialTitles.slice(1);
+  ch.concurrentTitle = ch.concurrentTitles.join('、');
+  ch.position = main;
+  ch.title = main;
+  return true;
+}
+
 /**
  * 从人物 officialTitle 派生官制树任职者(holder/actualHolders)。
  * opts.importSeats: 同时把树既有 holder 回填到缺 officialTitle 的人物(load/init 用)。
@@ -1203,9 +1294,13 @@ if (typeof window !== 'undefined') {
   window._offAddCharOfficeTitle = _offAddCharOfficeTitle;
   window._offRemoveCharOfficeTitle = _offRemoveCharOfficeTitle;
   window._offGetCharOfficeTitles = _offGetCharOfficeTitles;
+  window._offFormatCharTitles = _offFormatCharTitles;
   window._offSyncHoldersFromChars = _offSyncHoldersFromChars;
   window._offTitleSlotScore = _offTitleSlotScore;
   window._offDedupGMChars = _offDedupGMChars;
+  window._offResolveSeat = _offResolveSeat;
+  window._offVacateCharFromSeat = _offVacateCharFromSeat;
+  window._offDeptCompatible = _offDeptCompatible;
 }
 
 // ============================================================
