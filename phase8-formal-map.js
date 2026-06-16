@@ -89,7 +89,7 @@
           '<div class="map-zoom-tools" aria-label="舆图缩放"><button type="button" class="mz-btn" data-map-zoom="1.22" title="放大">+</button><button type="button" class="mz-btn reset" data-map-reset="1" title="复位">◎</button><button type="button" class="mz-btn" data-map-zoom="0.82" title="缩小">−</button></div>' +
           '<div class="ming-map-wash"></div>' +
           '<button type="button" class="renwu-tuzhi-entry" data-tmf-action="renwu" title="人物图志"><img class="renwu-tuzhi-img" src="' + esc(asset('renwu-tuzhi-card-ui.png')) + '" alt="人物图志"></button>' +
-          '<div class="map-tools-dock open" id="map-tools-dock"><button type="button" class="map-tools-toggle" id="map-tools-toggle" data-map-tools-toggle="1" aria-expanded="true"><span>舆图工具</span><span class="map-tools-mode" id="map-tools-mode">势力</span><span class="map-tools-caret">▾</span></button><div class="map-tools-pop" id="map-tools-pop"><div class="map-layer-bar"><button class="map-layer" data-map-mode="mood">民情</button><button class="map-layer" data-map-mode="classPressure">阶层</button><button class="map-layer" data-map-mode="tax">财赋</button><button class="map-layer" data-map-mode="army">军务</button><button class="map-layer" data-map-mode="office">官守</button><button class="map-layer on" data-map-mode="owner">势力</button></div><div class="map-nav-panel"><div class="map-search-row"><span class="map-search-label">检索</span><input id="map-search" class="map-search" list="map-region-list" autocomplete="off" placeholder="地名 / 势力 / 主官"><datalist id="map-region-list"></datalist></div><div id="map-search-results" class="map-search-results"></div></div></div></div>' +
+          '<div class="map-tools-dock open" id="map-tools-dock"><button type="button" class="map-tools-toggle" id="map-tools-toggle" data-map-tools-toggle="1" aria-expanded="true"><span>舆图工具</span><span class="map-tools-mode" id="map-tools-mode">势力</span><span class="map-tools-caret">▾</span></button><div class="map-tools-pop" id="map-tools-pop"><div class="map-layer-bar"><button class="map-layer" data-map-mode="mood">民情</button><button class="map-layer" data-map-mode="classPressure">阶层</button><button class="map-layer" data-map-mode="tax">财赋</button><button class="map-layer" data-map-mode="army">军务</button><button class="map-layer" data-map-mode="office">官守</button><button class="map-layer" data-map-mode="yizheng">役政</button><button class="map-layer on" data-map-mode="owner">势力</button></div><div class="map-nav-panel"><div class="map-search-row"><span class="map-search-label">检索</span><input id="map-search" class="map-search" list="map-region-list" autocomplete="off" placeholder="地名 / 势力 / 主官"><datalist id="map-region-list"></datalist></div><div id="map-search-results" class="map-search-results"></div></div></div></div>' +
           '<div class="map-scale-strip" aria-label="舆图层级"><button type="button" class="map-scale" data-map-scale="realm" aria-pressed="false">天下</button><button type="button" class="map-scale" data-map-scale="region" aria-pressed="true">省道</button><button type="button" class="map-scale" data-map-scale="prefecture" aria-pressed="false">府州</button></div>' +
           '<div class="map-alert-strip"><button type="button" class="map-alert hot" onclick="TMPhase8FormalBridge.openModule(\'memorial\')">待批奏疏</button><button type="button" class="map-alert" onclick="TMPhase8FormalBridge.openPanel(\'issue\')">朝议待核</button><button type="button" class="map-alert ok" onclick="TMPhase8FormalBridge.openPanel(\'finance\')">财赋入库</button></div>' +
           '<div id="tmf-map-legend" class="map-legend tmf-map-legend"></div>' +
@@ -887,7 +887,7 @@
     // 2026-06-11: 数据视图改五档色板（modeScore 动态结算→gradeOf 查档）·旧 heatColor 三档插值
     // 按绝对量着色（实征 0-300 万/驻军 0-25 万）富省恒绿穷省恒红·看不出「该收的收没收上来」。
     var mode = state.mapMode;
-    if (mode === 'tax' || mode === 'mood' || mode === 'army' || mode === 'office' || mode === 'classPressure') {
+    if (mode === 'tax' || mode === 'mood' || mode === 'army' || mode === 'office' || mode === 'classPressure' || mode === 'yizheng') {
       var g = gradeOf(mode, modeScore(r, mode));
       if (g) return g.color;
     }
@@ -958,15 +958,6 @@
     var name = cleanDisplayValue(raw);
     if (!name || name === '已记录') name = String(raw || '未记势力');
     return name.replace(/朝廷$/g, '').replace(/^大明帝国$/g, '大明');
-  }
-
-  function realmFactionSub(g){
-    if (!g) return '势力范围';
-    var live = null;
-    try { live = bestLiveFaction(g.key, { name: g.name }); } catch (_) { live = null; }
-    var stance = cleanDisplayValue(live && (live.stance || live.diplomacy || live.posture || live.type));
-    if (stance && stance !== '已记录' && stance !== realmFactionName(g)) return stance + ' · ' + (g.n || 0) + '地';
-    return (g.n || 0) + '地 · 势力范围';
   }
 
   function realmLabelRotation(seed){
@@ -1042,7 +1033,8 @@
       tax:'按财赋压力着色',
       mood:'按民情冷暖着色',
       army:'按军务态势着色',
-      office:'按官守治理着色'
+      office:'按官守治理着色',
+      yizheng:'按役政轻重着色（役负率·抛荒）'
     })[state.mapMode || 'owner'] || '按势力归属着色';
   }
 
@@ -1257,7 +1249,7 @@
 
   function mapModeTitle(){
     if (state.mapMode === 'classPressure') return '阶层';
-    return ({ owner:'势力', tax:'财赋', mood:'民情', army:'军务', office:'官守' })[state.mapMode] || '势力';
+    return ({ owner:'势力', tax:'财赋', mood:'民情', army:'军务', office:'官守', yizheng:'役政' })[state.mapMode] || '势力';
   }
 
   function applyMapTransform(){
@@ -1346,6 +1338,13 @@
       if (cp.count <= 0 && !(Number(cp.score) > 0)) return ['阶层账本于此地无近压。', 'an'];
       return ['阶层压力 ' + ppValue(cp.score) + (cp.classNames.length ? '——牵动 ' + cp.classNames.join('、') : '') + '。', Number(cp.score) >= 50 ? 'wei' : ''];
     }
+    if (mode === 'yizheng') {
+      if (!isFinite(n)) return ['役政无册可稽（未行人力之政）。', ''];
+      if (n >= 55) return ['役负 ' + n + '——苛役之地，丁多逃隐，田将抛荒。', 'wei'];
+      if (n >= 35) return ['役负 ' + n + '——徭役偏重，宜蠲减或募役折银。', 'wei'];
+      if (n >= 20) return ['役负 ' + n + '——尚在可支之间。', ''];
+      return ['役负 ' + n + '——轻徭薄赋，民得安耕。', 'an'];
+    }
     return ['', ''];
   }
   function mapTipHtml(r){
@@ -1390,6 +1389,13 @@
       rows = _tipRow('压力', cp.score, Number(cp.score) >= 50 ? 'zhu' : '') +
         _tipRow('牵动', cp.classNames.join('、')) +
         _tipRow('近因', cp.reason);
+    } else if (mode === 'yizheng') {
+      var GMv = (typeof GM !== 'undefined' && GM) ? GM : ((typeof window !== 'undefined' && window.GM) ? window.GM : null);
+      var rgv = (GMv && GMv.renli && GMv.renli.byRegion) ? (GMv.renli.byRegion[(r && (r.id || r.regionId || r.name)) || ''] || (r && r.name ? GMv.renli.byRegion[r.name] : null)) : null;
+      rows = _tipRow('役负', grade ? grade.mark + ' · ' + (isFinite(Number(score)) ? Number(score) + '%' : '—') : score, gradeIsWarn(mode, grade) ? 'zhu' : '') +
+        _tipRow('抛荒', rgv && hasDisplayValue(rgv.fallowLand) && Number(rgv.fallowLand) > 0 ? ppValue(rgv.fallowLand) + ' 亩' : '') +
+        _tipRow('逃户', b.pop.fugitives, 'zhu') +
+        _tipRow('地力', rgv && hasDisplayValue(rgv.soil) ? ppValue(rgv.soil) : '');
     }
     return '<b>' + esc(regionTitle(r)) + '</b><span class="tip-owner">' + esc(ownerName(r) || '') + '</span>' +
       '<div class="tip-body">' + rows + '</div>' +
@@ -1588,11 +1594,6 @@
     }).join('') + '</div>';
   }
 
-  function closeMapDossier(){
-    var old = document.getElementById('tmf-map-dossier');
-    if (old) old.remove();
-  }
-
   var MAP_MODE_META = {
     overview: { title: '地块总览', mark: '览', note: '汇总地形、户口、财赋、军务、官守与势力归属，作为点击地块后的默认档案。' },
     owner: { title: '势力归属', mark: '势', note: '显示当前控制者、法理归属和所属势力，用来判断此地听命于谁。' },
@@ -1636,15 +1637,6 @@
 
   function pctValueIfPresent(v){
     return hasDisplayValue(v) ? pctValue(v) : '';
-  }
-
-  function objectValue(o, keys){
-    if (!o || typeof o !== 'object') return '';
-    for (var i = 0; i < keys.length; i += 1) {
-      var v = o[keys[i]];
-      if (v !== undefined && v !== null && v !== '') return v;
-    }
-    return '';
   }
 
   function splitFieldWords(raw){
@@ -2341,18 +2333,6 @@
     return [label, ownerName(r)].filter(Boolean).join(' · ');
   }
 
-  function regionIdentity(r){
-    var b = regionBundle(r);
-    return [
-      ['层级', firstValue(b.data.level, b.data.regionType, r && r.level, r && r.type)],
-      ['主官', firstValue(b.data.governor, b.data.official, r && r.governor, r && r.official)],
-      ['治所', firstValue(b.data.capital, r && r.capital)],
-      ['地势', firstValue(b.data.terrain, r && r.terrain)],
-      ['资源', firstValue(b.data.specialResources, r && r.resources)],
-      ['法理', firstValue(b.data.dejureOwner, ownerName(r))]
-    ];
-  }
-
   // ── 四视图计分（2026-06-11 重构）──────────────────────────────────
   // 从 regionBundle 运行时字段动态结算·替代旧粗算（旧版军务直接拿驻军数当 0-100 分用、
   // 官守是 100-corruption 但 riskClass 不反转致清廉显红）。每项可缺省、文本档位词可解析。
@@ -2468,13 +2448,28 @@
     var floor = (isFinite(actual) && actual > 0) ? 1 : 0;
     return Math.max(floor, Math.min(100, Math.round(score)));
   }
+  function yizhengViewScore(r){
+    // 役政视图读数（人力/徭役层·R7-a）：役负率为主·抛荒率取大者→0-100；无 renli 账(未跑回合/未种子默认0)→null 灰
+    var GMx = (typeof GM !== 'undefined' && GM) ? GM : ((typeof window !== 'undefined' && window.GM) ? window.GM : null);
+    if (!GMx || !GMx.renli || !GMx.renli.byRegion) return null;
+    var br = GMx.renli.byRegion;
+    var rg = br[(r && (r.id || r.regionId || r.name)) || ''] || (r && r.name ? br[r.name] : null);
+    if (!rg) return null;
+    var corvee = Number(rg.corveeRate);
+    var fallowShare = 0, cult = Number(rg.cultivatedLand), fallow = Number(rg.fallowLand);
+    if (isFinite(cult) && isFinite(fallow) && (cult + fallow) > 0) fallowShare = fallow / (cult + fallow);
+    if (!isFinite(corvee) && !(fallowShare > 0)) return null;
+    var score = Math.max(isFinite(corvee) ? corvee * 100 : 0, fallowShare * 100);
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }
   // 五档色板（深色舆图底·对比≥3:1·档字供哨牌/图例·色不孤行）
   var GRADE_BANDS = {
     mood:   { inverse: true,  bands: [[0,35,'#8c2f26','危'],[35,50,'#a85a3a','忧'],[50,65,'#a8833a','平'],[65,80,'#7d9183','安'],[80,101,'#557f6f','乐']], nullColor:'#5a6258', nullMark:'—' },
     army:   { inverse: false, bands: [[0,40,'#66796d','靖'],[40,60,'#a8833a','备'],[60,80,'#a85a3a','警'],[80,101,'#8c2f26','急']], nullColor:'#5a6258', nullMark:'—' },
     office: { inverse: false, bands: [[0,40,'#557f6f','清'],[40,60,'#a8833a','中'],[60,80,'#9d5b4b','浊'],[80,101,'#7a2018','蠹']], nullColor:'#5a6258', nullMark:'—' },
     tax:    { inverse: true,  bands: [[0,50,'#6e4a2a','欠'],[50,70,'#93702f','薄'],[70,85,'#b8923f','中'],[85,101,'#d8b96a','足']], nullColor:'#5a6258', nullMark:'免' },
-    classPressure: { inverse: false, bands: [[0,25,'#557f6f','缓'],[25,50,'#a8833a','起'],[50,75,'#a85a3a','压'],[75,101,'#8c2f26','激']], nullColor:'#5a6258', nullMark:'—' }
+    classPressure: { inverse: false, bands: [[0,25,'#557f6f','缓'],[25,50,'#a8833a','起'],[50,75,'#a85a3a','压'],[75,101,'#8c2f26','激']], nullColor:'#5a6258', nullMark:'—' },
+    yizheng: { inverse: false, bands: [[0,20,'#557f6f','轻'],[20,35,'#a8833a','中'],[35,55,'#a85a3a','重'],[55,101,'#8c2f26','苛']], nullColor:'#5a6258', nullMark:'—' }
   };
   function gradeOf(mode, score){
     var g = GRADE_BANDS[mode];
@@ -2498,6 +2493,7 @@
     if (mode === 'tax') { var t = taxViewScore(r); return t === null ? '' : t; }
     if (mode === 'army') return armyViewScore(r);
     if (mode === 'office') return officeViewScore(r);
+    if (mode === 'yizheng') return yizhengViewScore(r);
     if (mode === 'owner') return ownerName(r) ? 80 : 50;
     return 60;
   }
@@ -2513,10 +2509,6 @@
     if (n >= 66) return 'risk-high';
     if (n >= 38) return 'risk-mid';
     return 'risk-low';
-  }
-
-  function anyDisplayValue(values){
-    return values.some(hasDisplayValue);
   }
 
   function ppTagNames(tags){
@@ -3029,14 +3021,43 @@
       ((b.liveDivision && typeof window.openDivisionDetail === 'function') ? '<button type="button" class="bk-act" data-bk-ledger="' + attr(firstValue(b.liveDivision.id, b.liveDivision.name, '')) + '">地 方 账 本</button>' : '') +
       '</div>';
     // 卷与检签同源：空卷不渲染、签也不挂（不留点了不动的死签）
+    // 役政志（人力/徭役/农政层·R7-c）——仅已行役政（已种子）地域渲染·未种子不挂此卷
+    var yizheng = '';
+    (function(){
+      var ld = (typeof findLiveAdminDivision === 'function') ? findLiveAdminDivision(r) : (b.liveDivision || null);
+      if (!ld || !ld.renliSeed) return;
+      var GMr = (window.GM && GM.renli && GM.renli.byRegion) ? GM.renli.byRegion : null;
+      var rid = String(r.id || r.name || '');
+      var rg = GMr ? (GMr[rid] || (r.name ? GMr[r.name] : null)) : null;
+      var pd = ld.populationDetail || null;
+      var alloc = pd && pd.alloc ? pd.alloc : null;
+      var pol = rg && rg.levyPolicy ? rg.levyPolicy : null;
+      yizheng = bkLan([
+        bkRow('役负率', rg && hasDisplayValue(rg.corveeRate) ? Math.round(Number(rg.corveeRate) * 100) + '%' : '', (rg && Number(rg.corveeRate) > 0.35) ? 'zhu' : ''),
+        bkRow('地力', rg ? rg.soil : ''),
+        bkRow('水利', rg ? rg.waterworks : ''),
+        bkRow('在耕田亩', rg ? rg.cultivatedLand : ''),
+        bkRow('抛荒田亩', rg ? rg.fallowLand : '', 'zhu'),
+        bkRow('本回合粮产', rg ? rg.grainOutput : '', 'jin'),
+        bkRow('缺粮', rg ? rg.foodDeficit : '', 'zhu'),
+        alloc ? bkRow('丁分配', '务农 ' + ppValue(alloc.farm) + ' · 应役 ' + ppValue(alloc.corvee) + ' · 应征 ' + ppValue(alloc.draft) + ' · 优免 ' + ppValue(alloc.exempt)) : '',
+        pd ? bkRow('册载丁', pd.registeredDing) : '',
+        pd ? bkRow('优免丁', pd.exemptDing, 'zhu') : '',
+        pd ? bkRow('诡寄丁', pd.commendedDing, 'zhu') : '',
+        bkRow('逃户', b.pop.fugitives, 'zhu', 'fugitive'),
+        bkRow('隐户', b.pop.hiddenCount, 'zhu', 'hidden'),
+        pol ? bkRow('现行则例', String(pol.strength || 'normal') + (Number(pol.remitTurns) > 0 ? ' · 蠲免余 ' + pol.remitTurns + ' 回合' : '')) : ''
+      ], true);
+    })();
     var juans = [
       ['bk-hukou', '一', '户口志', '黄册口算', '户', hukou],
-      ['bk-caifu', '二', '财赋志', '岁入库藏', '赋', caifu],
-      ['bk-junbei', '三', '军备志', '戎政边防', '军', junbei],
-      ['bk-zhiguan', '四', '职官志', '官守治理', '官', zhiguan],
-      ['bk-fengwu', '五', '风物志', '物产设施', '物', fengwu],
-      ['bk-yingzao', '六', '营造志', '已建之业 · 工役', '营', yingzao],
-      ['bk-zhuangkuang', '七', '状态', '奇观灾异风云圣裁', '况', zhuangkuang]
+      ['bk-yizheng', '二', '役政志', '徭役农政 · 丁田', '役', yizheng],
+      ['bk-caifu', '三', '财赋志', '岁入库藏', '赋', caifu],
+      ['bk-junbei', '四', '军备志', '戎政边防', '军', junbei],
+      ['bk-zhiguan', '五', '职官志', '官守治理', '官', zhiguan],
+      ['bk-fengwu', '六', '风物志', '物产设施', '物', fengwu],
+      ['bk-yingzao', '七', '营造志', '已建之业 · 工役', '营', yingzao],
+      ['bk-zhuangkuang', '八', '状态', '奇观灾异风云圣裁', '况', zhuangkuang]
     ];
     var live = juans.filter(function(j){ return !!j[5]; });
     return bkSpine(regionTitle(r) + ' · 方志') +

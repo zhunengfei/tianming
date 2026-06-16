@@ -23,6 +23,8 @@ ok(/function moodViewScore\(/.test(SRC), '源码含 moodViewScore');
 ok(/function armyViewScore\(/.test(SRC), '源码含 armyViewScore');
 ok(/function officeViewScore\(/.test(SRC), '源码含 officeViewScore');
 ok(/function taxViewScore\(/.test(SRC), '源码含 taxViewScore');
+ok(/function yizhengViewScore\(/.test(SRC), '源码含 yizhengViewScore（R7-a 役政视图）');
+ok(/mode === 'yizheng'/.test(SRC), '役政 mode 接入 regionColor/modeScore dispatcher');
 ok(/modeScore\(r, _sentinelMode\)/.test(SRC), '哨牌值进 dirty 签名（防档内变分不重渲）');
 ok(/tmf-sentinel-layer/.test(SRC), '哨牌层挂进 renderFormalMap');
 ok(/mapTipHtml\(r\)/.test(SRC), '签注接 hover tick');
@@ -71,6 +73,10 @@ ok(run("gradeOf('tax', null).mark") === '免', 'tax null → 免（军镇免科�
 ok(run("gradeOf('army', 95).mark") === '急', 'army 95 → 急');
 ok(run("gradeOf('office', 74).mark") === '浊', 'office 74 → 浊');
 ok(run("gradeOf('office', 86).color") === '#7a2018', 'office 86 → 蠹色');
+ok(run("gradeOf('yizheng', 12).mark") === '轻', 'yizheng 12 → 轻（轻徭）');
+ok(run("gradeOf('yizheng', 30).mark") === '中', 'yizheng 30 → 中');
+ok(run("gradeOf('yizheng', 45).mark") === '重', 'yizheng 45 → 重');
+ok(run("gradeOf('yizheng', 70).mark") === '苛', 'yizheng 70 → 苛（苛役）');
 
 // gradeIsWarn：反向(民情/财赋)低档警·正向(军务/官守)高档警
 ok(run("gradeIsWarn('mood', gradeOf('mood', 46))") === true, 'mood 46 忧档 → 警');
@@ -78,6 +84,8 @@ ok(run("gradeIsWarn('mood', gradeOf('mood', 70))") === false, 'mood 70 安档 �
 ok(run("gradeIsWarn('army', gradeOf('army', 72))") === true, 'army 72 警档 → 警');
 ok(run("gradeIsWarn('army', gradeOf('army', 30))") === false, 'army 30 靖档 → 不警');
 ok(run("gradeIsWarn('tax', gradeOf('tax', null))") === false, 'tax 免科 → 不警');
+ok(run("gradeIsWarn('yizheng', gradeOf('yizheng', 45))") === true, 'yizheng 45 重档 → 警（正向·高档警）');
+ok(run("gradeIsWarn('yizheng', gradeOf('yizheng', 12))") === false, 'yizheng 12 轻档 → 不警');
 
 console.log('\n[smoke-map-view-scores] ' + (failed === 0 ? 'PASS' : 'FAIL') + ' — ' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed === 0 ? 0 : 1);
