@@ -1233,9 +1233,9 @@
     var rows = regions.filter(function(r){
       return !query || regionSearchText(r).toLowerCase().indexOf(query) >= 0;
     }).slice(0, 6);
-    host.innerHTML = rows.map(function(r){
+    host.innerHTML = rows.length ? rows.map(function(r){
       return '<button type="button" data-region-id="' + attr(r.id || r.name || r.title || '') + '" onclick="TMPhase8FormalBridge.focusRegion(\'' + attr(r.id || r.name || r.title || '') + '\')"><b>' + esc(r.title || r.name || r.officialName || '未名地块') + '</b><span>' + esc(ownerName(r)) + '</span></button>';
-    }).join('');
+    }).join('') : '<div class="tmf-map-search-empty" style="padding:8px 10px;color:#9c8b6b;font-size:12.5px">' + (query ? '无匹配地块' : '输入地名以检索') + '</div>';
   }
 
   function focusRegion(id, open){

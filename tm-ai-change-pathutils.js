@@ -442,6 +442,8 @@
       var keys = String(path).split('.');
       var cur = obj;
       for (var i = 0; i < keys.length - 1; i++) {
+        // 防御:数组上用非数字键 autovivify 会写幽灵属性(arr['名字']·真元素不动·静默失败)→拒绝建路径。
+        if (Array.isArray(cur) && !/^\d+$/.test(keys[i])) return { ok: false, path: path, reason: 'array-non-numeric-key:' + keys[i] };
         if (cur[keys[i]] === undefined) cur[keys[i]] = {};
         cur = cur[keys[i]];
       }
@@ -484,6 +486,8 @@
       var keys = String(path).split('.');
       var cur = obj;
       for (var i = 0; i < keys.length - 1; i++) {
+        // 防御:数组上用非数字键 autovivify 会写幽灵属性(arr['名字']·真元素不动·静默失败)→拒绝建路径。
+        if (Array.isArray(cur) && !/^\d+$/.test(keys[i])) return { ok: false, path: path, reason: 'array-non-numeric-key:' + keys[i] };
         if (cur[keys[i]] === undefined) cur[keys[i]] = {};
         cur = cur[keys[i]];
       }

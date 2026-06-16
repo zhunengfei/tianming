@@ -259,6 +259,9 @@
     }));
   }
 
+  /* 编年 active 行 type 英文枚举→中文(原 changchao_pending/scheme/project 等英文当 chip 显示且致中文筛选失配·category 优先·镜像永久编年 c.category||c.type 范式) */
+  var CHRONICLE_TYPE_CN={keju:'科举',edict:'诏令',scheme:'阴谋',project:'工程',pending_memorial:'奏疏留中',faction_treaty:'势力约期',npc_action:'长期行动',tingyi_pending:'廷议待落实',chaoyi_pending:'朝议待执行',changchao_pending:'常朝待落实',dynasty_event:'朝代大事',other:'长期事势'};
+  function _chronicleTypeCN(t){return (t&&t.category)||(t&&CHRONICLE_TYPE_CN[t.type])||(t&&t.type)||'长期事势';}
   function formalBiannianActiveRows(){
     var gm = window.GM || {};
     var rows = [];
@@ -271,13 +274,13 @@
             kind: 'biannian-active',
             turn: Number(t.startTurn || t.turn || 0),
             date: formalRecordDate(t, t.startTurn || t.turn),
-            type: t.type || '长期事势',
+            type: _chronicleTypeCN(t),
             title: t.title || t.name || '长期事势',
             text: t.narrative || t.content || t.desc || '',
             actor: t.actor || t.owner || '',
             status: t.currentStage || t.stage || t.status || '推进中',
             progress: Math.max(0, Math.min(100, Number(t.progress || t.progressPercent || 0) || 0)),
-            tags: [t.type || '长期事势'],
+            tags: [_chronicleTypeCN(t)],
             source: '编年',
             seal: '势'
           };

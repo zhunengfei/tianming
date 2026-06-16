@@ -224,6 +224,7 @@
     central_local_actions: { type: 'array', desc: '央地财政结构化动作（下拨/强征/监察/调整起运存留），经 EdictParser 政务桥落账', consumedBy: ['ai-change-applier:structured-policy'] },
     environment_actions: { type: 'array', desc: '环境承载结构化动作（禁伐/疏浚/复耕/休耕/开荒），经 EdictParser 政务桥落账', consumedBy: ['ai-change-applier:structured-policy'] },
     institution_changes: { type: 'array', desc: '制度/官制结构化动作（设司置院等），经 EdictParser 官制桥落账', consumedBy: ['ai-change-applier:structured-policy'] },
+    reform_effects: { type: 'array', desc: '改革力度（确定性改革引擎用·{type,complianceDelta?,rateDelta?,corruptionDelta?}）·prompt 已声明·applier 已消费', consumedBy: ['ai-change-applier:3081'] },
     region_updates:     { type: 'array', desc: '地区数据增量' },
     project_updates:    { type: 'array', desc: '工程项目进度' },
     edict_feedback:     { type: 'array', desc: '诏令/裁断执行回报', consumedBy: ['endturn:9514'] },

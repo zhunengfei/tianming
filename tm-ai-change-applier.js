@@ -1045,7 +1045,7 @@
           ch.resources.privateWealth.money = (ch.resources.privateWealth.money||0) + Math.round((la.amount||0) * 0.6);
         }
       }
-      if (global.addEB) global.addEB('地方', (div.name||la.region) + '·' + (div.governor||'地方官') + ' ' + la.type + ' ' + (la.amount||0) + (la.reason?' (' + la.reason + ')':''));
+      if (global.addEB) global.addEB('地方', (div.name||la.region) + '·' + (div.governor||'地方官') + ' ' + ({disaster_relief:'赈灾',public_works_water:'修水利',public_works_road:'修路',education:'兴学',granary_stockpile:'平籴备荒',military_prep:'备边',charity_local:'恤民',illicit:'中饱私囊',supernatural_disaster_relief:'禳灾'}[la.type]||la.type) + ' ' + (la.amount||0) + (la.reason?' (' + la.reason + ')':''));
       G._turnReport.push({ type:'localAction', region:la.region, actionType:la.type, amount:la.amount, reason:la.reason, turn:G.turn||0 });
 
       // ── 地方官治理 → 风闻录事 + 主官记忆 ───────────────────
@@ -3128,7 +3128,7 @@
         return;
       }
       G._turnReport.push({ type: 'fiscal_reform_reconciled', reform: fr.type, detail: detail, turn: G.turn || 0 });
-      if (typeof global.addEB === 'function') global.addEB('财政改革', fr.type + '·已确定性落账（P-VWF 对账层·必生效）');
+      if (typeof global.addEB === 'function') global.addEB('财政改革', ({anticorruption:'肃贪',landsurvey:'丈田',saltreform:'盐政改革',openmaritime:'开海通商',encouragefarming:'劝农'}[fr.type]||fr.type) + '·已确定性落账·必生效');
     });
   }
   global._reconcilePlayerFiscalReforms = _reconcilePlayerFiscalReforms;

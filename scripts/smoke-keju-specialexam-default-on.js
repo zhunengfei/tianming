@@ -70,4 +70,11 @@ gate('tm-keju-tongzi.js',        'function _isG5Enabled() {', 'useNewKejuG5');
   });
 }
 
+// D1 门生/清议默认开（2026-06-15·spawn 有冷却·不刷屏·与特科同 !== false 范式）
+['tm-keju-cohort-meet.js', 'tm-keju-disciple-graph.js', 'tm-keju-disciple-memorial.js', 'tm-keju-yanguan-attribution.js', 'tm-keju-yanguan-qingyi.js'].forEach(function(f){
+  const s = fs.readFileSync(path.join(ROOT, f), 'utf8');
+  assert(s.indexOf('P.conf.useNewKejuD1 !== false') >= 0, f + ' D1 闸门走 !== false（门生默认开）');
+  assert(s.indexOf('P.conf.useNewKejuD1 === true') < 0, f + ' D1 旧 === true 已清');
+});
+
 console.log('PASS smoke-keju-specialexam-default-on · ' + passed + ' 断言');

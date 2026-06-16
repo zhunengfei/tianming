@@ -457,7 +457,7 @@
         }
       }
       if (change.morale_delta || change.morale != null) {
-        var oldM = army.morale == null ? 50 : Number(army.morale);
+        var oldM = army.morale == null ? 60 : Number(army.morale);
         army.morale = change.morale != null ? _clampNum(change.morale, 0, 100) : _clampNum(oldM + Number(change.morale_delta || 0), 0, 100);
         if (typeof opts.recordChange === 'function') opts.recordChange('military', army.name || name, 'morale', oldM, army.morale, reason);
         changed = true;
@@ -621,7 +621,7 @@
     _syncArmyCommanderAliases(army, '', formerName || '');
     army.commanderTitle = '';
     army.commanderAlive = false;
-    if (opts.moraleHit) army.morale = Math.max(0, (Number(army.morale) || 50) - opts.moraleHit);
+    if (opts.moraleHit) army.morale = Math.max(0, (army.morale != null ? Number(army.morale) : 60) - opts.moraleHit);
     if (opts.markLost) { army._commanderLost = true; army._commanderLostTurn = (global.GM && global.GM.turn) || 0; }
     if (opts.eb && typeof global.addEB === 'function') {
       global.addEB('军事', String(opts.eb).replace('{army}', army.name || '某军').replace('{name}', formerName || ''));

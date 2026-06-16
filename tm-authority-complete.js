@@ -1042,18 +1042,23 @@
     var G = global.GM;
     var mx = G.minxin;
     if (!mx) return;
+    // 防御:mx 存在但 trueIndex 缺失/非有限(legacy {value} 形态或 normalize 未先跑)→各乘子灌 NaN，
+    // 可静默污染 _conscriptEffMult/_reformToleranceMult 等。用安全访问器兜底(同 AuthorityEngines.getMinxinValue 语义)。
+    var _ti = (typeof mx.trueIndex === 'number' && isFinite(mx.trueIndex)) ? mx.trueIndex
+      : ((global.AuthorityEngines && typeof global.AuthorityEngines.getMinxinValue === 'function') ? Number(global.AuthorityEngines.getMinxinValue()) : 60);
+    if (!isFinite(_ti)) _ti = 60;
     // 征税效率
-    var taxEff = 0.5 + (mx.trueIndex / 100) * 0.7;
+    var taxEff = 0.5 + (_ti / 100) * 0.7;
     G._taxEfficiencyMult = taxEff;
     // 征兵效率
-    var conscriptEff = Math.max(0.3, mx.trueIndex / 80);
+    var conscriptEff = Math.max(0.3, _ti / 80);
     G._conscriptEffMult = conscriptEff;
     if (G.population && G.population.military) {
       G.population.military._conscriptEfficiency = conscriptEff;
     }
     // 逃亡率
-    if (mx.trueIndex < 35 && G.population) {
-      var fugIncrease = Math.round(G.population.national.mouths * (0.035 - mx.trueIndex / 1000) * 0.001 * mr);
+    if (_ti < 35 && G.population) {
+      var fugIncrease = Math.round(((G.population.national && G.population.national.mouths) || 0) * (0.035 - _ti / 1000) * 0.001 * mr);
       G.population.fugitives = (G.population.fugitives || 0) + Math.max(0, fugIncrease);
     }
     // 地方叛附倾向
@@ -1072,7 +1077,7 @@
       G._scholarRecruitmentMult = 0.7;
     }
     // 改革容忍度
-    G._reformToleranceMult = Math.max(0.5, Math.min(1.5, mx.trueIndex / 60));
+    G._reformToleranceMult = Math.max(0.5, Math.min(1.5, _ti / 60));
   }
 
   // ═══════════════════════════════════════════════════════════════════

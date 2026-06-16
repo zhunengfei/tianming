@@ -333,9 +333,9 @@
   function renderMemorialModule(){
     var mems = getMemorials();
     var selected = mems[0] || {};
-    var left = '<h3>奏疏待览</h3><div class="tmf-module-scroll">' + mems.map(function(x){
-      return '<article class="tmf-module-item"><b>' + esc(x.title) + '</b><span>' + esc(x.from) + ' · ' + esc(x.dept) + ' · ' + esc(x.status) + '</span></article>';
-    }).join('') + '</div>';
+    var left = '<h3>奏疏待览</h3><div class="tmf-module-scroll">' + (mems.length ? mems.map(function(x){
+      return '<article class="tmf-module-item"><b>' + esc(x.title) + '</b><span>' + esc(x.from) + ' · ' + esc(x.dept) + ' · ' + esc(({pending:'待批',pending_review:'待覆核',approved:'已准',rejected:'已驳',referred:'已转',hold:'留中'}[x.status]||x.status)) + '</span></article>';
+    }).join('') : '<p class="tmf-module-note">暂无待批奏疏。</p>') + '</div>';
     var main = '<h3>' + esc(selected.title || '暂无奏疏') + '</h3><div class="tmf-prose">' + esc(selected.text || '暂无正文。') + '</div>' +
       '<div class="tmf-module-actions"><button data-module-action="toast" data-text="已朱批准行">朱批准行</button><button data-module-action="toast" data-text="已留中">留中</button><button data-module-action="panel" data-slot="issue">转朝议</button></div>';
     var right = '<h3>批阅链路</h3>' + miniRows([['来源','奏疏 / 议题 / 近事'],['批复','准行、驳回、留中、转议'],['影响','变量、人物记忆、史官档案'],['待批', mems.length + ' 件']]);
@@ -346,7 +346,7 @@
     var people = getPeople().slice(0, 18);
     var letters = getLetters();
     var left = '<h3>收发簿</h3><div class="tmf-module-scroll">' + (letters.length ? letters.map(function(x){
-      return '<article class="tmf-module-item"><b>' + esc(x.title) + '</b><span>' + esc(x.from) + ' → ' + esc(x.to) + ' · ' + esc(x.status) + '</span><p>' + esc(x.text || '') + '</p></article>';
+      return '<article class="tmf-module-item"><b>' + esc(x.title) + '</b><span>' + esc(x.from) + ' → ' + esc(x.to) + ' · ' + esc(({pending:'待批',pending_review:'待覆核',unread:'未阅',sent:'已发',draft:'草稿'}[x.status]||x.status)) + '</span><p>' + esc(x.text || '') + '</p></article>';
     }).join('') : '<p class="tmf-module-note">暂无来信。可从右侧选择人物拟信。</p>') + '</div>';
     var main = '<h3>拟写书信</h3><div class="tmf-letter-editor"><input value="密谕" aria-label="书信题名"><textarea aria-label="书信正文">卿在外任，凡地方灾伤、军饷、民情，务须据实具奏，不得粉饰。</textarea></div>' +
       '<div class="tmf-module-actions"><button data-module-action="toast" data-text="已入鸿雁待发">入鸿雁待发</button><button data-module-action="toast" data-text="已存为草稿">存为草稿</button></div>';
@@ -363,9 +363,9 @@
     var left = '<h3>史官实录</h3><div class="tmf-module-tabs">' + tabs.map(function(t){
       return '<button class="' + (tab === t[0] ? 'active' : '') + '" data-module-action="record-tab" data-tab="' + esc(t[0]) + '">' + esc(t[1]) + '</button>';
     }).join('') + '</div>';
-    var main = '<h3>' + esc((tabs.find(function(t){ return t[0] === tab; }) || tabs[0])[1]) + '</h3><div class="tmf-module-scroll records">' + events.map(function(x){
+    var main = '<h3>' + esc((tabs.find(function(t){ return t[0] === tab; }) || tabs[0])[1]) + '</h3><div class="tmf-module-scroll records">' + (events.length ? events.map(function(x){
       return '<article class="tmf-record-row"><span>T' + esc(x.turn) + '</span><b>' + esc(x.title) + '</b><p>' + esc(x.text || x.time || '') + '</p></article>';
-    }).join('') + '</div>';
+    }).join('') : '<p class="tmf-prose">暂无近事记录。</p>') + '</div>';
     var right = '<h3>自动来源</h3>' + miniRows([['御案时政','裁断入档'],['诏书','发布入档'],['奏疏','朱批入档'],['地图','地块事件入档']]);
     return moduleShell('records', '史官实录', '史记、实录、纪事、编年四类在正式页内切换', left, main, right);
   }
@@ -1336,6 +1336,23 @@
     });
     var count = root.querySelector('#renwu-visible-count');
     if (count) count.textContent = shown;
+    // 空状态:筛选/搜索零结果时注入「无匹配之人」(原全 display:none 致名册空白似面板坏)
+    var _rlist = renwuRosterList(root);
+    if (_rlist) {
+      var _empty = _rlist.querySelector('#renwu-filter-empty');
+      if (shown === 0) {
+        if (!_empty) {
+          _empty = document.createElement('div');
+          _empty.id = 'renwu-filter-empty';
+          _empty.className = 'renwu-roster-empty';
+          _empty.style.cssText = 'padding:18px 12px;text-align:center;color:#9c8b6b;font-size:13px;letter-spacing:0.05em';
+          _rlist.appendChild(_empty);
+        }
+        _empty.textContent = (q || group !== 'all' || faction !== 'all' || status !== 'all') ? '朝野寂寂·无匹配之人' : '暂无人物';
+      } else if (_empty) {
+        _empty.remove();
+      }
+    }
     if (changed && !options.preserveScroll) {
       var list = renwuRosterList(root);
       if (list) list.scrollTop = 0;
