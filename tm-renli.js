@@ -132,13 +132,13 @@
     Pp = Pp || _P();
     seed = Object.assign({}, SEED_DEFAULTS, seed || {});
     var ls = leaves(Pp), leaf = null;
-    for (var i = 0; i < ls.length; i++) { if (regionIdOf(ls[i]) === String(regionId)) { leaf = ls[i]; break; } }
+    for (var i = 0; i < ls.length; i++) { if (regionIdOf(ls[i]) === String(regionId) || String(ls[i].name || '') === String(regionId)) { leaf = ls[i]; break; } } // 按 id 或 name 配（天启叶 id 可能 div_xxx·name 陕西）
     if (!leaf) return null;
     leaf.renliSeed = seed;
     var pd = ensureLeafFields(leaf);
     if (pd && seed.registeredDing != null) pd.registeredDing = Math.max(0, Math.round(num(seed.registeredDing, pd.ding)));
     if (pd && seed.registeredLand != null) pd.registeredLand = Math.max(0, Math.round(num(seed.registeredLand, 0)));
-    var r = ensureRegion(GM, String(regionId), seed);
+    var r = ensureRegion(GM, regionIdOf(leaf), seed);                          // byRegion key 用 regionIdOf(叶)·与 tickLeaf 一致（防 id/name 分账）
     r.soil = clamp(seed.soilBase, 0, 100);
     return { leaf: leaf, region: r };
   }
@@ -211,6 +211,7 @@
   function _regLandOf(leaf, pd) {
     var rl = num(pd.registeredLand, 0); if (rl > 0) return rl;
     if (leaf.environment && num(leaf.environment.arableLand, 0) > 0) return num(leaf.environment.arableLand, 0);
+    if (leaf.economyBase && num(leaf.economyBase.farmland, 0) > 0) return num(leaf.economyBase.farmland, 0); // 真天启府叶田亩在 economyBase.farmland（A3 实探）
     return num(pd.arableLand, 0);
   }
 
@@ -429,9 +430,49 @@
       pd.exemptDing = Math.max(0, Math.round((gentry[regionIdOf(l)] || 0) * cap + num(pd.commendedDing, 0))); // 士绅优免×限免 + 诡寄
     });
   }
-  // 过回合入口：先归集优免(含诡寄折叠)·再跑农政 tick
+  // A3a 激活·试点种子（数据驱动·中立·无朝代硬编）：读 GM.renliPilot=[{region,seed}|name]·对未种子地域 seedRegion（幂等·不重置已种子地力/棘轮）。无配置→零行为(未激活)。
+  function _pilotConfig(GM, Pp) {
+    if (GM && Array.isArray(GM.renliPilot) && GM.renliPilot.length) return GM.renliPilot; // GM 优先
+    var P2 = Pp || _P();                                                       // 回退读当前剧本模板·绕 scenario→GM 拷贝保真依赖（A3b 必需）
+    var sc = (P2 && Array.isArray(P2.scenarios) && GM) ? P2.scenarios.filter(function (s) { return s && s.id === GM.sid; })[0] : null;
+    return (sc && Array.isArray(sc.renliPilot) && sc.renliPilot.length) ? sc.renliPilot : null;
+  }
+  // 找名为 name 的 division（任意层·id 或 name）→ 返回其叶子后代（省→府展开·真天启叶=府级）
+  function _leavesUnderDivision(Pp, name) {
+    Pp = Pp || _P();
+    var ah = Pp && Pp.adminHierarchy; if (!ah) return [];
+    var fac = ah.player || ah[Object.keys(ah)[0]];
+    var found = null;
+    (function find(ns) { if (found || !Array.isArray(ns)) return; ns.forEach(function (n) { if (found || !n) return; if (String(n.id || '') === String(name) || String(n.name || '') === String(name)) { found = n; return; } find(n.children || n.divisions); }); })(fac && fac.divisions);
+    if (!found) return [];
+    var out = [];
+    (function collect(node) { var k = node.children || node.divisions; if (k && k.length) k.forEach(collect); else out.push(node); })(found);
+    return out;
+  }
+  function ensurePilotSeeds(GM, Pp) {
+    if (!GM) return;
+    Pp = Pp || _P();
+    var pilot = _pilotConfig(GM, Pp);
+    if (!pilot) return;                                                        // 无试点配置(GM 或剧本)→inert
+    var ls = leaves(Pp);
+    pilot.forEach(function (entry) {
+      if (!entry) return;
+      var region = (typeof entry === 'string') ? entry : entry.region;
+      if (!region) return;
+      var seed = (typeof entry === 'object' && entry.seed) || {};
+      // 目标叶子：精确(name/id)命中的叶→那些；否则按上级区名展开其叶子后代（省名「陕西布政使司」→种其 15 府叶）
+      var targets = ls.filter(function (l) { return regionIdOf(l) === String(region) || String(l.name || '') === String(region); });
+      if (!targets.length) targets = _leavesUnderDivision(Pp, region);
+      targets.forEach(function (l) {
+        if (l.renliSeed) return;                                               // 已种子则跳过（幂等·保运行时累积 soil/棘轮）
+        try { seedRegion(GM, Pp, regionIdOf(l), seed); } catch (_) {}
+      });
+    });
+  }
+  // 过回合入口：先种子(试点·数据驱动)·再归集优免(含诡寄折叠)·再跑农政 tick
   function endturnTick(GM, Pp) {
     Pp = Pp || _P();
+    try { ensurePilotSeeds(GM, Pp); } catch (_) {}
     try { refreshExempt(GM, Pp); } catch (_) {}
     tick(GM, Pp);
   }
@@ -653,11 +694,11 @@
     findFarmerClass: findFarmerClass, applyRegionalVariant: applyRegionalVariant,
     _qOf: _qOf, tickLeaf: tickLeaf, tick: tick,
     warScar: warScar, warScarFromBattle: warScarFromBattle,
-    refreshExempt: refreshExempt, endturnTick: endturnTick,
+    refreshExempt: refreshExempt, endturnTick: endturnTick, ensurePilotSeeds: ensurePilotSeeds,
     applyReform: applyReform, recognizeEdictReform: recognizeEdictReform,
     seededRegionKeySet: seededRegionKeySet, seededDingShare: seededDingShare,
     wtHardChange: wtHardChange,
-    VERSION: 3.7
+    VERSION: 3.8
   };
 
   if (typeof window !== 'undefined') { window.TM = window.TM || {}; window.TM.Renli = api; }
