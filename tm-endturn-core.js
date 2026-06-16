@@ -525,6 +525,10 @@ async function _endTurnCore(){
   // 须在 RegionStatus/FieldPipes 之后（要读灾域/税负实况）、final aggregate 之前。
   try { if (window.TM && TM.SocialFoundation && typeof TM.SocialFoundation.tick === 'function') TM.SocialFoundation.tick(GM, P); } catch(_sfTickE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_sfTickE, 'endTurn] social foundation tick') : console.warn('[endTurn] social foundation tick', _sfTickE); }
 
+  // 人力/徭役农政 tick（R2·2026-06-16·确定性步）：劳动力分流→双边际(在耕/地力)→粮产，写叶子 alloc + GM.renli 派生。
+  // 须在 SocialFoundation 之后、final aggregate 之前。R2 只写 alloc/派生·不动 ding/mouths·暂无消费方读 alloc（良性休眠）。
+  try { if (window.TM && TM.Renli && typeof TM.Renli.endturnTick === 'function') TM.Renli.endturnTick(GM, P); } catch(_rlTickE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_rlTickE, 'endTurn] renli tick') : console.warn('[endTurn] renli tick', _rlTickE); }
+
   // 回合结束前最后一次聚合：确保 七变量(national) 严格等于 各区划叶子之和
   // （因 AI 推演/各 engine.tick 都可能修改 division.population.mouths，需重新累计）
   try { if (typeof IntegrationBridge !== 'undefined' && typeof IntegrationBridge.aggregateRegionsToVariables === 'function') IntegrationBridge.aggregateRegionsToVariables(); } catch(_aggFinalE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_aggFinalE, 'endTurn] final aggregate') : console.warn('[endTurn] final aggregate', _aggFinalE); }

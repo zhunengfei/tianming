@@ -54,6 +54,7 @@ function _ensureGMDefaults() {
   if (!GM.characterArcs) GM.characterArcs = {};
   if (!GM.playerDecisions) GM.playerDecisions = [];
   if (!GM.memoryArchive) GM.memoryArchive = [];
+  if (!GM.renli) GM.renli = { byRegion: {}, reported: {} }; // 人力/徭役农政层（R1·tm-renli.js）
   if (!GM.chronicleAfterwords) GM.chronicleAfterwords = [];
   if (!GM.customPolicies) GM.customPolicies = [];
   if (!GM.affinityMap) GM.affinityMap = {};
@@ -309,6 +310,7 @@ function _prepareGMForSave() {
   GM._rngState = typeof getRngState === 'function' ? getRngState() : null;
   // 亲疏/得罪/反弹/观感
   if (GM.affinityMap) GM._savedAffinityMap = _safeClone(GM.affinityMap);
+  if (GM.renli) GM._savedRenli = _safeClone(GM.renli); // 人力/徭役农政层（R1·叶子 alloc/registeredDing 随 adminHierarchy 持久）
   if (GM.offendGroupScores) GM._savedOffendScores = _safeClone(GM.offendGroupScores);
   if (GM.activeRebounds) GM._savedActiveRebounds = _safeClone(GM.activeRebounds);
   if (GM.triggeredOffendEvents) GM._savedTriggeredOffend = _safeClone(GM.triggeredOffendEvents);
@@ -583,6 +585,7 @@ window.desktopDoSave=async function(){
 function _restoreSavedFields() {
   // 亲疏/得罪/反弹/观感
   if (GM._savedAffinityMap) { GM.affinityMap = GM._savedAffinityMap; delete GM._savedAffinityMap; }
+  if (GM._savedRenli) { GM.renli = GM._savedRenli; delete GM._savedRenli; } // 人力/徭役农政层（R1）
   if (GM._savedOffendScores) { GM.offendGroupScores = GM._savedOffendScores; delete GM._savedOffendScores; }
   if (GM._savedActiveRebounds) { GM.activeRebounds = GM._savedActiveRebounds; delete GM._savedActiveRebounds; }
   if (GM._savedTriggeredOffend) { GM.triggeredOffendEvents = GM._savedTriggeredOffend; delete GM._savedTriggeredOffend; }

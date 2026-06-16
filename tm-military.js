@@ -277,56 +277,6 @@ function predictBattleOutcome(analysis) {
 }
 
 // 生成战斗策略报告
-function generateBattleStrategyReport(analysis) {
-  if (!analysis) return '无战斗分析数据';
-
-  var report = '【战斗策略分析】\n\n';
-
-  // 进攻方
-  report += '【进攻方：' + analysis.attacker.name + '】\n';
-  report += '实力：' + Math.floor(analysis.attacker.strength) + ' | ';
-  report += '士气：' + analysis.attacker.morale + '\n';
-  if (analysis.attacker.commander) {
-    report += '统帅：' + analysis.attacker.commander + '\n';
-  }
-  report += '推荐战术：\n';
-  analysis.attacker.recommendedTactics.forEach(function(t, i) {
-    report += '  ' + (i + 1) + '. ' + t.name + '（得分：' + t.score.toFixed(0) + '）\n';
-    report += '     ' + t.description + '\n';
-  });
-  report += '\n';
-
-  // 防守方
-  report += '【防守方：' + analysis.defender.name + '】\n';
-  report += '实力：' + Math.floor(analysis.defender.strength) + ' | ';
-  report += '士气：' + analysis.defender.morale + '\n';
-  if (analysis.defender.commander) {
-    report += '统帅：' + analysis.defender.commander + '\n';
-  }
-  report += '推荐战术：\n';
-  analysis.defender.recommendedTactics.forEach(function(t, i) {
-    report += '  ' + (i + 1) + '. ' + t.name + '（得分：' + t.score.toFixed(0) + '）\n';
-    report += '     ' + t.description + '\n';
-  });
-  report += '\n';
-
-  // 战场环境
-  report += '【战场环境】\n';
-  report += '地形：' + analysis.terrain + ' | 天气：' + analysis.weather + '\n\n';
-
-  // 预测结果
-  if (analysis.prediction) {
-    report += '【战果预测】\n';
-    report += '预测胜者：' + analysis.prediction.winner + '\n';
-    report += '置信度：' + (analysis.prediction.confidence * 100).toFixed(0) + '%\n';
-    report += '预计伤亡：\n';
-    report += '  进攻方：' + analysis.prediction.attackerCasualties + ' 人\n';
-    report += '  防守方：' + analysis.prediction.defenderCasualties + ' 人\n';
-    report += '预计持续：' + analysis.prediction.duration + ' 回合\n';
-  }
-
-  return report;
-}
 
 // 执行战术（应用战术效果）
 function executeTactic(army, tacticKey, tacticCategory) {
@@ -1326,6 +1276,9 @@ var BattleEngine = (function() {
          '比值' + result.adjustedRatio, '→', result.verdict,
          '损' + result.attackerLoss + '/' + result.defenderLoss);
 
+    // 兵燹·R3.5：战损定位到前线地域 → 人力/农政毁地（丁损/地力/水利损·仅已种子地域·全 no-op 安全）
+    try { if (typeof window !== 'undefined' && window.TM && TM.Renli && typeof TM.Renli.warScarFromBattle === 'function') TM.Renli.warScarFromBattle(G, null, br, result); } catch (_wsE) { (typeof window !== 'undefined' && window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_wsE, 'battle] renli warScar') : void 0; }
+
     return result;
   }
 
@@ -2275,140 +2228,12 @@ function calculateArmyCombatPowerByUnits(army) {
 }
 
 // 招募 Unit
-function recruitUnit(army, type, count) {
-  if (!army || !type || count <= 0) {
-    return { success: false, reason: '参数无效' };
-  }
-
-  var unitType = getUnitTypes()[type];
-  if (!unitType) {
-    return { success: false, reason: '兵种不存在' };
-  }
-
-  var totalCost = unitType.baseCost * count;
-
-  // 检查势力财政
-  var faction = findFacByName(army.faction);
-  if (!faction || faction.money < totalCost) {
-    return { success: false, reason: '资金不足' };
-  }
-
-  // 扣除费用
-  faction.money -= totalCost;
-
-  // 创建 Unit
-  var unit = createUnit(type, count, army);
-  if (!GM.units) GM.units = [];
-  GM.units.push(unit);
-  addToIndex('unit', unit.id, unit);
-
-  // 添加到军队
-  if (!army.units) army.units = [];
-  army.units.push(unit.id);
-
-  // 更新军队总兵力
-  army.soldiers = (army.soldiers || 0) + count;
-
-  addEB('招募', army.name + ' 招募了 ' + count + ' 名' + unitType.name);
-
-  return { success: true, unit: unit, cost: totalCost };
-}
 
 // 解散 Unit
-function disbandUnit(unitId) {
-  var unit = GM._indices.unitById.get(unitId);
-  if (!unit) {
-    return { success: false, reason: 'Unit 不存在' };
-  }
-
-  var army = GM.armies.find(function(a) { return a.id === unit.armyId; });
-  if (army) {
-    // 从军队移除
-    army.units = army.units.filter(function(id) { return id !== unitId; });
-    // 更新总兵力
-    army.soldiers = Math.max(0, (army.soldiers || 0) - unit.count);
-  }
-
-  // 从索引移除
-  removeFromIndex('unit', unitId);
-
-  // 从列表移除
-  GM.units = GM.units.filter(function(u) { return u.id !== unitId; });
-
-  addEB('解散', unit.name + ' 已解散（' + unit.count + ' 人）');
-
-  return { success: true };
-}
 
 // 转移 Unit
-function transferUnit(unitId, targetArmyId) {
-  var unit = GM._indices.unitById.get(unitId);
-  if (!unit) {
-    return { success: false, reason: 'Unit 不存在' };
-  }
-
-  var targetArmy = GM.armies.find(function(a) { return a.id === targetArmyId; });
-  if (!targetArmy) {
-    return { success: false, reason: '目标军队不存在' };
-  }
-
-  var sourceArmy = GM.armies.find(function(a) { return a.id === unit.armyId; });
-
-  // 从源军队移除
-  if (sourceArmy) {
-    sourceArmy.units = sourceArmy.units.filter(function(id) { return id !== unitId; });
-    sourceArmy.soldiers = Math.max(0, (sourceArmy.soldiers || 0) - unit.count);
-  }
-
-  // 添加到目标军队
-  if (!targetArmy.units) targetArmy.units = [];
-  targetArmy.units.push(unitId);
-  targetArmy.soldiers = (targetArmy.soldiers || 0) + unit.count;
-
-  // 更新 Unit 归属
-  unit.armyId = targetArmyId;
-  unit.armyName = targetArmy.name;
-
-  addEB('调动', unit.name + ' 从 ' + (sourceArmy ? sourceArmy.name : '未知') + ' 调往 ' + targetArmy.name);
-
-  return { success: true };
-}
 
 // 生成军队编制报告
-function generateArmyCompositionReport(army) {
-  if (!army) return '无军队数据';
-
-  var report = '【军队编制：' + army.name + '】\n\n';
-  report += '总兵力：' + (army.soldiers || 0) + ' 人\n';
-  report += '士气：' + _armyMorale(army) + '\n';
-  if (army.commander) {
-    report += '统帅：' + army.commander + '\n';
-  }
-  report += '\n';
-
-  if (!army.units || army.units.length === 0) {
-    report += '（未启用编制系统）\n';
-    return report;
-  }
-
-  report += '【兵种构成】\n';
-  army.units.forEach(function(unitId) {
-    var unit = GM._indices.unitById.get(unitId);
-    if (unit) {
-      var unitType = getUnitTypes()[unit.type];
-      report += '• ' + unit.name + '：' + unit.count + ' 人\n';
-      if (unitType) {
-        report += '  攻击：' + unitType.attack + ' | 防御：' + unitType.defense + ' | 速度：' + unitType.speed + '\n';
-      }
-      report += '  士气：' + unit.morale + ' | 经验：' + unit.experience.toFixed(0) + '\n';
-      report += '  战斗力：' + calculateUnitCombatPower(unit).toFixed(0) + '\n';
-    }
-  });
-
-  report += '\n总战斗力：' + calculateArmyCombatPowerByUnits(army).toFixed(0) + '\n';
-
-  return report;
-}
 
 // ============================================================
 // 补给系统
@@ -2656,65 +2481,6 @@ function createBuilding(type, level, factionName, territory) {
 }
 
 // 开始建造/升级建筑
-function startBuildingUpgrade(buildingId, factionName) {
-  var building = GM._indices.buildingById ? GM._indices.buildingById.get(buildingId) : null;
-  if (!building) {
-    toast('建筑不存在');
-    return false;
-  }
-
-  var buildingInfo = BUILDING_TYPES[building.type];
-  if (!buildingInfo) {
-    toast('建筑类型无效');
-    return false;
-  }
-
-  // 检查是否已达到最大等级
-  if (building.level >= buildingInfo.maxLevel) {
-    toast(building.name + '已达到最大等级');
-    return false;
-  }
-
-  var nextLevel = building.level + 1;
-  var cost = getBuildingCost(building.type, nextLevel);
-  var time = getBuildingTime(building.type, nextLevel);
-
-  // 检查势力财政
-  var faction = GM._indices.facByName ? GM._indices.facByName.get(factionName) : null;
-  if (!faction) {
-    toast('势力不存在');
-    return false;
-  }
-
-  if (faction.money < cost) {
-    toast('资金不足，需要 ' + cost + ' 金');
-    return false;
-  }
-
-  // 扣除费用
-  faction.money -= cost;
-
-  // 添加到建造队列
-  var task = {
-    id: uid(),
-    buildingId: buildingId,
-    buildingName: building.name,
-    type: building.type,
-    currentLevel: building.level,
-    targetLevel: nextLevel,
-    faction: factionName,
-    territory: building.territory,
-    startTurn: GM.turn,
-    completeTurn: GM.turn + time,
-    cost: cost,
-    time: time
-  };
-
-  GM.buildingQueue.push(task);
-
-  toast(building.name + ' 开始升级至 ' + nextLevel + ' 级，预计 ' + time + ' 回合完成');
-  return true;
-}
 
 // 更新建筑系统
 function updateBuildingSystem() {
@@ -3048,23 +2814,6 @@ function updateAdminHierarchy() {
 // ============================================================
 // 皇城宫殿·妃嫔居所分配系统
 // ============================================================
-
-/**
- * 获取妃嫔的居所信息
- * @param {Object} character
- * @returns {Object|null} {palace, subHall} or null
- */
-function getCharacterResidence(character) {
-  if (!character || !character.residence || !P.palaceSystem) return null;
-  var palaces = P.palaceSystem.palaces || [];
-  var pal = palaces.find(function(p) { return p.id === character.residence.palaceId; });
-  if (!pal) return null;
-  var sh = null;
-  if (character.residence.subHallId && pal.subHalls) {
-    sh = pal.subHalls.find(function(s) { return s.id === character.residence.subHallId; });
-  }
-  return { palace: pal, subHall: sh };
-}
 
 /**
  * 按位分自动分配妃嫔居所

@@ -14,7 +14,6 @@
 //  包含: enterGame·startGame·剧本校验·登基/外交/问天/诏政·移动导航
 // ============================================================
 
-
 // 进入游戏
 function enterGame(){
   _$("E").style.display="none";
@@ -565,75 +564,6 @@ function validateScenario(sc) {
   }
 
   return { valid: errors.length === 0, errors: errors, warnings: warnings };
-}
-
-/**
- * 即位改元事件 —— 新君即位，议定年号
- * 两种选择：依成制（次年改元）/ 即刻改元
- */
-function _showEnthronementEvent(sid){
-  var sc=findScenarioById(sid);
-  var playerName=(sc&&sc.playerInfo&&sc.playerInfo.characterName)||'新君';
-  var roleName=(sc&&sc.role)||'天子';
-  var di=calcDateFromTurn?calcDateFromTurn(GM.turn):null;
-  var curYear=di?di.adYear:(P.time.year||1);
-  var curGzYear=di?di.gzYearStr:'';
-
-  var h='<div style="position:fixed;inset:0;z-index:1300;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(5px);animation:fi 0.3s ease;" id="_enthrone-event">';
-  h+='<div class="scn-preview-modal" style="max-width:560px;text-align:center;" onclick="event.stopPropagation();">';
-
-  // 顶部装饰
-  h+='<div style="height:2px;background:linear-gradient(90deg,transparent,var(--gold-500),var(--gold-400),var(--gold-500),transparent);margin-bottom:var(--space-4);"></div>';
-
-  // 标题
-  h+='<div style="font-size:var(--text-xs);color:var(--vermillion-400);letter-spacing:0.15em;margin-bottom:var(--space-1);">即位大典</div>';
-  h+='<div style="font-size:var(--text-xl);font-weight:var(--weight-bold);color:var(--color-primary);letter-spacing:0.15em;">〔新君临朝·议定年号〕</div>';
-
-  // 叙事
-  h+='<div class="narrative-text" style="text-align:left;margin:var(--space-4) 0;font-size:var(--text-sm);line-height:var(--leading-loose);">';
-  h+='先帝崩逝，'+escHtml(playerName)+'即'+escHtml(roleName)+'位。';
-  h+='群臣伏阙，恭请圣裁：新朝肇始，当以何年号纪元？<br><br>';
-  h+='<span style="color:var(--color-foreground-muted);font-size:var(--text-xs);">依古制，改元有二途：一曰"踰年改元"，遵先帝遗泽，待旧年号终了，翌年正式启用新元——此为敬天法祖之正道；';
-  h+='二曰"即刻改元"，新君乾纲独断，即日废旧号、行新元——此为彰显新政之锐意。</span>';
-  h+='</div>';
-
-  // 年号输入
-  h+='<div style="margin-bottom:var(--space-4);">';
-  h+='<label style="font-size:var(--text-xs);color:var(--gold-400);letter-spacing:0.1em;display:block;margin-bottom:var(--space-1);">钦定年号</label>';
-  h+='<input id="_era-name-input" class="edict-input" style="text-align:center;font-size:var(--text-lg);font-weight:var(--weight-bold);letter-spacing:0.2em;max-width:200px;margin:0 auto;" placeholder="如：建元、永平…">';
-  h+='</div>';
-
-  h+='<hr class="ink-divider" style="margin:var(--space-3) 0;">';
-
-  // 两个选择
-  h+='<div style="display:flex;gap:var(--space-3);margin-bottom:var(--space-3);">';
-
-  // 依成制
-  h+='<div style="flex:1;background:var(--color-surface);border:1px solid var(--color-border-subtle);border-radius:var(--radius-md);padding:var(--space-3);cursor:pointer;transition:all 0.2s;" ';
-  h+='onmouseover="this.style.borderColor=\'var(--gold-500)\';this.style.boxShadow=\'var(--shadow-sm)\'" ';
-  h+='onmouseout="this.style.borderColor=\'var(--color-border-subtle)\';this.style.boxShadow=\'none\'" ';
-  h+='onclick="_confirmEnthronement(\'tradition\','+curYear+')">';
-  h+='<div style="font-size:var(--text-base);font-weight:var(--weight-bold);color:var(--celadon-400);margin-bottom:var(--space-1);">依成制</div>';
-  h+='<div style="font-size:var(--text-xs);color:var(--color-foreground-muted);line-height:var(--leading-normal);">踰年改元——待旧年号之年终了，次年正月方启新元。合乎礼法，群臣归心。</div>';
-  h+='</div>';
-
-  // 即刻改元
-  h+='<div style="flex:1;background:var(--color-surface);border:1px solid var(--color-border-subtle);border-radius:var(--radius-md);padding:var(--space-3);cursor:pointer;transition:all 0.2s;" ';
-  h+='onmouseover="this.style.borderColor=\'var(--vermillion-400)\';this.style.boxShadow=\'var(--shadow-sm)\'" ';
-  h+='onmouseout="this.style.borderColor=\'var(--color-border-subtle)\';this.style.boxShadow=\'none\'" ';
-  h+='onclick="_confirmEnthronement(\'immediate\','+curYear+')">';
-  h+='<div style="font-size:var(--text-base);font-weight:var(--weight-bold);color:var(--vermillion-400);margin-bottom:var(--space-1);">即刻改元</div>';
-  h+='<div style="font-size:var(--text-xs);color:var(--color-foreground-muted);line-height:var(--leading-normal);">乾纲独断——即日废旧号、启新元。彰显新政锐意，然或议者以为僭急。</div>';
-  h+='</div>';
-
-  h+='</div>';
-
-  // 底部金线
-  h+='<div style="height:1px;background:linear-gradient(90deg,transparent,var(--gold-500),transparent);"></div>';
-
-  h+='</div></div>';
-  document.body.insertAdjacentHTML('beforeend', h);
-  setTimeout(function(){ var inp=document.getElementById('_era-name-input'); if(inp) inp.focus(); },300);
 }
 
 /**
@@ -2084,6 +2014,8 @@ function _wtApplyHardChange(path, op, value) {
       _wtAfterHardChange(_ptyPath, _oldP, _pnv);
       return true;
     }
+    // 人力/徭役农政 god-mode（R5·镜像阶层/军队·治"问天改丁/田/役写数组幽灵属性、真账不动"静默失败·逻辑在 tm-renli）
+    try { if (typeof TM !== 'undefined' && TM.Renli && typeof TM.Renli.wtHardChange === 'function' && TM.Renli.wtHardChange(GM, (typeof P !== 'undefined' ? P : null), parts, op, value, _wtAfterHardChange)) return true; } catch (_wtRlE) {}
   }
   // 导航到父对象
   var cur = root;
