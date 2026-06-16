@@ -3040,6 +3040,13 @@
         bkRow('抛荒田亩', rg ? rg.fallowLand : '', 'zhu'),
         bkRow('本回合粮产', rg ? rg.grainOutput : '', 'jin'),
         bkRow('缺粮', rg ? rg.foodDeficit : '', 'zhu'),
+        // 刀C·官报对照：督抚奏报口径（reported·可粉饰）vs 上列真值——瞒报显著则标红示警
+        (function(){
+          var rep = (window.GM && GM.renli && GM.renli.reported) ? (GM.renli.reported[rid] || (r.name ? GM.renli.reported[r.name] : null)) : null;
+          if (!rep) return '';
+          var cz = Number(rep.conceal) || 0;
+          return bkRow('督抚奏报', '役负' + Math.round((Number(rep.corveeRate)||0)*100) + '% · 抛荒' + Math.round((Number(rep.fallowShare)||0)*100) + '%' + (cz > 0.12 ? ('　〔瞒报~' + Math.round(cz*100) + '%·实情见上〕') : '　〔与实情相符〕'), cz > 0.12 ? 'zhu' : '');
+        })(),
         alloc ? bkRow('丁分配', '务农 ' + ppValue(alloc.farm) + ' · 应役 ' + ppValue(alloc.corvee) + ' · 应征 ' + ppValue(alloc.draft) + ' · 优免 ' + ppValue(alloc.exempt)) : '',
         pd ? bkRow('册载丁', pd.registeredDing) : '',
         pd ? bkRow('优免丁', pd.exemptDing, 'zhu') : '',

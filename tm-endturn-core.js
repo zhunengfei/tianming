@@ -860,6 +860,18 @@ EndTurnHooks.registerFragment('party-class-calibration', function(ctx) {
     }
   } catch (_) {}
   try {
+    if (typeof TM !== 'undefined' && TM.Renli && typeof TM.Renli.formatForPrompt === 'function') {
+      var renliAgrarian = TM.Renli.formatForPrompt(GM, { limit: 10 }); // 刀D·役政农情真值（未推行役政→null·零注入）
+      if (renliAgrarian) lines.push(renliAgrarian);
+    }
+  } catch (_) {}
+  try {
+    if (typeof TM !== 'undefined' && TM.Renli && typeof TM.Renli.formatReportedForPrompt === 'function') {
+      var renliReported = TM.Renli.formatReportedForPrompt(GM, { limit: 8 }); // 刀C·官报vs实情之差（无粉饰/未激活→null）
+      if (renliReported) lines.push(renliReported);
+    }
+  } catch (_) {}
+  try {
     if (typeof TM !== 'undefined' && TM.PartyClassActionScheduler && typeof TM.PartyClassActionScheduler.formatForPrompt === 'function') {
       var actorActions = TM.PartyClassActionScheduler.formatForPrompt(GM, { limit: 10 });
       if (actorActions) lines.push(actorActions);

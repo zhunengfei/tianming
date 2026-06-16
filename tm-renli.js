@@ -43,6 +43,15 @@
   var VARIANT_CAP = 6;    // 地域分账变体每回合 ±上限（ungated·与既有 social-foundation 同范式）
   var SAT_SOURCE = 'renli-corvee-grain';
 
+  // 刀A·物理亏空→既有民变/流寇点火（激活·仅已种子地域·兑现 §5 走查点火基线）
+  // 满意度(过闸·±14)是「被平滑的感知·小头」；真牙齿在物理亏空：粮荒缓蚀本府 div.minxin→既有民变机器自然点火，
+  //   持续逃亡分流进既有逃户池 taoohu→既有流寇凝聚机器接管。本层只供「物理压力」，点火/定级/镇压/招抚全用既有系统。
+  var UNREST_MX_STEP = 4;          // 役政崩坏每回合压低本府 div.minxin 的有界上限（缓蚀·配既有 5%/回合回归稳定器→灾去自复）
+  var COLLAPSE_FLEE = 0.20;        // §5 流寇点火·累计逃亡占实在丁阈
+  var COLLAPSE_DEFICIT_TURNS = 2;  // §5·连续亏空回合阈（缺粮不结转·deficitTurns 计数）
+  var COLLAPSE_SAT = 35;           // §5·农户满意度阈（低于此+逃亡+连续亏空=全崩→流寇点火）
+  var TAOOHU_ROUTE_FRAC = 0.5;     // 全崩时「本回合新逃丁」分流入既有逃户池(→流寇)之比
+
   function num(v, d) { var n = Number(v); return isFinite(n) ? n : (d === undefined ? 0 : d); }
   function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, num(n))); }
 
@@ -469,12 +478,98 @@
       });
     });
   }
-  // 过回合入口：先种子(试点·数据驱动)·再归集优免(含诡寄折叠)·再跑农政 tick
+  // ── 刀A：物理亏空→既有民变/流寇点火 ─────────────────────────────────────
+  function _intBridge() {
+    if (typeof IntegrationBridge !== 'undefined' && IntegrationBridge) return IntegrationBridge;
+    if (typeof window !== 'undefined' && window.IntegrationBridge) return window.IntegrationBridge;
+    if (typeof global !== 'undefined' && global.IntegrationBridge) return global.IntegrationBridge;
+    return null;
+  }
+  // GM.adminHierarchy 的玩家叶（= 民变点火/民心稳定器读的同一份·与 Renli 读的 P.adminHierarchy 可能 deepClone 分叉）
+  function _gmLeaves(GM) {
+    var IB = _intBridge();
+    if (IB && typeof IB.getLeafDivisions === 'function' && GM && GM.adminHierarchy) {
+      try { var r = IB.getLeafDivisions(GM.adminHierarchy, 'player'); if (r && r.length) return r; } catch (_) {}
+    }
+    var out = [], ah = GM && GM.adminHierarchy; if (!ah) return out;
+    var fac = ah.player || ah[Object.keys(ah)[0]];
+    (function walk(ns) { if (!Array.isArray(ns)) return; ns.forEach(function (n) { if (!n) return; var k = n.children || n.divisions; if (k && k.length) walk(k); else out.push(n); }); })(fac && fac.divisions);
+    return out;
+  }
+  // 把 Renli 算出的「役政崩坏」物理压力落到 GM 叶子 div.minxin（真值源·民变读它）。有界·绝不跳楼·无民心字段则不凭空造。
+  function _pushRegionMinxin(GM, leaf, delta) {
+    if (!GM || !leaf || !delta) return false;
+    var id = String(leaf.id || ''), nm = String(leaf.name || '');
+    var gls = _gmLeaves(GM), target = null;
+    for (var i = 0; i < gls.length; i++) { var g = gls[i]; if (!g) continue; if ((id && String(g.id || '') === id) || (nm && String(g.name || '') === nm)) { target = g; break; } }
+    if (!target && nm) { for (var j = 0; j < gls.length; j++) { var g2 = gls[j]; if (!g2) continue; var gnm = String(g2.name || ''); if (gnm && (gnm.indexOf(nm) >= 0 || nm.indexOf(gnm) >= 0)) { target = g2; break; } } }
+    if (!target) return false;
+    var cur = (typeof target.minxin === 'number') ? target.minxin : ((typeof target.minxinLocal === 'number') ? target.minxinLocal : null);
+    if (cur == null) return false;                          // 无民心字段·不凭空造（编辑器/快照应已注 minxin/minxinLocal）
+    var next = clamp(Math.round((cur + delta) * 100) / 100, 0, 100);
+    target.minxin = next;
+    if (target.minxinLocal !== undefined) target.minxinLocal = next;
+    if (target.minxinDetails && typeof target.minxinDetails === 'object') target.minxinDetails.trueIndex = next;
+    return true;
+  }
+  function _farmerSatForRegion(farmers, rid) {
+    if (!farmers) return 50;
+    var vs = farmers.regionalVariants;
+    if (Array.isArray(vs)) { for (var i = 0; i < vs.length; i++) { var v = vs[i]; if (v && String(v.region) === String(rid)) return num(v.satisfaction, 50); } }
+    return num(farmers.satisfaction, 50);
+  }
+  // 每回合（农政 tick 之后）：对已种子地域施物理崩坏压力。纯增量·未种子零行为。
+  function applyUnrestPressure(GM, Pp) {
+    Pp = Pp || _P();
+    if (!GM || !GM.renli || !GM.renli.byRegion) return;
+    var farmers = findFarmerClass(GM);
+    leaves(Pp).forEach(function (leaf) {
+      if (!leaf || !leaf.renliSeed) return;                 // 仅已种子（live 安全·未激活省零行为）
+      var pd = popOf(leaf); if (!pd) return;
+      var rid = regionIdOf(leaf);
+      var r = getRegion(GM, rid); if (!r) return;
+      var ding = Math.max(0, num(pd.ding, 0));
+      var foodNeed = num(r.foodNeed, 0), deficit = num(r.foodDeficit, 0);
+      var deficitRatio = foodNeed > 0 ? clamp(deficit / foodNeed, 0, 1) : 0;
+      var corveeRate = num(r.corveeRate, 0);
+      var fleeRatio = ding > 0 ? clamp(num(pd.fugitives, 0) / ding, 0, 1) : 0;
+      // 连续亏空回合（缺粮不结转·派生计数·随 r._warScarTurn 范式存 byRegion·assertNoDingInRenli 不涉）
+      r.deficitTurns = (deficit > 0) ? (num(r.deficitTurns, 0) + 1) : 0;
+      // ① 民心通道：粮荒/役负/逃亡严重度→有界压低本府 div.minxin（落 GM 叶子=民变真值源）
+      var severity = clamp(deficitRatio * 1.0 + Math.max(0, corveeRate - CORVEE_LINE) * 1.5 + fleeRatio * 0.5, 0, 1);
+      if (severity > 0.02) {
+        var dMin = -clamp(Math.round(severity * UNREST_MX_STEP * 100) / 100, 0, UNREST_MX_STEP);
+        if (dMin < 0 && _pushRegionMinxin(GM, leaf, dMin)) ledgerPush(GM, rid, 'minxin', dMin, '役政崩坏·民心缓蚀', 'renli');
+      }
+      // ② 流寇通道：§5 全崩(逃亡>20% ∧ 连续亏空≥2 ∧ 农户满意度<35)→本回合新逃丁分流进既有逃户池→既有流寇凝聚
+      var seen = num(pd._renliFugSeen, num(pd.fugitives, 0));
+      var inc = Math.max(0, num(pd.fugitives, 0) - seen);
+      pd._renliFugSeen = num(pd.fugitives, 0);              // 更新基线（防 backlog 一次性倾泻·只取每回合增量）
+      var sat = _farmerSatForRegion(farmers, rid);
+      var inCollapse = (fleeRatio > COLLAPSE_FLEE && num(r.deficitTurns, 0) >= COLLAPSE_DEFICIT_TURNS && sat < COLLAPSE_SAT);
+      if (inCollapse && inc > 0) {
+        var routed = Math.round(inc * TAOOHU_ROUTE_FRAC);
+        if (routed > 0 && GM.population) {
+          var bls = GM.population.byLegalStatus || (GM.population.byLegalStatus = {});
+          var taoohu = bls.taoohu || (bls.taoohu = { mouths: 0 });
+          taoohu.mouths = num(taoohu.mouths, 0) + routed;   // 守恒入既有逃户池（_tickRovingCoalesce 据此聚流寇）
+          ledgerPush(GM, rid, 'taoohu', routed, '流亡聚为流寇之资', 'renli');
+          r._collapseTurn = num(GM.turn, 0);
+        }
+      }
+    });
+  }
+
+  // 过回合入口：先种子(试点·数据驱动)·再归集优免(含诡寄折叠)·再跑农政 tick·末施崩坏点火压力(刀A)
   function endturnTick(GM, Pp) {
     Pp = Pp || _P();
     try { ensurePilotSeeds(GM, Pp); } catch (_) {}
     try { refreshExempt(GM, Pp); } catch (_) {}
     tick(GM, Pp);
+    try { applyUnrestPressure(GM, Pp); } catch (_) {}
+    try { refreshReported(GM, Pp); } catch (_) {}
+    try { spawnReportedChannels(GM, Pp); } catch (_) {}
+    try { applyGrainShortfall(GM, Pp); } catch (_) {}
   }
 
   // ── R6：变法 ops（玩家杠杆 + 党派代价·仅已种子地域·诏书触发见 recognizeEdictReform·R6c）──
@@ -692,6 +787,250 @@
     return total > 0 ? clamp(seeded / total, 0, 1) : 0;
   }
 
+  // ── 刀D：役政农情喂 AI 上下文（种子省真值摘要·未激活返 null=零注入·朝代中立）─────────
+  function _gradeCorvee(rate) {
+    if (rate >= 0.40) return '苛'; if (rate >= 0.28) return '重'; if (rate >= 0.18) return '适中'; return '轻';
+  }
+  function formatForPrompt(GM, opts) {
+    opts = opts || {};
+    var Pp = _P();
+    if (!GM || !GM.renli || !GM.renli.byRegion) return null;
+    var ls = leaves(Pp).filter(function (l) { return l && l.renliSeed; });
+    if (!ls.length) return null;                                   // 未推行役政→零注入（休眠态 AI 不见）
+    var limit = num(opts.limit, 10), rows = [];
+    ls.forEach(function (leaf) {
+      var pd = popOf(leaf); if (!pd) return;
+      var rid = regionIdOf(leaf), r = getRegion(GM, rid); if (!r) return;
+      var ding = Math.max(0, num(pd.ding, 0));
+      var fleeRatio = ding > 0 ? num(pd.fugitives, 0) / ding : 0;
+      var corveeRate = num(r.corveeRate, 0);
+      var need = num(r.foodNeed, 0), deficit = num(r.foodDeficit, 0);
+      var deficitRatio = need > 0 ? deficit / need : 0;
+      var parts = ['役负' + _gradeCorvee(corveeRate) + '(' + Math.round(corveeRate * 100) + '%)'];
+      if (need > 0) parts.push(deficit > 0 ? ('缺粮' + Math.round(deficitRatio * 100) + '%') : '粮足');
+      if (num(r.fallowLand, 0) > 0) parts.push('抛荒' + Math.round(num(r.fallowLand, 0)) + '亩');
+      if (fleeRatio > 0.03) parts.push('逃亡' + Math.round(fleeRatio * 100) + '%');
+      var pol = r.levyPolicy || {};
+      if (num(pol.remitTurns, 0) > 0) parts.push('蠲免中(余' + num(pol.remitTurns, 0) + '回合)');
+      if (r.tanding) parts.push('已摊丁入亩'); else if (r.whip) parts.push('已行役折银');
+      var collapse = (fleeRatio > COLLAPSE_FLEE && num(r.deficitTurns, 0) >= COLLAPSE_DEFICIT_TURNS);
+      if (collapse) parts.push('★流民载道·濒乱'); else if (num(r.deficitTurns, 0) >= 2) parts.push('连岁歉收');
+      rows.push({ txt: '- ' + (leaf.name || rid) + '：' + parts.join('·'),
+        sev: (collapse ? 3 : 0) + deficitRatio + fleeRatio + Math.max(0, corveeRate - CORVEE_LINE) });
+    });
+    if (!rows.length) return null;
+    rows.sort(function (a, b) { return b.sev - a.sev; });          // 危情重者在前（限额内优先喂）
+    return '役政农情（已推行役政之地·实在地情·门生密报真值）：\n' + rows.slice(0, limit).map(function (x) { return x.txt; }).join('\n');
+  }
+
+  // ── 刀C：官报雾（reported 写活·督抚奏报口径·可瞒报）+ 真相对照供 AI/UI ──────────────
+  function _charByName(GM, name) {
+    if (!name || !GM || !Array.isArray(GM.chars)) return null;
+    for (var i = 0; i < GM.chars.length; i++) { var c = GM.chars[i]; if (c && c.alive !== false && String(c.name) === String(name)) return c; }
+    return null;
+  }
+  function _charStress(c) { return c ? num(c.resources && c.resources.stress != null ? c.resources.stress : c.stress, 30) : 30; }
+  function _charFame(c) { return c ? num(c.resources && c.resources.fame != null ? c.resources.fame : c.fame, 0) : 0; }
+  function _charLoyalty(c) { return c ? num(c.loyalty, 60) : 60; }
+  // 区域→主官名（子区继承最近上级 governor·治所/省主官覆盖府县）
+  function _governorMap(Pp) {
+    Pp = Pp || _P(); var map = {};
+    var ah = Pp && Pp.adminHierarchy; if (!ah) return map;
+    var fac = ah.player || ah[Object.keys(ah)[0]];
+    (function walk(nodes, inherited) {
+      if (!Array.isArray(nodes)) return;
+      nodes.forEach(function (n) {
+        if (!n) return;
+        var gov = n.governor || inherited || '';
+        var kids = n.children || n.divisions;
+        if (kids && kids.length) walk(kids, gov); else map[regionIdOf(n)] = gov;
+      });
+    })(fac && fac.divisions, '');
+    return map;
+  }
+  // 每回合重算官报口径（督抚按 disposition+危情 粉饰真值·写既有 GM.renli.reported 死桩）。仅已种子地域。
+  function refreshReported(GM, Pp) {
+    Pp = Pp || _P();
+    if (!GM || !GM.renli) return;
+    if (!GM.renli.reported) GM.renli.reported = {};
+    var ls = leaves(Pp).filter(function (l) { return l && l.renliSeed; });
+    if (!ls.length) return;
+    var govMap = _governorMap(Pp);
+    ls.forEach(function (leaf) {
+      var pd = popOf(leaf); if (!pd) return;
+      var rid = regionIdOf(leaf), r = getRegion(GM, rid); if (!r) return;
+      var ding = Math.max(0, num(pd.ding, 0));
+      var fleeRate = ding > 0 ? clamp(num(pd.fugitives, 0) / ding, 0, 1) : 0;
+      var corveeRate = num(r.corveeRate, 0);
+      var cult = num(r.cultivatedLand, 0), fallow = num(r.fallowLand, 0);
+      var fallowShare = (cult + fallow) > 0 ? clamp(fallow / (cult + fallow), 0, 1) : 0;
+      var need = num(r.foodNeed, 0), deficitRatio = need > 0 ? clamp(num(r.foodDeficit, 0) / need, 0, 1) : 0;
+      var gov = _charByName(GM, govMap[rid]);
+      // 瞒报幅度：督抚 stress 高(怕担责)/loyalty 低(不尽职)/fame 高(要脸面)→粉饰；无主官→例行轻度
+      var base = gov ? (0.45 * (_charStress(gov) / 100) + 0.35 * (1 - _charLoyalty(gov) / 100) + 0.20 * clamp(_charFame(gov) / 100, 0, 1)) : 0.15;
+      var danger = clamp(deficitRatio + Math.max(0, corveeRate - CORVEE_LINE) * 2 + fleeRate, 0, 1); // 坏事越多越想盖
+      var conceal = clamp(base * (1 + 0.5 * danger), 0, 0.6);                                        // 封顶 60%·瞒不到天衣无缝
+      var keep = 1 - conceal;
+      GM.renli.reported[rid] = {
+        corveeRate: Math.round(corveeRate * keep * 10000) / 10000,
+        fallowShare: Math.round(fallowShare * keep * 10000) / 10000,
+        fugitiveRate: Math.round(fleeRate * keep * 10000) / 10000,
+        deficitRatio: Math.round(deficitRatio * keep * 10000) / 10000,
+        conceal: Math.round(conceal * 1000) / 1000,
+        governor: (gov && gov.name) || (govMap[rid] || ''),
+        turn: num(GM.turn, 0)
+      };
+    });
+  }
+  // 官报 vs 真相（供奏疏读官报、鸿雁/方志读真相、清丈刷真值·UI/后续政道消费）
+  function getReportedVsTruth(GM, regionId) {
+    if (!GM || !GM.renli) return null;
+    var rid = String(regionId);
+    var rep = (GM.renli.reported && GM.renli.reported[rid]) || null;
+    var r = getRegion(GM, rid);
+    if (!r) return rep ? { reported: rep, truth: null } : null;
+    var cult = num(r.cultivatedLand, 0), fallow = num(r.fallowLand, 0), need = num(r.foodNeed, 0);
+    return { reported: rep, truth: {
+      corveeRate: Math.round(num(r.corveeRate, 0) * 10000) / 10000,
+      fallowShare: (cult + fallow) > 0 ? Math.round(fallow / (cult + fallow) * 10000) / 10000 : 0,
+      deficitRatio: need > 0 ? Math.round(num(r.foodDeficit, 0) / need * 10000) / 10000 : 0
+    } };
+  }
+  // 官报与实情之差喂 AI（只在有粉饰且有坏事可瞒时·高信号·辨欺君）。仅已种子。
+  function formatReportedForPrompt(GM, opts) {
+    opts = opts || {};
+    if (!GM || !GM.renli || !GM.renli.reported) return null;
+    var Pp = _P();
+    var ls = leaves(Pp).filter(function (l) { return l && l.renliSeed; });
+    if (!ls.length) return null;
+    var limit = num(opts.limit, 8), rows = [];
+    ls.forEach(function (leaf) {
+      var rid = regionIdOf(leaf), rep = GM.renli.reported[rid]; if (!rep) return;
+      var r = getRegion(GM, rid); if (!r) return;
+      var pd = popOf(leaf); var ding = pd ? Math.max(0, num(pd.ding, 0)) : 0;
+      var tCorvee = num(r.corveeRate, 0);
+      var tFlee = ding > 0 ? num(pd.fugitives, 0) / ding : 0;
+      var cult = num(r.cultivatedLand, 0), fallow = num(r.fallowLand, 0);
+      var tFallow = (cult + fallow) > 0 ? fallow / (cult + fallow) : 0;
+      var conceal = num(rep.conceal, 0);
+      var hasBad = (tCorvee > CORVEE_LINE) || (tFlee > 0.05) || (tFallow > 0.05) || (num(r.foodDeficit, 0) > 0);
+      if (conceal < 0.12 || !hasBad) return;                       // 无粉饰或无坏事可瞒→不进（省 token）
+      rows.push({ sev: conceal + tFlee + Math.max(0, tCorvee - CORVEE_LINE),
+        txt: '- ' + (leaf.name || rid) + '：' + (rep.governor ? ('督抚' + rep.governor) : '有司') + '奏报 役负' + Math.round(num(rep.corveeRate, 0) * 100) + '%/抛荒' + Math.round(num(rep.fallowShare, 0) * 100) + '%/逃亡' + Math.round(num(rep.fugitiveRate, 0) * 100) + '%，实为 役负' + Math.round(tCorvee * 100) + '%/抛荒' + Math.round(tFallow * 100) + '%/逃亡' + Math.round(tFlee * 100) + '%（瞒报~' + Math.round(conceal * 100) + '%）' });
+    });
+    if (!rows.length) return null;
+    rows.sort(function (a, b) { return b.sev - a.sev; });
+    return '督抚奏报与实情之差（官报口径或经粉饰·凭此辨欺君·读鸿雁/遣巡查见真相）：\n' + rows.slice(0, limit).map(function (x) { return x.txt; }).join('\n');
+  }
+
+  // ── 刀C-玩家侧：官报雾浮到界面（奏疏读 reported 粉饰 / 鸿雁门生密报读真相）──────────
+  var ZOU_CAP = 12, MI_CAP = 8; // 每回合最多 N 道役政奏报 / 门生密报（按危情取重·防刷屏；dedup 后总数恒≤种子省数）
+  function _ensureArr(GM, key) { if (!Array.isArray(GM[key])) GM[key] = []; return GM[key]; }
+  // 过回合：种子省有事者→奏疏（官报粉饰口径）；真情严峻且与官报有落差者→门生密报（真值·读私信者更早见螺旋）。皆 dedup 刷新·非堆积。
+  function spawnReportedChannels(GM, Pp) {
+    Pp = Pp || _P();
+    if (!GM || !GM.renli) return;
+    var ls = leaves(Pp).filter(function (l) { return l && l.renliSeed; });
+    if (!ls.length) return;
+    var govMap = _governorMap(Pp);
+    var cands = [];
+    ls.forEach(function (leaf) {
+      var pd = popOf(leaf); if (!pd) return;
+      var rid = regionIdOf(leaf), r = getRegion(GM, rid); if (!r) return;
+      var ding = Math.max(0, num(pd.ding, 0));
+      var fleeRatio = ding > 0 ? num(pd.fugitives, 0) / ding : 0;
+      var corveeRate = num(r.corveeRate, 0);
+      var deficit = num(r.foodDeficit, 0), need = num(r.foodNeed, 0);
+      var deficitRatio = need > 0 ? deficit / need : 0;
+      var hasBad = corveeRate > CORVEE_LINE || fleeRatio > 0.05 || deficit > 0 || num(r.fallowLand, 0) > 0;
+      if (!hasBad) return;                                          // 太平无事不奏不密报（省界面噪声）
+      cands.push({ leaf: leaf, pd: pd, r: r, rid: rid, name: leaf.name || rid, fleeRatio: fleeRatio, corveeRate: corveeRate,
+        deficit: deficit, deficitRatio: deficitRatio, sev: deficitRatio + fleeRatio + Math.max(0, corveeRate - CORVEE_LINE) });
+    });
+    if (!cands.length) return;
+    cands.sort(function (a, b) { return b.sev - a.sev; });
+    var mems = _ensureArr(GM, 'memorials'), letters = _ensureArr(GM, 'letters');
+    cands.slice(0, ZOU_CAP).forEach(function (c) {
+      var rep = (GM.renli.reported && GM.renli.reported[c.rid]) || null;
+      var govName = (rep && rep.governor) || govMap[c.rid] || '有司';
+      var repCorvee = rep ? num(rep.corveeRate, c.corveeRate) : c.corveeRate;
+      var repFallow = rep ? num(rep.fallowShare, 0) : 0;
+      var repFlee = rep ? num(rep.fugitiveRate, c.fleeRatio) : c.fleeRatio;
+      // ① 奏疏（官报·读 reported 粉饰口径）·dedup 刷新
+      var zid = 'renli-zou-' + c.rid;
+      var zbody = govName + '谨奏：' + c.name + '今岁役政。役负约' + Math.round(repCorvee * 100) + '%'
+        + (repFallow > 0.01 ? ('，抛荒约' + Math.round(repFallow * 100) + '%') : '，田畴粗安')
+        + (repFlee > 0.03 ? ('，间有流移约' + Math.round(repFlee * 100) + '%') : '，户口尚完') + '。臣已多方抚绥，伏乞圣鉴。';
+      var z = mems.find(function (m) { return m && m.id === zid; });
+      if (z) { z.content = zbody; z.text = zbody; z.from = govName; z.turn = num(GM.turn, 0); }
+      else {
+        mems.unshift({ id: zid, title: c.name + '·役政奏报', topic: c.name + '·役政奏报', from: govName, dept: '地方有司',
+          type: '民情', subtype: '役政', content: zbody, text: zbody, status: 'pending',
+          priority: (c.corveeRate > 0.4 || c.deficitRatio > 0.4) ? 'high' : 'normal', turn: num(GM.turn, 0),
+          sourceSystem: 'renli', sourceType: 'renli_reported', linkedRegion: c.rid });
+      }
+    });
+    if (mems.length > 120) GM.memorials = mems.slice(0, 120);
+    // ② 鸿雁（真相·门生密报）——仅真情严峻（与官报有落差才值得冒险密报）·top MI_CAP
+    var severeList = cands.filter(function (c) {
+      var collapse = (c.fleeRatio > COLLAPSE_FLEE && num(c.r.deficitTurns, 0) >= COLLAPSE_DEFICIT_TURNS);
+      var rep = (GM.renli.reported && GM.renli.reported[c.rid]) || null;
+      var concealGap = rep ? num(rep.conceal, 0) : 0;
+      c._collapse = collapse;
+      return collapse || c.deficitRatio > 0.3 || (c.corveeRate > 0.4 && concealGap > 0.2);
+    }).slice(0, MI_CAP);
+    severeList.forEach(function (c) {
+      var lid = 'renli-mi-' + c.rid;
+      var lbody = '密启者：' + c.name + '实情远非有司奏报所言。役负实约' + Math.round(c.corveeRate * 100) + '%，'
+        + (c.deficit > 0 ? ('粮缺约' + Math.round(c.deficitRatio * 100) + '%，') : '')
+        + (c.fleeRatio > 0.03 ? ('流亡约' + Math.round(c.fleeRatio * 100) + '%，') : '')
+        + (num(c.r.fallowLand, 0) > 0 ? '抛荒已广，' : '')
+        + (c._collapse ? '流民载道，恐生大变。' : '民力将竭，宜早为之所。') + '惟乞钧鉴，勿付有司，恐遭壅蔽。';
+      var l = letters.find(function (x) { return x && x.id === lid; });
+      if (l) { l.content = lbody; l.turn = num(GM.turn, 0); l.playerRead = false; }
+      else {
+        letters.unshift({ id: lid, from: '门生·' + c.name, title: c.name + '·密启', content: lbody,
+          turn: num(GM.turn, 0), playerRead: false, sourceSystem: 'renli', sourceType: 'renli_truth', cipher: 'secret' });
+      }
+    });
+    if (letters.length > 200) GM.letters = letters.slice(0, 200);
+  }
+
+  // ── 刀B-深做：粮荒田赋欠征（单写者直扣 guoku.grain·非双算）─────────────────────────
+  // 既有「逃亡/隐丁→税基→国库收入」由 huji collectionMultiplier 管(动 money 月入·人没了)；
+  // 既有田赋粮入库由 FiscalEngine 按田亩名义征(收成几何不问)。此处补**唯一缺口**：在册之民收成毁→其名义粮赋交不出。
+  //   欠征 = 失收之粮(foodDeficit) × 国家田赋份额。单写者(Renli)·只动 guoku.grain(不碰 money/income·与上两路零重叠)·封顶防掏空·门控种子省。
+  var GRAIN_TAX_SHARE = 0.12;     // 国家于「失收之粮」中的田赋份额（粮荒欠征系数·owner 激活时可校准）
+  var GUOKU_GRAIN_GUARD = 0.20;   // 单回合粮荒欠征总额 ≤ 国库现粮之比（防一灾掏空粮库）
+  function _guoku(GM) { return (GM && GM.guoku && typeof GM.guoku === 'object') ? GM.guoku : null; }
+  function applyGrainShortfall(GM, Pp) {
+    Pp = Pp || _P();
+    var gk = _guoku(GM); if (!gk || typeof gk.grain !== 'number') return 0;  // 无帑廪粮账→inert
+    var ls = leaves(Pp).filter(function (l) { return l && l.renliSeed; });
+    if (!ls.length) return 0;
+    var raws = [], rawTotal = 0;
+    ls.forEach(function (leaf) {
+      var pd = popOf(leaf); if (!pd) return;
+      var rid = regionIdOf(leaf), r = getRegion(GM, rid); if (!r) return;
+      var deficit = num(r.foodDeficit, 0);
+      if (deficit <= 0) { r._grainShortfall = 0; return; }
+      var sf = Math.round(deficit * GRAIN_TAX_SHARE);
+      if (sf <= 0) { r._grainShortfall = 0; return; }
+      raws.push({ rid: rid, r: r, sf: sf }); rawTotal += sf;
+    });
+    if (rawTotal <= 0) return 0;
+    var applied = Math.min(rawTotal, Math.round(num(gk.grain, 0) * GUOKU_GRAIN_GUARD)); // 封顶
+    var factor = rawTotal > 0 ? applied / rawTotal : 0, deducted = 0;
+    raws.forEach(function (x) {
+      var share = Math.round(x.sf * factor);
+      x.r._grainShortfall = share; x.r._grainShortfallTurn = num(GM.turn, 0);
+      if (share > 0) ledgerPush(GM, x.rid, 'grainShortfall', -share, '粮荒田赋欠征', 'renli');
+      deducted += share;
+    });
+    gk.grain = Math.max(0, num(gk.grain, 0) - deducted);
+    return deducted;
+  }
+
   // ── 导出 ──────────────────────────────────────────────────────────────
   var api = {
     ALLOC_KEYS: ALLOC_KEYS, SEED_DEFAULTS: SEED_DEFAULTS,
@@ -706,9 +1045,12 @@
     warScar: warScar, warScarFromBattle: warScarFromBattle,
     refreshExempt: refreshExempt, endturnTick: endturnTick, ensurePilotSeeds: ensurePilotSeeds,
     applyReform: applyReform, recognizeEdictReform: recognizeEdictReform,
+    applyUnrestPressure: applyUnrestPressure, formatForPrompt: formatForPrompt,
+    refreshReported: refreshReported, getReportedVsTruth: getReportedVsTruth, formatReportedForPrompt: formatReportedForPrompt,
+    spawnReportedChannels: spawnReportedChannels, applyGrainShortfall: applyGrainShortfall,
     seededRegionKeySet: seededRegionKeySet, seededDingShare: seededDingShare,
     wtHardChange: wtHardChange,
-    VERSION: 3.8
+    VERSION: 4.1
   };
 
   if (typeof window !== 'undefined') { window.TM = window.TM || {}; window.TM.Renli = api; }
