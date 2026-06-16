@@ -662,12 +662,22 @@
   // 已种子地域键集（含 id 与 name 两形·容 huji byRegion key 的 id/name 歧义）
   function seededRegionKeySet(Pp) {
     Pp = Pp || _P();
-    var set = {}, ls = leaves(Pp);
-    for (var i = 0; i < ls.length; i++) {
-      if (!ls[i] || !ls[i].renliSeed) continue;
-      var id = String(ls[i].id || ''), nm = String(ls[i].name || '');
-      if (id) set[id] = true; if (nm) set[nm] = true;
+    var set = {};
+    function addKeys(node) { var id = String(node.id || ''), nm = String(node.name || ''); if (id) set[id] = true; if (nm) set[nm] = true; }
+    // 上溯：叶子已种子→计入其 key；某 division「全部叶子后代均已种子」→其 key 亦计入。
+    // 因 huji byRegion 按「省」key 而 Renli 种「府」叶——补省级 key 才能令 huji 的 deep-field 省级让出（否则省 key 对不上府 key→不让出→双产）。
+    function walk(node) {
+      if (!node) return false;
+      var k = node.children || node.divisions;
+      if (!k || !k.length) { if (node.renliSeed) { addKeys(node); return true; } return false; }
+      var all = true;
+      for (var j = 0; j < k.length; j++) { if (!walk(k[j])) all = false; }
+      if (all) addKeys(node);
+      return all;
     }
+    var ah = Pp && Pp.adminHierarchy;
+    var fac = ah && (ah.player || ah[Object.keys(ah)[0]]);
+    (fac && fac.divisions || []).forEach(walk);
     return set;
   }
   // 已种子地域丁占全国丁之比（供 huji 全国汇总逃亡按未种子份额缩减）

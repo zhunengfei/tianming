@@ -69,6 +69,10 @@ async function _endTurn_updateSystems(timeRatio, zhengwen) {
     }
   } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] CorruptionEngine.tick 失败:') : console.error('[endTurn] CorruptionEngine.tick 失败:', e); }
 
+  // 6.012 人力试点种子（A5 时序修）：须先于下方 6.015 huji 早跑——否则首个激活回合 huji 对「尚未种子」的试点地域照产逃亡/役负满意度=与 Renli 双产双扣。
+  //   ensurePilotSeeds 幂等（已种子跳过·保运行时累积）·无 GM/剧本 renliPilot 配置则零行为（未激活态 inert）。种子持久故只首回合关键·此处保证 huji 看到已种子→让出。
+  try { if (typeof TM !== 'undefined' && TM.Renli && typeof TM.Renli.ensurePilotSeeds === 'function') TM.Renli.ensurePilotSeeds(GM); } catch(_psSeedE) {}
+
   // 6.015 户口前移（方案联动总表推荐：腐败→户口→帑廪→内帑→民心→皇权→皇威）
   try {
     if (typeof HujiEngine !== 'undefined') {

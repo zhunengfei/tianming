@@ -76,6 +76,10 @@ var rXian = R.getRegion(global.GM, 'div_xian');
 ok(rXian && rXian.corveeRate > 0, '6·西安府役负>0（府叶激活）');
 ok(rXian && rXian.grainOutput > 0, '6·★西安府粮产>0（economyBase.farmland 作田源→农政层真活·非半激活）');
 ok(rXian && rXian.cultivatedLand > 0, '6·西安府在耕田>0（田源 economyBase.farmland 生效）');
+// 6b·上溯 key（A5/B 实证修·防省/府 key 错配双产）：全府已种子的省·其「省级 key」进 seededRegionKeySet→huji(按省 key)deep-field 让出整省
+var ksH = R.seededRegionKeySet(global.P);
+ok(ksH['陕甘布政使司'] === true && ksH['div_prov_sg'] === true, '6b·全府种子的省→省级 key(name+id)入 seededRegionKeySet（huji 按省 key 让出·真天启省/府层级去重）');
+ok(ksH['div_xian'] === true && ksH['西安府'] === true, '6b·府叶 key 仍在（西安府 name+id）');
 
 console.log('\n[smoke-renli-pilot-seed] ' + pass + ' 通过 / ' + fail + ' 失败');
 if (fail) { console.error('失败项：\n - ' + fails.join('\n - ')); process.exit(1); }
