@@ -35,6 +35,16 @@ function migrateMilUnits(){
   if(!P.military.campaigns)P.military.campaigns=[];
 }
 
+// 编辑器内裁撤部队(场景设计·非 gameplay)·命名 handler 取代裸内联 splice·补反馈 toast(与 addArmy/editArmy 一致·无 EditHistory:本军务编辑器走 P.military 非 scriptData·新增也不入撤销账·保持一致)
+// 注:gameplay(对局中)裁军走诏书/朝议→AI military_changes 制度通道(tm-ai-change-applier 校验器扫裁军动词)·非裸 UI 删·本 handler 仅服务编辑器 authoring
+function disbandArmyInEditor(i){
+  var arr = (typeof P !== 'undefined' && P.military) ? P.military.armies : null;
+  if (!Array.isArray(arr) || i < 0 || i >= arr.length) return;
+  var nm = (arr[i] && arr[i].name) || ('部队' + i);
+  arr.splice(i, 1);
+  if (typeof renderEdTab === 'function') renderEdTab('t-mil');
+  if (typeof toast === 'function') toast('已解散 ' + nm);
+}
 function addArmy(){
   var body='<div class="form-group"><label>部队名</label><input type="text" id="gm_name"></div>'+
     '<div class="form-group"><label>统帅</label><input type="text" id="gm_cmdr"></div>'+
@@ -109,7 +119,7 @@ if (typeof window !== 'undefined') {
       var _szTxt = (a.size||a.soldiers||a.strength) ? ' 兵'+(a.size||a.soldiers||a.strength) : '';
       return "<div style=\"background:var(--bg-3);border-radius:4px;padding:0.4rem;margin-top:0.3rem;display:flex;justify-content:space-between;align-items:center;\">"+
       "<div><strong>"+a.name+"</strong>"+_facChip+" 统帅:"+(a.commander||"无")+_szTxt+" 士气:"+a.morale+"</div>"+
-      "<div style=\"display:flex;gap:0.3rem;\"><button class=\"bt bs bsm\" onclick=\"editArmy("+i+")\">✎</button><button class=\"bd bsm\" onclick=\"P.military.armies.splice("+i+",1);renderEdTab('t-mil');\">✕</button></div></div>";}).join("")+"</div>";
+      "<div style=\"display:flex;gap:0.3rem;\"><button class=\"bt bs bsm\" onclick=\"editArmy("+i+")\">✎</button><button class=\"bd bsm\" onclick=\"disbandArmyInEditor("+i+")\">✕</button></div></div>";}).join("")+"</div>";
     em.innerHTML=h;
   };
 }

@@ -1031,6 +1031,73 @@
   // 紧急措施（加派/借贷/开仓）
   // ═════════════════════════════════════════════════════════════
 
+  // ═══ 天灾生命周期（治"activeDisasters 只 push 从不清除 → 国库每回合永久失血"）═══
+  function _disasterCatCN(cat) {
+    var c = String(cat || '').toLowerCase();
+    if (/(旱|drought)/.test(c)) return '旱灾';
+    if (/(水|洪|flood)/.test(c)) return '水灾';
+    if (/(瘟|疫|plague)/.test(c)) return '瘟疫';
+    if (/(蝗|locust)/.test(c)) return '蝗灾';
+    if (/(震|quake|earthquake)/.test(c)) return '地震';
+    return '灾异';
+  }
+  // 灾害历时：按灾种真实月数 → 回合(时间感知·经 turnsForMonths 随 daysPerTurn 换算)·夹 [1,12] 回合
+  // (★呼应「涉时间阈值须匹配机制时间刻度」教训：不写死回合数·避免 1天/回合细刻度下灾害无限拖、365天/回合粗刻度下瞬消)
+  function _disasterDurationTurns(cat) {
+    var c = String(cat || '').toLowerCase();
+    var months = /(瘟|疫|plague)/.test(c) ? 4 : /(旱|drought)/.test(c) ? 5 : /(蝗|locust)/.test(c) ? 3 : /(水|洪|flood)/.test(c) ? 2 : /(震|quake)/.test(c) ? 1 : 3;
+    var t = (typeof turnsForMonths === 'function') ? turnsForMonths(months) : months;
+    t = Math.round(t);
+    return Math.max(1, Math.min(12, t || 1));
+  }
+  // 灾害派生信号:从在册天灾聚合 GM.vars.disasterLevel(0-1)/disasterType + GM.activeFamine —— 盘活 8+ 处既有【死输入】消费方
+  //   (人口死亡率 huji:459·自耕农满意度 authority-complete:106·粮价 economy:570/992·水/旱赈济疏 edict-complete·
+  //    饥荒迁移 huji-deep-fill:123·民变归因 prophecy·治安 edict-parser)·全代码零生产者→此前恒 0·各消费方自有阈值/夹幅(无新涟漪代码·忠于原设计)
+  //   裸值存 GM.vars:全 Object.keys(GM.vars) 的 .value 写迭代(ai-infer/help-social)均 non-strict→对裸值静默 no-op(不被随机游走/危机乘子篡改·已核源文件 non-strict)·无灾即清防陈旧
+  var _DISASTER_SEV = { minor:0.2, moderate:0.45, severe:0.7, catastrophic:0.95 };
+  function _syncDisasterSignals(active) {
+    if (typeof GM === 'undefined' || !GM) return;
+    active = Array.isArray(active) ? active : [];
+    if (!active.length) {
+      if (GM.vars && GM.vars.disasterLevel) GM.vars.disasterLevel = 0;       // 仅曾设过时清·不无谓触碰
+      if (GM.vars && GM.vars.disasterType) GM.vars.disasterType = '';
+      if (GM.activeFamine) GM.activeFamine = false;
+      return;
+    }
+    var maxSev = 0, worstCat = '';
+    active.forEach(function(d) {
+      if (!d) return;
+      var sev = _DISASTER_SEV[String(d.severity || 'moderate').toLowerCase()];
+      if (typeof sev !== 'number') sev = 0.45;
+      if (sev > maxSev) { maxSev = sev; worstCat = String(d.category || d.type || ''); }
+    });
+    // 最重灾种主导(×0.7) + 多灾叠加(每多一处 +0.12·封顶 +0.3)·夹 [0,1]·单个 moderate≈0.32(刚过 0.3 阈值·轻)·severe≈0.49·灾退即随之回落
+    var level = Math.max(0, Math.min(1, maxSev * 0.7 + Math.min(0.3, Math.max(0, active.length - 1) * 0.12)));
+    if (!GM.vars) GM.vars = {};
+    GM.vars.disasterLevel = Math.round(level * 100) / 100;
+    GM.vars.disasterType = worstCat;   // 'drought'/'flood'/'plague'/…(供水/旱赈济疏 disasterType==='flood'/'drought' 判定)
+    GM.activeFamine = level > 0.35 && /drought|locust|flood|旱|蝗|水|洪/.test(worstCat.toLowerCase());  // 饥荒:够重 + 旱/蝗/水类
+  }
+  // 每回合一次：到期灾害出队(已赈灾者寿命减半·更快平息)·返回平息数。治本"永不消除"。
+  function tickDisasters() {
+    if (typeof GM === 'undefined' || !GM) return 0;
+    if (!Array.isArray(GM.activeDisasters) || !GM.activeDisasters.length) { _syncDisasterSignals([]); return 0; }  // 无灾:清陈旧派生信号(原早返回致 disasterLevel 永不归零)
+    var now = GM.turn || 0, kept = [], passed = 0;
+    GM.activeDisasters.forEach(function(d) {
+      if (!d) return;
+      var started = (d.startedTurn != null) ? d.startedTurn : (d._startedTurn || 0);
+      var dur = (d.duration != null) ? d.duration : _disasterDurationTurns(d.category || d.type);
+      var effDur = d._relieved ? Math.max(1, Math.ceil(dur / 2)) : dur; // 赈灾加速平息
+      if ((now - started) >= effDur) {
+        passed++;
+        if (typeof addEB === 'function') { try { addEB('朝代', (d.region || '某地') + '·' + _disasterCatCN(d.category || d.type) + (d._relieved ? '·赈济得力，灾情渐息' : '·灾情渐息'), { credibility: 'high' }); } catch (_e) {} }
+      } else { kept.push(d); }
+    });
+    GM.activeDisasters = kept;
+    _syncDisasterSignals(kept);   // 在册天灾→派生 disasterLevel/disasterType/activeFamine(盘活既有消费方·灾退→kept 缩→level 回落→无灾清零)
+    return passed;
+  }
+
   var Actions = {
     // 加派（临时提高税率）
     extraTax: function(rate) {
@@ -1049,8 +1116,8 @@
       return { success: true };
     },
 
-    // 开仓放粮（紧急赈济）
-    openGranary: function(scale) {
+    // 开仓放粮（紧急赈济）·region 可选(国赈全境/指定区赈该区/未指定赈全部在灾)
+    openGranary: function(scale, region) {
       ensureGuokuModel();
       var g = GM.guoku;
       scale = scale || 'regional';
@@ -1058,12 +1125,22 @@
                  scale === 'regional' ? 150000 : 50000;
       if (g.balance < cost) return { success: false, reason: '帑廪不足' };
       g.balance -= cost;
-      // 民心回升
+      // 赈灾真挂钩灾害：按 scale/region 标记对应灾害已赈(tickDisasters 令其更快平息)·治"赈灾与灾害对象脱钩"
+      var relieved = 0;
+      if (Array.isArray(GM.activeDisasters)) {
+        GM.activeDisasters.forEach(function(d) {
+          if (!d) return;
+          var hit = (scale === 'national') || !region || d.region === region;
+          if (hit && !d._relieved) { d._relieved = true; d._reliefTurn = GM.turn || 0; relieved++; }
+        });
+      }
+      // 民心回升：有灾可赈按 scale·无灾空赈减半(避免无灾刷民心)
       var minxinGain = scale === 'national' ? 15 :
                        scale === 'regional' ? 8 : 3;
+      if (relieved === 0) minxinGain = Math.round(minxinGain / 2);
       if (GM.minxin) GM.minxin.trueIndex = Math.min(100, GM.minxin.trueIndex + minxinGain);
-      if (typeof addEB === 'function') addEB('朝代', '开仓赈济（' + scale + '）', { credibility: 'high' });
-      return { success: true };
+      if (typeof addEB === 'function') addEB('朝代', '开仓赈济（' + scale + '）' + (relieved ? '·赈 ' + relieved + ' 处灾情' : ''), { credibility: 'high' });
+      return { success: true, relieved: relieved };
     },
 
     // 借贷（盐商/钱商/外国）
@@ -2060,6 +2137,7 @@
     Sources: Sources,
     Expenses: Expenses,
     Actions: Actions,
+    tickDisasters: tickDisasters,
     computeTaxFlow: computeTaxFlow,
     monthlySettle: monthlySettle,
     yearlySettle: yearlySettle,

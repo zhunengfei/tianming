@@ -32,7 +32,7 @@
 
   function _isD1Enabled() {
     if (typeof P === 'undefined' || !P || !P.conf) return false;
-    return P.conf.useNewKejuD1 === true;
+    return P.conf.useNewKejuD1 !== false; // 默认开·2026-06-15·门生/清议解锁（spawn 有冷却·不刷屏；undefined→on·显式 false 才关）
   }
 
   /** 主入口·endTurn 调·检测所有 cohort·spawn meet */

@@ -38,7 +38,7 @@
 
   function _isL12Enabled() {
     if (typeof P === 'undefined' || !P || !P.conf) return false;
-    return P.conf.useNewKejuL12 === true;
+    return P.conf.useNewKejuL12 !== false;
   }
 
   function _hasAI() {

@@ -1355,8 +1355,12 @@
     if (typeof window === 'undefined' || !window.EDICT_TYPES || !window.EDICT_TYPES.wuju) return;
     var wc = window.EDICT_TYPES.wuju;
     var ac = wc.affectedClasses || {};
-    if (typeof GM.guoku === 'number' && typeof ac['国库'] === 'number') {
-      GM.guoku += ac['国库'];
+    // 国库代价（修：原 typeof GM.guoku === 'number' 恒假——guoku 是对象，扣费从未发生·死火）。
+    // affectedClasses['国库'] 抽象点数→按每点≈3000 两走真账本 spendFromGuoku 扣减·武举约 45000 两·可调。
+    if (typeof ac['国库'] === 'number' && ac['国库'] < 0) {
+      var _wjCost = Math.abs(ac['国库']) * 3000;
+      var _FE_wj = (typeof window !== 'undefined' && window.FiscalEngine) || (typeof global !== 'undefined' && global.FiscalEngine) || (typeof FiscalEngine !== 'undefined' && FiscalEngine) || null;
+      if (_FE_wj && typeof _FE_wj.spendFromGuoku === 'function') _FE_wj.spendFromGuoku({ money: _wjCost }, '武举开科');
     }
     // 军 +15 → war_state 缓和 (军心振)
     if (GM.vars && GM.vars['边事'] && typeof ac['军'] === 'number') {

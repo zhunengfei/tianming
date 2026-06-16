@@ -52,7 +52,7 @@
 
   function _isHEnabled() {
     if (typeof P === 'undefined' || !P || !P.conf) return false;
-    return P.conf.useNewKejuH === true;
+    return P.conf.useNewKejuH !== false;
   }
 
   function _getCurYear() {

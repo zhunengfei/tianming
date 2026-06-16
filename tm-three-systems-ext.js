@@ -165,7 +165,7 @@
       a.loyalty = (typeof a.morale === 'number') ? Math.min(100, Math.max(20, a.morale)) : 60;
     }
     // 士气/补给/训练度补齐(若缺)
-    if (a.morale === undefined) a.morale = 50;
+    if (a.morale === undefined) a.morale = 60;            // 军心缺省统一 60(原 50·与 AI 新建军/补饷基线/战力读取一致·keystone 初始化点)
     if (a.supply === undefined) a.supply = 70;
     if (a.training === undefined) a.training = 50;
     // 状态标志
@@ -460,18 +460,17 @@
       } else if (global.TM && global.TM.MilitarySystems && typeof global.TM.MilitarySystems.applyPayArrearsPressure === 'function') {
         global.TM.MilitarySystems.applyPayArrearsPressure(a, { source: 'three-systems-update' }, global.GM);
       }
-      // 3. 士气崩溃判定
+      // 3. 补给短缺士气惩罚(applyPayArrearsPressure 只管欠饷·补给独立·保留)
       if (a.supply < 20) {
         a.morale = Math.max(0, a.morale - 5);
       }
-      if (a.morale < 30 && a.payArrearsMonths >= 3) {
-        a.mutinyRisk = Math.min(100, a.mutinyRisk + 10);
-      } else if (a.payArrearsMonths >= 3) {
-        a.mutinyRisk = Math.min(100, a.mutinyRisk + 5);
-      } else if (a.morale < 20) {
-        a.mutinyRisk = Math.min(100, a.mutinyRisk + 3);
+      // 兵变风险:欠饷→军心→(临界)兵变 已由 applyPayArrearsPressure(管线A·_markRouted 加 10~25)单一负责
+      // 此处不再按欠饷二次加兵变(原 morale<30&&arrears>=3:+10 / arrears>=3:+5 每回合叠加·与 A 重复扣·致兵变过快过猛·补饷也压不住残余)
+      // 仅保留与欠饷无关的「士气过低」兵变压力 + 无低士气时的自然回落
+      if (a.morale < 20) {
+        a.mutinyRisk = Math.min(100, (a.mutinyRisk || 0) + 3);
       } else {
-        a.mutinyRisk = Math.max(0, a.mutinyRisk - 2);
+        a.mutinyRisk = Math.max(0, (a.mutinyRisk || 0) - 2);
       }
       // 4. 兵变事件触发标记
       if (a.mutinyRisk >= 80 && !a._mutinyTriggered) {

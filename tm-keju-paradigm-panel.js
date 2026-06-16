@@ -507,7 +507,7 @@
         });
       }
     } catch(_){}
-    var l5Off = !(typeof P !== 'undefined' && P && P.conf && P.conf.useNewKejuL5 === true);
+    var l5Off = !(typeof P !== 'undefined' && P && P.conf && P.conf.useNewKejuL5 === false);
     if (!memorials.length) {
       var emptyText = l5Off
         ? '议政后·反对派可能上书 (需开 P.conf.useNewKejuL5)·入「百官奏疏」面板'
@@ -699,7 +699,7 @@
 
   // L10·历史模板 button·跟 L6 button 同 row paradigm
   function _kjpRenderL10PresetAction(draft) {
-    if (typeof P === 'undefined' || !P || !P.conf || P.conf.useNewKejuL10 !== true) return '';
+    if (typeof P === 'undefined' || !P || !P.conf || P.conf.useNewKejuL10 === false) return '';
     if (typeof L10_PRESETS === 'undefined') return '';
     var l10Mark = draft && draft._l10PresetId
       ? ' <span class="kjp-l10-marked">📜 已 fill·' + _escHtml(draft._l10PresetCanonicalName || '') + '</span>'
@@ -715,7 +715,7 @@
   // RAA·A1·flag off hint·A2·console.warn debug·A4·LLM 返空字段 placeholder
   function _kjpRenderL6SubjectActions(draft) {
     // RAA·A1·flag off·显 hint·非 silent hide·user 知 feature 存在 + 怎么开
-    if (typeof P === 'undefined' || !P || !P.conf || P.conf.useNewKejuL6 !== true) {
+    if (typeof P === 'undefined' || !P || !P.conf || P.conf.useNewKejuL6 === false) {
       try { console.warn('[L6] disabled·set P.conf.useNewKejuL6=true to enable LLM 推荐 / 自定义新 subject'); } catch(_){}
       return '<div class="kjp-row kjp-muted kjp-l6-disabled-hint">▶ LLM 推荐 / 自定义新科·需开 P.conf.useNewKejuL6 (设置面板)</div>';
     }
@@ -2968,7 +2968,7 @@
       }
     }
     // evolution tab (default·现 L8 path)
-    if (typeof P === 'undefined' || !P || !P.conf || P.conf.useNewKejuL8 !== true) {
+    if (typeof P === 'undefined' || !P || !P.conf || P.conf.useNewKejuL8 === false) {
       return '<div class="kjp-muted kjp-l8-disabled-hint">L8 未启·设 P.conf.useNewKejuL8=true 开年度演化 + 跨代承袭</div>';
     }
     var html = '';

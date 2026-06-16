@@ -1120,7 +1120,7 @@
   function _kjpL5InjectObjectionPrompt(promptBuf) {
     if (typeof GM === 'undefined' || !GM || !GM._kejuParadigm) return promptBuf;
     // gate·useNewKejuL5 默认 off·若 off·non-action
-    if (typeof P === 'undefined' || !P || !P.conf || P.conf.useNewKejuL5 !== true) return promptBuf;
+    if (typeof P === 'undefined' || !P || !P.conf || P.conf.useNewKejuL5 === false) return promptBuf;
 
     // RAA·B1·history null guard
     var allHist = (GM._kejuParadigm && Array.isArray(GM._kejuParadigm.history))

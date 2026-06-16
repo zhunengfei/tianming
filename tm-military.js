@@ -47,6 +47,11 @@ var TacticTypes = {
   }
 };
 
+// 军心(morale)缺省值单一真相源·原散落 50/60/70 多处不一致(本文件战力/战斗/编制读取点 + extendArmyFields 初始化 + AI 新建军统一为此)
+// 用 != null 而非 ||·使 morale=0(溃散/哗变军)正确读作 0·不再被 || 误兜回默认致「0士气军却按70算战力」
+var MILITARY_DEFAULT_MORALE = 60;
+function _armyMorale(a){ return (a && a.morale != null) ? Number(a.morale) : MILITARY_DEFAULT_MORALE; }
+
 // 战斗策略分析
 function analyzeBattleStrategy(attacker, defender, context) {
   if (!attacker || !defender) return null;
@@ -55,14 +60,14 @@ function analyzeBattleStrategy(attacker, defender, context) {
     attacker: {
       name: attacker.name,
       strength: calculateArmyStrength(attacker),
-      morale: attacker.morale || 70,
+      morale: _armyMorale(attacker),
       commander: attacker.commander,
       recommendedTactics: []
     },
     defender: {
       name: defender.name,
       strength: calculateArmyStrength(defender),
-      morale: defender.morale || 70,
+      morale: _armyMorale(defender),
       commander: defender.commander,
       recommendedTactics: []
     },
@@ -95,9 +100,9 @@ function calculateArmyStrength(army, context) {
   var ctx = context || {};
 
   var baseStrength = army.soldiers || army.strength || 1000;
-  var moraleMod = 0.5 + (army.morale || 70) / 200;       // 0.5-1.0
+  var moraleMod = 0.5 + _armyMorale(army) / 200;       // 0.5-1.0
   var trainingMod = 0.5 + (army.training || 50) / 200;    // 0.5-1.0
-  var qualityMod = army.quality === '\u7CBE\u9510' ? 1.3 : army.quality === '\u65B0\u5175' ? 0.7 : 1.0;
+  var _qmStr = String(army.quality || ''); var qualityMod = /精锐|精兵|百战|劲旅/.test(_qmStr) ? 1.3 : /新兵|新募|老弱|疲|羸|乌合/.test(_qmStr) ? 0.7 : 1.0;
 
   // 将领加成（军事能力+智力综合）
   var commanderMod = 1.0;
@@ -114,6 +119,10 @@ function calculateArmyStrength(army, context) {
   var supplyMod = 1.0;
   if (army.supplyRatio !== undefined) {
     supplyMod = 0.5 + (army.supplyRatio || 0) * 0.7; // 0.5-1.2
+  } else if (army.supply != null) {
+    // 字段分裂修：supplyRatio(0-1) 仅补给/行军系统启用时填；日常维护/UI/AI 用的是 supply(0-100)。
+    // 无 supplyRatio 时按 supply 折算同一曲线，断粮军真正减战力（原先恒满补给=补给纯摆设）。
+    supplyMod = 0.5 + (Math.max(0, Math.min(100, Number(army.supply) || 0)) / 100) * 0.7; // 0.5-1.2
   }
 
   // 地形加成（从P.battleConfig读取，防守方额外+10%）
@@ -133,7 +142,9 @@ function calculateArmyStrength(army, context) {
     if (unitDef && unitDef.weak_against && unitDef.weak_against.indexOf(ctx.enemyType) >= 0) unitMod = 0.75;
   }
 
-  return baseStrength * moraleMod * trainingMod * qualityMod * commanderMod * supplyMod * terrainMod * unitMod;
+  var fortMod = 1.0;
+  if (ctx.isDefender && army.fortification) fortMod = 1 + Math.min(0.3, (Number(army.fortification) || 0) / 100 * 0.3); // fortify accumulates; rewards defending
+  return baseStrength * moraleMod * trainingMod * qualityMod * commanderMod * supplyMod * terrainMod * unitMod * fortMod;
 }
 
 // 推荐战术
@@ -184,7 +195,7 @@ function evaluateTactic(tactic, army, enemy, strengthRatio, context) {
   }
 
   // 士气影响
-  var morale = army.morale || 70;
+  var morale = _armyMorale(army);
   if (morale < 50 && tactic.moraleCost > 10) {
     score -= 30; // 低士气时避免高士气消耗战术
   }
@@ -562,7 +573,7 @@ var MilitarySystems = (function(global) {
     if (!validated.ok) return validated;
     var system = getMilitarySystemForArmy(army, G);
     var attribution = _normalizeAttribution(army.loyaltyAttribution || system.loyaltyAttribution);
-    army.morale = _clamp100((army.morale === undefined ? 70 : army.morale) + validated.adjusted.moraleDelta);
+    army.morale = _clamp100(_armyMorale(army) + validated.adjusted.moraleDelta);
     army.loyalty = _clamp100((army.loyalty === undefined ? 50 : army.loyalty) + validated.adjusted.loyaltyDelta);
     army.loyaltyAttribution = attribution;
     army._payArrearsAppliedTurn = turn;
@@ -613,7 +624,7 @@ var MilitarySystems = (function(global) {
     var cleared = Math.max(0, Math.min(want, Math.round(want * frac)));
     if (cleared <= 0 && frac > 0) cleared = 1;           // 付了点就认一月·不让钱白扣
     army.payArrearsMonths = Math.max(0, months - cleared);
-    army.morale = _clamp100((army.morale == null ? 60 : Number(army.morale)) + Math.min(15, 4 * cleared));
+    army.morale = _clamp100(_armyMorale(army) + Math.min(15, 4 * cleared));
     army.loyalty = _clamp100((army.loyalty == null ? 60 : Number(army.loyalty)) + Math.min(10, 2 * cleared));
     army.mutinyRisk = Math.max(0, (Number(army.mutinyRisk) || 0) - 10 * cleared);
     army._lastArrearsSettleTurn = Number((global.GM && global.GM.turn) || 0);
@@ -666,6 +677,28 @@ var MilitarySystems = (function(global) {
     return G.chars.find(function(c) { return c && c.name === name; }) || null;
   }
 
+  // #26·战争闭环:一场战果按胜负推进对应战争 warScore·越 ±100 触发议和(调 CasusBelliSystem.endWar 上停战期)·原 warScore 恒 0 只读不写·endWar 零调用
+  function _ty_updateWarFromBattle(winner, loser, br, G) {
+    G = G || (typeof GM !== 'undefined' ? GM : null);
+    if (!G || !Array.isArray(G.activeWars) || !G.activeWars.length) return;
+    var war = G.activeWars.find(function(w){
+      return w && ((w.attacker === winner && w.defender === loser) || (w.attacker === loser && w.defender === winner));
+    });
+    if (!war) return;
+    var mag = Number(br && (br.warScoreDelta || br.decisiveness));
+    if (!isFinite(mag) || mag <= 0) {
+      var aL = Number(br && br.attackerLoss) || 0, dL = Number(br && br.defenderLoss) || 0;
+      mag = (aL || dL) ? (Math.round(Math.abs(dL - aL) / 200) + 10) : 15;   // 缺 AI 战果幅度→按伤亡差派生·夹下
+    }
+    mag = Math.max(5, Math.min(40, mag));
+    var signed = (winner === war.attacker) ? mag : -mag;   // warScore 以 war.attacker 视角累积:攻方胜+/守方胜-
+    war.warScore = Math.max(-100, Math.min(100, (Number(war.warScore) || 0) + signed));
+    if (typeof addEB === 'function') { try { addEB('战争', winner + '胜' + loser + '一阵·' + war.attacker + ' vs ' + war.defender + ' 战争积分 ' + war.warScore); } catch (_e) {} }
+    if (Math.abs(war.warScore) >= 100 && typeof CasusBelliSystem !== 'undefined' && CasusBelliSystem.endWar) {
+      try { CasusBelliSystem.endWar(war.id); if (typeof addEB === 'function') addEB('战争', war.attacker + '与' + war.defender + '·胜负已分·议和罢兵'); } catch (_e2) {}
+    }
+  }
+
   function applyBattleResult(battleResult, root) {
     var G = _root(root);
     var br = battleResult || {};
@@ -673,6 +706,7 @@ var MilitarySystems = (function(global) {
     var winner = br.winnerFactionId || br.winnerFaction || br.winner || '';
     var loser = br.loserFactionId || br.loserFaction || br.loser || '';
     if (!winner || !loser) return { ok: false, reason: 'missing-winner-loser' };
+    try { _ty_updateWarFromBattle(winner, loser, br, G); } catch (_wuw) {}   // #26·战争闭环:战果推进 warScore
     function _armyNameOf(army) {
       return army ? String(army.name || army.id || army.armyId || '') : '';
     }
@@ -788,6 +822,38 @@ var MilitarySystems = (function(global) {
       attacker: Math.max(0, Math.round(_toNum((br.casualties || {}).attacker, 0))),
       defender: Math.max(0, Math.round(_toNum((br.casualties || {}).defender, 0)))
     };
+    // 确定性战果 (opt-in·P.conf/battleConfig.deterministicCasualties·默认 OFF → 此块整体跳过·零行为变更)
+    // AI 漏报(双方皆0)或离谱(超兵力)伤亡时·用 BattleEngine 按兵力/地形/城防/季节确定性核算·治「战果全凭 AI 自由裁量·机械可信度低」
+    try {
+      var _detOn = (typeof P !== 'undefined' && P) && ((P.conf && P.conf.deterministicCasualties === true) || (P.battleConfig && P.battleConfig.deterministicCasualties === true));
+      if (_detOn && attackerArmy && defenderArmy && typeof BattleEngine !== 'undefined' && BattleEngine && typeof BattleEngine.resolve === 'function') {
+        var _aSz = _toNum(attackerArmy.soldiers != null ? attackerArmy.soldiers : attackerArmy.strength, 0);
+        var _dSz = _toNum(defenderArmy.soldiers != null ? defenderArmy.soldiers : defenderArmy.strength, 0);
+        var _absurd = function(loss, size) { return !isFinite(loss) || loss < 0 || (size > 0 && loss > size); };
+        var _aBad = _absurd(lossBySide.attacker, _aSz), _dBad = _absurd(lossBySide.defender, _dSz);
+        var _bothZero = (lossBySide.attacker === 0 && lossBySide.defender === 0);
+        // #28·地形/季节/城防夹取:有意义城防/地形/季节时调 resolve() 得确定性预期·AI 战果与之强烈矛盾(攻方在雄关/险地/隆冬轻取·攻方伤亡远低于引擎预期)→拉回引擎·使地利/城防/季节真影响战局(非仅 AI 叙事参考)
+        var _hasTerrainFactor = (_toNum(br.fortLevel, 0) > 0) || (br.terrain && br.terrain !== 'plains');
+        if (_aBad || _dBad || _bothZero || _hasTerrainFactor) {
+          var _det = null;
+          try { _det = BattleEngine.resolve(attackerArmy, defenderArmy, { forceCompute: true, terrain: br.terrain, fortLevel: br.fortLevel, season: br.season, battleId: br.battleId || br.id }); } catch (_de) { _det = null; }
+          var _contradicts = false;
+          if (_det && _hasTerrainFactor) {
+            var _aFac = attackerArmy.faction || '';
+            var _aiAttackerWon = !!(winner && _aFac && winner === _aFac);
+            var _detDefenderHeld = (_det.verdict === '败北');   // 引擎(含城防/地形/季节)判攻方败北 = 守方守住
+            // AI 称攻方胜·引擎判守方守住·且 AI 给攻方伤亡 < 引擎预期 60% → 强烈矛盾·按引擎夹攻方战损(强攻雄关/险地/隆冬的真实代价)
+            if (_aiAttackerWon && _detDefenderHeld && lossBySide.attacker < _det.attackerLoss * 0.6) _contradicts = true;
+          }
+          if (_det && (_aBad || _dBad || _bothZero || _contradicts)) {
+            if (_aBad || _bothZero || _contradicts) lossBySide.attacker = Math.max(0, _aSz > 0 ? Math.min(_aSz, _det.attackerLoss) : _det.attackerLoss);
+            if (_dBad || _bothZero) lossBySide.defender = Math.max(0, _dSz > 0 ? Math.min(_dSz, _det.defenderLoss) : _det.defenderLoss);
+            br._deterministicCasualties = true;
+            if (_contradicts) { br._terrainClamped = true; if (typeof addEB === 'function') { try { addEB('军事', '地利城防核校·' + (attackerArmy.name || '攻方') + '强攻折损按险阻夯实'); } catch (_te) {} } }
+          }
+        }
+      }
+    } catch (_detE) {}
     var appliedLossBySide = { attacker: 0, defender: 0 };
     var sawSideEntry = { attacker: false, defender: false };
     var handledCommanders = {};
@@ -842,7 +908,7 @@ var MilitarySystems = (function(global) {
       var moraleDelta = isFinite(Number(entry.moraleDelta)) ? Number(entry.moraleDelta) : (loss > 0 ? -Math.max(1, Math.round(loss / 80)) : 0);
       var loyaltyDelta = isFinite(Number(entry.loyaltyDelta)) ? Number(entry.loyaltyDelta) : (loss > 0 ? -Math.max(1, Math.round(loss / 120)) : 0);
       var cohesionDelta = isFinite(Number(entry.cohesionDelta)) ? Number(entry.cohesionDelta) : ((loss > 0 && side === 'defender') ? -Math.max(1, Math.round(loss / 140)) : 0);
-      if (moraleDelta) army.morale = _clamp100((army.morale === undefined ? 50 : army.morale) + moraleDelta);
+      if (moraleDelta) army.morale = _clamp100(_armyMorale(army) + moraleDelta);
       if (loyaltyDelta) army.loyalty = _clamp100((army.loyalty === undefined ? 50 : army.loyalty) + loyaltyDelta);
       if (cohesionDelta) army.cohesion = _clamp100((army.cohesion === undefined ? 70 : army.cohesion) + cohesionDelta);
       if (isFinite(Number(entry.mutinyRiskDelta))) army.mutinyRisk = Math.max(0, Math.min(100, Math.round((Number(army.mutinyRisk) || 0) + Number(entry.mutinyRiskDelta))));
@@ -877,6 +943,10 @@ var MilitarySystems = (function(global) {
           if (outcome === 'killed' || outcome === 'dead') army.commanderAlive = false;
           if (outcome === 'captured') army.commanderCaptured = true;
           if (outcome === 'fled') army.commanderFled = true;
+          var _cmLoss = (outcome === 'killed' || outcome === 'dead' || outcome === 'captured') ? 18 : 10;
+          if (typeof army.morale === 'number') army.morale = Math.max(0, army.morale - _cmLoss); // commander loss = extra morale shock
+          army.mutinyRisk = Math.min(100, (army.mutinyRisk || 0) + 10);
+          if (typeof army.morale === 'number' && army.morale < 35 && loss > 0) { army.state = 'routed'; army.routed = true; }
         }
       }
       var summary = _buildArmySnapshot(army, side, loss, moraleDelta, loyaltyDelta, cohesionDelta, army.state || beforeState, commanderName, commanderFate);
@@ -1136,7 +1206,7 @@ var BattleEngine = (function() {
       if (structured && structured.ok) return structured.result;
     }
     var cfg = _getConfig();
-    if (!cfg.enabled) return null; // 未启用战斗引擎，回退AI自由裁量
+    if (!cfg.enabled && !(context && context.forceCompute)) return null; // 未启用战斗引擎，回退AI自由裁量(forceCompute=确定性战果 opt-in 旁路·只算战损不需全引擎)
 
     var terrain = context.terrain || 'plains';
     var fortLevel = context.fortLevel || 0;
@@ -1338,11 +1408,11 @@ var BattleEngine = (function() {
 
         // 应用士气影响
         if (result.verdict === '败北') {
-          attackerArmy.morale = Math.max(0, (attackerArmy.morale || 70) - 15);
-          defenderArmy.morale = Math.min(100, (defenderArmy.morale || 70) + 10);
+          attackerArmy.morale = Math.max(0, _armyMorale(attackerArmy) - 15);
+          defenderArmy.morale = Math.min(100, _armyMorale(defenderArmy) + 10);
         } else if (result.verdict === '大胜' || result.verdict === '小胜') {
-          attackerArmy.morale = Math.min(100, (attackerArmy.morale || 70) + 10);
-          defenderArmy.morale = Math.max(0, (defenderArmy.morale || 70) - 15);
+          attackerArmy.morale = Math.min(100, _armyMorale(attackerArmy) + 10);
+          defenderArmy.morale = Math.max(0, _armyMorale(defenderArmy) - 15);
         }
 
         // 标记战斗为已结算
@@ -2123,7 +2193,7 @@ function createUnit(type, count, army) {
     count: count,
     armyId: army.id,
     armyName: army.name,
-    morale: army.morale || 70,
+    morale: _armyMorale(army),
     experience: 0,
     equipment: 'standard',
     status: 'ready',
@@ -2141,7 +2211,7 @@ function updateUnitSystem() {
     // 更新士气
     var army = GM.armies.find(function(a) { return a.id === unit.armyId; });
     if (army) {
-      unit.morale = army.morale || 70;
+      unit.morale = _armyMorale(army);
     }
 
     // 经验增长（月基准0.5，按天数缩放）
@@ -2310,7 +2380,7 @@ function generateArmyCompositionReport(army) {
 
   var report = '【军队编制：' + army.name + '】\n\n';
   report += '总兵力：' + (army.soldiers || 0) + ' 人\n';
-  report += '士气：' + (army.morale || 70) + '\n';
+  report += '士气：' + _armyMorale(army) + '\n';
   if (army.commander) {
     report += '统帅：' + army.commander + '\n';
   }
@@ -3093,7 +3163,7 @@ function syncMilitarySources(GM) {
     }
     var t = typesMap[key];
     t.strength += soldiers;
-    t.morale  += (a.morale || 50) * soldiers;
+    t.morale  += _armyMorale(a) * soldiers;
     t.supply  += (a.supply || 50) * soldiers;
     t.training += (a.training || 50) * soldiers;
     t._count += soldiers;

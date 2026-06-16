@@ -41,7 +41,7 @@
 
   function _isL7Enabled() {
     if (typeof P === 'undefined' || !P || !P.conf) return false;
-    return P.conf.useNewKejuL7 === true;
+    return P.conf.useNewKejuL7 !== false;
   }
 
   /**

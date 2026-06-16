@@ -592,6 +592,8 @@ function applyFactionInteraction(facA, facB, type, extra) {
       rBA[k] = Math.max(-100, Math.min(100, (rBA[k] || 0) + eff[k]));
     }
   });
+  // 资源/领土后果（#25·外交真后果接通）：抽象六维之外·赔款/朝贡/互市/并吞落真国库与领土·额由对方势力 strength 派生·EB 留痕·国库只在玩家为一方时动
+  try { _applyDiploResourceConsequence(facA, facB, type, extra); } catch (_dre) {}
   // 战争计数
   if (type === 'declare_war') { rAB.warsCount = (rAB.warsCount||0) + 1; rBA.warsCount = rAB.warsCount; }
   // 历史事件
@@ -622,6 +624,61 @@ function applyFactionInteraction(facA, facB, type, extra) {
   // 细作
   if (type === 'spy_infiltration') rAB.spiesTo = (rAB.spiesTo || 0) + 1;
   return true;
+}
+
+// ── #25·外交资源/领土后果 ──────────────────────────────────────────
+// 国库=玩家帑廪·仅当玩家为交互一方时动国库(FiscalEngine spend/add)·两 AI 势力间则动其抽象 faction.money/strength
+function _diploFindFac(name) {
+  if (!name || typeof GM === 'undefined' || !Array.isArray(GM.facs)) return null;
+  return GM.facs.find(function(f){ return f && f.name === name; }) || null;
+}
+function _diploPlayerFac() {
+  return (typeof P !== 'undefined' && (P.playerFactionName || (P.playerInfo && P.playerInfo.factionName))) || (typeof GM !== 'undefined' && (GM.playerFactionName || GM.playerFaction)) || '本朝';
+}
+// 岁币/赔款额按对方势力 strength(夹 20-200)派生·strength 50→money 30000/cloth 2000(对齐旧硬编)·保守上下限
+function _diploTributeAmt(otherStrength) {
+  var s = Math.max(20, Math.min(200, Number(otherStrength) || 50));
+  return { money: Math.round(Math.max(8000, Math.min(120000, s * 600))), cloth: Math.round(Math.max(0, Math.min(8000, s * 40))) };
+}
+function _applyDiploResourceConsequence(facA, facB, type, extra) {
+  if (type !== 'pay_indemnity' && type !== 'demand_tribute' && type !== 'pay_tribute' && type !== 'open_market' && type !== 'annex_vassal' && type !== 'recognize_independence') return;
+  var player = _diploPlayerFac();
+  var fA = _diploFindFac(facA), fB = _diploFindFac(facB);
+  function strOf(f){ return Math.max(20, Math.min(200, (f && Number(f.strength)) || 50)); }
+  function eb(txt){ if (typeof addEB === 'function') { try { addEB('外交', txt); } catch(_){} } }
+  function spend(amts, tag){ if (typeof FiscalEngine !== 'undefined' && FiscalEngine.spendFromGuoku) { try { FiscalEngine.spendFromGuoku(amts, tag); } catch(_){} } }
+  function add(amts, tag){ if (typeof FiscalEngine !== 'undefined' && FiscalEngine.addToGuoku) { try { FiscalEngine.addToGuoku(amts, tag); } catch(_){} } }
+  function absMoney(f, d){ if (f) f.money = (Number(f.money) || 0) + d; }
+
+  if (type === 'pay_indemnity') {            // facA 向 facB 赔款·额由收方 facB 实力派生
+    var a1 = _diploTributeAmt(strOf(fB)).money;
+    if (facA === player) { spend({ money: a1 }, '赔款·' + facB); eb('向' + facB + '赔款 ' + a1 + ' 两·出帑'); }
+    else if (facB === player) { add({ money: a1 }, '赔款·' + facA); eb(facA + '赔款 ' + a1 + ' 两·入帑'); }
+    else { absMoney(fA, -a1); absMoney(fB, a1); }
+  } else if (type === 'demand_tribute') {     // facA 索贡(收)·额由纳方 facB 实力派生
+    var t1 = _diploTributeAmt(strOf(fB));
+    if (facA === player) { add(t1, '朝贡·' + facB); eb(facB + '纳贡 ' + t1.money + ' 两' + (t1.cloth?('·布'+t1.cloth+'匹'):'') + '·入帑'); }
+    else if (facB === player) { spend(t1, '岁币·' + facA); eb('纳' + facA + '岁币 ' + t1.money + ' 两·出帑'); }
+    else { absMoney(fB, -t1.money); absMoney(fA, t1.money); }
+  } else if (type === 'pay_tribute') {        // facA 献贡(付)·额由受方 facB 实力派生
+    var t2 = _diploTributeAmt(strOf(fB));
+    if (facA === player) { spend(t2, '岁币·' + facB); eb('献' + facB + '岁币 ' + t2.money + ' 两·出帑'); }
+    else if (facB === player) { add(t2, '朝贡·' + facA); eb(facA + '献贡 ' + t2.money + ' 两·入帑'); }
+    else { absMoney(fA, -t2.money); absMoney(fB, t2.money); }
+  } else if (type === 'open_market') {        // 互市:即期通商红利入账(随对方实力)·玩家方才动国库·标 tradeOpen
+    var bonus = Math.round(_diploTributeAmt(strOf(fB)).money * 0.3);
+    if (facA === player || facB === player) { var other = (facA === player) ? facB : facA; add({ money: bonus }, '互市·' + other); eb('与' + other + '开互市·通商之利 ' + bonus + ' 两入帑'); }
+    var rOM = ensureFactionRelation(facA, facB); if (rOM) rOM.tradeOpen = true;
+  } else if (type === 'annex_vassal') {       // 并吞:被吞 facB 领土/兵并入 facA·标 absorbed(原 effect:{} 空)
+    if (fB) {
+      if (fA && Array.isArray(fB.provinceIds)) fA.provinceIds = (fA.provinceIds || []).concat(fB.provinceIds);
+      if (fA) fA.strength = (Number(fA.strength) || 0) + Math.round((Number(fB.strength) || 0) * 0.6);
+      fB._absorbedBy = facA; fB._absorbedTurn = (typeof GM !== 'undefined' && GM.turn) || 0; fB.strength = 0; fB.provinceIds = [];
+      eb(facA + '并吞' + facB + '·其疆土部众归并');
+    }
+  } else if (type === 'recognize_independence') {  // 承认独立:facB 脱离附庸(领土留其自身)
+    if (fB) { fB.suzerainFaction = ''; fB._independentTurn = (typeof GM !== 'undefined' && GM.turn) || 0; eb(facA + '承认' + facB + '独立·解除附庸'); }
+  }
 }
 
 /**

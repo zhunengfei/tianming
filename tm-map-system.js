@@ -1663,14 +1663,14 @@ function showCityInfo(cityId) {
   var html = '<div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bg);border:2px solid var(--gold);border-radius:0.5rem;padding:1.5rem;min-width:300px;z-index:10000;">';
   html += '<h3 style="color:var(--gold);margin-bottom:1rem;">' + city.name + '</h3>';
   html += '<div style="margin-bottom:0.5rem;"><strong>归属：</strong>' + city.owner + '</div>';
-  html += '<div style="margin-bottom:0.5rem;"><strong>人口：</strong>' + city.population.toLocaleString() + '</div>';
-  html += '<div style="margin-bottom:0.5rem;"><strong>收入：</strong>' + city.income.toLocaleString() + ' 金/月</div>';
-  html += '<div style="margin-bottom:0.5rem;"><strong>驻军：</strong>' + city.garrison.toLocaleString() + '</div>';
+  html += '<div style="margin-bottom:0.5rem;"><strong>人口：</strong>' + (city.population||0).toLocaleString() + '</div>';
+  html += '<div style="margin-bottom:0.5rem;"><strong>收入：</strong>' + (city.income||0).toLocaleString() + ' 金/月</div>';
+  html += '<div style="margin-bottom:0.5rem;"><strong>驻军：</strong>' + (city.garrison||0).toLocaleString() + '</div>';
 
-  if (city.neighbors.length > 0) {
+  if ((city.neighbors||[]).length > 0) {
     html += '<div style="margin-top:1rem;"><strong>相邻城市：</strong></div>';
     html += '<div style="font-size:0.9rem;color:var(--txt-s);">';
-    city.neighbors.forEach(function(neighborId) {
+    (city.neighbors||[]).forEach(function(neighborId) {
       var neighbor = GM.mapData.cities[neighborId];
       if (neighbor) {
         html += neighbor.name + ' (' + neighbor.owner + ')、';

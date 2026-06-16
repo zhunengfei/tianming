@@ -1131,7 +1131,7 @@ function _offSyncHoldersFromChars(opts) {
   if (typeof GM === 'undefined' || !GM || !Array.isArray(GM.officeTree)) return { ok: false };
   // 签名守卫:渲染高频调用·状态未变则跳过重算(perf)
   if (opts.ifChanged && !opts.dedupChars) {
-    var sig = (GM.turn || 0) + '|' + (GM.chars || []).length + '|';
+    var sig = (GM.turn || 0) + '|' + (GM.chars || []).length + '|' + (GM.playerFaction || '') + '|';
     var h = 0, src = GM.chars || [];
     for (var _i = 0; _i < src.length; _i++) {
       var _c = src[_i]; if (!_c) continue;

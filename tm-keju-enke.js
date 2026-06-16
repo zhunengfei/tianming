@@ -1011,8 +1011,13 @@
     var ec = window.EDICT_TYPES.enke;
     // affectedClasses·apply 简化·士林 → +minxin·官僚 → -lizhi 反向·国库 → -guoku
     var ac = ec.affectedClasses || {};
-    if (typeof GM.guoku === 'number' && typeof ac['国库'] === 'number') {
-      GM.guoku += ac['国库'];
+    // 国库代价（修：原 typeof GM.guoku === 'number' 恒假——guoku 是 {money,grain,cloth} 对象，扣费从未发生·死火）。
+    // affectedClasses['国库'] 是抽象点数（老 0-100 treasury 遗留）；按每点≈3000 两折算走真账本 spendFromGuoku 扣减。
+    // 量级参照审计战役（5000-30000 两/区）：恩科约 24000 两·可调。
+    if (typeof ac['国库'] === 'number' && ac['国库'] < 0) {
+      var _ekCost = Math.abs(ac['国库']) * 3000;
+      var _FE_ek = (typeof window !== 'undefined' && window.FiscalEngine) || (typeof global !== 'undefined' && global.FiscalEngine) || (typeof FiscalEngine !== 'undefined' && FiscalEngine) || null;
+      if (_FE_ek && typeof _FE_ek.spendFromGuoku === 'function') _FE_ek.spendFromGuoku({ money: _ekCost }, '恩科开科');
     }
     if (typeof ac['士林'] === 'number') {
       var _dMx = Math.round(ac['士林'] * 0.3); // 士林 +10 → minxin +3 (士林是 minxin subset)

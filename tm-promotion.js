@@ -260,7 +260,7 @@
     var ot = G && G.officeTree;
     if (ot) {
       var poss = [];
-      (function walk(ns) { (ns || []).forEach(function (n) { if (!n) return; if (Array.isArray(n.positions)) n.positions.forEach(function (p) { if (p) poss.push(p); }); if (n.children) walk(n.children); if (n.depts) walk(n.depts); }); })(Array.isArray(ot) ? ot : [ot]);
+      (function walk(ns) { (ns || []).forEach(function (n) { if (!n) return; if (Array.isArray(n.positions)) n.positions.forEach(function (p) { if (p) poss.push(p); }); if (n.subs) walk(n.subs); if (n.children) walk(n.children); if (n.depts) walk(n.depts); }); })(Array.isArray(ot) ? ot : [ot]);
       poss.forEach(function (p) {
         var lv = (gRL && p.rank) ? gRL(p.rank) : 99;
         if (lv < 99 && p.name) nameRank.push({ name: String(p.name).replace(/[（(].*?[)）]/g, ''), level: lv });

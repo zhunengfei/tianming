@@ -568,7 +568,7 @@ window.desktopDoSave=async function(){
   if (typeof _awaitPostTurnJobsForSave === 'function') await _awaitPostTurnJobsForSave();
   _prepareGMForSave(); // 序列化所有系统数据+确保GM/P字段默认值
   var saveData=deepClone(P);
-  saveData.gameState=deepClone(GM);
+  saveData.gameState=_autoSaveSnapshotGM(); // 复用自动存档快照·与 autosave 同口径(SKIP debug/派生大块 + _saved* 引用)·避免裸 deepClone(GM) 把 5.5MB 派生冗余塞进手动档
   saveData._saveMeta={name:name,turn:GM.turn,time:getTSText(GM.turn),scenario:sc?sc.name:"",date:new Date().toISOString(),version:P.meta.v};
   try{
     var r=await window.tianming.saveProject(name,saveData);
@@ -1247,6 +1247,9 @@ function _autoSaveSnapshotGM(){
   for (var k in GM) {
     if (!GM.hasOwnProperty(k)) continue;
     if (SKIP[k]) continue;
+    // _prepareGMForSave 刚以 _safeClone 建的 _saved* 镜像·写后只读不再变动·此处引用即可
+    // (原落入下方 deepClone 分支被二次深拷·每60s 自动存档对~130 个大块多拷一遍·此优化砍掉冗余那遍·序列化输出逐字节不变)
+    if (k.slice(0, 6) === '_saved') { out[k] = GM[k]; continue; }
     if (APPEND_ONLY[k]) {
       out[k] = GM[k];  // 引用·不拷
       continue;

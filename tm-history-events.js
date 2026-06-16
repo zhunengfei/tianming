@@ -44,12 +44,17 @@ function checkHistoryEvents() {
     // 跳过已触发事件
     if (GM.triggeredHistoryEvents[event.id]) return;
 
-    // 检查触发条件
-    var trigger = event.trigger || {};
+    // 触发回合门槛(刚性史事剧本写 triggerTurn:N·如魏忠贤自缢 triggerTurn:3)·未到回合不触发
+    // 原 bug:triggerTurn 从不读·且 string 型 trigger(如「阉党权势值 < 50 且 皇威 > 50」)被当对象→
+    //   trigger.year/.month 恒 undefined → year/monthMatch 恒 true → 开局第一回合即无条件触发(魏忠贤开局自缢·破坏史实代入)
+    if (typeof event.triggerTurn === 'number' && (GM.turn || 0) < event.triggerTurn) return;
+
+    // 仅当 trigger 为结构化对象时按 year/month/condition 判定;字符串/缺省 trigger 不构成时间门(其文本是设计者条件注记·交 triggerTurn 把关)
+    var trigger = (event.trigger && typeof event.trigger === 'object') ? event.trigger : {};
     var yearMatch = trigger.year === undefined || trigger.year === currentYear;
     var monthMatch = trigger.month === undefined || trigger.month === currentMonth;
 
-    // 自定义条件检查（可选）
+    // 自定义条件检查（可选·函数型·注:存档 deepClone 会剥函数·剧本宜用 triggerTurn/year/month 数据型门槛）
     var customMatch = true;
     if (typeof trigger.condition === 'function') {
       try {
@@ -58,6 +63,10 @@ function checkHistoryEvents() {
         customMatch = false;
       }
     }
+
+    // 门槛防御:既无 triggerTurn 又无任何结构化 trigger(year/month/condition 全缺)→不每回合无条件触发(原 string-trigger 事件即此情形被误开局触发)
+    var hasGate = (typeof event.triggerTurn === 'number') || trigger.year !== undefined || trigger.month !== undefined || typeof trigger.condition === 'function';
+    if (!hasGate) return;
 
     if (yearMatch && monthMatch && customMatch) {
       // 标记为已触发
@@ -80,8 +89,10 @@ function showHistoryEventModal(event) {
   var html = '<div style="padding: 1rem;">';
   html += '<div style="margin-bottom: 1rem; color: var(--gold); font-size: 1.1rem; font-weight: 700;">' + (event.name || '历史事件') + '</div>';
 
-  if (event.description) {
-    html += '<div style="margin-bottom: 1.5rem; color: var(--txt-s); line-height: 1.6;">' + event.description + '</div>';
+  // 正文优先取 narrative(刚性史事剧本字段)·回退 description·原 bug:只读 description→剧本 narrative 文本被丢弃·弹窗正文空白
+  var _body = event.narrative || event.description;
+  if (_body) {
+    html += '<div style="margin-bottom: 1.5rem; color: var(--txt-s); line-height: 1.6;">' + _body + '</div>';
   }
 
   html += '<div style="margin-bottom: 1rem; color: var(--txt-d); font-size: 0.9rem;">请选择应对方式：</div>';
@@ -106,7 +117,7 @@ function showHistoryEventModal(event) {
         Object.keys(branch.impact).forEach(function(key) {
           var val = branch.impact[key];
           var sign = val > 0 ? '+' : '';
-          impacts.push(key + ' ' + sign + val);
+          impacts.push(({strength:'国力',morale:'士气',population:'人口',treasury:'国库',money:'国库',stability:'稳定',legitimacy:'法统',military:'兵力',economy:'经济',minxin:'民心',authority:'威权',corruption:'贪腐',satisfaction:'满意度',influence:'影响力',unrest:'动荡',loyalty:'忠诚',prestige:'威望'}[key]||key) + ' ' + sign + val);
         });
         html += impacts.join(', ');
         html += '</div>';
@@ -291,7 +302,7 @@ function triggerRigidEvent(id, config, currentValue) {
     Object.keys(config.impact).forEach(function(key) {
       var val = config.impact[key];
       var sign = val > 0 ? '+' : '';
-      html += '<div style="font-size: 0.9rem; color: var(--txt-d);">' + key + ': ' + sign + val + '</div>';
+      html += '<div style="font-size: 0.9rem; color: var(--txt-d);">' + ({strength:'国力',morale:'士气',population:'人口',treasury:'国库',money:'国库',stability:'稳定',legitimacy:'法统',military:'兵力',economy:'经济',minxin:'民心',authority:'威权',corruption:'贪腐',satisfaction:'满意度',influence:'影响力',unrest:'动荡',loyalty:'忠诚',prestige:'威望'}[key]||key) + ': ' + sign + val + '</div>';
     });
     html += '</div>';
   }

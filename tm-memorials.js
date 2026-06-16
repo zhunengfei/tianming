@@ -976,19 +976,29 @@ function _doReferMemorial(idx, referTo) {
 function _courtDebateMemorial(idx) {
   var m = GM.memorials[idx];
   if (!m) return;
-  var reply = (_$('mem-reply-' + idx) || {}).value || '\u7740\u5EF7\u8BAE';
+  var reply = (_$('mem-reply-' + idx) || {}).value || '着廷议';
   _stageMemorialDecision(m, 'court_debate', reply);
+  // 修：旧版写错 DOM id cy-topic-input + 裸调 startChaoyiSession 不带议题，致议题丢失、弹空白朝议。
+  // 改为复用 _pendingTinyiTopics 待议队列，与 phase8-formal-drafts 发廷议同源，下次开廷议自动列入议程。
+  try {
+    if (!Array.isArray(GM._pendingTinyiTopics)) GM._pendingTinyiTopics = [];
+    var _qid = 'mem_' + (m.id || m.from || idx) + '_' + (GM.turn || 0);
+    if (m._tinyiQueuedId && m._tinyiQueuedId !== _qid) {
+      GM._pendingTinyiTopics = GM._pendingTinyiTopics.filter(function(x){ return !x || x._memTinyiId !== m._tinyiQueuedId; });
+    }
+    if (!GM._pendingTinyiTopics.some(function(x){ return x && x._memTinyiId === _qid; })) {
+      GM._pendingTinyiTopics.unshift({
+        topic: '奏疏议题·' + (m.from || '臣工') + '：' + String(m.content || m.text || m.title || '').slice(0, 120),
+        from: '奏疏发廷议', sourceType: 'memorial', turn: GM.turn || 1, status: 'pending', priority: 72,
+        reason: reply || '着廷议', delegateCharacter: m.from || '', delegateCharacterId: m.from || '',
+        linkedCharacters: m.from ? [m.from] : [], _memTinyiId: _qid, _memId: m.id || ''
+      });
+      if (GM._pendingTinyiTopics.length > 80) GM._pendingTinyiTopics = GM._pendingTinyiTopics.slice(0, 80);
+      m._tinyiQueuedId = _qid;
+    }
+  } catch (_mctE) {}
   renderMemorials();
-
-  // 将奏疏内容作为朝议议题——先写入议题输入框再启动
-  if (typeof startChaoyiSession === 'function') {
-    var _cyInput = _$('cy-topic-input');
-    if (_cyInput) _cyInput.value = '\u594F\u758F\u8BAE\u9898\uFF1A' + (m.content || '').slice(0, 200);
-    startChaoyiSession();
-  } else {
-    toast('\u671D\u8BAE\u6A21\u5757\u672A\u52A0\u8F7D');
-  }
-  toast('\u5DF2\u53D1\u4EA4\u5EF7\u8BAE\uFF08\u8FC7\u56DE\u5408\u65F6\u63D0\u4EA4\uFF09');
+  toast('已发交廷议（过回合时提交）');
 }
 
 function _holdMemorial(idx) {

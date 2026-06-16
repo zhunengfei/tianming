@@ -490,9 +490,19 @@
     // 历史
     var interventions = (global.TM && TM.FactionNpcIntervention && TM.FactionNpcIntervention.getLog) ? TM.FactionNpcIntervention.getLog(fac.name) : [];
     if (interventions.length > 0) {
-      html += '<div style="font-size:0.72rem;color:var(--txt-d);margin-top:0.4rem;">已用干预 ('+interventions.length+'):';
-      interventions.slice(-5).reverse().forEach(function(i){
-        html += '<div>· 第'+i.turn+'回·['+esc(i.action)+'] '+(i.targetChar?'目标:'+esc(i.targetChar):'')+'</div>';
+      // action 中文化(不漏英文码)+花费+成败/策反结果·display-only(原仅显 [bribe] 英文薄行)
+      var _actCN = { bribe:'暗结收买', spreadRumor:'散播谣言', sponsorRebellion:'资助内斗', espionage:'刺探军情' };
+      html += '<div style="font-size:0.72rem;color:var(--txt-d);margin-top:0.5rem;border-top:1px solid var(--bd,rgba(255,255,255,0.08));padding-top:0.4rem;">我朝谍报·已对 '+esc(fac.name)+' 用 '+interventions.length+' 次：';
+      interventions.slice(-6).reverse().forEach(function(i){
+        var actCN = _actCN[i.action] || '密遣';
+        var tgt = i.targetChar ? ('·'+esc(i.targetChar)) : '';
+        var costTxt = '';
+        if (i.cost) { var _cp=[]; if(i.cost.money)_cp.push((Math.round(i.cost.money/1000)/10)+'万两'); if(i.cost.grain)_cp.push((Math.round(i.cost.grain/1000)/10)+'万石'); if(_cp.length)costTxt=' ·耗'+_cp.join('·'); }
+        var outcome = '';
+        if (i.action === 'bribe' && i.effects) { outcome = i.effects.bribed ? ' ·<span style="color:#6bb07c;">已策反</span>' : ' ·<span style="color:var(--txt-d);">忠诚-'+Math.max(0,Math.round((i.effects.loyaltyBefore||0)-(i.effects.loyaltyAfter||0)))+'</span>'; }
+        else if (i.success === false) { outcome = ' ·<span style="color:#c5524a;">未果</span>'; }
+        else if (i.success) { outcome = ' ·<span style="color:#6bb07c;">得手</span>'; }
+        html += '<div style="margin-top:1px;">· 第'+i.turn+'回·<b style="color:var(--gold);">'+esc(actCN)+'</b>'+tgt+costTxt+outcome+'</div>';
       });
       html += '</div>';
     }

@@ -546,16 +546,29 @@ openSettings=function(){
         })()+
         // H·私学/书院·12 维深嵌入
         (function(){
-          var _on = !!(P.conf && P.conf.useNewKejuH === true);
+          var _on = !!(P.conf && P.conf.useNewKejuH !== false);
           return '<label style="display:flex;align-items:flex-start;gap:0.5rem;padding:0.4rem 0;border-top:1px dotted var(--bdr);cursor:pointer;">' +
             '<input type="checkbox" id="s-keju-h" ' + (_on?'checked ':'') + 'onchange="_togglePConf(\'useNewKejuH\',this.checked)" style="margin-top:0.15rem;flex-shrink:0;">' +
             '<div style="flex:1;">' +
-              '<div style="font-size:0.82rem;color:var(--gold);font-weight:600;">🏛️ 科举·H 私学/书院 (12 维深嵌入·独立)</div>' +
+              '<div style="font-size:0.82rem;color:var(--gold);font-weight:600;">🏛️ 科举·H 私学/书院（默认开·12 维深嵌入）</div>' +
               '<div style="font-size:0.7rem;color:var(--txt-d);line-height:1.55;margin-top:0.15rem;">东林/复社/朱熹/王阳明书院·山长真 NPC·5 watershed (1190/1290/1500/1604/1654/1742)·学说真改 paradigm·反馈循环。</div>' +
             '</div>' +
           '</label>';
         })()+
       '</div>';
+    })()+
+
+    // ── 战斗规则·确定性战果 (opt-in·默认关·2026-06-15) ──
+    (function(){
+      var _on = !!(P.conf && P.conf.deterministicCasualties === true);
+      return '<div class="settings-section"><h4>战斗规则</h4>' +
+        '<label style="display:flex;align-items:flex-start;gap:0.5rem;padding:0.4rem 0;cursor:pointer;">' +
+        '<input type="checkbox" id="s-det-cas" ' + (_on?'checked ':'') + 'onchange="_togglePConf(\'deterministicCasualties\',this.checked)" style="margin-top:0.15rem;flex-shrink:0;">' +
+        '<div style="flex:1;">' +
+          '<div style="font-size:0.82rem;color:var(--gold);font-weight:600;">⚔️ 确定性战果（默认关）</div>' +
+          '<div style="font-size:0.7rem;color:var(--txt-d);line-height:1.55;margin-top:0.15rem;">开启后，当推演 AI 漏报或给出离谱伤亡时，改由战斗引擎按双方兵力、地形、城防、季节确定性核算战损，机械可信度更高；关闭则一切战果由 AI 自由裁量（默认）。</div>' +
+        '</div>' +
+      '</label></div>';
     })()+
 
     "<div class=\"settings-section\"><h4>更新与工坊</h4>"+

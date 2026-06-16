@@ -117,6 +117,37 @@ function _kejuFmtDate(d){
   return '';
 }
 
+// ── 特科明细（恩科/武举/童子科 history 可展开·原仅显 .length 计数·display-only）──
+// 缘由 subtype 是技术串(bingbu-backed/tesuoming-fengchan/birthday 等)·prefix 映射中文·不显英文
+function _kjExamReasonCN(h){
+  var s=String((h&&(h.subtype||h.historyPath))||'').toLowerCase();
+  if(/birthday|寿|圣寿/.test(s))return '圣寿恩科';
+  if(/reign|登极|即位/.test(s))return '登极恩科';
+  if(/fengchan|封禅|瑞|祥|auspicious/.test(s))return '祥瑞特开';
+  if(/war|战功|录功|军功|merit/.test(s))return '录功之科';
+  if(/chaos|乱|war-recovery/.test(s))return '乱后抡才';
+  if(/bingbu|兵部/.test(s))return '兵部所请';
+  if(/libu|礼部/.test(s))return '礼部所请';
+  if(/player|御|edict|钦/.test(s))return '御点亲开';
+  if(/recommend|荐|conversion|late-bloomer|转/.test(s))return '荐举/转录';
+  return '';
+}
+function _kjHistRows(arr,kind){
+  if(!arr||!arr.length)return '<p style="color:var(--txt-d);font-size:0.8rem;padding:4px 2px;">暂无开科记录。</p>';
+  return arr.slice().reverse().map(function(h){
+    var names=(kind==='enke'?h.jinshiNames:(kind==='wuju'?h.wujinshiNames:null));
+    var cnt=(kind==='enke'?h.jinshiCount:(kind==='wuju'?h.wujinshiCount:h.poolSize));
+    var reason=_kjExamReasonCN(h);
+    var who=(names&&names.length)?('<span style="color:var(--txt-d);"> · '+names.slice(0,8).join('、')+(names.length>8?' 等':'')+'</span>'):'';
+    return '<div style="font-size:0.82rem;color:var(--txt);padding:4px 2px;border-bottom:1px solid rgba(180,150,80,0.12);">'
+      +'<b style="color:var(--gold);">'+(h.year!=null?h.year+'年':'—')+'</b>'
+      +(reason?' <span style="color:var(--accent,#b5803a);">'+reason+'</span>':'')
+      +(h.examiner?' · 主考 '+h.examiner:'')
+      +' · '+(kind==='tongzi'?'选童 ':'中式 ')+(cnt!=null?cnt:'?')+(kind==='tongzi'?' 名':' 人')
+      +who+'</div>';
+  }).join('');
+}
+
 function openKejuPanel(){
   if(!P.keju) P.keju = {enabled:false,history:[],currentExam:null};
   if(!P.keju.history) P.keju.history = [];
@@ -175,20 +206,26 @@ function openKejuPanel(){
     }
 
     // 科举生态·特科 + 学派 (event-driven·只显示状态)
-    var _enkeN = ((typeof GM!=='undefined'&&GM&&GM._enkeHistory)||[]).length;
-    var _wujuN = ((typeof GM!=='undefined'&&GM&&GM._wujuHistory)||[]).length;
-    var _tongziN = ((typeof GM!=='undefined'&&GM&&GM._tongziHistory)||[]).length;
+    var _enkeArr = ((typeof GM!=='undefined'&&GM&&GM._enkeHistory)||[]);
+    var _wujuArr = ((typeof GM!=='undefined'&&GM&&GM._wujuHistory)||[]);
+    var _tongziArr = ((typeof GM!=='undefined'&&GM&&GM._tongziHistory)||[]);
+    var _enkeN = _enkeArr.length, _wujuN = _wujuArr.length, _tongziN = _tongziArr.length;
     var _schoolNet = (typeof GM!=='undefined'&&GM&&GM._schoolNetwork)||{};
     var _academies = _schoolNet.academies || _schoolNet.schools || [];
     var _lineages = _schoolNet.lineages || _schoolNet.parties || [];
+    // 可点格 → toggle 对应明细 div(有记录才可点)
+    var _kjTog=function(id){return 'onclick="var d=document.getElementById(\''+id+'\');if(d)d.style.display=(d.style.display===\'none\'?\'block\':\'none\');" style="cursor:pointer;" title="点看明细"';};
     content+='<div style="background:var(--bg-2);padding:0.9rem 1rem;border-radius:8px;margin-bottom:1rem;">'+
       '<h4 style="color:var(--gold);margin-bottom:0.6rem;">科举生态·特科与学派</h4>'+
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem 1rem;font-size:0.88rem;">'+
-      '<div>📜 <b>恩科</b>·已开 '+_enkeN+' 次</div>'+
-      '<div>⚔️ <b>武举</b>·已开 '+_wujuN+' 次</div>'+
-      '<div>🌱 <b>童子科</b>·已选 '+_tongziN+' 神童</div>'+
+      '<div '+(_enkeN?_kjTog('kj-enke-detail'):'')+'>📜 <b>恩科</b>·已开 '+_enkeN+' 次'+(_enkeN?' <span style="color:var(--txt-d);font-size:0.75rem;">▾</span>':'')+'</div>'+
+      '<div '+(_wujuN?_kjTog('kj-wuju-detail'):'')+'>⚔️ <b>武举</b>·已开 '+_wujuN+' 次'+(_wujuN?' <span style="color:var(--txt-d);font-size:0.75rem;">▾</span>':'')+'</div>'+
+      '<div '+(_tongziN?_kjTog('kj-tongzi-detail'):'')+'>🌱 <b>童子科</b>·已选 '+_tongziN+' 神童'+(_tongziN?' <span style="color:var(--txt-d);font-size:0.75rem;">▾</span>':'')+'</div>'+
       '<div>🏛️ <b>私学/书院</b>·'+(_academies.length||0)+' 处·'+(_lineages.length||0)+' 学派</div>'+
       '</div>'+
+      '<div id="kj-enke-detail" style="display:none;margin-top:0.5rem;border-top:1px solid rgba(180,150,80,0.18);padding-top:0.3rem;"><div style="font-size:0.78rem;color:var(--gold);margin-bottom:0.2rem;">恩科开科明细</div>'+_kjHistRows(_enkeArr,'enke')+'</div>'+
+      '<div id="kj-wuju-detail" style="display:none;margin-top:0.5rem;border-top:1px solid rgba(180,150,80,0.18);padding-top:0.3rem;"><div style="font-size:0.78rem;color:var(--gold);margin-bottom:0.2rem;">武举开科明细</div>'+_kjHistRows(_wujuArr,'wuju')+'</div>'+
+      '<div id="kj-tongzi-detail" style="display:none;margin-top:0.5rem;border-top:1px solid rgba(180,150,80,0.18);padding-top:0.3rem;"><div style="font-size:0.78rem;color:var(--gold);margin-bottom:0.2rem;">童子科选童明细</div>'+_kjHistRows(_tongziArr,'tongzi')+'</div>'+
       '<p style="color:var(--txt-d);font-size:0.78rem;margin-top:0.5rem;">特科按朝廷事件自然 trigger (寿诞·大乱·瑞祥·战功 等)·学派由山长 NPC 自驱讲会·跨系统接口已 wired</p>'+
       '</div>';
 

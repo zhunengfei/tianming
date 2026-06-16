@@ -278,7 +278,7 @@
 
   function _kjpL8EvolveTick() {
     if (typeof GM === 'undefined' || !GM || !GM._kejuParadigm) return;
-    if (typeof P === 'undefined' || !P || !P.conf || P.conf.useNewKejuL8 !== true) return;
+    if (typeof P === 'undefined' || !P || !P.conf || P.conf.useNewKejuL8 === false) return;
     var year = GM.year || 0;
     if (!year) return;
     // RBB·BB-A1·idempotent guard·防 endTurn pipeline 两路 (deferred phase5 + render-finalize) 双跑
@@ -513,7 +513,7 @@
 
   function _kjpL8MaybeApplyInheritance() {
     if (typeof GM === 'undefined' || !GM || !GM._kejuParadigm) return;
-    if (typeof P === 'undefined' || !P || !P.conf || P.conf.useNewKejuL8 !== true) return;
+    if (typeof P === 'undefined' || !P || !P.conf || P.conf.useNewKejuL8 === false) return;
     var archive = _kjpL8FindMatchingArchive();
     if (!archive) return;
     var scenario = (P && P.scenario) || {};
@@ -637,7 +637,7 @@
 
   function _initKejuL8Hook() {
     if (typeof GM === 'undefined' || !GM || !GM._kejuParadigm) return;
-    if (typeof P === 'undefined' || !P || !P.conf || P.conf.useNewKejuL8 !== true) return;
+    if (typeof P === 'undefined' || !P || !P.conf || P.conf.useNewKejuL8 === false) return;
     // setTimeout 0·让 init 同步链完成后再异步调
     setTimeout(function() {
       try { _kjpL8MaybeApplyInheritance(); }
@@ -828,7 +828,7 @@
   // L9·dispatcher·L7 commit chain·async·non-block·写 entry.canonicalName + historicalEvaluation
   function _kjpL9MaybeNameReform(entry) {
     if (!entry) return;
-    if (typeof P === 'undefined' || !P || !P.conf || P.conf.useNewKejuL9 !== true) return;
+    if (typeof P === 'undefined' || !P || !P.conf || P.conf.useNewKejuL9 === false) return;
     if (entry.canonicalName) return;   // 已命名·skip (idempotent)
     _kjpL9LlmNameReform(entry).then(function(named) {
       if (!named) return;
@@ -849,7 +849,7 @@
   // L9·dispatcher·EvolveTick 内 probe·概率 gate·async LLM·1/year/reform
   function _kjpL9MaybeSpawnBlackSwan(entry, year) {
     if (!entry || !year) return;
-    if (typeof P === 'undefined' || !P || !P.conf || P.conf.useNewKejuL9 !== true) return;
+    if (typeof P === 'undefined' || !P || !P.conf || P.conf.useNewKejuL9 === false) return;
     if (typeof GM === 'undefined' || !GM || !GM._kejuParadigm) return;
     // 一 reform 一年 1 个·检 chronicle.specialEvent
     var chronicle = (GM._kejuParadigm._reformChronicle = GM._kejuParadigm._reformChronicle || {});

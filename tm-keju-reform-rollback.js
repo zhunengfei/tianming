@@ -34,12 +34,12 @@
 
   function _isL11Enabled() {
     if (typeof P === 'undefined' || !P || !P.conf) return false;
-    return P.conf.useNewKejuL11 === true;
+    return P.conf.useNewKejuL11 !== false;
   }
 
   function _isL7Enabled() {
     if (typeof P === 'undefined' || !P || !P.conf) return false;
-    return P.conf.useNewKejuL7 === true;
+    return P.conf.useNewKejuL7 !== false;
   }
 
   function _escHtml(s) {

@@ -583,6 +583,10 @@ function findCharByName(name) {
     buildIndices();
   }
   var rawName = _tmCleanCharLookupName(name);
+  // 索引优先·O(1):rawName 为精确名或已注册别名(含玩家别名/前次缓存)时直接命中·跳过热路径上每次必跑的 O(n)~O(4n) canonicalizeCharName
+  // (findCharByName 全库 553 处调用·过回合 apply 内每条 AI 变更反复解析名)·miss 才回退规范化·保 字/号/乳名/曾用名/玩家别名 解析正确
+  var fast = rawName ? GM._indices.charByName.get(rawName) : null;
+  if (fast) return fast;
   var canonName = canonicalizeCharName(rawName);
   name = canonName || rawName;
   var hit = GM._indices.charByName.get(name);

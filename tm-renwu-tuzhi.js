@@ -322,6 +322,25 @@ var CSS = [
 '#tm-zhi-overlay .dt-tgt{color:var(--ink-soft);}',
 '#tm-zhi-overlay .dt-say{font-size:12.5px;color:var(--ink-soft);margin-top:3px;}',
 '#tm-zhi-overlay .dt-inner{font-size:12px;color:var(--ink-faint);font-style:italic;margin-top:2px;}',
+'#tm-zhi-overlay .nian{padding:16px 22px 30px;}',
+'#tm-zhi-overlay .ni-item{padding:10px 13px;margin-bottom:9px;border-radius:8px;background:rgba(255,252,243,0.6);border-left:3px solid #9c8b6b;}',
+'#tm-zhi-overlay .ni-item.success{border-left-color:#7a1f1a;background:rgba(122,31,26,0.07);}',
+'#tm-zhi-overlay .ni-item.foiled{border-left-color:#557f6f;background:rgba(85,127,111,0.04);}',
+'#tm-zhi-overlay .ni-head{font-size:13.5px;color:var(--ink);line-height:1.55;display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;}',
+'#tm-zhi-overlay .ni-turn{font-family:var(--zfont);font-size:11.5px;color:var(--cinnabar-d);min-width:46px;}',
+'#tm-zhi-overlay .ni-act{font-size:12.5px;font-weight:700;padding:1px 8px;border-radius:10px;background:rgba(156,139,107,0.18);color:var(--ink-soft);}',
+'#tm-zhi-overlay .ni-act.success{background:rgba(122,31,26,0.14);color:#7a1f1a;}',
+'#tm-zhi-overlay .ni-act.foiled{background:rgba(85,127,111,0.16);color:#557f6f;}',
+'#tm-zhi-overlay .ni-actor{color:var(--cinnabar-d);cursor:pointer;font-weight:600;}',
+'#tm-zhi-overlay .ni-actor:hover{text-decoration:underline;}',
+'#tm-zhi-overlay .ni-arrow{color:var(--ink-faint);}',
+'#tm-zhi-overlay .ni-tgt{color:var(--ink-soft);}',
+'#tm-zhi-overlay .ni-meta{font-size:12px;color:var(--ink-soft);margin-top:4px;}',
+'#tm-zhi-overlay .ni-conspir{font-size:12px;color:var(--ink-faint);margin-top:3px;}',
+'#tm-zhi-overlay .ni-conspir b{color:var(--ink-soft);cursor:pointer;font-weight:500;}',
+'#tm-zhi-overlay .ni-conspir b:hover{text-decoration:underline;}',
+'#tm-zhi-overlay .ni-gate{font-size:11px;color:#7a1f1a;background:rgba(122,31,26,0.08);padding:1px 6px;border-radius:6px;margin-left:6px;}',
+'#tm-zhi-overlay .ni-reason{font-size:12px;color:var(--ink-faint);font-style:italic;margin-top:3px;}',
 '#tm-zhi-overlay .chaoju-graph svg{width:100%;height:auto;display:block;}',
 '#tm-zhi-overlay .cnode{cursor:pointer;}',
 '#tm-zhi-overlay .cj-balance{margin-bottom:14px;padding:11px 15px;border-radius:9px;background:linear-gradient(170deg,rgba(255,253,247,0.7),rgba(246,239,218,0.3));border:1px solid rgba(168,131,58,0.22);}',
@@ -470,6 +489,9 @@ function adaptRels(c){
 }
 function adaptImpr(c){var out=[];if(c._impressions){Object.keys(c._impressions).forEach(function(on){var iv=c._impressions[on]||{};if(Math.abs(iv.favor||0)>=2)out.push({name:on,favor:Math.round(iv.favor),label:imprWord(iv.favor)});});}return out.sort(function(a,b){return Math.abs(b.favor)-Math.abs(a.favor);}).slice(0,12);}
 function adaptMemory(c){var GM=_g(),full=[];if(Array.isArray(GM._memoryArchiveFull))full=GM._memoryArchiveFull.filter(function(m){return m&&m.char===c.name;});if(!full.length&&Array.isArray(c._memory))full=c._memory.slice();return full.map(function(m){return {turn:m.turn,emotion:m.emotion||'平',event:m.event||m.summary||'',who:m.who||''};});}
+/* 角色弧线 type 英文枚举→中文显示(原 dismissal/betrayal/arc_archive 等英文直显于人物图志/本纪卷·display-only 不改原始 type) */
+var ARC_TYPE_CN={appointment:'就任',dismissal:'罢免',death:'身故',inheritance:'承袭',promotion:'擢升',demotion:'降黜',transfer:'调任',retirement:'致仕',autonomous:'自主行止',title_grant:'册封',title_revoke:'褫夺',title_promote:'加衔',reward:'受赏',achievement:'功绩',event:'纪事',arc_archive:'早年事迹',war:'兵事',betrayal:'背弃',alliance:'结盟',marriage:'联姻'};
+function _arcTypeCN(t){return (t&&ARC_TYPE_CN[t])||t||'纪事';}
 function adaptArcs(c){var GM=_g(),a=(GM.characterArcs&&GM.characterArcs[c.name])||[];return a.map(function(x){return {turn:x.turn,type:x.type||'事',desc:x.desc||''};});}
 function adaptBlood(c){
   var out=[],seen={};
@@ -744,6 +766,8 @@ function tabMind(p){
 function tabRelations(p){
   var html='';
   if(!p.isPlayer&&p.impressions){var tk=p.impressions.find(function(x){return x.name==='朱由检'||x.name==='玩家';});if(tk)html+='<section class="sec full"><div class="sec-t">对 君 主 之 心 <small>御批</small></div><div class="opinion"><span class="big">'+(tk.favor>0?'+':'')+tk.favor+'</span> <span style="color:var(--cinnabar-d);font-size:14px">'+esc(tk.label)+'</span><div class="brk" style="margin-top:4px">由累积受恩、事件、立场综合而成（OpinionSystem/_impressions）。</div></div></section>';}
+  // 君上之疑——问对中君上当面察觉此人有所隐瞒(读 GM._wdSuspicions·原写而不读·君臣嫌隙留痕)
+  if(!p.isPlayer){var _susp=((((_g()||{})._wdSuspicions)||[]).filter(function(s){return s&&s.who===p.name;})).slice().sort(function(a,b){return (b.turn||0)-(a.turn||0);});if(_susp.length){var _nowS=_g().turn||0;html+='<section class="sec full"><div class="sec-t">君 上 之 疑 <small>问对识破 · 君臣嫌隙</small></div><div class="opinion" style="border-left-color:#7a1f1a;background:linear-gradient(180deg,rgba(122,31,26,0.05),transparent)">'+_susp.map(function(s){var lab=(s.turn===_nowS?'本回合':(s.turn===_nowS-1?'上回合':'第'+(s.turn||0)+'回'));return '<div class="brk" style="margin:3px 0;color:var(--ink-soft)"><b style="color:#7a1f1a">'+esc(lab)+'</b> 君上'+(s.caught?'当面识破':'隐隐觉出')+'其有所隐瞒'+(s.hiding?'：所隐者“'+esc(s.hiding)+'”':'')+'</div>';}).join('')+'</div></section>';}}
   html+='<section class="sec full"><div class="sec-t">人 际 关 系 图 谱 <small>AffinityMap · 点节点可跳转</small></div><div class="egonet">'+egoNetwork(p)+'</div><div class="egolegend"><span><i style="border-color:#557f6f"></i>亲善</span><span><i style="border-color:#a83228"></i>嫌隙</span><span><i style="border-color:#9c8b6b"></i>泛交</span><span>线粗 ≈ 关系强弱</span></div></section>';
   html+='<section class="sec full"><div class="sec-t">关 系 强 弱 细 览</div><div class="relnet">'+((p.relationships||[]).map(function(r){var L=relLabel(r.strength);return '<div class="relrow" onclick="TMZhi.selectP(\''+oj(r.name)+'\')"><span class="nm">'+esc(r.name)+'</span><span class="lbl '+L[1]+'">'+esc(r.label||L[0])+'</span><span class="meter"><i></i>'+relMeter(r.strength)+'</span><span class="sc">'+(r.strength>0?'+':'')+r.strength+'</span></div>';}).join('')||'<div class="stub">暂无关系。</div>')+'</div></section>';
   html+='<div class="dgrid"><section class="sec"><div class="sec-t">对 他 人 印 象</div><div class="rows">'+((p.impressions||[]).map(function(im){var col=im.favor>=0?'good':'bad';return '<div class="row"><span class="k">'+esc(im.name)+'</span><span class="v"><span class="lbl '+col+'" style="font-size:12px;padding:1px 8px;border-radius:8px">'+esc(im.label)+'（'+(im.favor>0?'+':'')+im.favor+'）</span></span></div>';}).join('')||'<div class="prose">暂无印象记录。</div>')+'</div></section>'
@@ -753,7 +777,7 @@ function tabRelations(p){
 function tabBenji(p){
   var nodes=[];
   (p.career||[]).forEach(function(c){nodes.push({when:c.year,ti:c.title,ds:c.desc,key:c.milestone,tag:'履历'});});
-  (p.arcs||[]).slice().sort(function(a,b){return a.turn-b.turn;}).forEach(function(a){nodes.push({when:'T'+a.turn,ti:a.type,ds:a.desc,arc:true,tag:'近事'});});
+  (p.arcs||[]).slice().sort(function(a,b){return a.turn-b.turn;}).forEach(function(a){nodes.push({when:'T'+a.turn,ti:_arcTypeCN(a.type),ds:a.desc,arc:true,tag:'近事'});});
   var ribbon=nodes.length?('<div style="overflow-x:auto;padding:30px 6px 14px"><div style="position:relative;display:inline-flex;align-items:flex-start;min-width:100%">'+nodes.map(function(nd){return '<div class="tlrow" style="flex:0 0 auto;width:150px;padding:0 10px;border:none"><div class="ti">'+esc(nd.when||'')+'</div><div class="sec" style="margin:6px 0 0;padding:8px 10px"><span style="font-size:10px;color:var(--ink-faint);border:1px solid rgba(168,131,58,0.3);border-radius:7px;padding:0 6px">'+esc(nd.tag)+'</span><div style="font-size:12.5px;color:'+(nd.key?'var(--cinnabar-d)':'var(--ink)')+';margin:3px 0">'+esc(nd.ti||'')+'</div><div class="ds">'+esc(nd.ds||'')+'</div></div></div>';}).join('')+'</div></div>'):'<div class="stub">暂无编年事迹。</div>';
   var dl={};(p.lifeExp||[]).forEach(function(e){dl[e.domain]=(dl[e.domain]||0)+1;});
   var domHtml=Object.keys(dl).map(function(d){return '<span class="dom">'+esc(d)+' <b>×'+dl[d]+'</b></span>';}).join('');
@@ -762,8 +786,10 @@ function tabBenji(p){
     +(domHtml?'<section class="sec full"><div class="sec-t">人 生 历 练 <small>按领域</small></div><div class="domains">'+domHtml+'</div>'+(p.lifeExp||[]).map(function(e){return '<div class="tlrow" style="padding-left:0"><div class="ds"><span style="color:var(--gold-d)">〔'+esc(e.domain)+'〕</span> '+esc(e.desc)+'</div></div>';}).join('')+'</section>':'');
 }
 function tabFamily(p){
-  var tier={imperial:'皇族',noble:'世家',gentry:'士族',common:'寒门'},renown=p.familyTier==='imperial'?100:p.familyTier==='gentry'?60:p.familyTier==='noble'?78:40;
-  var clanGrid=[['门第',tier[p.familyTier]||'—',null],['族丁',(p.bloodRelatives||[]).filter(function(m){return !m.self;}).length,null],['家望',renown,renown],['家族',p.family||'—',null]];
+  var tier={imperial:'皇族',noble:'世家',gentry:'士族',common:'寒门'};
+  // 名望=真实动态声望(p.mingwang·随政绩/事件升降)·取代旧「家望」按门第硬编的静态假进度条(皇族恒100/士族恒60/世家恒78/寒门恒40·与游戏进程无关)
+  var fame=(p.mingwang==null)?null:Math.round(p.mingwang);
+  var clanGrid=[['门第',tier[p.familyTier]||'—',null],['族丁',(p.bloodRelatives||[]).filter(function(m){return !m.self;}).length,null],['名望',fame==null?'—':fame,fame],['家族',p.family||'—',null]];
   var harem='';
   if(p.spouseRank==='empress'||p.faction==='后宫'||p.isPlayer){var sp=p.spouse?'<div class="row"><span class="k">配偶</span><span class="v">'+esc(p.spouse)+'（'+esc({empress:'皇后',consort:'妃',concubine:'嫔'}[p.spouseRank]||'')+'）</span></div>':'';var ch=(p.children&&p.children.length&&p.children[0]!=='—')?'<div class="row"><span class="k">子嗣</span><span class="v">'+p.children.map(esc).join('、')+'</span></div>':'';if(sp||ch)harem='<section class="sec full"><div class="sec-t">后 宫 与 子 嗣</div><div class="rows">'+sp+ch+'</div></section>';}
   return '<section class="sec full"><div class="fttitle sec-t">五 代 家 谱 树 <small>金框为本人 · 虚线为姻亲 · † 已故</small></div><div class="ft-wrap">'+familyTree(p)+'</div><div class="ft-legend"><span class="ft-lg"><span class="ft-mk self"></span>本人</span><span class="ft-lg"><span class="ft-mk blood"></span>血亲</span><span class="ft-lg"><span class="ft-mk inlaw"></span>姻亲</span><span class="ft-lg"><span class="ft-mk dead"></span>已故</span></div></section>'
@@ -772,7 +798,7 @@ function tabFamily(p){
 function tabMemory(p){
   var emo={'喜':'〔喜〕','怒':'〔怒〕','忧':'〔忧〕','惧':'〔惧〕','恨':'〔恨〕','敬':'〔敬〕','平':'〔平〕'};
   var memHtml=(p.memory||[]).slice().reverse().map(function(m){return '<div class="mem"><span class="t">T'+m.turn+'</span><span class="emo">'+(emo[m.emotion]||'·')+'</span><span class="ev">'+esc(m.event)+(m.who?' <span class="who">→'+esc(m.who)+'</span>':'')+'</span></div>';}).join('')||'<div class="stub">暂无活跃记忆。</div>';
-  var arcHtml=(p.arcs||[]).map(function(a){return '<div class="tlrow"><div class="yr">T'+a.turn+' · '+esc(a.type)+'</div><div class="ds">'+esc(a.desc)+'</div></div>';}).join('')||'<div class="stub">暂无角色弧线。</div>';
+  var arcHtml=(p.arcs||[]).map(function(a){return '<div class="tlrow"><div class="yr">T'+a.turn+' · '+esc(_arcTypeCN(a.type))+'</div><div class="ds">'+esc(a.desc)+'</div></div>';}).join('')||'<div class="stub">暂无角色弧线。</div>';
   var arcvHtml=(p.memArchive||[]).map(function(a){return '<div class="mem"><span class="t">'+esc(a.period||'')+'</span><span class="ev">'+esc(a.summary||'')+'</span></div>';}).join('');
   return '<section class="sec full"><div class="sec-t">此 人 记 忆 <small>'+(p.memory||[]).length+' 条 · AI记忆系统</small></div><div class="mems">'+memHtml+'</div>'
     +(arcvHtml?'<div class="archive-toggle" onclick="var n=this.nextElementSibling;n.style.display=n.style.display===\'none\'?\'block\':\'none\'">▸ 往事归档（'+(p.memArchive||[]).length+'段）</div><div style="display:none" class="mems">'+arcvHtml+'</div>':'')+'</section>'
@@ -877,6 +903,40 @@ function renderFolioDongtai(){
   var top=Object.keys(byActor).sort(function(a,b){return byActor[b]-byActor[a];}).slice(0,8);
   fo.innerHTML='<div class="fcard"><div class="ft">动 态 提 要</div><div class="fnote">近 '+(win<=0?'全部回合':win+' 回合')+'，朝野共 '+rows.length+' 桩可见动静。<span style="color:#a83228">赤</span>者攻讦、<span style="color:#557f6f">绿</span>者结纳。点人物入其列传。</div></div><div class="fcard"><div class="ft">最 活 跃</div><div class="relnet">'+(top.length?top.map(function(n){return '<div class="relrow" onclick="TMZhi.selectP(\''+oj(n)+'\')"><span class="nm">'+esc(n)+'</span><span class="sc">'+byActor[n]+'</span></div>';}).join(''):'<div class="fnote">暂无。</div>')+'</div></div>';
 }
+/* ===================== 逆案录（谋反/政变/弑君·读 GM._conspiracies·display-only） ===================== */
+// action/outcome→中文（镜像 tm-endturn-apply.js conspiracy_events 写入的取值·display-only）
+var _NI_ACTION_CN={coup_succeeded:'政变得逞',coup_failed:'政变败露',palace_coup:'宫变',regicide:'弑君',plot_failed:'谋逆未遂',plot:'密谋',conspiracy:'谋逆',rebellion:'举兵谋反',mutiny:'兵变',assassination:'行刺',assassinate:'行刺',poison:'鸩毒',usurp:'篡位',treason:'通敌叛国',sedition:'煽乱'};
+var _NI_OUTCOME_CN={succeeded:'得逞',success:'得逞',suppressed:'事败就擒',failed:'失败',exposed:'败露',foiled:'败露',pending:'未决',ongoing:'未决'};
+function _niActCN(a){var k=String(a==null?'':a).toLowerCase().trim();return _NI_ACTION_CN[k]||(/[a-z]/i.test(k)?'逆案':(a||'逆案'));}
+function _niOutCN(o){var k=String(o==null?'':o).toLowerCase().trim();return _NI_OUTCOME_CN[k]||(o||'未决');}
+function _niSuccess(e){var o=String(e&&e.outcome||'').toLowerCase().trim(),a=String(e&&e.action||'').toLowerCase();if(o==='suppressed'||o==='failed'||o==='exposed'||o==='foiled')return false;if(o==='succeeded'||o==='success')return true;return a==='coup_succeeded'||a==='regicide'||a==='palace_coup'||a==='usurp';}
+function _niLedger(){var L=(_g()&&_g()._conspiracies);return Array.isArray(L)?L:[];}
+function _niRows(){return _niLedger().slice().filter(function(e){return e&&(e.instigator||e.action);}).sort(function(a,b){return (b.turn||0)-(a.turn||0);});}
+function renderNian(){
+  var ms=q('#tm-zhi-main');if(!ms)return;
+  var now=_g().turn||0,rows=_niRows();
+  if(!rows.length){ms.innerHTML='<div class="nian"><div class="sec-t" style="margin-bottom:8px">逆 案 录 <small>本朝谋逆、政变、弑君诸案及其主谋从党</small></div><div class="stub">本朝尚无逆案——若有谋反、宫变、弑君事发，将逐案记于此，主谋从党、成败缘由皆录。</div></div>';return;}
+  var body=rows.map(function(e){
+    var succ=_niSuccess(e),cls=succ?'success':'foiled';
+    var label=(e.turn===now?'本回合':(e.turn===now-1?'上回合':'第'+(e.turn||0)+'回'));
+    var head='<span class="ni-turn">'+esc(label)+'</span><span class="ni-act '+cls+'">'+esc(_niActCN(e.action))+'</span>';
+    head+='<b class="ni-actor" onclick="TMZhi.selectP(\''+oj(e.instigator)+'\')">'+esc(e.instigator||'某人')+'</b>';
+    if(e.target){head+=' <span class="ni-arrow">→</span> '+(findP(e.target)?'<b class="ni-actor" onclick="TMZhi.selectP(\''+oj(e.target)+'\')">'+esc(e.target)+'</b>':'<span class="ni-tgt">'+esc(e.target)+'</span>');}
+    if(e._qamGated)head+='<span class="ni-gate">护栏·未遂</span>';
+    var meta='<div class="ni-meta">结局：'+esc(_niOutCN(e.outcome))+'</div>';
+    var con=(e.conspirators&&e.conspirators.length)?'<div class="ni-conspir">从党：'+e.conspirators.map(function(n){return findP(n)?'<b onclick="TMZhi.selectP(\''+oj(n)+'\')">'+esc(n)+'</b>':esc(n);}).join('、')+'</div>':'';
+    var rsn=e.reason?'<div class="ni-reason">缘由：'+esc(e.reason)+'</div>':'';
+    return '<div class="ni-item '+cls+'"><div class="ni-head">'+head+'</div>'+meta+con+rsn+'</div>';
+  }).join('');
+  ms.innerHTML='<div class="nian"><div class="sec-t" style="margin-bottom:8px">逆 案 录 <small>你视线之外，朝中亦有人谋逆——主谋、从党、成败、缘由</small></div>'+body+'</div>';
+}
+function renderFolioNian(){
+  var fo=q('#tm-zhi-folio');if(!fo)return;
+  var rows=_niRows(),succ=rows.filter(_niSuccess).length,foiled=rows.length-succ,byInst={};
+  rows.forEach(function(e){if(e.instigator)byInst[e.instigator]=(byInst[e.instigator]||0)+1;});
+  var top=Object.keys(byInst).sort(function(a,b){return byInst[b]-byInst[a];}).slice(0,8);
+  fo.innerHTML='<div class="fcard"><div class="ft">逆 案 提 要</div><div class="fnote">本朝共 '+rows.length+' 案：<span style="color:#7a1f1a">得逞 '+succ+'</span> · <span style="color:#557f6f">事败 '+foiled+'</span>。点主谋入其列传。</div></div>'+(top.length?'<div class="fcard"><div class="ft">屡 谋 之 人</div><div class="relnet">'+top.map(function(n){return '<div class="relrow" onclick="TMZhi.selectP(\''+oj(n)+'\')"><span class="nm">'+esc(n)+'</span><span class="sc">'+byInst[n]+'</span></div>';}).join('')+'</div></div>':'');
+}
 /* ===================== 两/三人对参 ===================== */
 function cmpAxes(p){return [{label:'智',value:p.intelligence},{label:'武',value:p.valor},{label:'军',value:p.military},{label:'政',value:p.administration},{label:'管',value:p.management},{label:'交',value:p.diplomacy},{label:'魅',value:p.charisma},{label:'仁',value:p.benevolence}];}
 function renderCompare(){
@@ -929,6 +989,7 @@ function renderMain(){
   if(state.view==='chaoju'){renderChaoju();return;}
   if(state.view==='paihang'){renderPaihang();return;}
   if(state.view==='dongtai'){renderDongtai();return;}
+  if(state.view==='nian'){renderNian();return;}
   if(state.compare){renderCompare();return;}
   var p=findP(state.sel)||PEOPLE()[0];if(!p){ms.innerHTML='<div class="stub" style="margin-top:60px">尚无人物数据。</div>';return;}
   state.sel=p.name;
@@ -940,6 +1001,7 @@ function renderFolio(){
   if(state.view==='chaoju')return renderFolioChaoju();
   if(state.view==='paihang')return renderFolioPaihang();
   if(state.view==='dongtai')return renderFolioDongtai();
+  if(state.view==='nian')return renderFolioNian();
   var p=findP(state.sel)||PEOPLE()[0];if(!p){fo.innerHTML='';return;}
   var cap=inCapital(p);
   var rels=(p.relationships||[]).slice(0,5);
@@ -984,7 +1046,7 @@ function buildOverlay(){
   ov.addEventListener('mousedown',function(e){if(e.target===ov)closePanel();});
   return ov;
 }
-function renderViewTabs(){var vs=[['liezhuan','列传'],['chaoju','朝局'],['paihang','排行'],['dongtai','朝野动态']];var vt=q('#tm-zhi-viewtabs');if(vt)vt.innerHTML=vs.map(function(v){return '<button class="vtab'+(state.view===v[0]?' active':'')+'" onclick="TMZhi.setView(\''+v[0]+'\')">'+v[1]+'</button>';}).join('');}
+function renderViewTabs(){var vs=[['liezhuan','列传'],['chaoju','朝局'],['paihang','排行'],['dongtai','朝野动态'],['nian','逆案']];var vt=q('#tm-zhi-viewtabs');if(vt)vt.innerHTML=vs.map(function(v){return '<button class="vtab'+(state.view===v[0]?' active':'')+'" onclick="TMZhi.setView(\''+v[0]+'\')">'+v[1]+'</button>';}).join('');}
 function renderChips(){var alive=PEOPLE().filter(function(p){return p.alive!==false;}).length,c=q('#tm-zhi-chips');if(c)c.innerHTML='<span class="chip green">入志 '+PEOPLE().length+'</span><span class="chip hot">存世 '+alive+'</span>';}
 function renderAll(){renderChips();renderFacOptions();renderViewTabs();renderStatbar();renderRoster();renderMain();renderFolio();}
 
