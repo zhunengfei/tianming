@@ -3,9 +3,9 @@
 > 2026-06-16 · 本案是 `region-panel-buildings-fields-design-2026-06.md` 的**续案与深化**。
 > 它**完成**该文 §三「户口志」遗留的 ★接 清单（ding/fugitives/hiddenCount/carryingCapacity/taxBurden/recruits/leadingGentry）与 §六「S6 第二批（保甲/承载上限/灾异折减）」backlog，
 > 并在其上叠加四层**全新**机制：①册载/实在双账 + 官报/真相双层雾；②丁→农业双边际（在耕田亩*数量* ⊕ 地力*质量*）；③役负独立闸（过 `gateSatisfaction`）；④变法阶梯（清丈 / 重修黄册 / 一条鞭法 / 限制优免 / 摊丁入亩）。
-> **状态：未实现。本文为设计草案，待 owner 拍板后拆 slice 落地。**
+> **状态：机制层 R0-R8 已实现（tm-renli.js + 8 smoke·113 断言绿）·对未种子地域休眠零行为。激活（种真省 + 接役需 + 去重 + 校准）待 owner 触发——见附录二集成审计。**
 > **二稿修订（2026-06-16）**：初稿写于发现既有 huji 子系统之前。核实后确认已存在约 4500 行户口/徭役/兵役子系统（且已浅接军事）。架构据此从「新建 GM.renli 丁账」改为「**单一丁分配权威 + 农政-物理层叠加 + 废三块劣账**」——见 **§〇·五**（此节为最终架构，与它冲突处以它为准）。
-> **未 ship、未 commit。**
+> **已 commit 到 main（R0–R6 `c0a87416a9` + R8 `12c199ee4b`）·未 ship 热更·未激活。**
 
 ---
 
@@ -411,3 +411,45 @@ _wtResolveRenliHardChange(parts) → {target, field, store}
 - **(乙) 宽**：连生灭也收口单一主人写叶子。最合"单一真相源"理想，但动 ethnic-religion/economy-engine/deep-fill 多文件，回归面大一截。
 
 **建议先甲后乙**——本期窄口径（农政层只读叶子总量、`alloc` 单源），demographic 收口列为后续独立 slice（它本是既有遗留病，不该和农政层捆一刀，合"一刀一事"）。
+
+---
+
+## 附录二 · 激活前集成审计（Renli ↔ huji）（2026-06-16·机制层 R0-R8 完工后）
+
+> 机制层 R0-R8 已实现并 commit（main `12c199ee4b`），对未种子地域**休眠零行为**。本附录是「激活」（种真省 + 接役需 + 去重 + 校准）前的最后一道地基审计：实读钉死 Renli 与**活着的 huji 子系统**在激活时**确切会在哪几处打架**及去重方案。两轮子代理实读 + grep 交叉验证（诏书/变法触发面 + 丁数据源关系）。**补正 R0 附录的转述误差。**
+
+### 附2.1 两套丁账的确切关系（命门·补正 R0.1）
+
+- **存储 A**（Renli 真相源）= adminHierarchy 叶子 `populationDetail`。
+- **存储 B**（huji 引擎）= `GM.population`（`national.ding` / `byCategory.*.ding` / `byRegion` / `fugitives` / `deepFieldEffects.serviceAgeDing` / `military`）。
+- **裁定：两套独立竞争的丁账，经叶子 populationDetail 单向耦合**（叶子 → `aggregateRegionsToVariables`(tm-integration-bridge.js:558-603·优先读叶子 populationDetail 求和) → `national`；**无 national→叶子回写**）。`GM.population.byRegion[x]` 指向 `div.population`（tm-integration-bridge.js:136-145 从 populationDetail **派生的兄弟扁平对象**，:385 `byRegion[div.id]=div.population`），**与叶子 populationDetail 不是同一对象**·初值相等后各自漂移。
+- `national.ding` 现状 = huji 初始常数（天启 18,000,000·`scenarios/tianqi7-1627.js:2716`）→ 但每回合被 `aggregateRegionsToVariables` 用叶子之和**覆盖**。Renli 不写 ding 总量（铁律守住）→ **ding 真相源安全**。
+- **byRegion key 漂移隐患**：huji `byRegion` key = adminHierarchy **顶级** division 的 `div_xxx` 自动 id（非中文名·非叶子 id）。live 天启「只生成最高一级」（顶级==叶子）故恰好对齐；AI 一旦生成府县子节点，叶子 id（Renli 读）与顶级 id（huji 读）分叉→两套 region 账脱钩。
+
+### 附2.2 激活时的确切碰撞面（共 3 处）
+
+1. **★逃亡双产（最直接）**：huji 每回合产 fugitives——`tm-huji-engine.js:633-647`（_tickCorvee 役负>0.40→`P.fugitives+=`）+ `:559-569`（_tickDeepFieldLinkages 族教压力→`r.fugitives`）。Renli `tickLeaf`（tm-renli.js:280）也产 fugitives。两者激活后同回合各产一份，且 Renli 写的叶子 fugitives 被 `aggregateRegionsToVariables`(:567) 聚进 `national.fugitives`·**与 huji 直写的 national.fugitives 叠加**。
+2. **役负满意度双扣**：huji `applyCorveeHardEffect`（tm-huji-runtime-bridge.js:691·役缺→MinxinLedger 按地域打农户）+ Renli 役负信号（§4.4 过 gateSatisfaction）。都打农户·都过总闸——闸防跳楼但**叠两笔**役负扣分。
+3. **叶子 populationDetail.{fugitives,hiddenCount} 三方共写**：huji-runtime-bridge `aggregatePopulation`(:234 回写)、huji-governance-loop `applyRegionalPopulationDelta`(:421-432 减 hiddenCount/fugitives)、Renli tickLeaf(:280/285)。bridge 那笔是读出原样写回（不增量·低危）；governance-loop 那笔在普查/招抚兑现时减（与 Renli 招抚变法语义重叠·须裁谁主）。
+
+### 附2.3 好消息：变法填真空·无雷同（de-risk R6）
+
+全库三个 `applyReform`：`CentralLocalEngine`（央地财政·allocation/autonomy/compliance/audit·**那 6 个农政变法词根本不在该文件**）、`CurrencyEngine`（货币·银本位/开海/纸钞·tm-economy-engine.js:690）、`TM.Renli`（农政·tm-renli.js:443）。诏书解析器（tm-edict-parser.js:194/236）**只调 CurrencyEngine** 且只认货币类（full_currency_reform/开海/纸钞/私铸）。huji/fiscal/guoku **均未建模** Renli 语义的「册载丁棘轮 / 士绅免役 youmian 折算 / 田亩清丈」（只有 taxBaseRatio 雏形 + landsSurveyed 兼并回退田·语义/字段都不同）。**→ Renli 的 重修黄册/限制优免/清丈/蠲免/水利/招抚/摊丁 七条填真空·与既有引擎不双重处理**。唯一沾边词「一条鞭法」：CurrencyEngine 当银本位、Renli 当役折银+穷省毒——同史事两 facet·激活时让二者**各管一面**（货币标准 vs laborMarketDepth）勿都扣满意度即可。
+
+### 附2.4「清理刀」作废（补正 §0.5.4 / R0.2 的「废」前提）
+
+§0.5.4 / R0.2 列的「废 `_tickMilitary` 抽象兵池 + 全国均匀战损」经实读**作废其前提**：`_tickMilitary`（tm-huji-engine.js:721-753）有 `military.enabled` 守卫、只从人口**算**军户/府兵/募兵兵力（非消耗·非扣减），是**活跃在用**的兵源枢纽·删之即断兵源。所谓「全国均匀战损」grep **0 命中**（记忆有误·不存在）。Renli 兵燹只定位毁田·与之互补不冲突。**→ 激活前无独立「清理刀」可做**；军事去重并入 R3.5 激活时处理（招募实扣 alloc.draft + 战损定位）·而非删 `_tickMilitary` 整体。
+
+### 附2.5 激活硬约束 + 推荐序（待 owner 触发激活时执行·改 live 平衡）
+
+激活 = **改 live 平衡**（owner 保留的谨慎决策）·按序：
+1. **种子**：陕西/江南先行 → 全 17 省（走 scenario→官方JSON→快照→bump SNAP_QS 八制品管线·§十）。
+2. **逃亡单一权威**：种子地域裁定 fugitives 由 Renli 叶子接管·**停掉 huji `_tickCorvee:633-647` + `_tickDeepFieldLinkages:559-569` 的 fugitive 产出**（按种子地域门控·或全局二选一）→ 消除双产。
+3. **役负满意度去重**：种子地域役负→农户满意度由 Renli 走（过 gate）·huji `applyCorveeHardEffect` 役负那笔对种子地域让位（避双扣）；缺粮/隐逃→税基那笔 huji 留。
+4. **接役需/draftDemand**：corveeDemand/draftDemand 接诏书/项目/战役生成（现为 0·有役需 Renli 才有役负可算）。
+5. **R6c 变法诏书触发**（填真空·安全·**✅ 已落 2026-06-16·未 commit**）：8 变法接诏书识别 = `TM.Renli.recognizeEdictReform`（tm-renli.js）挂 `processEdictEffects`（tm-endturn-edict.js·additive guarded 钩子）。**未种子地域零工作早返回**（live 不扫文本·零风险）；按 `leaf.name` 配文本避 id 漂移；大变法（清丈/黄册/鞭法/限免/摊丁）未点名地域须带「天下/各省」才全国推行（防一句话血洗全国），软变法（蠲免/招抚/水利）未点名默认全部已种子；蠲免年数从文本解析；一条鞭法与 CurrencyEngine 各管一面（laborMarketDepth vs 货币标准）。24 smoke 断言 + 诏书路回归绿。`.bak-renlir6c-20260616`。
+6. **R6b 两 builder 改读 alloc**（§0.5.4·R0.4·须种子后）：buildCorveeLedger 读 alloc.corvee、buildMilitaryPool 读 alloc.draft 余。
+7. **R7 UI**（役政视图/方志卷/官报雾·种子后才有真数据可显）。
+8. **校准**：swap-test + 真存档·逐项验逃亡不双产、满意度不双扣、陕西/江南走查基线仍成立。
+
+> **当前安全态**：huji 全活、Renli 休眠（live 叶子无 `renliSeed` → tickLeaf 早返回零行为）。上述任何一步未做前·机制层对 live 局零影响。R6c/R6b/R7 虽属「激活」phase·但 R6c（诏书触发·gated 惰性）与 R7（UI）技术上可在种子前先落（休眠不显）·R6b 必须种子后（否则未种子地域 corvée/兵员被清零）。

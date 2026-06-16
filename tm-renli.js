@@ -430,7 +430,7 @@
     tick(GM, Pp);
   }
 
-  // ── R6：变法 ops（玩家杠杆 + 党派代价·仅已种子地域·诏书/AI 触发接线留 R6c）──────────
+  // ── R6：变法 ops（玩家杠杆 + 党派代价·仅已种子地域·诏书触发见 recognizeEdictReform·R6c）──
   function _reformGate(GM, classMatch, delta, source, reason) {
     var CE = _classEngine(); if (!CE || typeof CE.gateSatisfaction !== 'function') return;
     var cs = (GM && Array.isArray(GM.classes)) ? GM.classes : [];
@@ -494,6 +494,61 @@
     } else { return { ok: false, reason: '未知变法:' + type }; }
     ledgerPush(GM, rid, 'reform', 0, '变法:' + type, 'reform');
     return out;
+  }
+
+  // ── R6c：诏书文本 → 变法识别触发（仅已种子地域·未种子零工作早返回·gated 惰性）─────────
+  // 关键词 → 变法 type（长/具体在前·避子串误配）。「一条鞭法」同时也走货币引擎(各管一面·勿都扣满意度)。
+  var REFORM_PATTERNS = [
+    { type: 'tanding', cn: '摊丁入亩', re: /摊丁入亩|摊丁|地丁合一|丁随地起/ },
+    { type: 'capExempt', cn: '限制优免', re: /限制优免|裁革?优免|核?减优免|优免.{0,3}裁|一体当差/ },
+    { type: 'whip', cn: '一条鞭法', re: /一条鞭法?|条鞭|赋役折银|役折银|折银代役/ },
+    { type: 'reregister', cn: '重修黄册', re: /重修黄册|重造黄册|大造黄册|攒造黄册|编审黄册/ },
+    { type: 'survey', cn: '清丈', re: /清丈|丈量田|核实田亩|鱼鳞图?册/ },
+    { type: 'resettle', cn: '招抚流民', re: /招抚流民|招抚流亡|招徕流移|安插流民|抚辑流亡/ },
+    { type: 'waterworks', cn: '兴修水利', re: /兴修水利|河工|浚河|修(渠|堤|塘|圩)|疏浚|治水/ },
+    { type: 'remit', cn: '蠲免', re: /蠲免|蠲赋|蠲除|免徭|免役|减免徭役/ }
+  ];
+  var REFORM_NATIONAL_RE = /天下|全国|各省|诸省|通行|海内|普行/;          // 不点名地域时·须带此类词大变法才全国推行
+  var REFORM_STRUCTURAL = { tanding: 1, capExempt: 1, whip: 1, reregister: 1, survey: 1 }; // 大变法(避一句话血洗全国)
+  var REFORM_CN_NUM = { '一': 1, '两': 2, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 };
+  function _parseRemitTurns(text) {
+    var m = String(text).match(/蠲免?[^0-9一两二三四五六七八九十]{0,6}([0-9]+|[一两二三四五六七八九十])\s*(年|载|岁|回合)/);
+    if (!m) return 1;
+    var n = /^[0-9]+$/.test(m[1]) ? parseInt(m[1], 10) : (REFORM_CN_NUM[m[1]] || 1);
+    return Math.max(1, Math.min(20, n));
+  }
+  // 诏书文本 → 识别变法 → 对目标已种子地域施行。返回 {applied:[...], skipped:[...], scope, types} 或 null。
+  function recognizeEdictReform(GM, Pp, text, opts) {
+    if (!GM || !text) return null;
+    Pp = Pp || _P(); opts = opts || {};
+    var seeded = leaves(Pp).filter(function (l) { return l && l.renliSeed; });
+    if (!seeded.length) return null;                       // ★ 无已种子地域 → 零工作早返回（live 零风险·不扫文本）
+    text = String(text);
+    var hits = [];
+    for (var i = 0; i < REFORM_PATTERNS.length; i++) { if (REFORM_PATTERNS[i].re.test(text)) hits.push(REFORM_PATTERNS[i]); }
+    if (!hits.length) return null;
+    var named = seeded.filter(function (l) {               // 文本点名的已种子地域（按 name 优先·避 id 漂移）
+      var nm = String(l.name || ''), rid = regionIdOf(l);
+      return (nm && text.indexOf(nm) >= 0) || (rid && rid !== nm && text.indexOf(rid) >= 0);
+    });
+    var isNational = REFORM_NATIONAL_RE.test(text);
+    var applied = [], skipped = [];
+    for (var h = 0; h < hits.length; h++) {
+      var pat = hits[h];
+      var targets = named.length ? named : ((REFORM_STRUCTURAL[pat.type] && !isNational) ? [] : seeded);
+      if (!targets.length) { skipped.push({ type: pat.type, typeCN: pat.cn, reason: '大变法未指地域' }); continue; }
+      var o = {}; if (pat.type === 'remit') o.turns = _parseRemitTurns(text);
+      for (var t = 0; t < targets.length; t++) {
+        var rid2 = regionIdOf(targets[t]);
+        var res; try { res = applyReform(GM, Pp, rid2, pat.type, o); } catch (_) { res = null; }
+        if (res && res.ok) {
+          applied.push({ type: pat.type, typeCN: pat.cn, region: rid2, regionName: targets[t].name || rid2, result: res,
+            label: pat.cn + '·' + (targets[t].name || rid2) + (res.suited === false ? '（行于无银之地·恐成扰）' : '') });
+        }
+      }
+    }
+    if (!applied.length && !skipped.length) return null;
+    return { applied: applied, skipped: skipped, scope: named.length ? 'region' : (isNational ? 'national' : 'soft-all'), types: hits.map(function (p) { return p.type; }) };
   }
 
   // ── R5：问天 god-mode 解析器（丁/田/役/农政·镜像阶层/军队三件套·防幽灵属性）──────
@@ -569,9 +624,9 @@
     _qOf: _qOf, tickLeaf: tickLeaf, tick: tick,
     warScar: warScar, warScarFromBattle: warScarFromBattle,
     refreshExempt: refreshExempt, endturnTick: endturnTick,
-    applyReform: applyReform,
+    applyReform: applyReform, recognizeEdictReform: recognizeEdictReform,
     wtHardChange: wtHardChange,
-    VERSION: 3.5
+    VERSION: 3.6
   };
 
   if (typeof window !== 'undefined') { window.TM = window.TM || {}; window.TM.Renli = api; }

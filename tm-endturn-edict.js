@@ -920,5 +920,16 @@ function processEdictEffects(allEdictText, edictCategory) {
     }
   } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'edict] 制度分流失败:') : console.error('[edict] 制度分流失败:', e); }
 
+  // 变法诏令识别（人力/徭役/农政层·R6c）——仅对已种子地域生效·未种子(live)零工作早返回·additive 不扰既有分流
+  try {
+    if (typeof TM !== 'undefined' && TM.Renli && typeof TM.Renli.recognizeEdictReform === 'function') {
+      var _rlReform = TM.Renli.recognizeEdictReform(GM, (typeof P !== 'undefined' ? P : null), allEdictText, { category: edictCategory });
+      if (_rlReform && _rlReform.applied && _rlReform.applied.length) {
+        _rlReform.applied.forEach(function (a) { if (a && a.label && typeof addEB === 'function') addEB('变法', a.label); });
+        if (typeof toast === 'function') { var _seen = {}; var _u = _rlReform.applied.map(function (a) { return a.typeCN; }).filter(function (x) { if (_seen[x]) return false; _seen[x] = 1; return true; }); toast('变法施行：' + _u.join('、')); }
+      }
+    }
+  } catch (_rlE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_rlE, 'edict] 变法识别失败') : console.error('[edict] 变法识别失败:', _rlE); }
+
   return { summary: '', executionSummary: execResult.summary };
 }
