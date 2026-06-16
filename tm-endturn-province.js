@@ -1842,10 +1842,11 @@ function _peRenderAgeDetail(div) {
   var young = (ba.young && ba.young.count) || Math.round(mouths * (ba.young && ba.young.ratio || 0.35));
   var ding = (ba.ding && ba.ding.count) || Math.round(mouths * (ba.ding && ba.ding.ratio || 0.55));
   var old = (ba.old && ba.old.count) || Math.round(mouths * (ba.old && ba.old.ratio || 0.10));
+  var _denom = mouths > 0 ? mouths : 1; // 防分母为0显示 NaN%/Infinity%
   var html = '<div class="tm-div-age-grid">';
-  html += '<div class="tm-div-age-card" style="border-left-color:var(--celadon-400);"><div class="tm-div-age-label">幼 (15以下)</div><div class="tm-div-age-val" style="color:var(--celadon-400);">' + _peN(young) + ' 口</div><div class="tm-div-age-sub">' + ((young/mouths)*100).toFixed(1) + '%</div></div>';
-  html += '<div class="tm-div-age-card" style="border-left-color:var(--gold-400);"><div class="tm-div-age-label">丁 (15-60·赋役)</div><div class="tm-div-age-val" style="color:var(--gold-400);">' + _peN(ding) + ' 口</div><div class="tm-div-age-sub">' + ((ding/mouths)*100).toFixed(1) + '% · 主要纳税基</div></div>';
-  html += '<div class="tm-div-age-card" style="border-left-color:var(--ink-300);"><div class="tm-div-age-label">老 (60以上)</div><div class="tm-div-age-val" style="color:var(--ink-300);">' + _peN(old) + ' 口</div><div class="tm-div-age-sub">' + ((old/mouths)*100).toFixed(1) + '%</div></div>';
+  html += '<div class="tm-div-age-card" style="border-left-color:var(--celadon-400);"><div class="tm-div-age-label">幼 (15以下)</div><div class="tm-div-age-val" style="color:var(--celadon-400);">' + _peN(young) + ' 口</div><div class="tm-div-age-sub">' + ((young/_denom)*100).toFixed(1) + '%</div></div>';
+  html += '<div class="tm-div-age-card" style="border-left-color:var(--gold-400);"><div class="tm-div-age-label">丁 (15-60·赋役)</div><div class="tm-div-age-val" style="color:var(--gold-400);">' + _peN(ding) + ' 口</div><div class="tm-div-age-sub">' + ((ding/_denom)*100).toFixed(1) + '% · 主要纳税基</div></div>';
+  html += '<div class="tm-div-age-card" style="border-left-color:var(--ink-300);"><div class="tm-div-age-label">老 (60以上)</div><div class="tm-div-age-val" style="color:var(--ink-300);">' + _peN(old) + ' 口</div><div class="tm-div-age-sub">' + ((old/_denom)*100).toFixed(1) + '%</div></div>';
   html += '</div>';
   return html;
 }

@@ -3632,6 +3632,13 @@ function _cc3_writeActionToGM(action, item, extra, label) {
     };
     GM._edictTracker.push(tracker);
     _cc3_applyCourtPolicyBridge(tracker, action, item, extra, label);
+    // minxin feedback: route changchao disposition of a pressure-spawned topic back so the matrix clears it (else it re-spawns)
+    try {
+      var _miLink = item && (item._sourceRef || item.linkedIssue || item.sourceId || item.ref || (item.sourceType === 'minxin_pressure' ? item.id : ''));
+      if (_miLink && typeof TM !== 'undefined' && TM.MinxinPressureActions && typeof TM.MinxinPressureActions.recordPlayerResponse === 'function') {
+        TM.MinxinPressureActions.recordPlayerResponse(GM, { channel: 'chaoyi', decision: action, linkedIssue: _miLink, actor: item.presenter || '', topic: item.title || '', text: [item.title, item.detail, item.content].filter(Boolean).join(' ') }, { turn: turn, source: 'changchao-minxin-pressure-response' });
+      }
+    } catch (_miE) {}
     if (typeof addEB === 'function') addEB('常朝', label + '：' + (item.title || ''));
   }
 

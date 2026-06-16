@@ -150,14 +150,16 @@
 
   function pushFiscalPolicy(fac, action) {
     if (!fac || !action) return false;
-    var content = '财计·' + (action.resource || 'money') + ' ' + ((action.delta || 0) >= 0 ? '+' : '') + (action.delta || 0);
+    var resMap = { money: '银钱', grain: '米粮', cloth: '布帛' };
+    var content = '财计·' + (resMap[action.resource] || '银钱') + ' ' + ((action.delta || 0) >= 0 ? '+' : '') + (action.delta || 0);
     if (action.reason) content += '·' + String(action.reason).slice(0, 32);
     return _push('财计', fac.name, content);
   }
 
   function pushIntrigue(fac, action) {
     if (!fac || !action) return false;
-    var content = '间谍·' + (action.targetFaction || '?') + '·' + (action.intrigue || action.policy || 'covert');
+    var intrMap = { spread_rumor: '散布流言', bribe: '收买', sabotage: '破袭' };
+    var content = '间谍·' + (action.targetFaction || '?') + '·' + (intrMap[action.intrigue || action.policy] || '密谋');
     if (action.pressure) content += '·压力+' + action.pressure;
     if (action.reason) content += '·' + String(action.reason).slice(0, 32);
     return _push('间谍', fac.name, content);
@@ -165,7 +167,8 @@
 
   function pushRebellionPolicy(fac, action) {
     if (!fac || !action) return false;
-    var content = '叛乱·' + (action.targetFaction || '?') + '·' + (action.policy || 'incite');
+    var rebMap = { incite: '煽动', sponsor: '资助', pacify: '招抚' };
+    var content = '叛乱·' + (action.targetFaction || '?') + '·' + (rebMap[action.policy] || '煽动');
     if (action.support) content += '·声势+' + action.support;
     if (action.reason) content += '·' + String(action.reason).slice(0, 32);
     return _push('叛乱', fac.name, content);

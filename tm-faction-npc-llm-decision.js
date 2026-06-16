@@ -724,7 +724,7 @@
     });
     _arr(G.activeWars).filter(function(w){
       var t = _txt(w, 300);
-      var sides = _arr(w.sides).join('|');
+      var sides = _arr(w.sides).concat([w.attacker, w.defender].filter(Boolean)).join('|');
       return t.indexOf(fac.name) >= 0 || sides.indexOf(fac.name) >= 0;
     }).slice(0, 5).forEach(function(w){
       lines.push('  战事 ' + _txt(w.name || w.title || '未名战事', 60) + ' ' + _txt(w.status || w.phase || w, 160));
@@ -996,7 +996,7 @@
       }
       var inWar = _arr(G.activeWars).some(function(w) {
         var t = _txt(w, 300);
-        var sides = _arr(w.sides).join('|');
+        var sides = _arr(w.sides).concat([w.attacker, w.defender].filter(Boolean)).join('|');
         return (t.indexOf(myName) >= 0 && t.indexOf(other.name) >= 0) || (sides.indexOf(myName) >= 0 && sides.indexOf(other.name) >= 0);
       });
       if (inWar) { score += 100; reasons.push('war'); }

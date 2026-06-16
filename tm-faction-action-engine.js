@@ -1241,7 +1241,7 @@
     if (fac && fac._fiscalCrisis) { score += 35; reasons.push('fiscal'); }
     if (de.fiscalStress) { score += Math.min(45, _safeNum(de.fiscalStress) * 0.7); reasons.push('stress'); }
     var inWar = _arr(G.activeWars).some(function(w) {
-      var sides = _arr(w && w.sides).concat(_arr(w && w.factions));
+      var sides = _arr(w && w.sides).concat(_arr(w && w.factions)).concat([w && w.attacker, w && w.defender].filter(Boolean));
       return fac && sides.indexOf(fac.name) >= 0;
     });
     if (inWar) { score += 45; reasons.push('war'); }

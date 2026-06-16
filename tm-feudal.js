@@ -1988,6 +1988,28 @@ var CasusBelliSystem = (function() {
    * @param {string} cbId - CB类型ID（不提供则套用'none'）
    * @returns {Object} {success, war, cbUsed, message}
    */
+  // #26·联盟参战:守方有 mutual_defense 同盟→盟友应约对攻方宣战(原 alliance.mutual_defense 标志写而不读·盟友永不参战)
+  function _ty_callAlliesToWar(defender, attacker, cb) {
+    if (!Array.isArray(GM.treaties)) return;
+    var seen = {};
+    GM.treaties.forEach(function(t){
+      if (!t || t.active === false) return;
+      var isAlliance = t.mutual_defense === true || t.type === 'alliance' || t.typeName === '同盟';
+      if (!isAlliance) return;
+      var parties = Array.isArray(t.parties) ? t.parties.map(function(p){ return (p && p.name) || p; }) : [];
+      if (parties.indexOf(defender) < 0) return;
+      parties.forEach(function(ally){
+        if (!ally || ally === defender || ally === attacker || seen[ally]) return;
+        var already = (GM.activeWars||[]).some(function(w){ return (w.attacker===ally&&w.defender===attacker)||(w.attacker===attacker&&w.defender===ally); });
+        var truce = (typeof WarWeightSystem !== 'undefined' && WarWeightSystem.hasTruce) ? WarWeightSystem.hasTruce(ally, attacker) : false;
+        if (already || truce) return;
+        seen[ally] = true;
+        GM.activeWars.push({ id: uid(), attacker: attacker, defender: ally, casusBelli: 'mutual_defense', casusBelliName: '应盟参战', startTurn: GM.turn, warScore: 0, truceMonths: (cb && cb.truceMonths) || 12, _alliedWar: true });
+        if (typeof addEB === 'function') addEB('外交', ally + '应' + defender + '之盟·对' + attacker + '宣战');
+      });
+    });
+  }
+
   function declareWar(attacker, defender, cbId) {
     var cb = findCB(cbId || 'none') || findCB('none');
 
@@ -2017,6 +2039,7 @@ var CasusBelliSystem = (function() {
     };
     if (!GM.activeWars) GM.activeWars = [];
     GM.activeWars.push(war);
+    try { _ty_callAlliesToWar(defender, attacker, cb); } catch (_caw) {}   // #26·联盟参战:盟友应约
 
     return {success:true, war:war, cbUsed:cb};
   }
@@ -2095,6 +2118,7 @@ var TreatySystem = (function() {
       expiryTurn: durationTurns > 0 ? GM.turn + durationTurns : 0,
       terms: terms || template.terms || {},
       breakPenalty: template.breakPenalty || {},
+      mutual_defense: template.mutual_defense === true,   // #26·从模板带上共同防御标志(原 createTreaty 不拷·致 mutual_defense 写而不读)
       active: true
     };
     if (!GM.treaties) GM.treaties = [];

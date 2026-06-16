@@ -697,6 +697,22 @@
       }
     }
 
+    // 君上疑窦——问对中识破某人有所隐瞒(GM._wdSuspicions·tm-wendui 写)·喂 AI 让相关 NPC 知晓君上起了疑心(信任已动摇·display-only 原写而不读)
+    if (GM._wdSuspicions && GM._wdSuspicions.length > 0) {
+      var _suspWin = (typeof turnsForMonths === 'function') ? turnsForMonths(3) : 3;
+      var _recentSusp = GM._wdSuspicions.filter(function(s) { return s && s.who && (GM.turn - (s.turn || 0)) <= _suspWin; });
+      var _suspByWho = {};
+      _recentSusp.forEach(function(s) { var prev = _suspByWho[s.who]; if (!prev || (s.turn || 0) >= (prev.turn || 0)) _suspByWho[s.who] = s; });
+      var _suspList = Object.keys(_suspByWho).map(function(k) { return _suspByWho[k]; });
+      if (_suspList.length > 0) {
+        tp += '【君上疑窦——以下臣僚被君上当面察觉有所隐瞒，君臣之间已生嫌隙，必须影响其行为】\n';
+        _suspList.forEach(function(s) {
+          tp += '  T' + (s.turn || 0) + ' 君上' + (s.caught ? '当面识破' : '隐隐觉出') + s.who + '有所隐瞒' + (s.hiding ? '：所隐者“' + s.hiding + '”' : '') + '\n';
+        });
+        tp += '  要求：被疑之臣本回合应有反应——或惶恐自辩、上书剖白以释君疑；或愈发隐忍收敛；心怀异志者或就此离心、另作图谋\n';
+      }
+    }
+
     // 本回合问对内容（让AI知道玩家在问对中获得的信息和NPC的承诺）
     if (GM.jishiRecords && GM.jishiRecords.length > 0) {
       var _thisWendui = GM.jishiRecords.filter(function(j) { return j.turn === GM.turn && j.char; });
@@ -3163,7 +3179,7 @@
     sysP += '\n- class_alert_responses: \u56DE\u5E94\u9636\u5C42\u4E34\u754C\u8B66\u62A5\uFF08alertId\u3001action=address/defer/partial\u3001reason\uFF09';
     sysP += '\n- regent_decisions: \u6444\u653f\u51b3\u65ad\uFF08action\u3001subject\u3001regentName\u3001hardCeiling\u3001reason\uFF09';
     sysP += '\n- reissue_topics: \u5efa\u8bae\u5c06\u7559\u4e2d\u518c\u8bae\u9898\u8d77\u590d\u518d\u8bae\uff08topic\u3001reason\uff09';
-    sysP += '\n- army_changes: 修改部队兵力/士气/训练/统帅（降至0→全军覆没；统帅或主将变更必须写 commander/newCommander，不能只写在叙事里）';
+    sysP += '\n- army_changes: 修改部队兵力/士气/训练(写 training_delta·练兵真生效)/统帅（降至0→全军覆没；统帅或主将变更必须写 commander/newCommander，不能只写在叙事里）';
     sysP += '\n  ★敌我任一方有折损/减员，必须落此处（soldiers_delta 用负数）或 battleResult，不能只写在叙事里。name 须是该军的精确番号或其主帅姓名（如"后金·两红旗(代善领)"或"代善"）；只写势力名（如"后金"含多支旗军）无法定位到具体军，折损会落空——敌军每回合"折几千却永远杀不完"正是此故。';
     sysP += '\n- item_changes: 让角色获得或失去物品';
     sysP += '\n- era_state_delta: 调整时代参数（社会稳定/经济/集权/军事等）';

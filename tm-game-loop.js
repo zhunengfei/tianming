@@ -43,8 +43,8 @@ function enterGame(){
     if (_cEng && typeof _cEng.updatePublicTreasuryMirror === 'function' && GM.chars) {
       GM.chars.forEach(function(ch){
         if (!ch || ch.alive === false) return;
-        try { _cEng.ensureCharResources(ch); } catch(_){}
-        try { _cEng.updatePublicTreasuryMirror(ch); } catch(_){}
+        try { _cEng.ensureCharResources(ch); } catch(_eR){ if (window.TM && TM.errors && TM.errors.capture) TM.errors.capture(_eR, 'enterGame.ensureCharResources'); }
+        try { _cEng.updatePublicTreasuryMirror(ch); } catch(_eM){ if (window.TM && TM.errors && TM.errors.capture) TM.errors.capture(_eM, 'enterGame.updatePublicTreasuryMirror'); }
       });
       if (GM.turn === 1) console.log('[enterGame] 角色公库镜像刷新完成');
     }
@@ -1126,7 +1126,7 @@ async function _wtSend() {
     + '   · setting — 世界背景/设定注入：补充剧本的背景信息/状态/历史（例："此时倭寇已平"、"北方去年大旱未记入"）\n'
     + '   · hardChange — 直接修改数值或字段：要求直接改具体数值/字段（例："帑廪+1000万两"、"某NPC忠诚设为100"、"袁崇焕所在地改为京师"、"皇威+10"）\n'
     + '       ★【识别规则】只要指令提到：具体金额(万两/石/匹)、具体数值(+N/-N/设为N)、具体字段(国库/帑廪/内帑/忠诚/所在地/位置/皇威/皇权/民心/阶层满意度/阶层影响力等)——必须归入 hardChange。不要误判为 narrative/directive。\n'
-    + '       ★【常见路径】白银=guoku.money·粮=guoku.grain·布=guoku.cloth·内帑银=neitang.money·皇威=huangwei.index·皇权=huangquan.index·腐败/吏治=corruption.trueIndex·民心=minxin.trueIndex·人物忠诚=chars[人物名].loyalty·人物所在地=chars[人物名].location·军队兵力=armies[军名].soldiers·军队主帅=armies[军名].commander·军队士气=armies[军名].morale·军队忠诚=armies[军名].loyalty·军队欠饷月数=armies[军名].payArrearsMonths·阶层满意度=classes[阶层名].satisfaction·阶层影响力=classes[阶层名].influence·阶层人口=classes[阶层名].population\n'
+    + '       ★【常见路径】白银=guoku.money·粮=guoku.grain·布=guoku.cloth·内帑银=neitang.money·皇威=huangwei.index·皇权=huangquan.index·腐败/吏治=corruption.trueIndex·民心=minxin.trueIndex·人物忠诚=chars[人物名].loyalty·人物所在地=chars[人物名].location·军队兵力=armies[军名].soldiers·军队主帅=armies[军名].commander·军队士气=armies[军名].morale·军队忠诚=armies[军名].loyalty·军队欠饷月数=armies[军名].payArrearsMonths·阶层满意度=classes[阶层名].satisfaction·阶层影响力=classes[阶层名].influence·阶层人口=classes[阶层名].population·势力实力=facs[势力名].strength·势力经济=facs[势力名].economy·势力对玩家关系=facs[势力名].playerRelation·党派影响力=parties[党派名].influence·党派凝聚力=parties[党派名].cohesion\n'
     + '       ★【操作符】"加/增/+"→op:add · "减/扣/-"→op:add(负数) · "设为/改为/="→op:set · "翻倍/x2"→op:mul\n'
     + '       ★【单位换算】1 万两=10000·50 万两=500000·100 万石=1000000·玩家说"100 万"一律写成 1000000 数字不要保留"万"字\n'
     + '   · edictSubstitute — 等同诏令：玩家实际想下诏令的事（例："拨银赈灾"、"罢某某官"、"遣使某国"——这些本该走诏令而非问天）\n'
@@ -1883,6 +1883,100 @@ function _wtResolveClassHardChange(parts) {
   return { cls: hit.cls, index: hit.index, listName: hit.listName, field: field };
 }
 
+// 势力 hardChange 字段规范化（实力/经济/对玩家关系 中英别名 → 真实字段名）
+function _wtCanonicalFacHardChangeField(field) {
+  var f = String(field || '').trim().replace(/\s+/g, '');
+  var aliases = {
+    '实力':'strength','實力':'strength','国力':'strength','國力':'strength','兵力':'strength','军力':'strength','軍力':'strength','武力':'strength','strength':'strength','power':'strength',
+    '经济':'economy','經濟':'economy','财力':'economy','財力':'economy','富庶':'economy','economy':'economy',
+    '对玩家关系':'playerRelation','對玩家關係':'playerRelation','玩家关系':'playerRelation','玩家關係':'playerRelation','关系':'playerRelation','關係':'playerRelation','邦交':'playerRelation','好感':'playerRelation','亲疏':'playerRelation','親疏':'playerRelation','playerRelation':'playerRelation','relation':'playerRelation'
+  };
+  return aliases[f] || f;
+}
+
+// 按名查势力（GM.facs·精确优先·唯一模糊命中兜底·镜像阶层/军队查找）
+function _wtFindFacHardChangeTarget(name) {
+  if (typeof GM === 'undefined' || !GM || !Array.isArray(GM.facs) || !name) return null;
+  var t = _wtNormalizeCharacterLookupToken(name);
+  if (!t) return null;
+  var loose = null, looseCount = 0;
+  for (var i = 0; i < GM.facs.length; i++) {
+    var f = GM.facs[i];
+    if (!f) continue;
+    var keys = [f.name, f.id, f.shortName, f.title].map(_wtNormalizeCharacterLookupToken).filter(Boolean);
+    if (keys.indexOf(t) >= 0) return { fac: f, index: i };
+    if (keys.some(function(k){ return k && (k.indexOf(t) >= 0 || t.indexOf(k) >= 0); })) { loose = { fac: f, index: i }; looseCount++; }
+  }
+  return (looseCount === 1) ? loose : null;
+}
+
+// 解析势力 hardChange 路径：facs/势力/外邦 前缀，或裸势力名（裸名须命中真实 fac 字段·防误伤 GM 字段路径）
+// 治"问天改 facs[后金].实力 → 通用导航写到数组幽灵属性 GM.facs['后金']、真势力不动"的静默失败（与阶层/军队同根）。
+function _wtResolveFacHardChange(parts) {
+  if (!parts || parts.length < 2) return null;
+  var prefixes = /^(facs|faction|factions|fac|势力|勢力|外邦|邦国|邦國|藩镇|藩鎮)$/i;
+  var name, field;
+  if (prefixes.test(String(parts[0] || ''))) {
+    if (parts.length < 3) return null;
+    name = parts[1];
+    field = _wtCanonicalFacHardChangeField(parts.slice(2).join('.'));
+  } else {
+    name = parts[0];
+    field = _wtCanonicalFacHardChangeField(parts.slice(1).join('.'));
+  }
+  if (!name || !field) return null;
+  if (['strength','economy','playerRelation'].indexOf(field) < 0) return null; // 只认 fac 真实字段·避免裸名误伤
+  var hit = _wtFindFacHardChangeTarget(name);
+  if (!hit || !hit.fac) return null;
+  return { fac: hit.fac, index: hit.index, field: field };
+}
+
+// 党派 hardChange 字段规范化（影响力/凝聚力 中英别名 → 真实字段名）
+function _wtCanonicalPartyHardChangeField(field) {
+  var f = String(field || '').trim().replace(/\s+/g, '');
+  var aliases = {
+    '影响力':'influence','影響力':'influence','影响':'influence','影響':'influence','话语权':'influence','話語權':'influence','声势':'influence','聲勢':'influence','influence':'influence',
+    '凝聚力':'cohesion','凝聚':'cohesion','团结':'cohesion','團結':'cohesion','向心力':'cohesion','cohesion':'cohesion'
+  };
+  return aliases[f] || f;
+}
+
+// 按名查党派（GM.parties·精确优先·唯一模糊命中兜底·镜像势力查找）
+function _wtFindPartyHardChangeTarget(name) {
+  if (typeof GM === 'undefined' || !GM || !Array.isArray(GM.parties) || !name) return null;
+  var t = _wtNormalizeCharacterLookupToken(name);
+  if (!t) return null;
+  var loose = null, looseCount = 0;
+  for (var i = 0; i < GM.parties.length; i++) {
+    var p = GM.parties[i];
+    if (!p) continue;
+    var keys = [p.name, p.id, p.shortName].map(_wtNormalizeCharacterLookupToken).filter(Boolean);
+    if (keys.indexOf(t) >= 0) return { party: p, index: i };
+    if (keys.some(function(k){ return k && (k.indexOf(t) >= 0 || t.indexOf(k) >= 0); })) { loose = { party: p, index: i }; looseCount++; }
+  }
+  return (looseCount === 1) ? loose : null;
+}
+
+// 解析党派 hardChange 路径：parties/党派/朋党 前缀，或裸党派名（裸名须命中真实 party 字段·防误伤）
+function _wtResolvePartyHardChange(parts) {
+  if (!parts || parts.length < 2) return null;
+  var prefixes = /^(parties|party|党派|黨派|党|黨|朋党|朋黨)$/i;
+  var name, field;
+  if (prefixes.test(String(parts[0] || ''))) {
+    if (parts.length < 3) return null;
+    name = parts[1];
+    field = _wtCanonicalPartyHardChangeField(parts.slice(2).join('.'));
+  } else {
+    name = parts[0];
+    field = _wtCanonicalPartyHardChangeField(parts.slice(1).join('.'));
+  }
+  if (!name || !field) return null;
+  if (['influence','cohesion'].indexOf(field) < 0) return null; // 只认 party 真实字段·避免裸名误伤
+  var hit = _wtFindPartyHardChangeTarget(name);
+  if (!hit || !hit.party) return null;
+  return { party: hit.party, index: hit.index, field: field };
+}
+
 function _wtApplyHardChange(path, op, value) {
   if (!path) return false;
   // 根据路径前缀决定 root
@@ -1959,6 +2053,35 @@ function _wtApplyHardChange(path, op, value) {
       _cls[_cf] = _cnv;
       try { if (typeof TM !== 'undefined' && TM.ClassEngine && typeof TM.ClassEngine.refreshClassPhase === 'function') TM.ClassEngine.refreshClassPhase(GM, _cls); } catch (_wtClsE) {}
       _wtAfterHardChange(_classPath, _oldC, _cnv);
+      return true;
+    }
+    // 势力按名解析（镜像阶层/军队·治"问天改 facs[后金].实力 写到数组幽灵属性、真势力不动"的静默失败）。
+    // 问天=god-mode 直改·实力/经济/对玩家关系直写真势力对象（strength/economy 0-100·playerRelation -100..100 夹取）。
+    var facChange = _wtResolveFacHardChange(parts);
+    if (facChange && facChange.fac) {
+      var _fac = facChange.fac, _ff = facChange.field;
+      var _facPath = 'facs.' + facChange.index + '.' + _ff;
+      var _oldF = _fac[_ff];
+      var _fscalar = _wtApplyScalarHardChange(_oldF, op || 'set', value);
+      if (!_fscalar.ok) return false;
+      var _fnv = Math.round(Number(_fscalar.value) || 0);
+      if (_ff === 'playerRelation') _fnv = Math.max(-100, Math.min(100, _fnv));
+      else _fnv = Math.max(0, Math.min(100, _fnv)); // strength/economy 0-100
+      _fac[_ff] = _fnv;
+      _wtAfterHardChange(_facPath, _oldF, _fnv);
+      return true;
+    }
+    // 党派按名解析（镜像势力·治"问天改 parties[东林党].影响力 写到数组幽灵属性、真党派不动"的静默失败）。
+    var partyChange = _wtResolvePartyHardChange(parts);
+    if (partyChange && partyChange.party) {
+      var _pty = partyChange.party, _pf = partyChange.field;
+      var _ptyPath = 'parties.' + partyChange.index + '.' + _pf;
+      var _oldP = _pty[_pf];
+      var _pscalar = _wtApplyScalarHardChange(_oldP, op || 'set', value);
+      if (!_pscalar.ok) return false;
+      var _pnv = Math.max(0, Math.min(100, Math.round(Number(_pscalar.value) || 0))); // influence/cohesion 0-100
+      _pty[_pf] = _pnv;
+      _wtAfterHardChange(_ptyPath, _oldP, _pnv);
       return true;
     }
   }

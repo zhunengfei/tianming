@@ -108,6 +108,13 @@ async function _endTurn_updateSystems(timeRatio, zhengwen) {
     }
   } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] GuokuEngine.tick 失败:') : console.error('[endTurn] GuokuEngine.tick 失败:', e); }
 
+  // 6.02b 天灾生命周期·到期灾害出队(治"activeDisasters 永不消除→国库永久失血"·已赈者更快平息)
+  try {
+    if (typeof GuokuEngine !== 'undefined' && typeof GuokuEngine.tickDisasters === 'function') {
+      GuokuEngine.tickDisasters();
+    }
+  } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] tickDisasters 失败:') : console.error('[endTurn] tickDisasters 失败:', e); }
+
   // 6.03 内帑引擎回合结算（6 源+5 支+月度+年末+危机检查）
   try {
     if (typeof TM !== 'undefined' && TM.HujiRuntimeBridge && typeof TM.HujiRuntimeBridge.enforceAfterFiscalTick === 'function') {

@@ -1007,6 +1007,12 @@
     if (div.environment && div.environment.currentLoad > 0.9) disasterPenalty = 0.2;
     if (div.environment && div.environment.ecoScars && Object.keys(div.environment.ecoScars).length > 0) disasterPenalty += 0.1;
     if (Array.isArray(div.economyBase && div.economyBase.disasterRecord) && div.economyBase.disasterRecord.length) disasterPenalty += 0.1;
+    // 当前活跃天灾(GM.activeDisasters)对受灾区税基的折减·读单一生产者 _disasterEconomyReduce(applyDisasterEconomyReduction 每回合按区域写)
+    // 治"灾不削税基":此前 disasterPenalty 只读静态历史/环境疤痕(disasterRecord/ecoScars)·不读正在发生的灾→受灾区照常足额征税
+    if (div._disasterEconomyReduce) {
+      var _derField = (tax.base === 'commerceVolume' || tax.base === 'commerce' || tax.base === 'trade') ? 'commerceVolume' : 'farmland';
+      disasterPenalty += safeNumber(div._disasterEconomyReduce[_derField], 0);
+    }
     disasterPenalty = Math.min(0.5, disasterPenalty);
 
     var exemption = 0;
@@ -1034,7 +1040,34 @@
     } catch (_) {}
 
     var autonomy = Math.max(0, Math.min(1, safeNumber(div.fiscal && div.fiscal.autonomyLevel, 0)));
-    amount = amount * (1 - corrPenalty) * (1 - disasterPenalty) * (1 - exemption) * (1 - disruption) * (1 - fleePenalty) * (1 - autonomy * 0.8) * statusMult;
+    // 年度赋役总纲·税率调整真入征收（2026-06-15·#6 假数字治理收尾）：玩家在赋役滑块设的 taxRateAdjust
+    //   此前只算了 _annualFuyiAdjust 却无人读入收入。此处接入权威 cascade 税额路径——仅对年度农赋
+    //   （赋役之所指）生效·无政令=0=乘 1 不改旧行为·夹 ±50% 防极端。让"赋役滑块"从空旋钮变真。
+    var fuyiMult = 1;
+    if (tax && tax.annual) {
+      try {
+        var _gFuyi = getGame();
+        var _fcfg = (_gFuyi && _gFuyi.fiscalConfig) || (typeof P !== 'undefined' && P && P.fiscalConfig) || {};
+        var _fa = _fcfg.annualFuyi && Number(_fcfg.annualFuyi.taxRateAdjust);
+        if (isFinite(_fa) && _fa !== 0) fuyiMult = 1 + Math.max(-0.5, Math.min(0.5, _fa));
+      } catch (_) {}
+    }
+    // 通胀/降成色侵蚀财政（#27·货币系统接权威税收）：主币购买力 <1(通胀或铜钱降成色)时·money 计价税实收按购买力缺口折减
+    //   让"降成色短期铸息暴利→长期通胀蚀税基"成真权衡(原 CurrencyEngine 算通胀/降成色却零反馈进 CascadeTax·通胀拉满国库一文不少)
+    //   仅 money 税(粮/布实物不折)·夹 ≤35%·CurrencyEngine 缺位/购买力≥1 = 不折 = 旧行为(零数据零变更)
+    var inflationPenalty = 0;
+    if ((tax.storeAs || 'money') === 'money') {
+      try {
+        // 购买力访问器实际挂在 EconomyGapFill/EconomyCore（tm-economy-engine.js），不在 CurrencyEngine——
+        // #27 初版误取 CurrencyEngine.getPurchasingPower 恒 undefined，inflationPenalty 永远 0（prod 死线，smoke 桩掩盖）。此处按真命名空间优先查找。
+        var _ce = (typeof window !== 'undefined' && (window.EconomyGapFill || window.EconomyCore || window.CurrencyEngine)) || (typeof global !== 'undefined' && (global.EconomyGapFill || global.EconomyCore || global.CurrencyEngine)) || (typeof EconomyGapFill !== 'undefined' && EconomyGapFill) || (typeof CurrencyEngine !== 'undefined' && CurrencyEngine) || null;
+        if (_ce && typeof _ce.getPurchasingPower === 'function') {
+          var _pp = _ce.getPurchasingPower();
+          if (isFinite(_pp) && _pp < 1) inflationPenalty = Math.min(0.35, 1 - _pp);
+        }
+      } catch (_) {}
+    }
+    amount = amount * (1 - corrPenalty) * (1 - disasterPenalty) * (1 - exemption) * (1 - disruption) * (1 - fleePenalty) * (1 - autonomy * 0.8) * (1 - inflationPenalty) * statusMult * fuyiMult;
     return Math.max(0, Math.round(amount));
   }
 
@@ -1261,9 +1294,62 @@
     push('路途损耗·钱', totals.lostTransit.money, '漕运/陆运损耗');
   }
 
+  // ═══ 活跃天灾 → 受灾区税基折减（治"灾不削税基"+复活死字段 _disasterEconomyReduce）═══
+  // 单一生产者：每回合(collect 开头)按 GM.activeDisasters 的 region 写各 division 的 _disasterEconomyReduce(清-设·无灾即清·防陈旧泄漏)。
+  // 两消费方各取：computeTaxAmount(权威 cascade·加进 disasterPenalty) + sumEconomyBase(兜底/聚合·已 *=(1-reduce))·不同收入路径不双扣。
+  function _disasterReduceFields(cat, severity) {
+    var sv = String(severity == null ? '' : severity).toLowerCase();
+    var sevF = (/severe|严重|major|大|extreme|catastroph/.test(sv)) ? 0.35 : (/minor|light|轻|small|小/.test(sv) ? 0.1 : 0.2); // 默认 moderate 0.2(小系数)
+    var c = String(cat || '').toLowerCase();
+    var farm = 0, commerce = 0;
+    if (/(旱|drought)/.test(c)) farm = sevF;
+    else if (/(蝗|locust)/.test(c)) farm = sevF;
+    else if (/(水|洪|flood)/.test(c)) { farm = sevF; commerce = sevF * 0.5; }
+    else if (/(瘟|疫|plague)/.test(c)) { farm = sevF * 0.7; commerce = sevF * 0.5; }
+    else if (/(震|quake|earthquake)/.test(c)) { farm = sevF * 0.6; commerce = sevF * 0.6; }
+    else { farm = sevF * 0.5; }
+    return { farmland: farm, commerceVolume: commerce };
+  }
+  function _divMatchesDisasterRegion(div, parent, region) {
+    if (!region) return false;
+    var rg = String(region).trim();
+    if (!rg) return false;
+    var cands = [div && div.name, div && div.id, div && div.regionName, div && div.province, parent && parent.name, parent && parent.id];
+    for (var i = 0; i < cands.length; i++) {
+      var c = cands[i]; if (c == null) continue; c = String(c).trim(); if (!c) continue;
+      if (c === rg) return true;
+      if (rg.length >= 2 && (c.indexOf(rg) >= 0 || rg.indexOf(c) >= 0)) return true; // 省名子串(陕西 ↔ 陕西布政司)·≥2字防单字误配
+    }
+    return false;
+  }
+  function applyDisasterEconomyReduction(G) {
+    G = getGame(G);
+    if (!G || !G.adminHierarchy) return 0;
+    var disasters = Array.isArray(G.activeDisasters) ? G.activeDisasters : [];
+    var dlist = [];
+    for (var k = 0; k < disasters.length; k++) {
+      var d = disasters[k]; if (!d) continue;
+      dlist.push({ region: d.region, fields: _disasterReduceFields(d.category || d.type, d.severity) });
+    }
+    var affected = 0;
+    walkAdminDivisions(G, function(div, parent) {
+      if (!div) return;
+      if (!dlist.length) { if (div._disasterEconomyReduce) div._disasterEconomyReduce = null; return; } // 无灾 → 清(防陈旧泄漏)
+      var farm = 0, comm = 0, hit = false;
+      for (var i = 0; i < dlist.length; i++) {
+        if (_divMatchesDisasterRegion(div, parent, dlist[i].region)) { hit = true; farm = Math.max(farm, dlist[i].fields.farmland); comm = Math.max(comm, dlist[i].fields.commerceVolume); }
+      }
+      if (hit) { div._disasterEconomyReduce = { farmland: Math.min(0.6, farm), commerceVolume: Math.min(0.6, comm) }; affected++; }
+      else if (div._disasterEconomyReduce) { div._disasterEconomyReduce = null; } // 此区已无灾 → 清
+    }, { leafOnly: false });
+    return affected;
+  }
+
   function cascadeCollect(opts) {
     var G = getGame();
     if (!G || !G.adminHierarchy) return { ok: false, reason: 'no adminHierarchy' };
+    applyDisasterEconomyReduction(G); // 每回合刷新受灾区税基折减(清-设·幂等)·须在 per-division 征税前
+
     opts = opts || {};
     var fc = getFiscalConfig(G);
     var taxes = normalizeTaxListForCascade(G, fc);
@@ -1783,6 +1869,29 @@
     return { ok: true, deducted: out };
   }
 
+  // 入账（#25·外交收贡/赔款/互市之利等 → 国库）·镜像 spendFromGuoku·走 ledger.stock + thisTurnIn + sources + 同步 balance/money
+  function addToGuoku(amounts, sourceTag) {
+    var G = getGame();
+    if (!G) return { ok: false, reason: 'no GM' };
+    amounts = amounts || {};
+    var L = ensureGuoku(G);
+    reconcileLedgerScalar(L.money, G.guoku.money, G.guoku.balance);
+    reconcileLedgerScalar(L.grain, G.guoku.grain, null);
+    reconcileLedgerScalar(L.cloth, G.guoku.cloth, null);
+    ['money', 'grain', 'cloth'].forEach(function(kind) {
+      var amt = safeNumber(amounts[kind], 0);
+      if (amt > 0) {
+        var led = L[kind];
+        led.stock = (Number(led.stock) || 0) + amt;
+        led.thisTurnIn = (Number(led.thisTurnIn) || 0) + amt;
+        if (!led.sources) led.sources = {};
+        led.sources[sourceTag || '入账'] = (Number(led.sources[sourceTag || '入账']) || 0) + amt;
+      }
+    });
+    syncAccountScalars(G.guoku, L);
+    return { ok: true };
+  }
+
   function fixedTick(ctx) {
     try { return fixedCollect(ctx); } catch (e) {
       if (global.TM && global.TM.errors && global.TM.errors.capture) global.TM.errors.capture(e, 'FixedExpense.tick');
@@ -1809,7 +1918,8 @@
     adjustPlayerCompliance: adjustPlayerCompliance,
     adjustPlayerDivisionCorruption: adjustPlayerDivisionCorruption,
     triggerPlayerSurvey: triggerPlayerSurvey,
-    spendFromGuoku: spendFromGuoku
+    spendFromGuoku: spendFromGuoku,
+    addToGuoku: addToGuoku
   };
 
   global.FiscalEngine = global.FiscalEngine || {};
@@ -1828,6 +1938,7 @@
     DEFAULT_ALLOCATION: DEFAULT_ALLOCATION,
     collect: cascadeCollect,
     tick: cascadeTick,
+    applyDisasterEconomyReduction: applyDisasterEconomyReduction,
     _ensureEconomyBase: _ensureEconomyBase,
     _settleLandFlow: _settleLandFlow,
     sumEconomyBase: sumEconomyBase,

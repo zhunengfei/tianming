@@ -605,6 +605,7 @@
         active: true, scale: scale, startTurn: GM.turn, turnsLeft: 6
       };
       GM.corruption.history.purgeCampaigns.push({ scale:scale, turn:GM.turn });
+      if (GM.corruption.history.purgeCampaigns.length > 200) GM.corruption.history.purgeCampaigns = GM.corruption.history.purgeCampaigns.slice(-200);
       if (typeof addEB === 'function') addEB('朝代', '肃贪大计启动', { credibility: 'high' });
       syncIndexFromSubDepts('\u8083\u8d2a\u8fd0\u52a8');
       return { success: true };
@@ -1028,6 +1029,7 @@
     GM.corruption.history.backlash.push({
       type: type, turn: GM.turn, message: message
     });
+    if (GM.corruption.history.backlash.length > 200) GM.corruption.history.backlash = GM.corruption.history.backlash.slice(-200);
   }
 
   // ═════════════════════════════════════════════════════════════
@@ -1529,6 +1531,7 @@
     caseObj.resolvedAction = optionId;
     cases.splice(cIdx, 1);
     GM.corruption.history.exposedCases.push(caseObj);
+    if (GM.corruption.history.exposedCases.length > 160) GM.corruption.history.exposedCases = GM.corruption.history.exposedCases.slice(-160); // 完整案件对象·单条体积最大·封顶
     syncIndexFromSubDepts('\u8150\u8d25\u6848\u5904\u7f6e');
 
     if (typeof addEB === 'function') {
@@ -1556,6 +1559,7 @@
           GM.corruption.subDepts[c.dept].true = Math.min(100, GM.corruption.subDepts[c.dept].true + 3);
         }
         GM.corruption.history.exposedCases.push(c);
+        if (GM.corruption.history.exposedCases.length > 160) GM.corruption.history.exposedCases = GM.corruption.history.exposedCases.slice(-160);
         if (typeof addEB === 'function') {
           addEB('朝代', '「' + c.name + '」久未处置，民心离散', { credibility: 'medium' });
         }

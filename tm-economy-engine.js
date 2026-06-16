@@ -449,8 +449,16 @@
     // 铸币利润入国库
     if (totalSeigniorage > 0 && global.GM.guoku) {
       var gk = global.GM.guoku;
-      if (typeof gk.money === 'number') gk.money += totalSeigniorage;
-      else if (gk.ledgers && gk.ledgers.money) gk.ledgers.money += totalSeigniorage;
+      // 入库走 money ledger.stock(真权威·g.balance/g.money 皆其镜像)+同步 balance/money
+      // 原 bug:gk.ledgers.money 是对象 {stock,...}·对其 += number → 账本被覆写成 "[object Object]N" 字符串·stock 全丢·国库显示错乱(默认铜钱宝泉局每回合产铸币息·活跃路径)
+      if (gk.ledgers && gk.ledgers.money && typeof gk.ledgers.money === 'object') {
+        var _ml = gk.ledgers.money;
+        _ml.stock = (Number(_ml.stock) || 0) + totalSeigniorage;
+        gk.balance = _ml.stock;
+        gk.money = _ml.stock;
+      } else if (typeof gk.money === 'number') {
+        gk.money += totalSeigniorage;
+      }
       if (gk.sources) gk.sources.mintSeigniorage = (gk.sources.mintSeigniorage || 0) + totalSeigniorage;
     }
   }
@@ -577,7 +585,7 @@
     // 粮价
     var basePrice = 100;
     var elasticity = 1.5;
-    m.grainPrice = basePrice * Math.pow(ratio, elasticity) * m.warInflation * m.seasonalFactor / m.yearFortune * (1 + m.speculationLevel * 0.3);
+    m.grainPrice = basePrice * Math.pow(ratio, elasticity) * m.warInflation * m.seasonalFactor / Math.max(0.5, m.yearFortune || 1) * (1 + m.speculationLevel * 0.3);
     m.clothPrice = 500 * m.warInflation * (1 + m.speculationLevel * 0.2);
     m.saltPrice = 50 * m.warInflation;
     m.ironPrice = 80 * (1 + wars * 0.15);

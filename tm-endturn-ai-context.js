@@ -80,6 +80,28 @@
             ((ps.recentImpeachLose || 0) > 0 ? ' 近期弹劾败=' + Math.round(ps.recentImpeachLose) : ''));
         });
       }
+      // 阶层正册：Phase-3 抽取重构时此块漏迁，致主推演活路径对阶层全盲（历史大 bug 复发）。
+      // 数据契约同 tm-endturn-prompt.js 死 else 分支（满意/趋势/影响/势位/诉求/最艰地域）。
+      if (Array.isArray(GM.classes) && GM.classes.length > 0) {
+        stateLines.push('【阶层正册】');
+        GM.classes.slice(0, 12).forEach(function(c) {
+          if (!c || !c.name) return;
+          var _cSat = Math.round(Number(c.satisfaction) || 0);
+          var _cTrend = 0;
+          if (Array.isArray(c._satLedger)) c._satLedger.forEach(function(e) { if (e && e.t >= (GM.turn || 0) - 1) _cTrend += (Number(e.d) || 0); });
+          _cTrend = Math.round(_cTrend * 10) / 10;
+          var _cDm = String(c.currentDemand || (Array.isArray(c.demands) ? c.demands.join('·') : c.demands) || '').slice(0, 34);
+          var _cPhase = (c.revoltState && c.revoltState.phase && c.revoltState.phase !== 'calm') ? ('·态:' + c.revoltState.phase) : '';
+          var _cWorst = '';
+          if (Array.isArray(c.regionalVariants)) {
+            var _wv = null;
+            c.regionalVariants.forEach(function(v) { if (v && v.region && isFinite(Number(v.satisfaction)) && (!_wv || Number(v.satisfaction) < Number(_wv.satisfaction))) _wv = v; });
+            if (_wv && Number(_wv.satisfaction) <= _cSat - 8) _cWorst = '·最艰:' + String(_wv.region).slice(0, 6) + Math.round(Number(_wv.satisfaction));
+          }
+          stateLines.push('  - ' + c.name + '·满意' + _cSat + (_cTrend ? ('(' + (_cTrend > 0 ? '+' : '') + _cTrend + ')') : '') + '·影响' + Math.round(Number(c.influence) || 0) + (c._structBaseline != null ? ('·势位' + Math.round(c._structBaseline)) : '') + _cPhase + _cWorst + (_cDm ? ('·求:' + _cDm) : ''));
+        });
+        stateLines.push('  （满意=当下·势位=结构应然·求=当前诉求——class_changes 须以正册为准）');
+      }
       if (Array.isArray(GM.armies) && GM.armies.length > 0) {
         var riskArmies = GM.armies.filter(function(a) {
           return (a.mutinyRisk || 0) >= 50 ||
@@ -101,6 +123,56 @@
           });
         }
       }
+      // 当前战事（修·簇5#3：主推演从不注入战争状态→AI 对自己正在打的仗全盲，可能对已停战方再宣战或违背盟约）
+      if (Array.isArray(GM.activeWars) && GM.activeWars.length > 0) {
+        stateLines.push('【当前战事】');
+        GM.activeWars.slice(0, 10).forEach(function(w) {
+          if (!w) return;
+          var atk = w.attacker || (Array.isArray(w.sides) ? w.sides[0] : '') || '?';
+          var def = w.defender || (Array.isArray(w.sides) ? w.sides[1] : '') || '?';
+          stateLines.push('  - ' + atk + ' 攻 ' + def +
+            (w.warScore != null ? ' 战势=' + Math.round(Number(w.warScore) || 0) + '(攻方视角·±100决出)' : '') +
+            (w.casusBelli || w.reason ? ' 缘由=' + String(w.casusBelli || w.reason).slice(0, 16) : '') +
+            ((GM.turn && w.startTurn) ? ' 已历' + (GM.turn - w.startTurn) + '回合' : ''));
+        });
+        stateLines.push('  （已在交战的对象不得"再宣战"；议和/续战须据战势数值定夺）');
+      }
+      if (Array.isArray(GM.treaties)) {
+        var _liveT = GM.treaties.filter(function(t) { return t && (t.expireTurn == null || (GM.turn || 0) < t.expireTurn); });
+        if (_liveT.length > 0) {
+          stateLines.push('【现行和约/盟约】');
+          _liveT.slice(0, 8).forEach(function(t) {
+            var _pt = Array.isArray(t.parties) ? t.parties.join('·') : [t.factionA, t.factionB, t.from, t.to].filter(Boolean).join('·');
+            stateLines.push('  - ' + (t.typeName || t.type || '盟约') + '：' + _pt + (t.mutual_defense === true ? '·互防' : ''));
+          });
+          stateLines.push('  （盟约方不得相互攻伐；互防方被攻须考虑履约）');
+        }
+      }
+      // 现行地块状态（修·簇5#6：region_status_changes 只写不读回→AI 不知哪些地块挂着灾异/善政，无法判断该续该撤）
+      try {
+        var _RS = (global && global.RegionStatus) || (global && global.TM && global.TM.RegionStatus) || null;
+        var _Prs = ctx.P || (global && global.P) || null;
+        if (_RS && typeof _RS.list === 'function' && _Prs && _Prs.adminHierarchy) {
+          var _rsLines = [], _rsN = 0;
+          Object.keys(_Prs.adminHierarchy).forEach(function(fk) {
+            var fh = _Prs.adminHierarchy[fk];
+            (function _w(ds) {
+              (ds || []).forEach(function(d) {
+                if (!d || _rsN >= 12) return;
+                var sts = _RS.list(d);
+                if (Array.isArray(sts) && sts.length) sts.forEach(function(st) {
+                  if (!st || _rsN >= 12) return;
+                  _rsLines.push('  - ' + (d.name || '') + '：' + (st.label || st.kind || st.name || st.type || '') + (st.expiresTurn ? '(至' + st.expiresTurn + ')' : '(长存)'));
+                  _rsN++;
+                });
+                if (d.children) _w(d.children);
+                if (d.divisions) _w(d.divisions);
+              });
+            })(fh && fh.divisions);
+          });
+          if (_rsLines.length) { stateLines.push('【现行地块状态】'); _rsLines.forEach(function(l) { stateLines.push(l); }); stateLines.push('  （灾异消弭须以 region_status_changes remove；勿对已挂状态重复 add）'); }
+        }
+      } catch (_rsE) {}
       if (stateLines.length > 0) {
         sysP += '\n\n' + stateLines.join('\n');
         sysP += '\n规则：推演时必须按上述数值展开；势力 lifePhase 决定基调；党派 influence 决定话语权；兵变险 >= 60 必生事件。';

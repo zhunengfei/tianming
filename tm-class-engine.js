@@ -342,6 +342,7 @@
       });
       summary.missed++;
     });
+    if (source.minxin.alertResponseLog.length > 120) source.minxin.alertResponseLog = source.minxin.alertResponseLog.slice(-120); // 警报回应日志·封顶防无界
     return summary;
   }
 
@@ -467,6 +468,7 @@
         cohesionDelta: partyDelta,
         reason: cls.lastClassReason || (options && options.reason) || ''
       });
+      if (ps.historyLog.length > 20) ps.historyLog = ps.historyLog.slice(-20); // 与其余5个写入口一致·防长局无界增长
       if (Array.isArray(source.parties)) {
         var partyObj = source.parties.find(function(p) { return p && p.name === partyName; });
         if (partyObj) partyObj.cohesion = nextC;
@@ -481,6 +483,7 @@
         weight: weight,
         reason: cls.lastClassReason || (options && options.reason) || ''
       });
+      if (source._classPartyCouplingLog.length > 200) source._classPartyCouplingLog = source._classPartyCouplingLog.slice(-200); // 纯审计因果链·封顶防无界
       applied.push({ partyName: partyName, oldCohesion: oldC, newCohesion: nextC, delta: partyDelta, affinity: affinity });
       total += partyDelta;
       if (typeof global.addEB === 'function') {
@@ -671,6 +674,7 @@
         satisfactionDelta: classDelta,
         refs: refs
       });
+      if (cls.partyOutcomeHistory.length > 80) cls.partyOutcomeHistory = cls.partyOutcomeHistory.slice(-80); // 校准器只读 tail-5·封80远大于·安全
       if (!Array.isArray(source._partyClassCouplingLog)) source._partyClassCouplingLog = [];
       source._partyClassCouplingLog.push({
         turn: turn,
@@ -681,6 +685,7 @@
         refs: refs,
         source: options.source || 'party-outcome'
       });
+      if (source._partyClassCouplingLog.length > 200) source._partyClassCouplingLog = source._partyClassCouplingLog.slice(-200); // 纯审计因果链·封顶防无界
       refreshClassPhase(source, cls);
       try {
         if (TM.ClassMinxinBridge && typeof TM.ClassMinxinBridge.applyClassPressure === 'function') {

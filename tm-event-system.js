@@ -4,6 +4,18 @@
 // 剧情事件总线 (StoryEventBus) + 效果注册表 (EffectRegistry)
 // 存档安全（无闭包），AI事件和编辑器事件统一入口
 // ============================================================
+//
+// ⚠️ @vestigial（2026-06-15 审计标注·勿误认为活路径）
+//   本总线的【事件处理逻辑】当前未接入任何 gameplay 驱动：
+//     · processNext / enqueue / resolveChoice / EffectRegistry —— 全库无外部调用方，
+//       没有任何代码每回合调 processNext，也没有 gameplay 路径 enqueue 事件（总线恒空）。
+//     · 唯一在用的是 serialize/deserialize（tm-save-lifecycle.js:365/645·typeof 守卫），
+//       读写存档时持久化一个【空】总线，无害但无实效。
+//   ★当前真正在跑的事件系统是 tm-history-events.js（checkHistoryEvents / checkRigidTriggers，
+//     由 tm-endturn-systems.js 每回合驱动）+ tm-ai-change-applier 的 AI events。改事件请去那里。
+//   保留原因：存档兼容（已有存档含 _savedEventBus 字段）+ 留作未来「可序列化事件总线」接通的骨架。
+//   若决定接通：在 endturn 管线加 processNext 钩子 + 事件模态渲染器，并从 gameplay 侧 enqueue。
+// ============================================================
 
 /**
  * 剧情事件总线 —— 事件按优先级排队，玩家逐个处理

@@ -440,6 +440,9 @@
               // 天灾补录
               _patch.disaster_events.forEach(function(d) {
                 if (!Array.isArray(GM.activeDisasters)) GM.activeDisasters = [];
+                // 灾害历时(回合)·时间感知:灾种月数经 turnsForMonths 随 daysPerTurn 换算·夹 [1,12]·治本「永不消除」
+                var _disMonths = ({drought:5,flood:2,locust:3,plague:4,quake:1})[d.category] || 3;
+                var _disDur = Math.max(1, Math.min(12, Math.round((typeof turnsForMonths === 'function' ? turnsForMonths(_disMonths) : _disMonths)) || 1));
                 GM.activeDisasters.push({
                   type: d.category,
                   category: d.category,
@@ -447,6 +450,7 @@
                   severity: d.severity || 'moderate',
                   casualties: d.casualties || 0,
                   startedTurn: GM.turn || 0,
+                  duration: _disDur,
                   reason: d.reason || '',
                   _autoFromReconcile: true
                 });
@@ -875,7 +879,7 @@ inst._imprisonedTurn = GM.turn||0;
               if (_armyMatch) {
                 if (act.behaviorType === 'train_troops') _armyMatch.training = Math.min(100, (_armyMatch.training||50) + 5);
                 else if (act.behaviorType === 'patrol') _armyMatch.morale = Math.min(100, (_armyMatch.morale||50) + 3);
-                else if (act.behaviorType === 'fortify') { _armyMatch.morale = Math.min(100, (_armyMatch.morale||50) + 2); if (typeof _armyMatch.fortification === 'number') _armyMatch.fortification = Math.min(100, _armyMatch.fortification + 5); }
+                else if (act.behaviorType === 'fortify') { _armyMatch.morale = Math.min(100, (_armyMatch.morale||50) + 2); _armyMatch.fortification = Math.min(100, (Number(_armyMatch.fortification) || 0) + 5); }
               }
               mechanicallyExecuted = true;
             } else if (act.behaviorType === 'flee' || act.behaviorType === 'retire' || act.behaviorType === 'travel') {
@@ -1268,6 +1272,11 @@ inst._imprisonedTurn = GM.turn||0;
                 resolved: false
               };
               GM._foreshadowings.push(newFs);
+              if (GM._foreshadowings.length > 250) {
+                var _fsKeep = GM._foreshadowings.filter(function(f){ return f && !f.resolved; });
+                var _fsRes = GM._foreshadowings.filter(function(f){ return f && f.resolved; });
+                GM._foreshadowings = _fsKeep.concat(_fsRes.slice(-60));
+              }
               addEB('\u6697\u7EBF', fs.content.slice(0, 40));
               // 6.1联动编年纪事：在编年面板创建一个"进行中"事件（玩家可见的表层线索）
               if (!GM.biannianItems) GM.biannianItems = [];
@@ -1292,8 +1301,8 @@ inst._imprisonedTurn = GM.turn||0;
                 var score = 0;
                 // 内容相似度：简单字符匹配
                 var keywords = fs.content.replace(/[，。、！？\s]/g, '').split('');
-                var existWords = existing.content.replace(/[，。、！？\s]/g, '');
-                keywords.forEach(function(ch) { if (existWords.indexOf(ch) >= 0) score++; });
+                var existWords = new Set(existing.content.replace(/[，。、！？\s]/g, '').split(''));
+                keywords.forEach(function(ch) { if (existWords.has(ch)) score++; });
                 if (fs.type && fs.type === existing.type) score += 5;
                 if (score > bestScore) { bestScore = score; bestMatch = existing; }
               });
@@ -2093,7 +2102,7 @@ inst._imprisonedTurn = GM.turn||0;
             fObj.succession.stability = Math.max(0, Math.min(100, (fObj.succession.stability||60) + (parseInt(sc.stability_delta)||0)));
             if (!Array.isArray(fObj.historicalEvents)) fObj.historicalEvents = [];
             fObj.historicalEvents.push({ turn: GM.turn, event: sc.disputeType || '继承', impact: oldLeader + '→' + sc.newLeader });
-            addEB('\u7EE7\u627F', '\u3010' + sc.faction + '\u3011' + (oldLeader||'?') + '\u2192' + sc.newLeader + '(' + (sc.disputeType||'\u6B63\u5E38\u7EE7\u627F') + ')' + (sc.narrative ? '\uFF1A' + sc.narrative.slice(0,80) : ''));
+            addEB('\u7EE7\u627F', '\u3010' + sc.faction + '\u3011' + (oldLeader||'?') + '\u2192' + sc.newLeader + '(' + ({forced_abdication:'逼宫禅位',contested_succession:'争立',usurpation:'篡位',coup:'政变夺位',regency:'摄政',peaceful:'平稳承袭'}[sc.disputeType]||sc.disputeType||'\u6B63\u5E38\u7EE7\u627F') + ')' + (sc.narrative ? '\uFF1A' + sc.narrative.slice(0,80) : ''));
             if (GM.qijuHistory) {
               GM.qijuHistory.unshift({ turn: GM.turn, date: typeof getTSText==='function'?getTSText(GM.turn):'', content: '\u3010\u7EE7\u627F\u4E8B\u3011' + sc.faction + '\uFF1A' + sc.narrative, category: '\u52BF\u529B' });
             }
@@ -2696,7 +2705,7 @@ inst._imprisonedTurn = GM.turn||0;
               if (Array.isArray(GM.activeWars)) GM.activeWars = GM.activeWars.filter(function(w){return w.revoltId !== r.id;});
             }
             r.history.push({ turn: GM.turn, phase: r.phase, event: '转化:' + tr.transformType });
-            addEB('\u8D77\u4E49', '【转化】' + r.leaderName + '之乱→' + tr.transformType + (tr.newFactionName?'：立' + tr.newFactionName:'') + (tr.narrative?'——' + tr.narrative.slice(0,80):''));
+            addEB('\u8D77\u4E49', '【转化】' + r.leaderName + '之乱→' + ({toFaction:'据地立帜',dynastyReplaced:'改朝换代',merged:'并入他部',coopted:'招安受抚',dissolved:'溃散平定'}[tr.transformType]||tr.transformType) + (tr.newFactionName?'：立' + tr.newFactionName:'') + (tr.narrative?'——' + tr.narrative.slice(0,80):''));
             if (GM.qijuHistory) GM.qijuHistory.unshift({ turn: GM.turn, date: typeof getTSText==='function'?getTSText(GM.turn):'', content: '【起义转化】' + r.leaderName + '：' + tr.transformType + '。' + (tr.narrative||''), category: '起义' });
           });
         }
@@ -2819,7 +2828,7 @@ inst._imprisonedTurn = GM.turn||0;
                 _par.historicalEvents.push({ turn: GM.turn, event: fc.name + '脱离', impact: '政治统一度下降' });
               }
             }
-            addEB('\u52BF\u529B', '\u3010\u65B0\u52BF\u529B\u7AD6\u8D77\u3011' + fc.name + '\u6210\u7ACB\uFF08' + (fc.type||'') + '\uFF09' + (fc.parentFaction?'\u2014\u2014\u8131\u79BB\u81EA' + fc.parentFaction:'') + (fc.triggerEvent?'\uFF1A' + fc.triggerEvent:''));
+            addEB('\u52BF\u529B', '\u3010\u65B0\u52BF\u529B\u7AD6\u8D77\u3011' + fc.name + '\u6210\u7ACB\uFF08' + (({military:'军镇',religious:'教门',warlord:'藩镇',foreign:'外藩',dynasty:'王朝',rebel:'义军',tribe:'部族',sect:'会党',separatist:'割据',bandit:'草寇',peasant:'民军'}[fc.type])||fc.type||'') + '\uFF09' + (fc.parentFaction?'\u2014\u2014\u8131\u79BB\u81EA' + fc.parentFaction:'') + (fc.triggerEvent?'\uFF1A' + fc.triggerEvent:''));
             if (GM.qijuHistory) GM.qijuHistory.unshift({ turn: GM.turn, date: typeof getTSText==='function'?getTSText(GM.turn):'', content: '\u3010\u65B0\u52BF\u529B\u3011' + fc.name + '\u7AD6\u8D77\u3002' + (fc.reason||''), category: '\u52BF\u529B' });
           });
         }
@@ -3663,6 +3672,7 @@ inst._imprisonedTurn = GM.turn||0;
                 });
                 if (_targetDiv) {
                   if (!_targetDiv.buildings) _targetDiv.buildings = [];
+                  var _bcDisp = ((typeof BUILDING_TYPES !== 'undefined' && BUILDING_TYPES[bc.type] && BUILDING_TYPES[bc.type].name) || bc.type);
                   if (bc.action === 'destroy') {
                     // 2026-06-12: 拆毁前按 appliedDelta 回退已入账效果（建筑工役引擎·存量可逆）
                     _targetDiv.buildings.forEach(function(b) {
@@ -3671,7 +3681,7 @@ inst._imprisonedTurn = GM.turn||0;
                       }
                     });
                     _targetDiv.buildings = _targetDiv.buildings.filter(function(b) { return b.name !== bc.type; });
-                    addEB('\u5EFA\u8BBE', bc.territory + '拆除 ' + bc.type);
+                    addEB('\u5EFA\u8BBE', bc.territory + '拆除 ' + _bcDisp);
                   } else if (bc.action === 'upgrade') {
                     var _exB = _targetDiv.buildings.find(function(b) { return b.name === bc.type; });
                     if (_exB) {
@@ -3688,14 +3698,14 @@ inst._imprisonedTurn = GM.turn||0;
                           if (_exB.appliedTurn == null && _bwPrevTurn != null) _exB.appliedTurn = _bwPrevTurn;
                         } catch(_) {}
                       }
-                      addEB('\u5EFA\u8BBE', bc.territory + '的' + bc.type + '升级至' + _exB.level + '级');
+                      addEB('\u5EFA\u8BBE', bc.territory + '的' + _bcDisp + '升级至' + _exB.level + '级');
                     }
                   } else {
                     // build 或 custom_build
                     var _isCustom = bc.action === 'custom_build' || bc.isCustom;
                     var _feasibility = bc.feasibility || '合理';
                     if (_feasibility === '不合理') {
-                      addEB('\u5EFA\u8BBE', bc.territory + '拟建 ' + bc.type + ' 因不合理未能实施');
+                      addEB('\u5EFA\u8BBE', bc.territory + '拟建 ' + _bcDisp + ' 因不合理未能实施');
                     } else {
                       _targetDiv.buildings.push({
                         name: bc.type,
@@ -3710,7 +3720,7 @@ inst._imprisonedTurn = GM.turn||0;
                         remainingTurns: bc.timeActual || 0,
                         startTurn: GM.turn
                       });
-                      addEB('\u5EFA\u8BBE', bc.territory + (_isCustom?'自定义建造 ':'建造 ') + bc.type + (_feasibility!=='合理'?('('+_feasibility+')'):'') + (bc.reason?' —— '+bc.reason:''));
+                      addEB('\u5EFA\u8BBE', bc.territory + (_isCustom?'自定义建造 ':'建造 ') + _bcDisp + (_feasibility!=='合理'?('('+_feasibility+')'):'') + (bc.reason?' —— '+bc.reason:''));
                     }
                   }
                 }
@@ -4456,7 +4466,7 @@ inst._imprisonedTurn = GM.turn||0;
             if (_pNameW && w.author === _pNameW) {
               // 检查 motivation 是否 commissioned（由玩家诏令命作）
               if (w.motivation !== 'commissioned' && w.motivation !== 'duty') {
-                addEB('\u8FC7\u6EE4', 'AI 试图让玩家 ' + _pNameW + ' autonomous 作 ' + w.title + '，已过滤');
+                addEB('\u8FC7\u6EE4', 'AI 试图让玩家 ' + _pNameW + ' 擅自代行 ' + w.title + '，已过滤');
                 return;
               }
             }
@@ -4840,7 +4850,7 @@ inst._imprisonedTurn = GM.turn||0;
             if (!it || !it.type || !it.actor || !it.target) return;
             // ── 玩家保护：actor=玩家的 autonomous 互动一律过滤（玩家应通过诏令/批奏疏/问对自行操作）──
             if (_pName && (it.actor === _pName)) {
-              addEB('\u8FC7\u6EE4', 'AI 试图替玩家 ' + _pName + ' autonomous 互动(' + it.type + '→' + it.target + ')，已过滤');
+              addEB('\u8FC7\u6EE4', 'AI 试图替玩家 ' + _pName + ' 擅自互动(' + it.type + '→' + it.target + ')，已过滤');
               return;
             }
             if (!_tmNpcLedgerPreflight({ source: 'main_ai:npc_interactions', kind: 'npc_interaction', actor: it.actor, type: it.type, behaviorType: it.type, target: it.target, action: it.description || '' }, 'AI NPC互动已阻止')) return;
@@ -5006,7 +5016,7 @@ inst._imprisonedTurn = GM.turn||0;
             // ── 玩家势力保护：from=玩家势力的主动宣战/结盟/毁约等一律过滤——这些只能由玩家诏令触发 ──
             var _playerInitiatedTypes = ['declare_war','sue_for_peace','form_confederation','break_confederation','trade_embargo','open_market','send_envoy','demand_tribute','pay_tribute','royal_marriage','send_hostage','cultural_exchange','spy_infiltration','assassin_dispatch','annex_vassal','recognize_independence','incite_rebellion','proxy_war'];
             if (_pFac && it.from === _pFac && _playerInitiatedTypes.indexOf(it.type) >= 0) {
-              addEB('\u8FC7\u6EE4', 'AI 试图替玩家势力 ' + _pFac + ' autonomous 对外 ' + it.type + '，已过滤（须玩家诏令）');
+              addEB('\u8FC7\u6EE4', 'AI 试图替玩家势力 ' + _pFac + ' 擅自对外 ' + it.type + '，已过滤（须玩家诏令）');
               return;
             }
             if (typeof applyFactionInteraction !== 'function') return;
