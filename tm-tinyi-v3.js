@@ -443,7 +443,7 @@ function _ty3_v15_decayConveningCounters() {
     var _toProcess = GM._pendingMartyrEvents.filter(function(e) { return e && (_now - (e.turn || 0)) >= 1; });
     _toProcess.forEach(function(e) {
       try {
-        if (typeof addEB === 'function') addEB('Court Debate', '〔 ' + e.npc + '·议《' + (e.topic || '').slice(0, 20) + '》失利·愤而上书 〕');
+        if (typeof addEB === 'function') addEB('廷议', '〔 ' + e.npc + '·议《' + (e.topic || '').slice(0, 20) + '》失利·愤而上书 〕');
         if (typeof NpcMemorySystem !== 'undefined' && typeof NpcMemorySystem.remember === 'function') {
           NpcMemorySystem.remember(e.npc, '议《' + (e.topic || '').slice(0, 24) + '》裁决违心·愤而以死谏', '恨', 9, '廷议');
         }
@@ -1978,6 +1978,9 @@ function _ty3_promptAction(actionType) {
   if (!target) return;
   var ch = (typeof findCharByName === 'function') ? findCharByName(target) : null;
   if (!ch) { if (typeof toast === 'function') toast('未找到·' + target); return; }
+  // 二次确认:仗下/削籍/革职 不可逆·防打错名误毁(可能是史实)官员·确认框显已解析到的真实姓名(与输入不符可察觉)
+  var _danger = { flogging:'仗下（廷杖·或下诏狱）', strip:'削籍（夺官身·loyalty 归零）', revoke:'革职（永久革除·不复叙用）' };
+  if (_danger[actionType] && typeof confirm === 'function' && !confirm('廷议处置：对【' + (ch.name || target) + '】行「' + _danger[actionType] + '」？\n此举不可撤销。')) return;
   if (actionType === 'flogging' && typeof _ty3_actionFlogging === 'function') _ty3_actionFlogging(ch);
   else if (actionType === 'strip' && typeof _ty3_actionStrip === 'function') _ty3_actionStrip(ch);
   else if (actionType === 'dismiss' && typeof _ty3_actionDismiss === 'function') _ty3_actionDismiss(ch);
@@ -3411,14 +3414,14 @@ function _ty3_paDoHold(topic, meta) {
     if (ch) ch.prestige = Math.max(0, (ch.prestige||50) - 2);
   }
   if (typeof toast === 'function') toast(topic.slice(0,16) + ' 留中');
-  if (typeof addEB === 'function') addEB('tinyi-preaudit', 'held: ' + topic);
+  if (typeof addEB === 'function') addEB('议前', '留中·' + topic);
   // v2.6 Slice 4.5·删浮按钮·_cyShowInputRow 由 closeChaoyi 处理
   if (typeof closeChaoyi === 'function') closeChaoyi();
 }
 
 function _ty3_paDoPrivate(topic, meta) {
   // 私决：转御前·携带议题
-  if (typeof addEB === 'function') addEB('tinyi-preaudit', 'private: ' + topic);
+  if (typeof addEB === 'function') addEB('议前', '私决御前·' + topic);
   // 皇威 +1
   if (GM.huangwei && typeof GM.huangwei.index === 'number') GM.huangwei.index = Math.min(100, GM.huangwei.index + 1);
   else if (GM.vars && GM.vars['皇威'] && typeof GM.vars['皇威'].value === 'number') GM.vars['皇威'].value = Math.min(100, GM.vars['皇威'].value + 1);
@@ -3436,7 +3439,7 @@ function _ty3_paDoPrivate(topic, meta) {
 
 function _ty3_paDoSmall(topic, meta) {
   // Private debate: call _ty2_openSetup with at most 5 participants.
-  if (typeof addEB === 'function') addEB('tinyi-preaudit', 'small: ' + topic);
+  if (typeof addEB === 'function') addEB('议前', '小议·' + topic);
   // Party strife bookkeeping for Tinyi state and UI summaries.
   var _oldStrife = (typeof GM.partyStrife === 'number') ? GM.partyStrife : 50;
   if (typeof GM.partyStrife === 'number') GM.partyStrife = Math.max(0, GM.partyStrife - 3);
@@ -3460,7 +3463,7 @@ function _ty3_paDoSmall(topic, meta) {
 
 function _ty3_paDoPublic(topic, meta) {
   // Public debate: phase 2+ goes directly to v3 standing debate.
-  if (typeof addEB === 'function') addEB('tinyi-preaudit', 'public: ' + topic);
+  if (typeof addEB === 'function') addEB('议前', '公议·' + topic);
   window._ty3_publicTopic = topic;
   window._ty3_publicMeta = meta;
   // 阶段 1·起议站班(波 2)
@@ -4171,7 +4174,7 @@ async function _ty3_phase2_run() {
   if (topicEl) { topicEl.style.display = 'block'; topicEl.innerHTML = '🏛 廷议·' + escHtml(CY._ty3.topic); }
 
   if (typeof addCYBubble === 'function') {
-    addCYBubble('内侍', '〔 三班已立·同 ' + CY._ty3.bench.left.length + '·中 ' + CY._ty3.bench.center.length + '·反 ition ' + CY._ty3.bench.right.length + '.', true);
+    addCYBubble('内侍', '〔 三班已立·同 ' + CY._ty3.bench.left.length + '·中 ' + CY._ty3.bench.center.length + '·反 ' + CY._ty3.bench.right.length + ' 〕', true);
     addCYBubble('皇帝', '议：' + CY._ty3.topic, false);
   }
 
@@ -4951,8 +4954,8 @@ function _ty3_phase3_qinDing(name, partyKey) {
     var bp = _ty3_getPartyObj(biggestParty);
     if (bp) bp.cohesion = Math.max(0, (parseInt(bp.cohesion, 10) || 50) - 3);
   }
-  if (typeof addCYBubble === 'function') addCYBubble('皇帝', '钦点 ' + name + (contested ? '; ' + biggestParty + ' cohesion -3.' : '.'), false);
-  if (typeof addEB === 'function') addEB('Recommendation', 'Appointed ' + name + ((CY._ty2 && CY._ty2.topic) ? ' / ' + CY._ty2.topic : ''));
+  if (typeof addCYBubble === 'function') addCYBubble('皇帝', '钦点 ' + name + (contested ? '·' + biggestParty + ' 凝聚 -3' : ''), false);
+  if (typeof addEB === 'function') addEB('廷推', '任命·' + name + ((CY._ty2 && CY._ty2.topic) ? '·' + CY._ty2.topic : ''));
   var cb = CY._ty3_phase3_callback;
   CY._ty3_phase3_callback = null;
   if (typeof cb === 'function') cb({ winner: name, mode: 'qinding', contested: contested });
@@ -5527,7 +5530,7 @@ function _ty3_phase6_doSeal(force) {
   var seal = _ty3_phase6_resolveSeal(force, ctx);
   if (seal && seal.sealStatus === 'blocked') {
     if (typeof addCYBubble === 'function') addCYBubble('内侍', '〔 诏命留中·阻挠者：' + (seal.blockerParty || '反对方') + ' 〕', true);
-    if (typeof addEB === 'function') addEB('Seal', 'Blocked by ' + (seal.blockerParty || 'opposition'));
+    if (typeof addEB === 'function') addEB('用印', '用印受阻·阻于' + (seal.blockerParty || '反对党派'));
     return;
   }
   if (force && hostile) {
@@ -5536,11 +5539,11 @@ function _ty3_phase6_doSeal(force) {
     var siOld = (typeof GM.partyStrife === 'number') ? GM.partyStrife : 50;
     if (typeof GM.partyStrife === 'number') GM.partyStrife = Math.min(100, GM.partyStrife + 4);
     _ty3_adjustHuangquan(-5, '\u5f3a\u884c\u7528\u5370\u53d7\u515a\u6d3e\u963b\u6ede', 'tinyi-force-seal');
-    if (typeof addCYBubble === 'function') addCYBubble('内侍', '〔 强行用印·阻于 ' + hostile.partyName + '·皇威 -5·' +  + _ty3_strifeChange(siOld, GM.partyStrife), true);
+    if (typeof addCYBubble === 'function') addCYBubble('内侍', '〔 强行用印·阻于 ' + hostile.partyName + '·皇威 -5·' + _ty3_strifeChange(siOld, GM.partyStrife) + ' 〕', true);
     if (typeof addEB === 'function') addEB('用印', '强行用印·阻于' + hostile.partyName + '·' + _ty3_strifeChange(siOld, GM.partyStrife));
   } else {
     if (typeof addCYBubble === 'function') addCYBubble('内侍', '〔 诏命用印颁行 〕', true);
-    if (typeof addEB === 'function') addEB('Seal', 'Decree issued');
+    if (typeof addEB === 'function') addEB('用印', '诏命用印·颁行');
   }
   setTimeout(function() { _ty3_phase6_offerVerdictNote(); }, 250);
 }
@@ -5553,10 +5556,12 @@ function _ty3_phase6_offerVerdictNote() {
   var html = '<div class="ty3-vd-modal" style="background:linear-gradient(180deg,#ead7b3,#dcc591);border:1px solid #8c7654;border-radius:4px;padding:1.6rem 1.8rem;max-width:540px;width:90%;color:#2a1a10;font-family:STSong,SimSun,serif;box-shadow:0 12px 40px rgba(0,0,0,0.7);">';
   html += '<div style="font-family:STKaiti,KaiTi,serif;font-size:1.25rem;letter-spacing:0.4em;padding-left:0.4em;text-align:center;margin-bottom:0.5rem;color:#14090b;">〔 圣 意 补 述 〕</div>';
   html += '<div style="text-align:center;font-size:0.78rem;color:#6d5a3e;letter-spacing:0.2em;padding-left:0.2em;margin-bottom:1.2rem;">诏书已颁·然圣心未尽·若有它意·亲笔记之</div>';
-  html += '<textarea id="ty3-vd-input" placeholder="Optional verdict note" style="width:100%;min-height:90px;padding:10px 12px;background:rgba(255,255,255,0.5);border:1px solid rgba(140,118,84,0.5);border-radius:2px;font-family:STKaiti,KaiTi,serif;font-size:0.92rem;color:#14090b;line-height:1.7;resize:vertical;"></textarea>';
-  html += '此栏可选填·若朕之裁决与廷议原议有所偏离(只采一部·或换一角度·或意在他事)·写下二三句·让史官与百官会其圣意。';
-  html += '<button onclick="_ty3_phase6_skipVerdictNote()" style="padding:7px 18px;background:transparent;border:1px solid #8c7654;color:#6d5a3e;border-radius:2px;font-size:0.82rem;cursor:pointer;">Skip</button>';
   html += '<textarea id="ty3-vd-input" placeholder="如：议虽如此·然朕意只在江南三省试行·北方暂缓……" style="width:100%;min-height:90px;padding:10px 12px;background:rgba(255,255,255,0.5);border:1px solid rgba(140,118,84,0.5);border-radius:2px;font-family:STKaiti,KaiTi,serif;font-size:0.92rem;color:#14090b;line-height:1.7;resize:vertical;"></textarea>';
+  html += '<div style="font-size:0.74rem;color:#6d5a3e;line-height:1.6;margin:0.7rem 0 1.1rem;">此栏可选填·若朕之裁决与廷议原议有所偏离(只采一部·或换一角度·或意在他事)·写下二三句·让史官与百官会其圣意。</div>';
+  html += '<div style="display:flex;gap:12px;justify-content:flex-end;">';
+  html += '<button onclick="_ty3_phase6_skipVerdictNote()" style="padding:7px 18px;background:transparent;border:1px solid #8c7654;color:#6d5a3e;border-radius:2px;font-size:0.82rem;cursor:pointer;">暂不补述</button>';
+  html += '<button onclick="_ty3_phase6_saveVerdictNote()" style="padding:7px 22px;background:#7a1f1a;border:1px solid #5a1510;color:#f3e7c8;border-radius:2px;font-size:0.82rem;cursor:pointer;">朱笔录之</button>';
+  html += '</div>';
   html += '</div></div>';
   bg.innerHTML = html;
   document.body.appendChild(bg);
@@ -6234,7 +6239,7 @@ function _ty3_phase14_recordChaoyiSummary(decision, opts) {
   if (CY._ty3 && typeof CY._ty3 === 'object') CY._ty3.chaoyiTrackId = item.chaoyiTrackId;
   if (CY._ty2 && typeof CY._ty2 === 'object') CY._ty2.chaoyiTrackId = item.chaoyiTrackId;
   if (GM.recentChaoyi[0]) GM.recentChaoyi[0].chaoyiTrackId = item.chaoyiTrackId;
-  if (typeof addEB === 'function') addEB('Court Debate', 'Recorded summary: ' + topic);
+  if (typeof addEB === 'function') addEB('廷议', '议毕纪要·' + topic);
   // v2.6 polish·auto-collect baseline snapshot 到 localStorage·user 跑 game 即累积·无需手填 actual 字段
   try {
     if (typeof _ty3_baselineRecord === 'function' && typeof localStorage !== 'undefined') {

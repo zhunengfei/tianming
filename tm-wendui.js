@@ -686,7 +686,18 @@ function _wdEnvoyDecision(kind) {
   }
   // ⑨ 若该决断含岁币(我方纳贡·见 _WD_ENVOY_EFFECTS)→确定性扣国库(走 FiscalEngine.spendFromGuoku·cascade-safe·不足记欠)
   if (_eff.tribute && typeof FiscalEngine !== 'undefined' && FiscalEngine.spendFromGuoku) {
-    try { FiscalEngine.spendFromGuoku(_eff.tribute, '岁币·' + (fac || '外藩')); desc += '·岁币出帑'; } catch (_) {}
+    // 岁币额按外藩势力 strength 派生(原硬编 30000·绍宋岁币机制核心)·strength 50→30000·夹保守上下限
+    var _tFac = (typeof GM !== 'undefined' && Array.isArray(GM.facs)) ? GM.facs.find(function(f){ return f && f.name === fac; }) : null;
+    var _tStr = Math.max(20, Math.min(200, (_tFac && Number(_tFac.strength)) || 50));
+    var _trib = { money: Math.round(Math.max(8000, Math.min(120000, _tStr * 600))), cloth: Math.round(Math.max(0, Math.min(8000, _tStr * 40))) };
+    try { FiscalEngine.spendFromGuoku(_trib, '岁币·' + (fac || '外藩')); desc += '·岁币 ' + _trib.money + ' 两出帑'; } catch (_) {}
+  }
+  // #26·议和落地:准和(sue_for_peace)→真调 endWar 上停战期(原 endWar 零调用·停战期机制名存实亡)
+  if (kind === 'accept' && itype === 'sue_for_peace' && typeof CasusBelliSystem !== 'undefined' && CasusBelliSystem.endWar) {
+    try {
+      var _peaceWar = (GM.activeWars || []).find(function(w){ return w && ((w.attacker===playerFac&&w.defender===fac)||(w.attacker===fac&&w.defender===playerFac)); });
+      if (_peaceWar) { CasusBelliSystem.endWar(_peaceWar.id); desc += '·罢兵息争'; }
+    } catch (_) {}
   }
   ch._pendingEnvoyDisposition = kind;  // 供 closeWenduiModal 留痕带上处置
   if (typeof addEB === 'function') addEB('外交·' + L, fac + '使节之请——' + desc + '（邦交' + (relDelta >= 0 ? '+' : '') + relDelta + '）');
