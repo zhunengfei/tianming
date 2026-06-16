@@ -222,7 +222,7 @@
     var ding = Math.max(0, num(pd.ding, 0));                 // 实在丁（真相源·只读）
     var present = presentDing(pd);                            // 在地丁 = ding − 逃亡
     var exempt = Math.min(Math.max(0, num(pd.exemptDing, 0)), present); // 优免（R4 由 gongming 填）
-    var leviable = Math.max(0, present - exempt);             // 可征丁
+    var leviable = Math.max(0, present - (r.tanding ? 0 : exempt)); // 可征丁（摊丁入亩后优免不再蔽役·役随田走·R8）
 
     // 劳动力分流（R3.5：役 corvee + 军役 draft 共争同一可征丁池 → 军农争丁）
     var pol = r.levyPolicy || (r.levyPolicy = { strength: 'normal', remitTurns: 0 });
@@ -487,6 +487,10 @@
       out.exemptCapFactor = r.exemptCapFactor;
       _reformGate(GM, '士', -10, 'reform-capexempt', '限制优免·触功名集团');
       try { refreshExempt(GM, Pp); } catch (_) {}                             // 立即重算 exempt
+    } else if (type === 'tanding' || type === '摊丁入亩') {
+      r.tanding = true; out.tanding = true;                                  // 丁银并入田赋·役随田走·优免不再蔽役（终局变法·丁作为计量被溶解）
+      _reformGate(GM, '士', -12, 'reform-tanding', '摊丁入亩·士绅田亩一体当差'); // 最硬·士绅税特权终败
+      _reformGate(GM, '农户', 4, 'reform-tanding', '摊丁入亩·役随田走·小民松');
     } else { return { ok: false, reason: '未知变法:' + type }; }
     ledgerPush(GM, rid, 'reform', 0, '变法:' + type, 'reform');
     return out;
