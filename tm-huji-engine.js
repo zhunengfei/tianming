@@ -512,6 +512,13 @@
     return Math.max(0, Math.min(1, ethPressure + faithPressure * 0.5));
   }
 
+  // A2a 激活·逃亡单一权威：取 Renli（已种子地域逃亡由 Renli 叶子独占·huji 此处让出）
+  function _renli() {
+    if (typeof TM !== 'undefined' && TM && TM.Renli) return TM.Renli;
+    if (typeof window !== 'undefined' && window.TM && window.TM.Renli) return window.TM.Renli;
+    if (typeof global !== 'undefined' && global.TM && global.TM.Renli) return global.TM.Renli;
+    return null;
+  }
   function _tickDeepFieldLinkages(ctx, mr) {
     var G = global.GM;
     var P = G && G.population;
@@ -522,6 +529,7 @@
     var totalPressure = 0;
     var totalHiddenDelta = 0;
     var totalFugitiveDelta = 0;
+    var _rlSeeded = (function(){ var rl = _renli(); return (rl && rl.seededRegionKeySet) ? rl.seededRegionKeySet() : {}; })(); // 已种子地域逃亡归 Renli·deep-field 此处让出（A2a）
     var minxin = G.minxin && typeof G.minxin === 'object' ? (G.minxin.trueIndex || G.minxin.index || 50) : (G.minxin || 50);
     var huangquan = G.huangquan && typeof G.huangquan === 'object' ? (G.huangquan.index || 50) : (G.huangquan || 50);
     var activeWar = Array.isArray(G.activeWars) && G.activeWars.length > 0;
@@ -558,7 +566,7 @@
 
       var pressure = _deepFieldDiversityPressure(r);
       totalPressure += pressure;
-      if (pressure > 0.35 && (minxin < 50 || huangquan < 45)) {
+      if (!_rlSeeded[rid] && pressure > 0.35 && (minxin < 50 || huangquan < 45)) {
         var stress = pressure * (50 - Math.min(minxin, huangquan)) / 50;
         var newFugitives = Math.round((r.mouths || 0) * stress * 0.001 * mr);
         if (newFugitives > 0) {
@@ -634,7 +642,8 @@
     var corveeBurden = c.byType.junyi.totalDays + c.byType.gongyi.totalDays;
     corveeBurden = corveeBurden / Math.max(1, effectiveDing * 365);
     if (corveeBurden > c.burdenThreshold) {
-      var newFugitives = Math.round(effectiveDing * (corveeBurden - c.burdenThreshold) * 0.1 * mr);
+      var _rlShare = (function(){ var rl = _renli(); return (rl && rl.seededDingShare) ? rl.seededDingShare() : 0; })(); // 已种子地域逃役归 Renli·按未种子丁占比缩减（A2a）
+      var newFugitives = Math.round(effectiveDing * (corveeBurden - c.burdenThreshold) * 0.1 * mr * (1 - _rlShare));
       P.fugitives = (P.fugitives || 0) + newFugitives;
       if (P.byLegalStatus.taoohu) {
         P.byLegalStatus.taoohu.households += Math.round(newFugitives / 5);

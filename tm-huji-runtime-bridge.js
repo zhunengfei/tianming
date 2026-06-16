@@ -698,6 +698,9 @@
     var burden = Number(summary.burden) || 0;
     var burdenPressure = clamp((burden - 8) / 16, 0, 1);
     var minxinDelta = -round2(clamp(gapRatio * 5 + burdenPressure * 3, 0, 8));
+    // A2b 激活·役负满意度去重：已种子地域之役负→农户满意度归 Renli(过 gateSatisfaction)·此处按未种子丁占比缩减·避双扣农户
+    var _rlShare = (function(){ var rl = (typeof TM !== 'undefined' && TM && TM.Renli) ? TM.Renli : null; return (rl && rl.seededDingShare) ? rl.seededDingShare() : 0; })();
+    if (_rlShare > 0) minxinDelta = round2(minxinDelta * (1 - _rlShare));
     var turn = Number(options && options.turn) || Number(root.turn) || 0;
     var applied = false;
     if (minxinDelta < 0 && root.corvee._hujiHardMinxinTurn !== turn) {

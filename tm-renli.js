@@ -26,6 +26,9 @@
   var RHO_MIN = 0.15;    // 粗放下限（低于此弃地抛荒）
   var BASE_YIELD = 1.5;  // 基准亩产（石/亩）
   var STRENGTH_CAP = { light: 0.15, normal: 0.25, heavy: 0.40, extreme: 0.55 }; // R6 诏书用
+  // A1 激活·标准常役：役额按册载丁(黄册·黏滞·棘轮 numerator) × 常役系数 × 征发强度乘数（仅已种子地域·诏书未显式设役需时的标准徭役底盘）
+  var BASELINE_CORVEE_FRAC = 0.18;                                              // normal 强度下标准常役占册载丁之比（适当征发·留余量至役负线 0.20）
+  var STRENGTH_DEMAND_MULT = { light: 0.6, normal: 1.0, heavy: 1.6, extreme: 2.2 }; // 征发强度→役需乘数（诏书/问天设·轻徭⟷过度征发）
 
   // R3 满意度 / 缺粮 / 裂口
   var SUBSIST = 0.83;     // 民食 = 口 × subsistence（石/口/回合）
@@ -227,7 +230,10 @@
     // 劳动力分流（R3.5：役 corvee + 军役 draft 共争同一可征丁池 → 军农争丁）
     var pol = r.levyPolicy || (r.levyPolicy = { strength: 'normal', remitTurns: 0 });
     var lm = clamp(num(seed.laborMarketDepth, SEED_DEFAULTS.laborMarketDepth), 0, 0.95);
-    var demand = Math.max(0, num(pol.corveeDemand, 0));        // 役需(丁)·R6/诏书设
+    // 役需(丁)：诏书显式设则用之；否则已种子地域取标准常役底盘（册载丁×常役系数×征发强度·A1）·未种子=0
+    var _sMult = STRENGTH_DEMAND_MULT[pol.strength] || 1.0;
+    var _baselineCorvee = leaf.renliSeed ? Math.round(num(pd.registeredDing, 0) * BASELINE_CORVEE_FRAC * _sMult) : 0;
+    var demand = (pol.corveeDemand != null) ? Math.max(0, num(pol.corveeDemand, 0)) : _baselineCorvee;
     var draftDemand = Math.max(0, num(pol.draftDemand, 0));    // 募兵+民夫转运需(丁)·R3.5·campaign/诏书设
     var commuted = Math.round(demand * lm);                    // 募役折银（不抽田丁·军役不折银）
     var wanted = Math.max(0, demand - commuted);
@@ -611,6 +617,30 @@
     return true;
   }
 
+  // ── 激活：已种子地域查询（供 huji 逃亡去重·A2a 单一权威）──────────────────
+  // 已种子地域键集（含 id 与 name 两形·容 huji byRegion key 的 id/name 歧义）
+  function seededRegionKeySet(Pp) {
+    Pp = Pp || _P();
+    var set = {}, ls = leaves(Pp);
+    for (var i = 0; i < ls.length; i++) {
+      if (!ls[i] || !ls[i].renliSeed) continue;
+      var id = String(ls[i].id || ''), nm = String(ls[i].name || '');
+      if (id) set[id] = true; if (nm) set[nm] = true;
+    }
+    return set;
+  }
+  // 已种子地域丁占全国丁之比（供 huji 全国汇总逃亡按未种子份额缩减）
+  function seededDingShare(Pp) {
+    Pp = Pp || _P();
+    var ls = leaves(Pp), seeded = 0, total = 0;
+    for (var i = 0; i < ls.length; i++) {
+      var pd = popOf(ls[i]); if (!pd) continue;
+      var d = Math.max(0, num(pd.ding, 0)); total += d;
+      if (ls[i].renliSeed) seeded += d;
+    }
+    return total > 0 ? clamp(seeded / total, 0, 1) : 0;
+  }
+
   // ── 导出 ──────────────────────────────────────────────────────────────
   var api = {
     ALLOC_KEYS: ALLOC_KEYS, SEED_DEFAULTS: SEED_DEFAULTS,
@@ -625,8 +655,9 @@
     warScar: warScar, warScarFromBattle: warScarFromBattle,
     refreshExempt: refreshExempt, endturnTick: endturnTick,
     applyReform: applyReform, recognizeEdictReform: recognizeEdictReform,
+    seededRegionKeySet: seededRegionKeySet, seededDingShare: seededDingShare,
     wtHardChange: wtHardChange,
-    VERSION: 3.6
+    VERSION: 3.7
   };
 
   if (typeof window !== 'undefined') { window.TM = window.TM || {}; window.TM.Renli = api; }
