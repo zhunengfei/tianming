@@ -373,7 +373,24 @@ function _recordCacheStats(usage) {
   else _aiCacheStats.misses++;
   _aiCacheStats.writeTokens += written;
 }
-function getAICacheStats() { return _aiCacheStats; }
+
+// 2026-06-16·走中转的 Claude 也打 cache_control 后的安全网：
+//   个别代理不认 cache_control 字段会回 400。撞到就由 _aiFetchWithRetryInner 脱字段重试一次，
+//   并把本会话停用闸置位（_maybeCacheSys / buildCachedMessages 读它），之后整局不再打标记，自愈不复发。
+var _aiCacheCtrlDisabled = false;
+// 把 body.messages 里「带 cache_control 的数组型 content」拍回纯字符串·返回是否真剥离了（仅动含 cache_control 的，真·多模态数组不碰）
+function _stripCacheControlFromBody(body) {
+  if (!body || !Array.isArray(body.messages)) return false;
+  var stripped = false;
+  for (var i = 0; i < body.messages.length; i++) {
+    var m = body.messages[i];
+    if (m && Array.isArray(m.content) && m.content.some(function(b){ return b && b.cache_control; })) {
+      m.content = m.content.map(function(b){ return (b && typeof b.text === 'string') ? b.text : ''; }).join('');
+      stripped = true;
+    }
+  }
+  return stripped;
+}
 
 /**
  * 构建缓存友好的 messages：字节级前缀稳定·变动内容在尾部
@@ -424,25 +441,6 @@ function _escXML(s) {
   if (s == null) return '';
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 }
-/**
- * XML 片段构建：<tag attr="v">content</tag>
- * content 为数组时每项包成 <item>·对象时按 key 嵌套
- */
-function xmlTag(name, attrs, content) {
-  var attrStr = '';
-  if (attrs && typeof attrs === 'object') {
-    for (var k in attrs) {
-      if (attrs[k] == null || attrs[k] === '') continue;
-      attrStr += ' ' + k + '="' + _escXML(attrs[k]) + '"';
-    }
-  }
-  if (content == null || content === '') return '<' + name + attrStr + '/>';
-  if (typeof content === 'string') return '<' + name + attrStr + '>' + content + '</' + name + attrStr.replace(/\s.*/, '') + '>';
-  if (Array.isArray(content)) {
-    return '<' + name + attrStr + '>\n' + content.join('\n') + '\n</' + name.split(' ')[0] + '>';
-  }
-  return '<' + name + attrStr + '>' + String(content) + '</' + name.split(' ')[0] + '>';
-}
 /** 快速构建 <tag>body</tag> */
 function xml(name, body) { return '<' + name + '>' + (body == null ? '' : body) + '</' + name + '>'; }
 
@@ -450,22 +448,6 @@ function xml(name, body) { return '<' + name + '>' + (body == null ? '' : body) 
 //  1.7.48 时间三位一体（方向 15）
 //  所有记忆条目自动携带 turn + eraLabel + relativeToNow
 // ============================================================
-function buildTimeTriad(turn) {
-  if (turn == null) turn = (typeof GM !== 'undefined' && GM.turn) || 0;
-  var curT = (typeof GM !== 'undefined' && GM.turn) || turn;
-  var eraLabel = '';
-  try {
-    if (typeof getTSText === 'function') eraLabel = getTSText(turn) || '';
-  } catch(_e) {}
-  var delta = curT - turn;
-  var rel = '';
-  if (delta === 0) rel = '本回合';
-  else if (delta === 1) rel = '上回合';
-  else if (delta < 5) rel = delta + '回合前';
-  else if (delta < 15) rel = '近' + delta + '回合前';
-  else rel = '久远·' + delta + '回合前';
-  return { turn: turn, eraLabel: eraLabel, relativeToNow: rel };
-}
 
 // ============================================================
 //  1.7.45 Token 粗估计数（C3：中英文混合）
@@ -579,6 +561,7 @@ async function _aiFetchWithRetryInner(url, body, signal, opts) {
   // M3·优先用 opts.apiKey（次 API 调用传入）·否则回退 primary
   var key = opts.apiKey || P.ai.key;
   var lastError = null;
+  var _ccStripped = false;   // cache_control 撞 400 脱字段重试·每请求只脱一次
   // 粗估 token 预算（仅警告，不截断：截断是调用方的职责）
   try {
     if (body && body.messages && typeof checkPromptTokenBudget === 'function') {
@@ -617,6 +600,14 @@ async function _aiFetchWithRetryInner(url, body, signal, opts) {
         lastError = new Error('HTTP ' + resp.status + (errText ? ': ' + errText.substring(0, 300) : ''));
         lastError.status = resp.status;
         _aiLastRaw = { url: url, body: body, response: errText, error: lastError.message, ts: Date.now() };
+        // 400 且本请求带了 cache_control → 大概率中转代理不认该字段：脱掉 cache_control 就地重试一次，
+        //   并本会话停用缓存标记（防每回合都先撞一次 400）。仅脱一次，避免无限重试。
+        if (resp.status === 400 && !_ccStripped && _stripCacheControlFromBody(body)) {
+          _ccStripped = true;
+          _aiCacheCtrlDisabled = true;
+          console.warn('[AI] 400 且请求含 cache_control·疑代理不认·已脱字段重试并本会话停用 prompt 缓存标记');
+          continue;
+        }
         // 5xx 可重试；4xx（除 429）不重试
         if (resp.status >= 500 && attempt < maxRetries) {
           await new Promise(function(r) { setTimeout(r, 1000 * Math.pow(2, attempt)); });
@@ -2042,10 +2033,6 @@ function getCurrentGameDay(){
   var dpv = (typeof _getDaysPerTurn === 'function') ? _getDaysPerTurn() : 30;
   return ((GM.turn || 1) - 1) * dpv;
 }
-function turnToDay(turn){
-  var dpv = (typeof _getDaysPerTurn === 'function') ? _getDaysPerTurn() : 30;
-  return ((turn || 1) - 1) * dpv;
-}
 
 function calcDateFromTurn(turn){
   if(!P.time) return {adYear:0,solarMonth:1,solarDay:1,lunarMonth:1,lunarDay:1,season:'春',gzYearStr:'',gzDayStr:''};
@@ -2107,23 +2094,6 @@ function calcDateFromTurn(turn){
     eraInfo:eraInfo, gzYearStr:gzY, gzDayStr:gzD,
     reignYear:reignYear
   };
-}
-
-/** 生成完整日期显示字符串 */
-function getFullDateStr(y,mo,dy){
-  var t=P.time;var parts=[];
-  if(t.enableEraName&&GM.eraNames&&GM.eraNames.length){
-    var ed=getEraDisplay(y,mo,dy);
-    if(ed) parts.push(ed.era+ed.ryStr+lunarMonthName(mo)+lunarDayName(dy));
-    else parts.push(y+"年"+lunarMonthName(mo)+lunarDayName(dy));
-  } else {
-    var ay=Math.abs(y);
-    var ystr=(y<0?(t.prefix||"")+ay:ay)+(t.suffix||"");
-    parts.push(ystr+lunarMonthName(mo)+lunarDayName(dy));
-  }
-  parts.push(gzYear(y)+"年");
-  parts.push(gzDay(y,mo,dy)+"日");
-  return parts.join(" ");
 }
 
 /**
@@ -3325,9 +3295,18 @@ async function listAvailableModels(opts) {
  * @returns {number} K tokens
  */
 function getModelContextSizeK() {
-  if (P.conf.contextSizeK && P.conf.contextSizeK > 0) return P.conf.contextSizeK;
-  if (P.conf._detectedContextK) return P.conf._detectedContextK;
-  return 32; // 未探测时的保守默认值
+  if (P.conf.contextSizeK && P.conf.contextSizeK > 0) return P.conf.contextSizeK; // 手动覆写最高
+  // 自动路径:取「探测值」与「按当前模型名查白名单」的较大值——
+  //   不同玩家用不同模型·各取其真实窗口;无须先跑探测即可享受模型真实窗口;
+  //   取较大值防探测自报层偏低(如模型谎报 64K 而实为 128K)。手动覆写仍可强制压低(应对受限代理)。
+  var k = (P.conf._detectedContextK && P.conf._detectedContextK > 0) ? P.conf._detectedContextK : 0;
+  try {
+    if (typeof _matchModelCtx === 'function') {
+      var _mk = _matchModelCtx((P.ai && P.ai.model) || '');
+      if (_mk && _mk > k) k = _mk;
+    }
+  } catch (_mkE) {}
+  return k > 0 ? k : 32; // 全未知模型的保守默认
 }
 
 /**

@@ -182,6 +182,8 @@
       tp += '  · 诏书复核机构：本朝若有给事中/门下省/封驳司/通政司·命名按朝代实情\n';
       tp += '  · 巡幸传统：本朝代有何封禅/南巡/谒陵/北狩传统\n';
       tp += '  · 流放分级：朔漠/岭表/海岛/西陲（按本朝实际边远地按本朝名实）\n';
+      // 君上称谓·语言习惯(系统级·跨朝代·数据驱动)——单一真相源 _sovereignLanguagePromptLine·见 tm-data-model.js
+      if (typeof _sovereignLanguagePromptLine === 'function') tp += _sovereignLanguagePromptLine(typeof GM !== 'undefined' ? GM : null);
 
       // 反向反馈约束
       tp += '【反向反馈约束——避免"准而无效"】\n';
@@ -192,6 +194,10 @@
     } catch(_lE) { try { window.TM && TM.errors && TM.errors.captureSilent(_lE, 'ai-infer·lifecycle-prompt'); } catch(_){} }
 
   // —— 推演依据分层说明（告诉AI如何解读输入数据） ——
+    // 天机·改命：穿越/上帝视角剧本下，告知 AI 世界君上身负后世记忆、力图改命(其逆常理之举常暗合后见)。
+    if (typeof TMTianji !== 'undefined' && typeof GM !== 'undefined' && TMTianji.on(GM)) { var _tjLine = TMTianji.aiContextLine(GM); if (_tjLine) tp += _tjLine; }
+    if (typeof TMJunqing !== 'undefined' && typeof GM !== 'undefined' && TMJunqing.on(GM)) { var _jqLine = TMJunqing.aiContextLine(GM); if (_jqLine) tp += _jqLine; }
+    if (typeof TMXinjun !== 'undefined' && typeof GM !== 'undefined' && TMXinjun.on(GM)) { var _xjLine = TMXinjun.aiContextLine(GM); if (_xjLine) tp += _xjLine; }
     tp += '【推演依据——本回合推演基于以下五层数据，请综合推演】\n';
     tp += '  A. 玩家国家行动：下方【诏令】段是君主本回合颁布的正式政令，其执行效果取决于执行者能力、忠诚、局势阻力\n';
     tp += '  B. 玩家私人行动：下方【主角行止】段是君主的个人举止(微服/读书/饮宴/私见等)，影响情绪与人物关系\n';
@@ -300,6 +306,20 @@
       tp += "\u65F6\u4EE3:" + GM.eraState.dynastyPhase + " \u7EDF\u4E00:" + Math.round((GM.eraState.politicalUnity||0)*100) + "% \u96C6\u6743:" + Math.round((GM.eraState.centralControl||0)*100) + "% \u7A33\u5B9A:" + Math.round((GM.eraState.socialStability||0)*100) + "% \u7ECF\u6D4E:" + Math.round((GM.eraState.economicProsperity||0)*100) + "%\n";
       tp += GM.eraState.contextDescription + "\n";
     }
+    // 被俘君主政治变量（跨朝代通用·靖康「迎回二圣」、土木堡「夺门」皆此理，不写死朝代）：
+    // 本势力君主/帝级人物陷敌(_captured)→悬而未决的政治焦点：敌可挟之要挟/立傀儡；本势力有迎归之议，
+    // 然迎归旧主恐动摇今上法统，迎銮与偏安两难。这是与敌国博弈的关键筹码，喂 AI 推演。
+    (function _capturedSovereign(){
+      var pfName = ((GM.facs||[]).find(function(f){return f && f.isPlayer;})||{}).name || (P.playerInfo && P.playerInfo.factionName) || '';
+      if (!pfName) return;
+      var cap = (GM.chars||[]).filter(function(c){
+        return c && c._captured && c.faction===pfName &&
+          ((c.rankLevel!=null && c.rankLevel<=3) || /帝|皇帝|太上皇|君主/.test((c.officialTitle||'')+(c.role||'')));
+      });
+      if (!cap.length) return;
+      var names = cap.map(function(c){ return c.name + (c.officialTitle?'('+c.officialTitle+')':''); }).join('、');
+      tp += '【社稷悬议·君上蒙尘】本朝 ' + names + ' 陷于敌手(' + (cap[0]._capturedLocation||'敌境') + ')：敌可挟之以要挟、立傀儡；朝野有迎归之议，然迎归旧主恐动摇今上法统，迎銮与偏安自固两难——此为与敌博弈之关键筹码，须权衡。\n';
+    })();
     // 季节/时令（增加叙事的时间感）
     var _dpvSeason = (typeof _getDaysPerTurn === 'function') ? _getDaysPerTurn() : 30;
     if (_dpvSeason > 1) {
@@ -362,6 +382,8 @@
       });
       _mechResults.push(_rebLines.join('\n'));
     }
+    // 改换门庭引导（通用·让人物随推演叛降/归附/反正改投他势力·非随机·须叙事 justify）
+    tp += '【人物改换门庭——可用·但须本回合情节使然，勿无缘无故】若有人物因兵败出降、principled 归正、城破被俘、获救反正、胁从等**当回合事由**而改投他势力，用 allegiance_changes 落实：[{character:人名, newFaction:目标势力名, reason:缘由, type:defect(主动叛投)/surrender(兵败降)/return(反正归正)/capture(被俘)/rescue(获救)/coerced(胁从)}]。忠诚低、欠饷、孤立无援、大势已去、宿怨在心者尤易动摇；但改换必有事由，不可凭空易帜。\n';
     // 双层国库状态
     if (P.economyConfig && P.economyConfig.dualTreasury) {
       var _tLine = '【国库/内库】国库:' + (GM.stateTreasury||0) + ' 内库:' + (GM.privateTreasury||0);
@@ -447,6 +469,25 @@
         }
       });
       if (_passLines.length > 0) _mechResults.push('【关隘要塞】\n' + _passLines.join('\n'));
+      // P1-P2-1·地方氛围感知串(软喂 AI 叙事色彩·零数值改动·让 AI 在叙事/任命/民变情节调用)·开关 regionFlavorEnabled 默认开(owner 拍板·显式 false 可关)
+      if (!(P.conf && P.conf.regionFlavorEnabled === false)) {   // 默认开·显式 false 才关(owner 拍板)
+        var _flavorLines = [];
+        P.map.regions.forEach(function(r) {
+          var d = (r && r.data) || r || {};
+          var bits = [];
+          if (d.specialCulture) bits.push('风俗:' + String(d.specialCulture).slice(0, 30));
+          if (d.leadingGentry) bits.push('士绅:' + String(d.leadingGentry).slice(0, 30));
+          if (d.localFaction) bits.push('党派:' + String(d.localFaction).slice(0, 24));
+          if (d.religiousSites) bits.push('信仰:' + String(d.religiousSites).slice(0, 24));
+          if (Array.isArray(d.tradeRoutes) && d.tradeRoutes.length) bits.push('商路:' + d.tradeRoutes.slice(0, 2).map(function(x){ return String(x).slice(0, 16); }).join('/'));
+          if (d.dejureOwner) bits.push('法理属:' + String(d.dejureOwner).slice(0, 16));
+          if (d.coreStatus || d.borderStatus) bits.push(String(d.coreStatus || d.borderStatus).slice(0, 12));
+          if (Array.isArray(d.ownerHistory) && d.ownerHistory.length) bits.push('易主:' + String(d.ownerHistory[d.ownerHistory.length - 1]).slice(0, 20));
+          if (d.note) bits.push('志:' + String(d.note).slice(0, 40));   // P2-2·note 拼进感知串
+          if (bits.length) _flavorLines.push('  ' + (r.name || r.id) + ': ' + bits.join(' · '));
+        });
+        if (_flavorLines.length > 0) _mechResults.push('【地方风物·叙事可调用】\n' + _flavorLines.slice(0, 12).join('\n'));
+      }
     }
     // 法理冲突
     if (typeof hasDejureClaim === 'function' && P.adminHierarchy) {
@@ -951,6 +992,11 @@
       })();
     })();
 
+    // 官制活化 ④A·履职→行止一致（开 officeDutyStateEnabled·让官的 npc_actions 与其履职态相称·关则无此句零回归）
+    if (typeof officeFlagOn === 'function' && officeFlagOn('officeDutyStateEnabled')) {
+      tp += '\n※【履职与行止相称】官员的 npc_actions 须与其履职态（见职权舆图）相称：失职/履职低者演荒怠、钻营、党争、告病、敛财、避事；称职/履职高者演勤政治事、整顿、巡按、赈济、纠劾、督办。行止即其履职之镜，勿令失职之官忽作勤勉、称职之臣无故旷废。\n';
+    }
+
     // E4: 上回合全部已处理奏疏注入——AI必须体现因果延续
     if (GM._approvedMemorials && GM._approvedMemorials.length > 0) {
       var _prevProcessed = GM._approvedMemorials.filter(function(m) { return m.turn === GM.turn - 1; });
@@ -1022,6 +1068,7 @@
     tp += '※ 每条决策须在回合输出的各字段中体现——例如：\n';
     tp += '    · zhengwen（时政记·当月朝堂叙事）要有对应段落说明诏令颁行、朝议落实、奏疏批复执行情况\n';
     tp += '    · events（事件/实录）要记下引发的重大动作（如派员、起兵、征召、工程开工）\n';
+    tp += '    · 【需君主当机立断的重大关头】(大灾抉择/兵临城下/权臣发难/储位之争等)——在该 event 上标 critical:true 并给 choices:[{text:选项, aiHint:此选后果走向}]·它会进【御案时政】成为待决要务·君主在那里抉择、AI 据局面裁后果。★节制使用·寻常事在叙事里 surface 即可·不可滥标\n';
     tp += '    · npc_actions（后人戏说/个人行止）要让相关官员作出对应响应（推进/抵制/规避/上疏申辩）\n';
     tp += '    · edict_feedback（数值变化说明）要给出受挫/成功的原因与影响\n';
     tp += '※ 不必采用固定模板·分工呈现即可；但不得假装没发生·不得让玩家决策淹没在背景叙事中。\n\n';
@@ -1052,6 +1099,10 @@
     tp += '    ★ 常见映射：皇帝赐赏私人→target:neitang/kind:expense；诏令赈济地方→target:guoku/kind:expense；战争缴获→target:guoku/kind:income；地方贡物→target:guoku/kind:income（贵重珍宝则 neitang）；抄家罚没→guoku 或 neitang（视情）\n';
     tp += '    ★ recurring:true 只用于长期年例（如"岁赐辽东饷三十万"、开海榷税、盐引承包、皇庄岁入、常设军饷）；amount 填年度数额，系统会按本剧本每回合天数折算；一次性赏赐/赈济/缴获 recurring:false（立刻作用于余额，不续）\n';
     tp += '    ★ 玩家通过诏令/奏疏/问对/朝会新增长期收入或长期支出时，必须 action:"add"+recurring:true；若同时新增数项财源/开支，必须拆成多条 fiscal_adjustments，不能合并成叙事一句话\n';
+    tp += '  · 税制改革（玩家诏令/奏疏/朝议/问对议定"改税制本身"——增减某税税率、废某税、新设税种）→ tax_reforms:[{op:"rate|add|remove",taxId,rate,tax,reason}]\n';
+    tp += '    ★【税制结构 vs 钱粮流动·别混】tax_reforms 改的是"税制结构"(税率随税基增减·data-driven·长效)·区别于 fiscal_adjustments(固定额财源/一次性钱粮流动)。凡"兴榷货/增商税盐课/经界括田提田赋/罢和买免役/立月桩经制钱"等改税制本身 → 走 tax_reforms；凡"岁币/赏赐/赈济/缴获/固定贡纳"等定额钱粮 → 走 fiscal_adjustments。\n';
+    tp += '    ★ op 用法：op:"rate"调某税率(taxId=税种id如 shangshui/yanke/hemai·rate=新税率0~1)；op:"remove"废税(taxId)；op:"add"新设(tax:{id,name,base[商业commerceVolume/田亩arableLand/盐酒茶口consumption/丁口mouths/繁荣prosperity],rate,storeAs[money/grain/cloth],sourceTag})。改即下回合岁入按新税重算·民心按民负升降(加征伤民心·宽减惠民损库)。\n';
+    tp += '    ★ 例："增商税三分以充军饷"→tax_reforms:[{op:"rate",taxId:"shangshui",rate:0.06,reason:"充军饷"}]；"罢两浙和买宽民"→[{op:"remove",taxId:"hemai",reason:"宽东南民力"}]；"行经界、立月桩钱"→[{op:"add",tax:{id:"yuezhuang",name:"月桩钱",base:"commerceVolume",rate:0.025,storeAs:"money",sourceTag:"yuezhuang"},reason:"经界后新财源"}]\n';
     tp += '    ★ recurring:true 的 amount 是年度账目，不会当回合一次性入库/出库；若政策同时产生当场缴纳/拨付的一笔钱粮，另写一条 recurring:false 的 fiscal_adjustments\n';
     tp += '    ★ 玩家扩大/缩减既有长期项时，用 action:"update" 并保持同 name/id，amount 写新的年度数额；玩家裁撤/取消既有长期项时，用 action:"stop" 或 "remove"，amount 可省略或为 0，reason 说明终止依据\n';
     tp += '    ★ 玩家诏令文本若出现明确数额（赏/赐/拨/发/征/抄/没）X 两/石/匹——必须生成对应 fiscal_adjustments；若库不足则 kind:expense 只能到库余，并在 reason 里说明"库不足仅拨 N"\n';
@@ -1364,8 +1415,26 @@
     var policyCtx = getCustomPolicyContext();
     if (policyCtx) tp += '\n' + policyCtx;
 
-    // 官制摘要（让AI知道政府结构和空缺职位）
+    // 官制摘要（让AI知道政府结构和空缺职位）——官制活化 Slice①：开 officePowerPerceptionEnabled 时改喂「职权舆图」(掌权要职+衙门概览·相关度排序)，关则原【官制概要】原样跑(零回归)
     if (GM.officeTree && GM.officeTree.length > 0) {
+      var _opmMap = '';
+      // 官制 agent 化 #1：office-recall 本回合跑了→拿 agent 焦点细查(含 duties)·静态图让位收窄；没跑/关→静态 cap 12（零回归）
+      var _officeRecall = (GM._officeRecallResult && GM._officeRecallResult.turn === GM.turn && GM._officeRecallResult.text) ? String(GM._officeRecallResult.text) : '';
+      if (typeof officeFlagOn === 'function' && officeFlagOn('officePowerPerceptionEnabled') && typeof buildOfficePowerMap === 'function') {
+        try {
+          // relevanceText：本回合圣旨原文(其字眼"兵部/调兵/御史"令相关官署上浮) + 危机信号→抽象 power 标签(跨朝代干净·不写专名)
+          var _opmRel = '';
+          try { if (typeof edicts !== 'undefined' && edicts) { _opmRel = [edicts.decree, edicts.political, edicts.military, edicts.diplomatic, edicts.economic, edicts.other].filter(Boolean).join(' '); } } catch (e0) {}
+          var _opmCrisis = [];
+          if (GM._bankruptcyTurns > 0) _opmCrisis.push('征税');                                                                                   // 财政危机→征税权官浮顶
+          if (Array.isArray(GM._turnRebellionResults) && GM._turnRebellionResults.length > 0) { _opmCrisis.push('调兵'); _opmCrisis.push('监察'); } // 叛乱→平乱+整肃致乱之吏
+          if (GM.eraState && typeof GM.eraState.socialStability === 'number' && GM.eraState.socialStability < 0.4) { _opmCrisis.push('调兵'); _opmCrisis.push('征税'); } // 社稷不稳→弹压+赈济安民
+          if (_opmCrisis.length) _opmRel += ' ' + _opmCrisis.join(' ');
+          _opmMap = buildOfficePowerMap(GM, { cap: _officeRecall ? 6 : 12, relevanceText: _opmRel });
+        } catch (e) { _opmMap = ''; }
+      }
+      if (_opmMap) { tp += '\n' + _opmMap + '\n'; }
+      else {
       var _govLines = ['【官制概要】'];
       var _vacantCount = 0, _filledCount = 0;
       (function _wGov(nodes, prefix) {
@@ -1382,11 +1451,40 @@
         _govLines.push('  （在任' + _filledCount + '人，空缺' + _vacantCount + '个——空缺影响行政效率）');
         tp += '\n' + _govLines.join('\n') + '\n';
       }
+      }
+      // 官制 agent 化 #1：注入 office-recall agent 的焦点官署细查（含 duties·按需取数·不脱节 c：agent 输出真喂进主推演 prompt）
+      if (_officeRecall) { tp += '\n〔官制·按需细查（本回合焦点衙门·含职责）〕\n' + _officeRecall + '\n'; }
     }
 
     // 官制职能分工（让AI知道哪个部门管哪些事——推演中必须遵守）
     var _funcSummary = getOfficeFunctionSummary();
     if (_funcSummary) tp += '\n' + _funcSummary + '\n';
+
+    // 官制活化 Slice③ 权限门·执行力提示（开 officeAuthorityGateEnabled 时·让 AI 叙事/税额跟着"实征打折"走·关则无此句零回归·抽象词不写专名）
+    if (typeof officeFlagOn === 'function' && officeFlagOn('officeAuthorityGateEnabled')) {
+      tp += '\n※【权限门·执行力】凡加赋/征税之实征，系于掌“征税”之权的在任主官：其出缺或失职，则加派虽奉旨而颁、实征却大减，漏额多入私囊（吏治益坏）。fiscal_adjustments 中税类 income 的数额与叙事须体现此折扣，勿作“诏下即足额征齐”。\n';
+    }
+
+    // 官制活化 Slice④ 拟制中改制·待廷议裁定（开 officeReformAdjudicationEnabled·让 AI 在机械护栏内裁定 reform_verdicts·关则无此段零回归）
+    try {
+      if (typeof officeFlagOn === 'function' && officeFlagOn('officeReformAdjudicationEnabled') && GM._pendingReforms && GM._pendingReforms.length && typeof computeReformResistance === 'function') {
+        var _pendR = GM._pendingReforms.filter(function (it) { return it.status === '拟制中' && it.proposedTurn < (GM.turn || 0); });
+        if (_pendR.length) {
+          var _raHw = (GM.huangwei && typeof GM.huangwei.index === 'number') ? GM.huangwei.index : 50;
+          var _raHq = (GM.huangquan && typeof GM.huangquan.index === 'number') ? GM.huangquan.index : 50;
+          var _raAuth = (_raHw + _raHq) / 2;
+          var _raDiff = ({ narrative: 'narrative', standard: 'standard', hardcore: 'hardcore', '简单': 'narrative', '普通': 'standard', '中等': 'standard', '困难': 'hardcore', '地狱': 'hardcore' })[(P && P.conf && P.conf.difficulty) || ''] || 'standard';
+          tp += '\n【拟制中·待廷议裁定的官制改制】（须在 reform_verdicts 中逐项给 verdict：准/部分/拖/驳）\n';
+          tp += '  ※ 机械抵抗已按品级/权力/忠诚算出 band（地板）。你可据权臣串联、科道交章等加重(更严)；但【不得低于机械 band】——机械是防放水的地板。每项 verdict 须给 reason（谁、如何抵抗或顺从）。\n';
+          _pendR.slice(0, 8).forEach(function (it) {
+            var _rr = computeReformResistance(GM, it, { authority: _raAuth, difficulty: _raDiff });
+            var _rw = _rr.affected.map(function (a) { return a.holder; }).join('、');
+            tp += '  · ' + (it.reformDetail || '') + ' ' + it.dept + (it.position ? ('·' + it.position) : '') + '：机械抵抗' + _rr.resistance + '·威权' + Math.round(_raAuth) + ' → 机械band【' + _rr.band + '】' + (_rw ? ('·触动' + _rw) : '·无人失权') + '\n';
+          });
+          tp += '  格式：reform_verdicts:[{dept,position?,verdict,reason}]\n';
+        }
+      }
+    } catch (_raPE) {}
 
     // 行政区划摘要（让AI知道地方治理状况）——按中国式管辖层级分组
     if (P.adminHierarchy) {
@@ -2084,15 +2182,16 @@
           _cTrend = Math.round(_cTrend * 10) / 10;
           var _cDm = String(c.currentDemand || (Array.isArray(c.demands) ? c.demands.join('·') : c.demands) || '').slice(0, 34);
           var _cPhase = (c.revoltState && c.revoltState.phase && c.revoltState.phase !== 'calm') ? ('·态:' + c.revoltState.phase) : '';
+          var _rf = Number(c._radicalFrac); var _cRadical = (isFinite(_rf) && _rf >= 0.2) ? ('·乱民' + Math.round(_rf * 10) + '成(' + (_rf >= 0.6 ? '鼎沸' : (_rf >= 0.4 ? '汹汹' : '不稳')) + ')') : '';
           var _cWorst = '';
           if (Array.isArray(c.regionalVariants)) {
             var _wv = null;
             c.regionalVariants.forEach(function(v) { if (v && v.region && isFinite(Number(v.satisfaction)) && (!_wv || Number(v.satisfaction) < Number(_wv.satisfaction))) _wv = v; });
             if (_wv && Number(_wv.satisfaction) <= _cSat - 8) _cWorst = '·最艰:' + String(_wv.region).slice(0, 6) + Math.round(Number(_wv.satisfaction));
           }
-          _cLines.push('  · ' + c.name + '·满意' + _cSat + (_cTrend ? ('(' + (_cTrend > 0 ? '+' : '') + _cTrend + ')') : '') + '·影响' + Math.round(Number(c.influence) || 0) + (c._structBaseline != null ? ('·势位' + Math.round(c._structBaseline)) : '') + _cPhase + _cWorst + (_cDm ? ('·求:' + _cDm) : ''));
+          _cLines.push('  · ' + c.name + '·满意' + _cSat + (_cTrend ? ('(' + (_cTrend > 0 ? '+' : '') + _cTrend + ')') : '') + '·影响' + Math.round(Number(c.influence) || 0) + (c._structBaseline != null ? ('·势位' + Math.round(c._structBaseline)) : '') + _cPhase + _cRadical + _cWorst + (_cDm ? ('·求:' + _cDm) : ''));
         });
-        if (_cLines.length) _tsBlock += '\n\n【阶层正册】\n' + _cLines.join('\n') + '\n  （满意=当下·势位=结构应然·求=当前诉求——class_changes 须以正册为准）';
+        if (_cLines.length) { var _leg = GM._legitimacy, _legLine = (_leg && _leg.flag && _leg.flag !== '相安') ? ('\n  〔天命权重〕权贵满意(clout)' + _leg.clout + ' vs 民心(人口)' + _leg.pop + '·' + _leg.flag) : ''; _tsBlock += '\n\n【阶层正册】\n' + _cLines.join('\n') + _legLine + '\n  （满意=当下·势位=结构应然·乱民=激进民情(汹涌则近民变)·求=当前诉求——class_changes 须以正册为准）'; }
       }
       if (Array.isArray(GM.armies) && GM.armies.length > 0) {
         var _riskArmies = GM.armies.filter(function(a){ return (a.mutinyRisk||0) >= 50 || (a.supply||100) < 30 || (a.morale||100) < 30 || (a.payArrearsMonths||0) >= 2; });
@@ -2232,7 +2331,13 @@
       if (_evSrc && _evSrc.length > 0) {
         var _evtsWithChoices = _evSrc.filter(function(e) { return e && Array.isArray(e.playerChoices) && e.playerChoices.length > 0; });
         if (_evtsWithChoices.length > 0) {
+          var _pcUnify = (typeof _eventAdjudicationOn === 'function' && _eventAdjudicationOn());
+          if (_pcUnify) {
+            // v0.2 收编:开关开→剧本 events 玩家选项收进御案时政(经 timeline_triggers 上报→Slice D/E 进 currentIssues)·消除"叙事软 surface"例外
+            sysP += '\n\n【剧本 events·含玩家选项 ' + _evtsWithChoices.length + ' 项】AI 推演时·若 event 触发条件满足·**通过 timeline_triggers 上报该 event（name 填事件名）**·它会收进【御案时政】成待决要务·君主在那里抉择、AI 据局面裁后果·★ 不可 LLM 自代选、不可替君主决断。';
+          } else {
           sysP += '\n\n【剧本 events·含玩家选项 (playerChoices) ' + _evtsWithChoices.length + ' 项】AI 推演时·若 event 触发条件满足·**在 shizhengji/zhengwen 中描述选项**（如"陛下面前两策·李纲奏 X·汪伯彦奏 Y"·或臣下分头进言两 / 三种策略）·**让玩家通过下次诏令应对**·★ 不可 LLM 自代选·须 surface 给玩家。';
+          }
           _evtsWithChoices.slice(0, 8).forEach(function(ev) {
             sysP += '\n\n  ◆ [' + (ev.id || '?') + '] ' + (ev.name || '?') + (ev.type ? ' (' + ev.type + ')' : '');
             if (ev.trigger) sysP += '\n    触发·' + String(ev.trigger).slice(0, 100);
@@ -2360,6 +2465,31 @@
         if (_d.familyAddress) sysP += '\n\u5BB6\u65CF\u79F0\u8C13\uFF1A' + _d.familyAddress;
       }
     }
+
+    // Era language base fallback: when a scenario didn't fill these fields (or has no deep digest),
+    // inject the dynasty default pack so a non-flagship scenario keeps its period flavor.
+    // Cross-dynasty rule: engine only does the neutral eraLangField(era,...) lookup;
+    // every dynasty-specific term lives in tm-era-language-pack.js (the scenario-data layer).
+    try {
+      if (typeof eraLangField === 'function') {
+        var _scnForEra = (typeof sc !== 'undefined' && sc) ? sc : ((typeof P !== 'undefined' && P && P.scenario) || null);
+        var _eraKey = (_scnForEra && (_scnForEra.dynasty || _scnForEra.era))
+          || (typeof GM !== 'undefined' && GM && GM.eraState && (GM.eraState.dynasty || GM.eraState.dynastyPhase)) || '';
+        var _digestNow = (typeof GM !== 'undefined' && GM && GM._aiScenarioDigest) || {};
+        var _langBase = [
+          ['imperialAddress', '\u5E1D\u738B\u79F0\u8C13'], ['officialAddress', '\u5B98\u573A\u79F0\u547C'],
+          ['writtenStyle', '\u516C\u6587\u884C\u6587'], ['tabooWords', '\u907F\u8BB3\u5236\u5EA6'],
+          ['periodVocabulary', '\u65F6\u4EE3\u7528\u8BED'], ['etiquetteNorms', '\u793C\u4EEA\u89C4\u8303'],
+          ['commonExpressions', '\u65E5\u5E38\u53E3\u8BED'], ['sensoryDetails', '\u611F\u5B98\u7EC6\u8282']
+        ];
+        for (var _li = 0; _li < _langBase.length; _li++) {
+          if (!_digestNow[_langBase[_li][0]]) {
+            var _lv = eraLangField(_eraKey, _langBase[_li][0], '');
+            if (_lv) sysP += '\n\u3010' + _langBase[_li][1] + '\u3011' + _lv;
+          }
+        }
+      }
+    } catch (_eraE) { /* era fallback must not break prompt building */ }
 
     _mark('digest');
     // 7.4: 历史索引目录——AI可按需请求详细历史
@@ -3068,6 +3198,49 @@
       sysP += '\n\n【本回合建筑经济产出】';
       sysP += '\n' + GM._buildingOutputReport;
     }
+
+    // 2.6: 注入各地现有营造册(让 AI 看见建筑、认其价值、纳入推演——治建筑对 AI 失明/间接效果/扩建误判)
+    if (P.adminHierarchy) {
+      var _brLines = [];
+      Object.keys(P.adminHierarchy).forEach(function(_fk){
+        var _fh = P.adminHierarchy[_fk];
+        if (!_fh || !_fh.divisions) return;
+        (function _walkBld(ds){
+          ds.forEach(function(d){
+            if (!d) return;
+            if (Array.isArray(d.buildings) && d.buildings.length) {
+              var _items = d.buildings.slice(0, 12).map(function(b){
+                var _st = b.status === 'building' ? ('在建·剩' + (b.remainingTurns || 0) + '回合') : (b.status === 'neglected' ? '失修' : (b.status === 'damaged' ? '损毁' : '已成'));
+                var _lv = (b.level && b.level > 1) ? (b.level + '级·') : '';
+                var _eff = b.effectSummary || b.judgedEffects || '';
+                var _cost = b.costActual ? ('·造价' + b.costActual + '两') : '';
+                return b.name + '(' + _lv + _st + (_eff ? '·' + _eff : '') + _cost + ')';
+              }).join('、');
+              _brLines.push((d.name || '某地') + '：' + _items);
+            }
+            var _kids = d.children || d.divisions;
+            if (_kids && _kids.length) _walkBld(_kids);
+          });
+        })(_fh.divisions);
+      });
+      if (_brLines.length) {
+        sysP += '\n\n【各地现有营造册】(玩家已建/在建工程·须认得并纳入推演与叙事:在推演中体现其当下作用与长远价值,勿无视、勿重复新建已有同名工程)';
+        sysP += '\n' + _brLines.slice(0, 40).join('\n');
+        sysP += '\n(长远价值提示·推演须认其潜在/累积之效、勿只看当下数字:军工[冶铁/火器/船厂/军械]=强军根基;新学[格物/算学/译书/新式学堂]=格物兴邦、长远国力所系;文教[书院/学宫/贡院]=育才储士;水利[河渠/垦屯/陂堰]=农本久利——这类工程当下未必加收入,却系国运长远,须在叙事与推演中认可并体现。)';
+      }
+    }
+    // 2.7: 注入本回合玩家新营建及有司核议(自拟营建 agent·准奏开工·令推演当现行国是织入·不隔绝·非侧信道孤岛)
+    if (GM._pendingCustomBuilds && GM._pendingCustomBuilds.length) {
+      var _ncb = GM._pendingCustomBuilds.filter(function (b) { return b && b.turn === GM.turn; });
+      if (_ncb.length) {
+        sysP += '\n\n【本回合玩家新营建及有司核议】(玩家方才下旨兴造·有司当场核定·须当现行国是织入推演:相关百官/士绅/军民/敌国当有所反应,世界亦可回应[如战乱灾异扰工、士民称颂或非议])';
+        _ncb.slice(0, 12).forEach(function (b) {
+          sysP += '\n· 于' + (b.divName || '某地') + '兴造「' + (b.name || '') + '」' + (b.category ? ('[' + b.category + ']') : '') +
+            '——有司核「' + (b.feasibility || '') + '」·造价' + (b.costActual || 0) + '两·工期' + (b.timeActual || 0) + '回合' +
+            (b.judgedEffects ? ('·预期' + b.judgedEffects) : '') + (b.reason ? ('。判语:' + b.reason) : '');
+        });
+      }
+    }
     // 5.1: 注入贸易路线报告
     if (GM._tradeReport) {
       sysP += '\n\n\u3010\u8D38\u6613\u8DEF\u7EBF\u72B6\u51B5\uFF08\u53C2\u8003\uFF09\u3011' + GM._tradeReport;
@@ -3180,6 +3353,7 @@
     sysP += '\n- regent_decisions: \u6444\u653f\u51b3\u65ad\uFF08action\u3001subject\u3001regentName\u3001hardCeiling\u3001reason\uFF09';
     sysP += '\n- reissue_topics: \u5efa\u8bae\u5c06\u7559\u4e2d\u518c\u8bae\u9898\u8d77\u590d\u518d\u8bae\uff08topic\u3001reason\uff09';
     sysP += '\n- army_changes: 修改部队兵力/士气/训练(写 training_delta·练兵真生效)/统帅（降至0→全军覆没；统帅或主将变更必须写 commander/newCommander，不能只写在叙事里）';
+    sysP += '\n- armory_procurement: 采买军备（玩家诏令市买/外购军械时·银→军备入武库·应急且贵·非自产）。格式 [{"category":"火器","quantity":300,"channel":"市舶/茶马互市/边市","reason":"红夷炮外购"}]。category=甲胄/兵刃/弓弩/火器/战马(或原料铁/硝石/皮革/木)·按市价扣国库银(火器/战马尤贵·买比造贵)。★渠道把关:火器外购须已开海或通贡市舶、市马须有茶马互市边镇——无渠道则 feasibility 标不合理勿采。国库不继则按可负担减采。';
     sysP += '\n  ★敌我任一方有折损/减员，必须落此处（soldiers_delta 用负数）或 battleResult，不能只写在叙事里。name 须是该军的精确番号或其主帅姓名（如"后金·两红旗(代善领)"或"代善"）；只写势力名（如"后金"含多支旗军）无法定位到具体军，折损会落空——敌军每回合"折几千却永远杀不完"正是此故。';
     sysP += '\n- item_changes: 让角色获得或失去物品';
     sysP += '\n- era_state_delta: 调整时代参数（社会稳定/经济/集权/军事等）';
@@ -3188,10 +3362,16 @@
     sysP += '\n- vassal_changes: 封臣关系变动（establish建立/break解除/change_tribute调整贡奉）';
     sysP += '\n- title_changes: 头衔爵位变动（grant册封/revoke剥夺/inherit继承需指定from来源角色/promote晋升）';
     sysP += '\n- building_changes: 建筑变动（build建造/custom_build自拟营造/upgrade升级/destroy拆除，需指定territory和type）';
+    sysP += '\n    ※该地已有同名建筑时,追加投入须用 upgrade(扩建增产)、勿用 build 重复新建同名工程。';
     sysP += '\n    build/custom_build 另给 feasibility(合理/勉强/不合理)、costActual实际费用(两)、timeActual工期(回合)、judgedEffects效果叙述、reason判语';
     sysP += '\n    【自拟营造核定】custom_build（玩家自拟工役）必须另给 effectsStructured——结构化效果账，完工后照此入账（judgedEffects 叙述不入账）。格式示例：';
     sysP += '\n    "effectsStructured":{"pct":{"economyBase.commerceVolume":0.05},"abs":{"militaryRecruits":1000},"minxin":1,"corruption":-1,"upkeepPerTurn":120}';
-    sysP += '\n    账目白名单（名单外引擎直接丢弃）：economyBase.{farmland,commerceVolume,commerceCoefficient,maritimeTradeVolume,saltProduction,mineralProduction,fishingProduction,horseProduction,postRelays,roadQuality,kejuQuota}、fortLevel、militaryRecruits、minxin(±2内)、corruption(±3内)';
+    sysP += '\n    【军工建筑·武库产能】军器局/兵仗局/铁工坊/火药局/甲坊/弓弩坊/马场等军工营造,在 effectsStructured 内另给 armoryProfile(每回合每级·消耗原料产军备):';
+    sysP += '\n    "armoryProfile":{"produce":{"火器":800},"consume":{"硝石":600,"铁":400}}';
+    sysP += '\n    produce=军备(甲胄/兵刃/弓弩/火器/战马)·consume=原料(铁/硝石/皮革/木)·均每级每回合。据建筑性质判产出类型与耗料:甲坊产甲胄耗铁皮、火药局产火器耗硝石铁、铁工坊产兵刃甲胄耗铁、弓弩坊产弓弩耗木皮铁、马场产战马不耗料。产能随造价规模(大厂月产数千/小坊数百)。armoryProfile 是每回合流量产能、不入下方 economyBase 账目白名单,另行结算。';
+    sysP += '\n    ★回报须与造价相称：大额营造(数万两以上)应给绝对值经济产出(abs:economyBase.commerceVolume/mineralProduction/saltProduction/farmland 等直接增量)、而非只给小比例(pct)——五百万两的矿场该有相称的矿课绝对增收,让玩家巨资投入有可信的财政开源回报；abs 上限随造价放宽(约 costActual×8),勿畏手畏脚。';
+    sysP += '\n    估算标尺:经济类营造合理年回报约为造价的 8%~15%(五百万两矿场/工坊,一年该有四十万至七十五万两进项,折入 abs 经济产出;摊到当年起步亦不应少于此数一两成)。据此给足绝对产出,既不可「投五百万只回一两万」的失衡、也不可凭空暴富。';
+    sysP += '\n    账目白名单（名单外引擎直接丢弃）：economyBase.{farmland,commerceVolume,commerceCoefficient,maritimeTradeVolume,saltProduction,mineralProduction,fishingProduction,horseProduction,postRelays,roadQuality,kejuQuota}、fortLevel、coastalDefense(海防档)、militaryRecruits、defenseBonus(边防工事档·降本地边警)、officialSupply(育才储官·补地方官缺)、minxin(±2内)、corruption(±3内)';
     sysP += '\n    【费效为度】小费小效：千两以下至多 1-3% 微利；万两可至 8%；两万两以上方可 15% 或城防+1；十万两巨役方可 25%。十两银修不出雄关——越界效果引擎会削顶。维护费 upkeepPerTurn 约为费用 2%/回合。';
     sysP += '\n- region_status_changes: 地块状态变动（action:add/remove + region区划名 + name状态名 + kind:wonder奇观/disaster灾异/event风云/player圣裁 + econPct地方岁入乘数增减(±0.25内) + minxinPerTurn每回合民心(±2内) + durationTurns持续回合(缺省=永续·至多24) + desc叙述 + reason）';
     sysP += '\n    凡落在具体地块上的持续境况都应写状态：奇观落成、蝗旱水震天灾、丰年祥瑞、兵燹匪患、瘟疫流行、玩家放赈/免税/巡幸的地方效应等。状态会乘进该地岁入、逐回合作用民心，并在地块方志「状态」卷向玩家可见。灾异消弭、境况终了须 remove。勿与 building_changes 重复记同一工程。';

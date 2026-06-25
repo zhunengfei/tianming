@@ -48,6 +48,7 @@ function openFiscalConfigEditor() {
     '<button class="fisc-tab-btn" onclick="_fiscTab(\'fisc-centrallocal\',this)" style="padding:5px 12px;cursor:pointer;border:1px solid var(--bdr);border-bottom:none;background:var(--bg-2);color:var(--txt-s);">央地分账</button>'+
     '<button class="fisc-tab-btn" onclick="_fiscTab(\'fisc-currency\',this)" style="padding:5px 12px;cursor:pointer;border:1px solid var(--bdr);border-bottom:none;background:var(--bg-2);color:var(--txt-s);">货币政策</button>'+
     '<button class="fisc-tab-btn" onclick="_fiscTab(\'fisc-neitang\',this)" style="padding:5px 12px;cursor:pointer;border:1px solid var(--bdr);border-bottom:none;background:var(--bg-2);color:var(--txt-s);">内帑规则</button>'+
+    '<button class="fisc-tab-btn" onclick="_fiscTab(\'fisc-armory\',this)" style="padding:5px 12px;cursor:pointer;border:1px solid var(--bdr);border-bottom:none;background:var(--bg-2);color:var(--txt-s);">武库军备</button>'+
     '<button class="fisc-tab-btn" onclick="_fiscTab(\'fisc-population\',this)" style="padding:5px 12px;cursor:pointer;border:1px solid var(--bdr);border-bottom:none;background:var(--bg-2);color:var(--txt-s);">户口</button>'+
     '<button class="fisc-tab-btn" onclick="_fiscTab(\'fisc-environment\',this)" style="padding:5px 12px;cursor:pointer;border:1px solid var(--bdr);border-bottom:none;background:var(--bg-2);color:var(--txt-s);">环境</button>'+
     '<button class="fisc-tab-btn" onclick="_fiscTab(\'fisc-edict\',this)" style="padding:5px 12px;cursor:pointer;border:1px solid var(--bdr);border-bottom:none;background:var(--bg-2);color:var(--txt-s);">诏令</button>'+
@@ -124,8 +125,15 @@ function openFiscalConfigEditor() {
   });
   body += '</div>';
 
-  // 自定义税种（JSON 数组）
-  body += '<div style="font-size:0.82rem;color:var(--gold);margin:0.8rem 0 0.4rem;display:flex;align-items:center;gap:8px;">自定义税种（JSON 数组）<button class="btn" style="font-size:0.7rem;padding:2px 8px;" onclick="if(typeof aiPolishCustomTaxes===\'function\')aiPolishCustomTaxes();">🪄 AI 润色</button></div>';
+  // 税制总表（taxList·全税制·单一真相源·剧本/国师 authored·CascadeTax 活算权威源·架空朝代亦适用）
+  body += '<div style="font-size:0.82rem;color:var(--gold);margin:0.8rem 0 0.4rem;display:flex;align-items:center;gap:8px;">税制总表（税种全表·taxList）<button class="btn" style="font-size:0.7rem;padding:2px 8px;" onclick="if(typeof aiGenTaxList===\'function\')aiGenTaxList();">🪄 国师生成税制</button></div>';
+  body += '<div style="font-size:0.7rem;color:var(--txt-d);margin-bottom:0.3rem;">'+
+    '本剧本完整税制（<b>架空朝代亦适用</b>·留空则按引擎默认税表）。引擎 CascadeTax 以此为活算权威源。<br>字段：id / name / base(arableLand田/commerceVolume商/consumption盐酒茶口/mouths丁/prosperity) / baseFactor / rate / storeAs(money/grain/cloth) / sourceTag</div>';
+  body += '<textarea id="fiscalEd-taxList" rows="8" style="width:100%;font-family:monospace;font-size:0.72rem;padding:6px;" placeholder=\'[{"id":"yanke","name":"盐课","base":"consumption","rate":0.06,"storeAs":"money","sourceTag":"yanke"}]\'>'+
+    JSON.stringify(fc.taxList || [], null, 2) + '</textarea>';
+
+  // 附加/特殊税（customTaxes·叠加于税制总表之上·运行时可加）
+  body += '<div style="font-size:0.82rem;color:var(--gold);margin:0.8rem 0 0.4rem;display:flex;align-items:center;gap:8px;">附加/特殊税（customTaxes·叠加于总表之上）<button class="btn" style="font-size:0.7rem;padding:2px 8px;" onclick="if(typeof aiPolishCustomTaxes===\'function\')aiPolishCustomTaxes();">🪄 AI 润色</button></div>';
   body += '<div style="font-size:0.7rem;color:var(--txt-d);margin-bottom:0.3rem;">'+
     '字段：id / name / formulaType(perCapita/flat/percent) / rate / base(population/land/commerce) / amount / description</div>';
   body += '<textarea id="fiscalEd-customTaxes" rows="6" style="width:100%;font-family:monospace;font-size:0.72rem;padding:6px;" placeholder=\'[{"id":"chaShui","name":"茶税","formulaType":"perCapita","rate":0.008,"description":"每人年 0.008 两"}]\'>'+
@@ -341,6 +349,22 @@ function openFiscalConfigEditor() {
   body += '<div style="font-size:0.7rem;color:var(--txt-d);margin-top:0.6rem;line-height:1.7;">说明：决定开局时"朝野气氛"与"民情图"。<br>・ 开国盛世：皇威 65+/皇权 65/民心 75+<br>・ 盛世中叶：皇威 75/皇权 50/民心 65<br>・ 衰颓末期：皇威 25/皇权 30/民心 25/腐败 70 + 勾选失威危机<br>・ 权臣专朝：皇权 20/填权臣姓名/控制力 0.7+/军权 30-</div>';
   body += '</div>'; // fisc-authority end
 
+  // Tab: 武库军备（军备库 + 原料库初值·显式库存·非区划聚合·运行时 GM.guoku.armory/materials）
+  body += '<div id="fisc-armory" class="fisc-panel" style="display:none;">';
+  body += '<div style="font-size:0.78rem;color:var(--txt-d);line-height:1.6;margin-bottom:0.6rem;padding:0.5rem;background:var(--bg-2);border-radius:4px;">'+
+    '<b>武库</b>=国家军备储(军器局/兵仗局历年所积)·<b>原料库</b>=造械之料(矿冶硝磺所出)。募兵从武库支取、军工建筑耗原料造军备。<br>留空则按默认(甲胄4万/兵刃5万…)。可点上方「🪄 AI一键生成」由国师按朝代战事拟定。'+
+    '</div>';
+  var _gkA = (scriptData.guoku && scriptData.guoku.armory) || {}, _gkM = (scriptData.guoku && scriptData.guoku.materials) || {};
+  body += '<div style="font-weight:700;font-size:0.8rem;margin:0.3rem 0;color:var(--gold);">军备库</div>';
+  body += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">';
+  ['甲胄', '兵刃', '弓弩', '火器', '战马'].forEach(function (k) { body += numField('armory-' + k, k, _gkA[k]); });
+  body += '</div>';
+  body += '<div style="font-weight:700;font-size:0.8rem;margin:0.6rem 0 0.3rem;color:var(--gold);">原料库</div>';
+  body += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;">';
+  ['铁', '硝石', '皮革', '木'].forEach(function (k) { body += numField('materials-' + k, k, _gkM[k]); });
+  body += '</div>';
+  body += '</div>'; // fisc-armory end
+
   if (typeof openGenericModal !== 'function') {
     alert('openGenericModal 未就绪');
     return;
@@ -359,6 +383,16 @@ function openFiscalConfigEditor() {
     // 帑廪/内帑的库存与月入不再此处手填（由行政区划+官制自然聚合）
     // 仅保留内帑独有配置：皇庄田亩
     var ntHA = pickNum('nt-huangzhuangAcres'); if (ntHA !== undefined) scriptData.neitang.huangzhuangAcres = ntHA;
+
+    // 武库军备库 + 原料库初值（显式库存·写 scriptData.guoku.armory/materials）
+    ['甲胄', '兵刃', '弓弩', '火器', '战马'].forEach(function (k) {
+      var v = pickNum('armory-' + k);
+      if (v !== undefined) { if (!scriptData.guoku.armory) scriptData.guoku.armory = {}; scriptData.guoku.armory[k] = v; }
+    });
+    ['铁', '硝石', '皮革', '木'].forEach(function (k) {
+      var v = pickNum('materials-' + k);
+      if (v !== undefined) { if (!scriptData.guoku.materials) scriptData.guoku.materials = {}; scriptData.guoku.materials[k] = v; }
+    });
 
     // 预设 key
     var presetKey = pickText('presetKey');
@@ -405,6 +439,18 @@ function openFiscalConfigEditor() {
     });
     if (anyTaxChanged) scriptData.fiscalConfig.taxesEnabled = taxesEn;
     else if (scriptData.fiscalConfig.taxesEnabled) delete scriptData.fiscalConfig.taxesEnabled;
+
+    // 税制总表 taxList（全税制·单一真相源·CascadeTax 活算权威源）
+    var tlEl = document.getElementById('fiscalEd-taxList');
+    if (tlEl && tlEl.value.trim()) {
+      try {
+        var parsedTL = JSON.parse(tlEl.value);
+        if (Array.isArray(parsedTL) && parsedTL.length > 0) scriptData.fiscalConfig.taxList = parsedTL;
+        else delete scriptData.fiscalConfig.taxList;
+      } catch(eTL) { if (typeof alert === 'function') alert('税制总表 JSON 格式有误，未保存：' + (eTL && eTL.message || eTL)); }
+    } else if (scriptData.fiscalConfig.taxList) {
+      delete scriptData.fiscalConfig.taxList;
+    }
 
     // 自定义税种 JSON
     var ctEl = document.getElementById('fiscalEd-customTaxes');

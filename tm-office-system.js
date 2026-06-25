@@ -537,7 +537,7 @@ async function _offMaterialize(deptName, posName) {
       + '优先用真实历史人物，找不到则虚构。\n'
       + '已有角色：' + _existNames.slice(0,15).join('、') + '\n'
       + '返回JSON：{"name":"人名","personality":"性格","intelligence":60,"administration":60,"military":40,"loyalty":60,"ambition":50}';
-    var c = await callAI(prompt, 500);
+    var c = await callAI(prompt, 500, null, (typeof _useSecondaryTier === 'function' && _useSecondaryTier()) ? 'secondary' : undefined);  // 【降本2026-06-19】角色具象化(机械生成)走次 API
     var parsed = extractJSON(c);
     if (parsed && parsed.name) {
       if (!GM.chars) GM.chars = [];
@@ -1201,6 +1201,7 @@ function _offSyncHoldersFromChars(opts) {
   });
 
   var used = new Array(claims.length).fill(false);
+  var claimSlot = {}; // ci -> 所坐正式 slot(供同衔重复幽灵清理按座撤衔)
 
   // ── Pass 1: 硬锁既有座位(既有 holder 活着且仍 claim 兼容→原地保留) ──
   slots.forEach(function(sl){
@@ -1213,7 +1214,7 @@ function _offSyncHoldersFromChars(opts) {
         var s = _offTitleSlotScore(claims[ci].title, sl.dept, sl.posName, true);
         if (s >= 40 && s > bestSc) { bestSc = s; bestCi = ci; }
       });
-      if (bestCi >= 0) { used[bestCi] = true; sl.fill.push(claims[bestCi].name); }
+      if (bestCi >= 0) { used[bestCi] = true; claimSlot[bestCi] = sl; sl.fill.push(claims[bestCi].name); }
     });
   });
 
@@ -1232,8 +1233,28 @@ function _offSyncHoldersFromChars(opts) {
     if (used[pr.ci]) return;
     var sl = slots[pr.si];
     if (sl.fill.length >= sl.cap) return;
-    used[pr.ci] = true; sl.fill.push(claims[pr.ci].name);
+    used[pr.ci] = true; claimSlot[pr.ci] = sl; sl.fill.push(claims[pr.ci].name);
   });
+
+  // ── 同衔重复幽灵清理(治"任命未让位→同一官衔多人持·cap=1 正式座只坐一人·余者被 Pass3 甩进编制外显幽灵同衔·过回合越积越多·图志/树双误显官职掉") ──
+  // 不变量:同一精确官衔(对应某正式座)只应一人持有。已坐正式座者=canonical(真holder)·撤其余「非在座 且 与在座者精确同衔」者的陈旧重复衔。
+  // 安全:①只清非在座者·绝不动在座者(座由 Pass1/2 既定)②须有在座者持同精确衔才清(无在座者的同名=多个总督等编制外职·各自有地·不误伤)③幂等(清完无重复·下次空跑)。
+  (function _healDupSeatTitles(){
+    var seatedByTitle = {};                       // 精确衔 -> 所坐正式 slot
+    for (var di = 0; di < claims.length; di++) {
+      if (!used[di] || !claimSlot[di]) continue;
+      var sk = _offNormalizeTitleName(claims[di].title);
+      if (sk && !seatedByTitle[sk]) seatedByTitle[sk] = claimSlot[di];
+    }
+    for (var dj = 0; dj < claims.length; dj++) {
+      if (used[dj] || !claims[dj].primary) continue; // 已在座/兼衔不动
+      var ch = claims[dj].ch; if (!ch) continue;
+      var k = _offNormalizeTitleName(claims[dj].title);
+      var slot = k && seatedByTitle[k];
+      if (!slot) continue;                          // 无在座者持同精确衔→非重复幽灵(编制外职)→保留
+      if (typeof _offVacateCharFromSeat === 'function' && _offVacateCharFromSeat(ch, slot.dept, slot.posName)) used[dj] = true;
+    }
+  })();
 
   // ── 应用:把 fill 写回职位的 holder/actualHolders(保结构/编制/元数据) ──
   slots.forEach(function(sl){
@@ -1260,6 +1281,14 @@ function _offSyncHoldersFromChars(opts) {
     if (used[ci2]) continue;
     var cl = claims[ci2];
     if (!cl.primary) continue; // 兼任未匹配的不单列(避免重复)
+    // 自重复抑制(治一人主衔/兼衔同指一座→既坐正式座又被甩进编制外双列·如 officialTitle="礼部侍郎"+concurrentTitle="左侍郎"同指礼部左侍郎):
+    // 若此 claim 最佳匹配的正式座正由本人(经另一衔)坐着·则不再 phantom·消除一人双列(非"掉职"·但视觉冗余)。
+    var _selfBest = null, _selfSc = 0;
+    for (var _ssi = 0; _ssi < slots.length; _ssi++) {
+      var _ssc = _offTitleSlotScore(cl.title, slots[_ssi].dept, slots[_ssi].posName, false);
+      if (_ssc > _selfSc) { _selfSc = _ssc; _selfBest = slots[_ssi]; }
+    }
+    if (_selfBest && _selfSc >= 40 && _selfBest.fill.indexOf(cl.name) >= 0) { used[ci2] = true; continue; }
     var cls = _offClassifyTitle(cl.title);
     var gkey = cls.court + ':' + cls.group;
     if (!dynByGroup[gkey]) {

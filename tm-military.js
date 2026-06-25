@@ -144,7 +144,12 @@ function calculateArmyStrength(army, context) {
 
   var fortMod = 1.0;
   if (ctx.isDefender && army.fortification) fortMod = 1 + Math.min(0.3, (Number(army.fortification) || 0) / 100 * 0.3); // fortify accumulates; rewards defending
-  return baseStrength * moraleMod * trainingMod * qualityMod * commanderMod * supplyMod * terrainMod * unitMod * fortMod;
+
+  // 装备加成（武库供械·军备简陋则战力降·接军工供应链 S6·equipmentCondition 由募兵从武库支取时定）
+  var _eqc = String(army.equipmentCondition || army.equipmentStatus || army.equipmentLevel || '');
+  var equipMod = /精良|优良|齐整|精整/.test(_eqc) ? 1.06 : /严重不足|匮乏|奇缺/.test(_eqc) ? 0.68 : /简陋|破败|朽钝/.test(_eqc) ? 0.82 : /不足|短缺/.test(_eqc) ? 0.9 : 1.0;
+
+  return baseStrength * moraleMod * trainingMod * qualityMod * commanderMod * supplyMod * terrainMod * unitMod * fortMod * equipMod;
 }
 
 // 推荐战术
@@ -2360,43 +2365,6 @@ function getBuildingEffects(type, level) {
   }
 
   return effects;
-}
-
-// 建筑升级成本计算（优先用编辑器配置）
-function getBuildingCost(type, level) {
-  var btDef = BUILDING_TYPES[type];
-  var baseCost = (btDef && btDef.baseCost) ? btDef.baseCost : 1000;
-
-  // 如果没有编辑器配置，按类别回退
-  if (!btDef || !btDef.baseCost) {
-    var category = btDef ? btDef.category : 'economy';
-    switch(category) {
-      case 'economy': case 'economic': baseCost = 800; break;
-      case 'military': baseCost = 1200; break;
-      case 'culture': case 'cultural': baseCost = 1000; break;
-      case 'administration': case 'administrative': baseCost = 900; break;
-    }
-  }
-
-  return Math.floor(baseCost * Math.pow(1.5, level - 1));
-}
-
-// 建筑升级耗时计算（优先用编辑器配置）
-function getBuildingTime(type, level) {
-  var btDef = BUILDING_TYPES[type];
-  var baseTime = (btDef && btDef.buildTime) ? btDef.buildTime : 3;
-
-  if (!btDef || !btDef.buildTime) {
-    var category = btDef ? btDef.category : 'economy';
-    switch(category) {
-      case 'economy': case 'economic': baseTime = 2; break;
-      case 'military': baseTime = 4; break;
-      case 'culture': case 'cultural': baseTime = 3; break;
-      case 'administration': case 'administrative': baseTime = 3; break;
-    }
-  }
-
-  return Math.floor(baseTime * Math.pow(1.3, level - 1));
 }
 
 // 初始化建筑系统

@@ -51,10 +51,9 @@ async function _endTurn_updateSystems(timeRatio, zhengwen) {
   var _currencyFullTicked = false;
   SubTickRunner.run(pipelineCtx);
 
-  // 3.5 NPC 行为推演（异步，不在 pipeline 中）
-  try {
-    if (P.npcEngine && P.npcEngine.enabled) { showLoading("运行 NPC Engine",94.5); NpcEngine.runEngine(); }
-  } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] NPC行为推演失败:') : console.error('[endTurn] NPC行为推演失败:', e); }
+  // 3.5 NPC 行为推演:旧 NPC 决策驱动 IIFE 已切除(2026-06-16 死簇切除)·此处孤儿调用一并删除。
+  //   ⚠ 之前残留该孤儿调用·而 P.npcEngine.enabled 默认 true → 每回合抛 ReferenceError(引擎未定义)被 try/catch 吞作"NPC行为推演失败"。
+  //   NPC 行为现由势力 NPC 系统(faction-npc decideFor 等)承载·不再走此引擎。
 
   // 5. 编年处理
   processBiannian();
@@ -440,8 +439,21 @@ async function _endTurn_updateSystems(timeRatio, zhengwen) {
   // 6.88 检查刚性触发器
   try {
     if (typeof checkRigidTriggers === 'function') checkRigidTriggers();
+    // 天机·改命：刚性史事触发后，判定每件正史是重演(已触发)还是改命(过回合未触发)·刷新天机御案。
+    if (typeof TMTianji !== 'undefined' && TMTianji.on(GM)) { try { TMTianji.update(GM); } catch(_tjE){} }
+    // 边报·天下军情：随局势(敌对关系/姿态)每回合刷新军情 digest。
+    if (typeof TMJunqing !== 'undefined' && TMJunqing.on(GM)) { try { TMJunqing.refresh(GM); } catch(_jqE){} }
+    // 新君观政·百日：刷新观政相位(期满自动撤去 status)。
+    if (typeof TMXinjun !== 'undefined' && TMXinjun.on(GM)) { try { TMXinjun.refresh(GM); } catch(_xjE){} }
   } catch(e) {
     (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] 刚性触发器检查失败:') : console.error('[endTurn] 刚性触发器检查失败:', e);
+  }
+
+  // 6.884 党争张力年度衰减(治"只升不降"·decay 自身年度幂等·换年才实降·防 tension 永久累积)
+  try {
+    if (typeof _kjDecayFactionTension === 'function') _kjDecayFactionTension();
+  } catch(e) {
+    (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] 党争张力衰减失败:') : console.error('[endTurn] 党争张力衰减失败:', e);
   }
 
   // 6.885 检查科举筹办完成
@@ -502,6 +514,16 @@ async function _endTurn_updateSystems(timeRatio, zhengwen) {
     } catch(e) {
       (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] 自然死亡检查失败:') : console.error('[endTurn] 自然死亡检查失败:', e);
     }
+  }
+
+  // 6.92 阴谋推演（多回合酝酿/招募/败露·确定性引擎·将发交 AI 叙事）
+  try {
+    if (typeof ConspiracyEngine !== 'undefined' && ConspiracyEngine && typeof ConspiracyEngine.tick === 'function') {
+      _dbg('[endTurn] Step 6.92: 阴谋推演');
+      ConspiracyEngine.tick({ turn: GM.turn, monthRatio: monthRatio, _monthRatio: monthRatio });
+    }
+  } catch(e) {
+    (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'endTurn] 阴谋推演失败:') : console.error('[endTurn] 阴谋推演失败:', e);
   }
   _markSystemStage('positionAndMortality', '职位与寿数检查', _positionChecksTimingStart);
 

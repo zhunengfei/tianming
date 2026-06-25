@@ -74,6 +74,14 @@ function enterGame(){
     }
   } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'enterGame] 帑廪朝代预设失败:') : console.error('[enterGame] 帑廪朝代预设失败:', e); }
 
+  // 武库/原料库朝代预设(军备/原料·从剧本 guoku.armory/materials 装初值·一次性·_armorySeeded 守·亦补老存档:不限 turn1·载入即 seed 一次)
+  try {
+    if (typeof window !== 'undefined' && window.TMArmory && !(GM.guoku && GM.guoku._armorySeeded)) {
+      var scA = (typeof findScenarioById === 'function' && findScenarioById(GM.sid)) || null;
+      window.TMArmory.seedFromScenario(GM, (scA && scA.guoku) || {});
+    }
+  } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'enterGame] 武库预设失败:') : console.error('[enterGame] 武库预设失败:', e); }
+
   // 内帑朝代预设（依赖帑廪先完成）
   try {
     if (GM.turn === 1 && !GM._neitangPresetDone && typeof NeitangEngine !== 'undefined') {
@@ -566,69 +574,6 @@ function validateScenario(sc) {
   return { valid: errors.length === 0, errors: errors, warnings: warnings };
 }
 
-/**
- * 确认改元选择
- * @param {string} mode - 'tradition'(踰年) 或 'immediate'(即刻)
- * @param {number} curYear - 当前公元年
- */
-function _confirmEnthronement(mode, curYear){
-  var nameInput=document.getElementById('_era-name-input');
-  var eraName=(nameInput?nameInput.value:'').trim();
-  if(!eraName){ toast('请输入年号名'); if(nameInput) nameInput.focus(); return; }
-
-  var overlay=document.getElementById('_enthrone-event');
-  if(overlay) overlay.remove();
-
-  var di=calcDateFromTurn?calcDateFromTurn(GM.turn):null;
-  var startMonth=di?(di.lunarMonth||1):1;
-
-  if(!GM.eraNames) GM.eraNames=[];
-  if(!P.time.eraNames) P.time.eraNames=[];
-  // 关键：启用年号显示（否则即使 GM.eraNames 有值，calcDateFromTurn 会跳过）
-  P.time.enableEraName = true;
-
-  var narrative='';
-  if(mode==='tradition'){
-    // 踰年改元：次年正月生效
-    var startYear=curYear+1;
-    var entry={name:eraName, startYear:startYear, startMonth:1, startDay:1};
-    GM.eraNames.push(entry);
-    P.time.eraNames.push(entry);
-    narrative='群臣山呼，议定年号"'+eraName+'"。依成制，踰年改元——待今岁终了，明年正月即为'+eraName+'元年。\n朝野称颂，以为合乎礼法。';
-  } else {
-    // 即刻改元：当月生效
-    var entry2={name:eraName, startYear:curYear, startMonth:startMonth, startDay:1};
-    GM.eraNames.push(entry2);
-    P.time.eraNames.push(entry2);
-    GM.eraName=eraName; // 立即设置
-    narrative='圣旨下，即日改元"'+eraName+'"！新君乾纲独断，废旧号启新元。\n锐意革新之气令人振奋，然朝中亦有老臣私议，以为操之过急。';
-  }
-
-  // 记入起居注
-  if(GM.qijuHistory){
-    GM.qijuHistory.unshift({
-      turn:GM.turn,
-      date:getTSText?getTSText(GM.turn):'第1回合',
-      content:'【即位改元】'+narrative
-    });
-  }
-
-  // 记入编年
-  if(GM.biannianItems){
-    GM.biannianItems.unshift({
-      turn:GM.turn,
-      date:getTSText?getTSText(GM.turn):'',
-      title:'新君即位·议定年号"'+eraName+'"',
-      content:narrative,
-      importance:'high'
-    });
-  }
-
-  saveP();
-  renderLeftPanel();
-  toast('年号已定：'+eraName+(mode==='tradition'?' （踰年改元，明年正月生效）':' （即刻改元）'));
-}
-
 // ============================================================
 // ============================================================
 // 5.4: 外交谈判——派遣使臣
@@ -1056,7 +1001,7 @@ async function _wtSend() {
     + '   · setting — 世界背景/设定注入：补充剧本的背景信息/状态/历史（例："此时倭寇已平"、"北方去年大旱未记入"）\n'
     + '   · hardChange — 直接修改数值或字段：要求直接改具体数值/字段（例："帑廪+1000万两"、"某NPC忠诚设为100"、"袁崇焕所在地改为京师"、"皇威+10"）\n'
     + '       ★【识别规则】只要指令提到：具体金额(万两/石/匹)、具体数值(+N/-N/设为N)、具体字段(国库/帑廪/内帑/忠诚/所在地/位置/皇威/皇权/民心/阶层满意度/阶层影响力等)——必须归入 hardChange。不要误判为 narrative/directive。\n'
-    + '       ★【常见路径】白银=guoku.money·粮=guoku.grain·布=guoku.cloth·内帑银=neitang.money·皇威=huangwei.index·皇权=huangquan.index·腐败/吏治=corruption.trueIndex·民心=minxin.trueIndex·人物忠诚=chars[人物名].loyalty·人物所在地=chars[人物名].location·军队兵力=armies[军名].soldiers·军队主帅=armies[军名].commander·军队士气=armies[军名].morale·军队忠诚=armies[军名].loyalty·军队欠饷月数=armies[军名].payArrearsMonths·阶层满意度=classes[阶层名].satisfaction·阶层影响力=classes[阶层名].influence·阶层人口=classes[阶层名].population·势力实力=facs[势力名].strength·势力经济=facs[势力名].economy·势力对玩家关系=facs[势力名].playerRelation·党派影响力=parties[党派名].influence·党派凝聚力=parties[党派名].cohesion\n'
+    + '       ★【常见路径】白银=guoku.money·粮=guoku.grain·布=guoku.cloth·军备库甲胄=guoku.armory.甲胄.stock(兵刃/弓弩/火器/战马同式)·原料库铁=guoku.materials.铁.stock(硝石/皮革/木同式)·内帑银=neitang.money·皇威=huangwei.index·皇权=huangquan.index·腐败/吏治=corruption.trueIndex·民心=minxin.trueIndex·人物忠诚=chars[人物名].loyalty·人物所在地=chars[人物名].location·军队兵力=armies[军名].soldiers·军队主帅=armies[军名].commander·军队士气=armies[军名].morale·军队忠诚=armies[军名].loyalty·军队欠饷月数=armies[军名].payArrearsMonths·阶层满意度=classes[阶层名].satisfaction·阶层影响力=classes[阶层名].influence·阶层人口=classes[阶层名].population·势力实力=facs[势力名].strength·势力经济=facs[势力名].economy·势力对玩家关系=facs[势力名].playerRelation·党派影响力=parties[党派名].influence·党派凝聚力=parties[党派名].cohesion\n'
     + '       ★【操作符】"加/增/+"→op:add · "减/扣/-"→op:add(负数) · "设为/改为/="→op:set · "翻倍/x2"→op:mul\n'
     + '       ★【单位换算】1 万两=10000·50 万两=500000·100 万石=1000000·玩家说"100 万"一律写成 1000000 数字不要保留"万"字\n'
     + '   · edictSubstitute — 等同诏令：玩家实际想下诏令的事（例："拨银赈灾"、"罢某某官"、"遣使某国"——这些本该走诏令而非问天）\n'
@@ -1070,7 +1015,7 @@ async function _wtSend() {
     + '\n\n返回 JSON：{"type":"rule|correction|content|directive","category":"narrative|setting|hardChange|edictSubstitute|absolute","structured":{"target":"","action":"","scope":"","forbidden":"","measurable":"","condition":""},"hardChange":{"path":"","op":"set|add|mul","value":null},"edictText":"","edictChannel":"","interpretation":"...","ambiguity":["..."],"plan":"..."}';
 
   try {
-    var resp = await callAI(prompt, 900);
+    var resp = await callAI(prompt, 900, null, (typeof _useSecondaryTier === 'function' && _useSecondaryTier()) ? 'secondary' : undefined);  // 【降本2026-06-19】指令解析(机械抽取)走次 API
     var th = _$('wt-thinking'); if (th) th.remove();
     var parsed = (typeof extractJSON === 'function') ? extractJSON(resp) : null;
     if (!parsed) parsed = { interpretation: resp || content, type: type, structured: {}, ambiguity: [], plan: '将在下回合推演时参考此条指令' };
@@ -1284,6 +1229,18 @@ function _wtNormalizeHardChangePath(path) {
     '粮食': 'guoku.grain',
     '布': 'guoku.cloth',
     '布匹': 'guoku.cloth',
+    '甲胄': 'guoku.armory.甲胄.stock',
+    '兵刃': 'guoku.armory.兵刃.stock',
+    '弓弩': 'guoku.armory.弓弩.stock',
+    '火器': 'guoku.armory.火器.stock',
+    '战马': 'guoku.armory.战马.stock',
+    '戰馬': 'guoku.armory.战马.stock',
+    '铁': 'guoku.materials.铁.stock',
+    '鐵': 'guoku.materials.铁.stock',
+    '硝石': 'guoku.materials.硝石.stock',
+    '皮革': 'guoku.materials.皮革.stock',
+    '木料': 'guoku.materials.木.stock',
+    '木材': 'guoku.materials.木.stock',
     '内帑': 'neitang.money',
     '内帑.value': 'neitang.money',
     '内帑.money': 'neitang.money',

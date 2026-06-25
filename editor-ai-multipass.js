@@ -725,12 +725,13 @@ async function aiGenFiscalConfig() {
     var ctx = _buildScriptContext();
     var prompt = '你是古代财政制度专家。根据剧本朝代与局势，生成合理的财政配置 JSON。\n\n' + ctx + '\n\n要求返回 JSON：\n'
       + '{\n'
-      + '  "guoku": {"balance": 起始帑廪两数, "monthlyIncome": 月入, "monthlyExpense": 月支, "grainStock": 起始粮石, "clothStock": 起始布匹},\n'
+      + '  "guoku": {"balance": 起始帑廪两数, "monthlyIncome": 月入, "monthlyExpense": 月支, "grainStock": 起始粮石, "clothStock": 起始布匹, "armory": {"甲胄":数, "兵刃":数, "弓弩":数, "火器":数, "战马":数}, "materials": {"铁":数, "硝石":数, "皮革":数, "木":数}},\n'
       + '  "neitang": {"balance": 起始内帑两数, "monthlyIncome": 月入, "huangzhuangAcres": 皇庄亩数},\n'
       + '  "centralLocalRules": {"preset": "qin_junxian|han_tuien|tang_liushi|song_zhuanyun|ming_qiyun_cunliu|qing_dingliu"},\n'
       + '  "currencyRules": {"enabledCoins": {"gold":bool,"silver":bool,"copper":bool,"iron":bool,"shell":bool,"paper":bool}, "initialStandard": "copper|silver|copper_paper|silver_copper_paper"}\n'
       + '}\n\n按朝代按史实：秦汉铜金、唐铜银金、宋铜银铁纸、元明清银铜纸。\n'
-      + '帑廪规模按朝代常额：唐初 500 万、盛唐 1500 万、宋 4000 万、明盛 2000 万、清康乾 6000 万两。\n只输出 JSON。';
+      + '帑廪规模按朝代常额：唐初 500 万、盛唐 1500 万、宋 4000 万、明盛 2000 万、清康乾 6000 万两。\n'
+      + 'armory=武库军备储(甲胄/兵刃/弓弩/火器/战马·军器局历年所积·按军力规模与战事烈度定·战事频繁久则偏紧)·materials=原料储(铁/硝石/皮革/木·矿冶硝磺所出·供军工造械)·数量级数十万。\n只输出 JSON。';
     prompt += _getEditorAIHints().suffix;
     var result = await callAIEditor(prompt, 1500);
     var cleaned = result.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
@@ -745,6 +746,39 @@ async function aiGenFiscalConfig() {
     autoSave();
     showToast('财政配置已生成');
   } catch(e) { showToast('失败: ' + e.message); (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'aiGenFiscal') : console.error('[aiGenFiscal]', e); }
+  hideLoading();
+}
+
+// ============================================================
+// 国师 · 生成税制总表（taxList·全税制·单一真相源·支持架空朝代）
+// ============================================================
+async function aiGenTaxList() {
+  var dynasty = scriptData.dynasty || '';
+  if (!dynasty && !scriptData.overview) { showToast('请先填写朝代或剧本总述'); return; }
+  showLoading('国师生成税制总表...', 30);
+  try {
+    var ctx = _buildScriptContext();
+    var prompt = '你是古代财政税制专家。根据剧本朝代/经济/局势，设计该政权的【完整税制总表】(taxList)。'
+      + '若为架空朝代，按其设定与经济基础合理设计税种，不必拘泥真实朝代。\n\n' + ctx + '\n\n'
+      + '返回 JSON 数组(每项一个税种)：\n'
+      + '[{"id":"英文id","name":"中文名","base":"税基","baseFactor":1,"rate":0.05,"storeAs":"money","sourceTag":"类别","annual":true}]\n'
+      + 'base 取值：arableLand(田亩/田赋)、commerceVolume(商业/商税榷货)、consumption(盐酒茶等消费/口)、mouths(丁口)、prosperity(繁荣度)。\n'
+      + 'storeAs：money(钱)/grain(粮)/cloth(帛)。rate 为 0~1 税率。\n'
+      + '要求：税种齐全(田赋/商/盐/酒/茶/榷货/杂税·按该政权经济特点)、税率史实合理、商业发达政权商榷比重大于田赋。只输出 JSON 数组。';
+    prompt += _getEditorAIHints().suffix;
+    var result = await callAIEditor(prompt, 1800);
+    var cleaned = result.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+    var match = cleaned.match(/\[[\s\S]*\]/);
+    if (!match) throw new Error('无法解析');
+    var parsed = JSON.parse(match[0]);
+    if (!Array.isArray(parsed) || !parsed.length) throw new Error('未得到税制数组');
+    if (!scriptData.fiscalConfig) scriptData.fiscalConfig = {};
+    scriptData.fiscalConfig.taxList = parsed;
+    var _tlEl = (typeof document !== 'undefined') && document.getElementById('fiscalEd-taxList');
+    if (_tlEl) _tlEl.value = JSON.stringify(parsed, null, 2);
+    autoSave();
+    showToast('国师生成税制 ' + parsed.length + ' 种');
+  } catch(e) { showToast('失败: ' + e.message); (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'aiGenTaxList') : console.error('[aiGenTaxList]', e); }
   hideLoading();
 }
 
@@ -935,6 +969,7 @@ async function aiPolishCustomTaxes() {
 // 暴露到 window
 if (typeof window !== 'undefined') {
   window.aiGenFiscalConfig = aiGenFiscalConfig;
+  window.aiGenTaxList = aiGenTaxList;
   window.aiGenPopulationConfig = aiGenPopulationConfig;
   window.aiGenEnvironmentConfig = aiGenEnvironmentConfig;
   window.aiGenAuthorityConfig = aiGenAuthorityConfig;

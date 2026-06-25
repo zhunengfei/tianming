@@ -92,6 +92,11 @@
       desc: '势力属性变化（strength/economy/playerRelation delta）',
       requiredSubFields: ['name']
     },
+    allegiance_changes: {
+      type: 'array',
+      desc: '改换门庭——人物叛降/归附/反正/被俘/拥立而改投他势力。**仅当本回合叙事 justify 时用**（兵败出降、principled 归正、城破被俘、获救反正、胁从等），不可无缘无故。元素 {character:人名, newFaction:目标势力名或id, reason:缘由, type:defect(主动叛投)/surrender(兵败降)/return(反正归正)/capture(被俘)/rescue(获救)/coerced(胁从)}',
+      consumedBy: ['applier:applyAllegianceChange']
+    },
     faction_updates:          { type: 'array', desc: '势力增量更新', consumedBy: ['applier:1263'] },
     faction_events:           { type: 'array', desc: '势力间自主事件（战争/联盟/政变/行军/围城）', consumedBy: ['endturn-ai-infer:sc1c', 'tm-endturn-apply.js:1302'] },
     faction_relation_changes: { type: 'array', desc: '势力间关系变化（旧模型·扁平 GM.factionRelations 写）' },
@@ -124,7 +129,9 @@
     regent_decisions: { type: 'array', desc: '摄政决断（命中摄政信号时必须回应；hardCeiling 命中不可只写叙事）', requiredSubFields: ['action', 'reason'] },
     reissue_topics: { type: 'array', desc: '建议将留中册议题起复再议', requiredSubFields: ['topic', 'reason'] },
     class_updates: { type: 'array', desc: '阶层增量', consumedBy: ['applier:1283'] },
-    class_emerge:  { type: 'array', desc: '新阶层兴起' },
+    class_emerge:  { type: 'array', desc: '新阶层兴起（可选 descriptor:{stratum:上/中/下, economicBase, fiscalStatus:优免/编户/受饷/法外, unrestArchetype:暴烈/撤离/不合作/哗变}·主标可填表外原词·缺则按 economicRole/特权确定性补全）' },
+    roving_actions: { type: 'array', desc: '流寇处置（见【流寇警报】·{id或name, action:suppress剿/pacify抚, force?:剿时投入兵力}·剿耗军饷战损斩首·抚招为编户/军户然开赦贼恶例）' },
+    keju_quota_change: { type: 'object', desc: '调科举名额 quotaPerExam（{value 或 delta, reason}·收紧→士林范进怨望↑/放宽→泄压然稀释士绅清流+优免财政代价）' },
     class_revolt:  { type: 'array', desc: '阶层起义' },
     class_dissolve:{ type: 'array', desc: '阶层消亡' },
 
@@ -162,6 +169,7 @@
     },
     office_assignments: { type: 'array', desc: '官职任命（旧格式兼容）', consumedBy: ['applier:1004'] },
     office_spawn:       { type: 'array', desc: '官制占位实体化（把 generated:false 的 holder 生成为真人）' },
+    reform_verdicts:    { type: 'array', desc: '官制活化Slice④·对【拟制中】改制的廷议裁定（[{dept,position?,verdict:"准|部分|拖|驳",reason}]）·可据权臣抵抗加重(更严)·但机械band是地板不可放水', consumedBy: ['endturn:reform-adjudicate'] },
     personnel_changes:  { type: 'array', desc: '人事变动（旧格式兼容）', consumedBy: ['applier:1079'] },
 
     admin_changes: {
@@ -238,7 +246,7 @@
     hidden_moves:       { type: 'array', desc: '暗流行动', consumedBy: ['endturn-ai-infer:sc1c'] },
     fengwen_snippets:   { type: 'array', desc: '风闻录事条目', consumedBy: ['endturn-ai-infer:sc1c'] },
     call_court_works:   { type: 'array', desc: '朝会/廷议衍生事项（兼容字段）', consumedBy: ['endturn-ai-infer'] },
-    events:             { type: 'array', desc: '本回合事件列表', consumedBy: ['ai-change-applier'] },
+    events:             { type: 'array', desc: '本回合事件列表·元素可标 critical:true+choices:[{text,aiHint}] → 收编进御案时政 currentIssues 成待决要务(玩家在御案时政抉择·AI 据局面裁·节制)', consumedBy: ['ai-change-applier'] },
     changes:            { type: 'array', desc: '通用变化列表（旧格式）', consumedBy: ['ai-change-applier'] },
     appointments:       { type: 'array', desc: '任命列表（旧格式，官方用 office_changes）', consumedBy: ['ai-change-applier'] },
     institutions:       { type: 'array', desc: '制度（旧格式）', consumedBy: ['ai-change-applier'] },
@@ -248,8 +256,8 @@
     geoData:            { type: 'object', desc: '地理推算数据（行军/围城需要）' },
     memorials:          { type: 'array', desc: '奏疏文本' },
     letters:            { type: 'array', desc: 'NPC 主动传书' },
-    bigyear:            { type: 'object', desc: '大事年（年度事件）' },
-    bigYearEvent:       { type: 'object', desc: '大事年单事件（兼容命名）' },
+    bigyear:            { type: 'object', desc: '大事年（年度事件）·@死字段 零消费(2026-06审计)·待事件系统统一时收编或删，勿新接（见 docs/event-system-unification-design.md）' },
+    bigYearEvent:       { type: 'object', desc: '大事年单事件（兼容命名）·@死字段 零消费·同上' },
 
     // ──────────────────────────────────────────────
     // 已废弃字段（validator 打 warn 提示迁移）
@@ -766,7 +774,7 @@
     },
     {
       name: 'record_conspiracy_events',
-      description: '记录谋反/政变/弑君事件（谋反/兵变/篡位/逼宫/弑君）。仅当 narrative 提到但 personnel_changes/character_deaths 漏录时调用。',
+      description: '记录谋反/政变/弑君事件（谋反/兵变/篡位/逼宫/弑君）。仅当 narrative 提到但 personnel_changes/character_deaths 漏录时调用；或【密谋·暗流】中标「将发」的阴谋你已在叙事中决其成败时，用本工具坐实（成功/事败/未遂）。',
       parameters: {
         type: 'object',
         properties: {

@@ -710,6 +710,29 @@
     return value || '未录';
   }
 
+  // 御驾亲征接入 Phase0:右栏「编制（队）」按队展开。units[] 是派生视图·此处调 ensureArmyUnits 取最新
+  //   →玩家扩军裁军 / AI 高自由度推演改军后·渲染即得正确队列(源签名自愈·无须埋同步钩)。
+  function rightArmyTacCN(u){
+    var k = (u.arm || '') + '/' + (u.sub || '');
+    var M = { 'step/spear':'长枪', 'step/sword':'刀盾', 'step/halberd':'镋钯', 'bow/bow':'弓手', 'bow/crossbow':'弩手', 'bow/musket':'火铳', 'art/cannon':'火炮', 'cav/horse':'骑', 'cav/heavy':'重骑', 'cav/shock':'突骑', 'guard/guard':'亲军' };
+    return M[k] || '杂兵';
+  }
+  function rightArmyUnitsHtml(a){
+    var us = (typeof window !== 'undefined' && window.TMArmyUnits && a) ? window.TMArmyUnits.ensureArmyUnits(a) : (a && a.units) || [];
+    if (!us || !us.length) return '未录';
+    var groups = [], cur = null;
+    for (var i = 0; i < us.length; i++) {
+      var u = us[i], tac = rightArmyTacCN(u);
+      if (!cur || cur.name !== u['番号'] || cur.tac !== tac) { cur = { name: u['番号'], tac: tac, sizes: [], vet: u['历练'] }; groups.push(cur); }
+      cur.sizes.push(u.men);
+    }
+    return groups.map(function(g){
+      var full = g.sizes.filter(function(s){ return s >= 1000; }).length, part = g.sizes.length - full;
+      var tail = part ? ('·' + (g.sizes.length) + '队(' + g.sizes.join('/') + ')') : ('·' + g.sizes.length + '队×' + (g.sizes[0] || 0));
+      return '<b>' + esc(String(g.name)) + '</b>〔' + g.tac + '〕<span style="opacity:.72">' + tail + '·历练' + Math.round(g.vet || 0) + '</span>';
+    }).join('<br>');
+  }
+
   function rightArmyEquipmentText(a){
     var direct = rightArmyFirst(a, ['equipmentCondition','equipmentStatus','equipmentLevel'], '');
     if (direct) return direct;
@@ -795,6 +818,7 @@
       rightArmyBar('士气', morale) + rightArmyBar('训练', training) + rightArmyBar('忠诚', loyalty) + rightArmyBar('控制', control) +
       '<table class="tmrp-data-table"><thead><tr><th>项目</th><th>明细</th></tr></thead><tbody>' +
       '<tr><td>兵种构成</td><td>' + esc(rightArmyCompositionText(a.composition || a.unitsComposition || a.units)) + '</td></tr>' +
+      '<tr><td>编制（队）</td><td>' + rightArmyUnitsHtml(a) + '</td></tr>' +
       '<tr><td>岁饷</td><td>' + esc(rightArmyMoneyText(a)) + '</td></tr>' +
       '<tr><td>军需</td><td>' + esc(rightArmyFirst(a, ['logistics','supplyState','supplyDepotId'], '未录')) + '</td></tr>' +
       '</tbody></table>' +
@@ -806,6 +830,42 @@
       '<button type="button" class="tmrp-btn" data-right-action="army-command" data-command="chaoyi" data-id="' + attr(armyKey) + '">入朝议</button>' +
       '</div>' +
       '</section>';
+  }
+
+  // C4 流寇 UI：军情面板显在场流寇威胁（众/流窜省/势头）·仅有活贼才显（同军情预警 hot 卡范式）
+  function rightRovingCard(){
+    var G = rightSocGM();
+    var list = (Array.isArray(G.rovingRebels) ? G.rovingRebels : []).filter(function(r){ return r && !r.disbanded && (Number(r.strength) || 0) > 0; });
+    if (!list.length) return '';
+    var rows = list.slice(0, 6).map(function(r){
+      var str = Number(r.strength) || 0;
+      var regs = (r.regions && r.regions.length) ? r.regions.slice(0, 4).join('、') : '';
+      var tier = str >= 100000 ? ' · 燎原' : (str >= 30000 ? ' · 势盛' : ' · 啸聚');
+      return '<div class="tmrp-step"><b>' + esc(r.name || '流寇') + '</b>众 ' + esc(rightArmyFmtNum(str)) + (regs ? ' · 流窜 ' + esc(regs) : '') + tier + '</div>';
+    }).join('');
+    return '<section class="tmrp-card hot"><div class="tmrp-card-title"><span>流寇警报</span><small>民变啸聚成军·剿耗军饷战损/抚开赦贼恶例</small></div>' + rows + '</section>';
+  }
+
+  // 武库卡:国家军备库存(5类)+ 原料库(4类)+ 本回合产/耗(接军工供应链 S6)
+  function rightArmoryCard(){
+    var AR = (typeof window !== 'undefined' && window.TMArmory);
+    if (!AR || typeof GM === 'undefined' || !GM || !GM.guoku) return '';
+    try {
+      if (typeof AR.ensure === 'function') { AR.ensure(GM); AR.ensureMaterials(GM); }
+      var arm = AR.allStock(GM), mat = AR.matAllStock(GM);
+      var armoryL = GM.guoku.armory || {}, matL = GM.guoku.materials || {};
+      function cell(k, val, led){
+        var f = '';
+        if (led) { var i = Math.round(led.lastTurnIn || 0), o = Math.round(led.lastTurnOut || 0); if (i || o) f = '<span style="color:var(--txt-d);font-size:0.68rem;margin-left:4px;">' + (i ? '+' + rightArmyFmtNum(i) : '') + (o ? (' −' + rightArmyFmtNum(o)) : '') + '</span>'; }
+        return '<div style="display:flex;align-items:baseline;justify-content:space-between;padding:2px 7px;background:rgba(0,0,0,.13);border-radius:4px;"><span style="color:var(--txt-s);font-size:0.78rem;">' + esc(k) + '</span><span><b>' + esc(rightArmyFmtNum(val)) + '</b>' + f + '</span></div>';
+      }
+      var aH = AR.CAT_KEYS.map(function(k){ return cell(k, arm[k], armoryL[k]); }).join('');
+      var mH = AR.MAT_KEYS.map(function(k){ return cell(k, mat[k], matL[k]); }).join('');
+      return '<section class="tmrp-card"><div class="tmrp-card-title"><span>武库</span><small>军备 · 造械之料（本回合 +产/−耗）</small></div>' +
+        '<div class="tmrp-meta">军备库存（募兵支取）</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:3px 0 7px;">' + aH + '</div>' +
+        '<div class="tmrp-meta">造械之料（军工建筑耗）</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:3px;">' + mH + '</div>' +
+        '</section>';
+    } catch (e) { return ''; }
   }
 
   function renderArmy(){
@@ -843,6 +903,8 @@
     return '<div class="tmrp-army-shell">' +
       '<div class="tmrp-summary"><div class="tmrp-stat"><b>' + esc(armies.length) + '</b><span>军队</span></div><div class="tmrp-stat"><b>' + esc(rightArmyFmtNum(total)) + '</b><span>总兵力</span></div><div class="tmrp-stat"><b>' + esc(avgMorale + '/' + avgTraining) + '</b><span>士气/训练</span></div></div>' +
       armyOverviewCard +
+      rightArmoryCard() +
+      rightRovingCard() +
       '<section class="tmrp-card"><div class="tmrp-card-title"><span>部队名册</span><small>点部队·左侧展开军情</small></div>' +
       (rows.length ? '<div class="tmrp-scroll compact tmrp-army-list" data-army-list-token="' + attr(listToken) + '">' + rightArmyGroupsHtml(syncGroups, selectedKey) + (deferredList ? '<div class="tmrp-meta">余下部队正在载入...</div>' : '') + '</div>' : '<div class="tmrp-empty">麾下暂无军队。</div>') +
       '</section>' +
@@ -2828,6 +2890,12 @@
     if (sat - base >= 8) return '<i class="tmrp-trend down">承压</i>';
     return '';
   }
+  function rightClassRadicalTag(c){
+    var rf = Number(c && c._radicalFrac);
+    if (!isFinite(rf) || rf < 0.2) return '';
+    var band = rf >= 0.6 ? '鼎沸' : (rf >= 0.4 ? '汹汹' : '不稳');
+    return '<i class="tmrp-trend down" title="乱民比例·激进民情（汹涌则近民变）">乱民' + Math.round(rf * 10) + '成·' + band + '</i>';
+  }
   function rightSatLedgerRows(c){
     var rows = ((c && c._satLedger) || []).slice(-4).reverse().map(function(e){
       if (!e) return '';
@@ -2888,7 +2956,7 @@
     var sat = rightSocNum(c, ['satisfaction','support','mood','loyalty'], 50);
     var inf = rightSocNum(c, ['influence','power','weight'], 0);
     return '<section class="tmrp-card tmrp-social-head ' + (sat < 45 ? 'hot' : (sat > 62 ? 'ok' : '')) + '" data-right-action="outline-select" data-type="class" data-key="' + attr(rightSocialName(c)) + '">' +
-      '<div class="tmrp-card-title"><span>' + esc(c.name || c.label || c.id || '未名阶层') + '</span><small>满意 ' + esc(Math.round(sat)) + rightTrendTag(rightSatTrend(c)) + rightClassPressureTag(c) + ' · 影响 ' + esc(Math.round(inf)) + ' ›</small></div>' +
+      '<div class="tmrp-card-title"><span>' + esc(c.name || c.label || c.id || '未名阶层') + '</span><small>满意 ' + esc(Math.round(sat)) + rightTrendTag(rightSatTrend(c)) + rightClassPressureTag(c) + rightClassRadicalTag(c) + ' · 影响 ' + esc(Math.round(inf)) + ' ›</small></div>' +
       rightArmyBar('满意', sat) + rightArmyBar('影响', inf) +
       rightArmyRows([['诉求', rightSocialBriefText(c.demands || c.currentDemand)]]) +
       '<div class="tmrp-detail-hint">点击展开议程、近账、民心与行动链</div>' +
@@ -2900,10 +2968,12 @@
     var sat = rightSocNum(c, ['satisfaction','support','mood','loyalty'], 50);
     var inf = rightSocNum(c, ['influence','power','weight'], 0);
     var baseRow = isFinite(Number(c._structBaseline)) ? [['势位(应然)', String(Math.round(c._structBaseline)) + (Array.isArray(c._structParts) && c._structParts.length ? ' · ' + c._structParts.slice(0, 2).join(' · ') : '')]] : [];
+    var leg = rightSocGM()._legitimacy;
+    var legRow = (leg && leg.flag) ? [['天命权重', '权贵满意(clout)' + leg.clout + ' / 民心(人口)' + leg.pop + ' · ' + leg.flag]] : [];
     var agendaHtml = rightAgendaChips(c);
-    return '<section class="tmrp-card ' + (sat < 45 ? 'hot' : (sat > 62 ? 'ok' : '')) + '"><div class="tmrp-card-title"><span>' + esc(c.name || c.label || c.id || '未名阶层') + '</span><small>满意 ' + esc(Math.round(sat)) + rightTrendTag(rightSatTrend(c)) + rightClassPressureTag(c) + ' · 影响 ' + esc(Math.round(inf)) + '</small></div>' +
+    return '<section class="tmrp-card ' + (sat < 45 ? 'hot' : (sat > 62 ? 'ok' : '')) + '"><div class="tmrp-card-title"><span>' + esc(c.name || c.label || c.id || '未名阶层') + '</span><small>满意 ' + esc(Math.round(sat)) + rightTrendTag(rightSatTrend(c)) + rightClassPressureTag(c) + rightClassRadicalTag(c) + ' · 影响 ' + esc(Math.round(inf)) + '</small></div>' +
       rightArmyBar('满意', sat) + rightArmyBar('影响', inf) +
-      rightArmyRows([['规模', rightSocialLocalizeText(c.size || c.population || c.scale)], ['经济角色', rightSocialLocalizeText(c.economicRole || c.role)], ['法律地位', rightSocialLocalizeText(c.status)], ['流动性', rightSocialLocalizeText(c.mobility)], ['特权', rightSocialLocalizeText(c.privileges)], ['义务', rightSocialLocalizeText(c.obligations)]].concat(baseRow)) +
+      rightArmyRows([['规模', rightSocialLocalizeText(c.size || c.population || c.scale)], ['经济角色', rightSocialLocalizeText(c.economicRole || c.role)], ['法律地位', rightSocialLocalizeText(c.status)], ['流动性', rightSocialLocalizeText(c.mobility)], ['特权', rightSocialLocalizeText(c.privileges)], ['义务', rightSocialLocalizeText(c.obligations)]].concat(baseRow).concat(legRow)) +
       (agendaHtml || rightArmyRows([['诉求', rightSocialBriefText(c.demands || c.currentDemand)]])) +
       rightClassRegionRows(c) +
       rightSatLedgerRows(c) +

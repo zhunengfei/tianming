@@ -12,6 +12,7 @@
   var RUNTIME_RETURN_DB_PREFIX = 'runtimeReturn:';
   var MAP_HANDOFF_KEY = 'tm.scenarioEditorReset.mapHandoff.v1';
   var MAP_RETURN_KEY = 'tm.scenarioEditorReset.mapReturn.v1';
+  var MAP_RETURN_DB_ID = '__mapReturn__';  // 治 quota：地图编辑器写回的大地图落 IndexedDB 的保留 key（与 map-editor-juben-handoff.js 约定一致）
   var API_SETTINGS_KEY = 'tm_api';
   var IMAGE_API_SETTINGS_KEY = 'tm_api_image';
   var PROJECT_DB_NAME = 'tm-scenario-editor-reset-projects';
@@ -1673,6 +1674,32 @@
         } catch (_) { resolve(false); }
       });
     }).catch(function() { return false; });
+  }
+
+  // 治 quota：读地图编辑器写回的大地图（map-editor-juben-handoff.js 落 IDB，shape {id, body}）。成功删该条。
+  function getMapReturnBody() {
+    return openProjectDb().then(function(db) {
+      if (!db) return null;
+      return new Promise(function(resolve) {
+        try {
+          var tx = db.transaction(PROJECT_DB_STORE, 'readonly');
+          var request = tx.objectStore(PROJECT_DB_STORE).get(MAP_RETURN_DB_ID);
+          request.onsuccess = function() { db.close(); resolve(request.result ? request.result.body : null); };
+          request.onerror = function() { db.close(); resolve(null); };
+        } catch (_) { resolve(null); }
+      });
+    }).catch(function() { return null; });
+  }
+  function deleteMapReturnBody() {
+    openProjectDb().then(function(db) {
+      if (!db) return;
+      try {
+        var tx = db.transaction(PROJECT_DB_STORE, 'readwrite');
+        tx.objectStore(PROJECT_DB_STORE).delete(MAP_RETURN_DB_ID);
+        tx.oncomplete = function() { db.close(); };
+        tx.onerror = function() { db.close(); };
+      } catch (_) {}
+    }).catch(function() {});
   }
 
   function pushHistoryLog(type, detail) {
@@ -10440,12 +10467,12 @@
     if (!Array.isArray(sc.factions) || sc.factions.length < 1) issues.push({ level: 'error', text: 'factions 不是有效势力数组' });
     var charNames = collectNames(sc.characters, ['name', 'id', 'sid']);
     var factionNames = collectNames(sc.factions, ['name', 'id', 'sid', 'key', 'ownerKey']);
-    (sc.characters || []).forEach(function(ch) {
+    (Array.isArray(sc.characters) ? sc.characters : []).forEach(function(ch) {
       if (ch && ch.faction && !factionNames.has(ch.faction)) issues.push({ level: 'warn', text: '人物势力未匹配：' + (ch.name || ch.id) + ' -> ' + ch.faction });
     });
     ['characters', 'factions', 'events'].forEach(function(field) {
       var seen = new Set();
-      (sc[field] || []).forEach(function(row) {
+      (Array.isArray(sc[field]) ? sc[field] : []).forEach(function(row) {
         var key = row && (row.id || row.sid || row.name || row.title);
         if (!key) return;
         if (seen.has(key)) issues.push({ level: 'warn', text: field + ' 存在重复标识：' + key });
@@ -10453,7 +10480,7 @@
       });
     });
     function validateRefs(rows, rowKind, refKey, known, targetKind) {
-      (rows || []).forEach(function(row) {
+      (Array.isArray(rows) ? rows : []).forEach(function(row) {
         splitList(row && row[refKey]).forEach(function(ref) {
           if (!known.has(ref)) issues.push({ level: 'warn', text: rowKind + '引用未知' + targetKind + '：' + (row.name || row.id || '未命名') + ' -> ' + ref });
         });
@@ -11100,14 +11127,12 @@
     });
   }
 
-  function ingestMapReturn() {
-    var raw;
-    try { raw = localStorage.getItem(MAP_RETURN_KEY); } catch (err) { return null; }
-    if (!raw) return null;
-    var payload;
-    try { payload = JSON.parse(raw); } catch (err) { try { localStorage.removeItem(MAP_RETURN_KEY); } catch (e) {} return null; }
-    var native = payload && payload.native;
-    if (!native || !native.divisions) { try { localStorage.removeItem(MAP_RETURN_KEY); } catch (e) {} return null; }
+  function clearMapReturn() {
+    try { localStorage.removeItem(MAP_RETURN_KEY); } catch (err) {}
+    try { deleteMapReturnBody(); } catch (err) {}
+  }
+
+  function applyReturnedNative(native) {
     var Bridge = global.MapEditorBridge || {};
     var toGame = Bridge.convertMapEditorToGame || global.convertMapEditorToGame;
     var toAdmin = Bridge.convertMapEditorToAdminHierarchy || global.convertMapEditorToAdminHierarchy;
@@ -11119,7 +11144,7 @@
     } catch (err) { setStatus('读回地图失败：' + (err && err.message || err), 'error'); return null; }
     if (!isObject(state.scenario.map)) state.scenario.map = { regions: [], oceans: [] };
     if (ah) state.scenario.adminHierarchy = ah;
-    var applied = applyMapPatch(function(map) {
+    return applyMapPatch(function(map) {
       map.regions = (Array.isArray(gm.regions) ? gm.regions : []).map(function(r) {
         if (r && r.owner && !r.ownerKey) r.ownerKey = r.owner;
         return r;
@@ -11129,7 +11154,28 @@
       if (gm.name) map.name = gm.name;
       if (gm._v2) map._v2 = gm._v2;
     }, { field: 'map', label: '地图编辑器返回', detail: (gm.regions || []).length + ' 地块', status: '已从地图编辑器载入地图：' + (gm.regions || []).length + ' 地块 · ' + (ah ? Object.keys(ah).length + ' 势力行政' : '无行政层') });
-    try { localStorage.removeItem(MAP_RETURN_KEY); } catch (err) {}
+  }
+
+  function ingestMapReturn() {
+    var raw;
+    try { raw = localStorage.getItem(MAP_RETURN_KEY); } catch (err) { return null; }
+    if (!raw) return null;
+    var payload;
+    try { payload = JSON.parse(raw); } catch (err) { clearMapReturn(); return null; }
+    // 大地图走 IndexedDB（payload 只是小信号 {idb:true}）；旧版内联 payload.native 仍兼容。
+    if (payload && payload.idb) {
+      getMapReturnBody().then(function(body) {
+        var native = body && body.native;
+        if (!native || !native.divisions) { clearMapReturn(); return; }
+        applyReturnedNative(native);
+        clearMapReturn();
+      });
+      return null;
+    }
+    var native = payload && payload.native;
+    if (!native || !native.divisions) { clearMapReturn(); return null; }
+    var applied = applyReturnedNative(native);
+    clearMapReturn();
     return applied;
   }
 
@@ -20580,8 +20626,9 @@
     if (parsed.factions != null && !Array.isArray(parsed.factions)) {
       errors.push('factions 不是数组（' + typeof parsed.factions + '）');
     }
-    if (parsed.events != null && !Array.isArray(parsed.events)) {
-      errors.push('events 不是数组（' + typeof parsed.events + '）');
+    // events 支持两种形态:扁平数组·或按类目分组的对象(官方剧本 buildCategorizedEvents 返回 {historical:[...],upcoming:[...]} 等)·二者皆游戏可载·勿误判为错。
+    if (parsed.events != null && !Array.isArray(parsed.events) && !isObject(parsed.events)) {
+      errors.push('events 既不是数组也不是对象（' + typeof parsed.events + '）');
     }
     // Polymorphic-shape fields: warn (not error) if the shape is unusual.
     if (parsed.variables != null && !Array.isArray(parsed.variables) && !isObject(parsed.variables)) {

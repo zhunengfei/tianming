@@ -324,6 +324,8 @@ function _prepareGMForSave() {
   if (GM._varFormulas && GM._varFormulas.length > 0) GM._savedVarFormulas = _safeClone(GM._varFormulas);
   if (GM._foreshadows) GM._savedForeshadows = _safeClone(GM._foreshadows);
   if (GM._aiMemory) GM._savedAiMemory = _safeClone(GM._aiMemory);
+  if (GM._sagaMemory) GM._savedSagaMemory = _safeClone(GM._sagaMemory);  // agent 多回合综合脉络·跨会话持久
+  if (GM._agentRecentDirectives) GM._savedAgentRecentDirectives = _safeClone(GM._agentRecentDirectives);  // agent 近回合诏书/行止·多回合读·持久(与 LLM 规则库 _playerDirectives 分开·避免冲突)
   // R103·对话完整归档（被截断/压缩的老对话原文）
   if (GM._convArchive && GM._convArchive.length > 0) GM._savedConvArchive = _safeClone(GM._convArchive);
   // 矛盾演化系统
@@ -555,6 +557,7 @@ doSaveGame=async function(){
     var sc2=findScenarioById(GM.sid);
     var name="T"+GM.turn+"_"+(sc2?sc2.name:"save")+"_"+new Date().toISOString().slice(0,10);
     var saveData2=deepClone(P);
+    _tmStripAiKeyInPlace(saveData2);
     saveData2.gameState=deepClone(GM);
     saveData2._saveMeta={name:name,turn:GM.turn,time:getTSText(GM.turn),scenario:sc2?sc2.name:"",date:new Date().toISOString(),version:P.meta.v};
     var blob=new Blob([JSON.stringify(saveData2,null,2)],{type:"application/json"});
@@ -570,6 +573,7 @@ window.desktopDoSave=async function(){
   if (typeof _awaitPostTurnJobsForSave === 'function') await _awaitPostTurnJobsForSave();
   _prepareGMForSave(); // 序列化所有系统数据+确保GM/P字段默认值
   var saveData=deepClone(P);
+  _tmStripAiKeyInPlace(saveData);
   saveData.gameState=_autoSaveSnapshotGM(); // 复用自动存档快照·与 autosave 同口径(SKIP debug/派生大块 + _saved* 引用)·避免裸 deepClone(GM) 把 5.5MB 派生冗余塞进手动档
   saveData._saveMeta={name:name,turn:GM.turn,time:getTSText(GM.turn),scenario:sc?sc.name:"",date:new Date().toISOString(),version:P.meta.v};
   try{
@@ -602,6 +606,8 @@ function _restoreSavedFields() {
   if (GM._savedVarFormulas) { GM._varFormulas = GM._savedVarFormulas; delete GM._savedVarFormulas; }
   if (GM._savedForeshadows) { GM._foreshadows = GM._savedForeshadows; delete GM._savedForeshadows; }
   if (GM._savedAiMemory) { GM._aiMemory = GM._savedAiMemory; delete GM._savedAiMemory; }
+  if (GM._savedSagaMemory) { GM._sagaMemory = GM._savedSagaMemory; delete GM._savedSagaMemory; }  // agent 多回合综合脉络
+  if (GM._savedAgentRecentDirectives) { GM._agentRecentDirectives = GM._savedAgentRecentDirectives; delete GM._savedAgentRecentDirectives; }  // agent 近回合诏书/行止(与 LLM 规则库 _playerDirectives 分开)
   // R103·对话完整归档恢复
   if (GM._savedConvArchive) { GM._convArchive = GM._savedConvArchive; delete GM._savedConvArchive; }
   if (GM._savedTrend) { GM._currentTrend = GM._savedTrend; delete GM._savedTrend; }
@@ -926,6 +932,7 @@ function fullLoadGame(data){
     // 确保所有字段有默认值
     _ensureGMDefaults();
     _ensurePDefaults();
+    try { if (typeof TMArmyUnits !== 'undefined') TMArmyUnits.ensureAllArmies(GM); } catch (e) {}   // 御驾亲征接入 Phase0:army.composition→units[] 编制地基(载入一次性·幂等·永不崩·不改 composition)
     if (typeof buildCoreMetricLabels === 'function') buildCoreMetricLabels();
 
     // 角色完整字段补齐（兼容旧存档/手工导入的 JSON）
@@ -1313,6 +1320,7 @@ if(_tmHasNativeFs()){
       if(GM.running && typeof _awaitPostTurnJobsForSave === 'function') await _awaitPostTurnJobsForSave();
       if(GM.running && typeof _prepareGMForSave === 'function') _prepareGMForSave();
       var saveData=deepClone(P);
+      _tmStripAiKeyInPlace(saveData);
       if(GM.running){
         var _t0=Date.now();
         saveData.gameState=_autoSaveSnapshotGM();
@@ -1330,7 +1338,7 @@ if(_tmHasNativeFs()){
       _autoSaveLiteTick++;
       if(_autoSaveLiteTick>=5){
         _autoSaveLiteTick=0;
-        try{localStorage.removeItem("tm_P");localStorage.setItem("tm_P_lite",JSON.stringify({scenarios:(P.scenarios||[]).map(function(s){return{id:s.id,name:s.name,era:s.era,role:s.role};}),ai:P.ai,_hasFullData:true}));}catch(e2){}
+        try{localStorage.removeItem("tm_P");localStorage.setItem("tm_P_lite",JSON.stringify(_tmStripAiKeyView({scenarios:(P.scenarios||[]).map(function(s){return{id:s.id,name:s.name,era:s.era,role:s.role};}),ai:P.ai,_hasFullData:true})));}catch(e2){}
       }
     }catch(e){ console.warn("[catch] 静默异常:", e.message || e); }
     finally{ _autoSaveInFlight=false; }
@@ -1376,7 +1384,7 @@ window.addEventListener('beforeunload',function(){
     else{
       localStorage.removeItem("tm_P");
       if(!(typeof _tmIsIncompleteOfficialProject==="function"&&_tmIsIncompleteOfficialProject(P))){
-        localStorage.setItem("tm_P",JSON.stringify(P));
+        localStorage.setItem("tm_P",JSON.stringify(_tmStripAiKeyView(P)));
       }
     }
   }catch(e){}

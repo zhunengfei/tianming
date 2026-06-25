@@ -12,12 +12,42 @@
   if (!ME){ console.error('[merge-split] core not loaded'); return; }
 
   var EPS = 0.5;
+  // 合并顶点焊接容差(px)·闭合「肉眼无缝隙但差几像素」的近邻缝→共享边精确反向匹配→不再误落飞地·owner 可调
+  var MERGE_WELD_EPS = 4;
 
   // ─── geometry helpers ────────────────────────────────────
 
   function distSq(a, b){
     var dx = a[0] - b[0], dy = a[1] - b[1];
     return dx*dx + dy*dy;
+  }
+
+  // ─── 顶点焊接·治「肉眼无缝隙却合出飞地」 ──────────────────
+  // 把各 polygon 之间(及内部)距离 < tol 的近邻顶点吸附到同一代表点：
+  //   相邻省的共享边本应顶点重合·但独立描边常差几像素→tryAdjacentMerge 的精确反向匹配失败
+  //   →落 multi-polygon 兜底→小块变飞地。焊接后近邻顶点变成同一点·缝隙闭合·共享边精确匹配·正常合为一体。
+  //   真正相距远的省在 tol 内无近邻顶点→不受影响→仍按"不相邻"兜底·无误合回归。
+  function weldNearbyVertices(polys, tol){
+    var t2 = tol * tol;
+    var reps = []; // 代表点池(首见者为代表)
+    function repFor(v){
+      for (var i = 0; i < reps.length; i++){
+        var dx = reps[i][0] - v[0], dy = reps[i][1] - v[1];
+        if (dx*dx + dy*dy <= t2) return reps[i];
+      }
+      var r = [v[0], v[1]]; reps.push(r); return r;
+    }
+    return polys.map(function(poly){
+      var out = [];
+      for (var i = 0; i < poly.length; i++){
+        var r = repFor(poly[i]);
+        var last = out.length ? out[out.length - 1] : null;
+        if (!last || last[0] !== r[0] || last[1] !== r[1]) out.push([r[0], r[1]]); // 去相邻重复
+      }
+      // 去首尾重复(焊后可能首尾同点)
+      while (out.length > 1 && out[0][0] === out[out.length - 1][0] && out[0][1] === out[out.length - 1][1]) out.pop();
+      return out;
+    });
   }
 
   // ─── convex hull (Andrew monotone chain) ─────────────────
@@ -154,6 +184,11 @@
       return false;
     }
 
+    // ★ 顶点焊接·闭合"肉眼无缝隙但差几像素"的近邻缝→共享边精确匹配·治合并误出飞地。
+    //   相距远的省 tol 内无近邻顶点·不受影响(仍按不相邻兜底)。
+    var weldedPolys = weldNearbyVertices(allPolys, MERGE_WELD_EPS).filter(function(p){ return p && p.length >= 3; });
+    if (weldedPolys.length >= 2) allPolys = weldedPolys;
+
     // 试 shared-edge walk·合所有 polygons
     var mergedPoly = tryAdjacentMerge(allPolys);
     var extraPolygonsResult = [];
@@ -246,11 +281,15 @@
     };
 
     var extraInfo = extraPolygonsResult.length > 0 ? ('\n飞地·' + extraPolygonsResult.length + ' 块') : '';
-    if (!confirm('合并 ' + divs.length + ' 省 → 1 省·\n方法·' + method + '\n名→ "' + mergedFields.name + '"\n人口和→ ' + mergedFields.populationDetail.mouths + extraInfo + '\n确认?')) return false;
+    var _methodWarn = (method !== 'shared-edge') ? ('\n※ 所选省并不相邻·将' + (method === 'convex-hull' ? '以凸包近似圈合' : '保留为多块飞地') + '·并非真正合为一体') : '';
+    if (!confirm('合并 ' + divs.length + ' 省 → 1 省·\n方法·' + method + '\n名→ "' + mergedFields.name + '"\n人口和→ ' + mergedFields.populationDetail.mouths + extraInfo + _methodWarn + '\n确认?')) return false;
 
+    var _hMaxDiv = divs.reduce(function(a, b){ return ((b.area || 0) > (a.area || 0)) ? b : a; }, divs[0]);
+    var _mergedHoles = (_hMaxDiv && Array.isArray(_hMaxDiv.holes) && _hMaxDiv.holes.length) ? _hMaxDiv.holes.map(function(h){ return h.slice(); }) : [];
     var newDiv = ME.createDivision(Object.assign({
       polygon: mergedPoly,
-      extraPolygons: extraPolygonsResult
+      extraPolygons: extraPolygonsResult,
+      holes: _mergedHoles
     }, mergedFields));
     ME.recomputeDerived(newDiv);
 
@@ -264,6 +303,15 @@
       });
       ME.EDITOR.map.divisions.push(newDiv);
       if (topoOn) TP.syncDivisionToTopology(ME.EDITOR.map, newDiv);
+      // 甲:merge 后重算邻接(new + 其邻居)·堵"邻接错→寻路/贸易/AI 跟着错"的隐患
+      var _NB = global.TM && TM.MapEditor.neighbor;
+      if (_NB && _NB.computeFor){
+        newDiv.neighbors = _NB.computeFor(newDiv.id);
+        (newDiv.neighbors || []).slice().forEach(function(_nid){
+          var _nb = ME.EDITOR.map.divisions.find(function(D){ return D.id === _nid; });
+          if (_nb) _nb.neighbors = _NB.computeFor(_nid);
+        });
+      }
     });
     ME.selectOne(newDiv.id);
 
@@ -279,7 +327,7 @@
       sumW += it.w || 0;
       sumVW += (it.v || 0) * (it.w || 0);
     });
-    return sumW === 0 ? 0 : sumVW / sumW;
+    return sumW === 0 ? null : sumVW / sumW;
   }
 
   function weightedRatioMerge(items){
@@ -350,25 +398,8 @@
   // 找 polygon 与切线的所有交·返回 [{ edgeIdx, t, point }]
   // dedup·vertex hit 会被相邻 2 edge 各报一次·按 distance < EPS 去重
   function findCrossings(poly, cutA, cutB){
-    var crossings = [];
-    for (var i = 0; i < poly.length; i++){
-      var p1 = poly[i];
-      var p2 = poly[(i + 1) % poly.length];
-      var hit = segmentIntersect(p1, p2, cutA, cutB);
-      if (hit){
-        // vertex tangent·t1 ≈ 1 (终点) 时·下条边的 t1 ≈ 0 会同点·跳后者
-        var dup = false;
-        for (var k = 0; k < crossings.length; k++){
-          var dx = crossings[k].point[0] - hit.point[0];
-          var dy = crossings[k].point[1] - hit.point[1];
-          if (dx*dx + dy*dy < EPS*EPS){ dup = true; break; }
-        }
-        if (!dup){
-          crossings.push({ edgeIdx: i, t: hit.t1, point: hit.point });
-        }
-      }
-    }
-    return crossings;
+    // unified·see poly-utils.findCrossings (single source)
+    return ME.polyUtils.findCrossings(poly, cutA, cutB, segmentIntersect, EPS);
   }
 
   // 把用户两点延伸成"穿过整个 bbox"的长线·让用户能在 polygon 内部点 2 点画方向·算法自动延到边
@@ -484,6 +515,7 @@
         return false;
       }
     } else if (crossings.length > 2){
+      var _multiCross = true;
       // 凹陷 polygon·取距 click 中点最近的 2 交·user 大概率想切的就是这条
       var mid = [(cutA[0] + cutB[0]) / 2, (cutA[1] + cutB[1]) / 2];
       crossings.sort(function(a, b){
@@ -628,6 +660,10 @@
     var name2 = d.name + '·乙';
     var child1 = makeChild(name1, r1, poly1);
     var child2 = makeChild(name2, r2, poly2);
+    if (Array.isArray(d.holes) && d.holes.length){
+      child1.holes = d.holes.map(function(h){ return h.slice(); }); // 孔洞归主块(甲)·用户可再调
+      if (typeof ME.recomputeDerived === 'function') ME.recomputeDerived(child1);
+    }
 
     // 飞地·area 比例分配到甲乙·按 centroid 距离 (近哪边归哪)
     if (d.extraPolygons && d.extraPolygons.length > 0){
@@ -648,7 +684,8 @@
     }
 
     var extraNote = (d.extraPolygons && d.extraPolygons.length > 0) ? ('\n飞地分配·甲 ' + (child1.extraPolygons || []).length + ' / 乙 ' + (child2.extraPolygons || []).length) : '';
-    if (!confirm('分割 ' + d.name + ' → 2 省·\n甲 (' + Math.round(r1*100) + '% 面积·人口 ' + child1.populationDetail.mouths + ')\n乙 (' + Math.round(r2*100) + '%·' + child2.populationDetail.mouths + ')' + extraNote + '\n确认?')) return false;
+    var _mcNote = (typeof _multiCross !== 'undefined' && _multiCross) ? '\n※ 切线与边界多处相交·已取最可能的一对·请核对切割位置' : '';
+    if (!confirm('分割 ' + d.name + ' → 2 省·\n甲 (' + Math.round(r1*100) + '% 面积·人口 ' + child1.populationDetail.mouths + ')\n乙 (' + Math.round(r2*100) + '%·' + child2.populationDetail.mouths + ')' + extraNote + _mcNote + '\n确认?')) return false;
 
     var TPs = global.TM && TM.MapEditor.topology;
     var topoOnS = TPs && TPs.isEnabled();
@@ -660,6 +697,17 @@
       if (topoOnS){
         TPs.syncDivisionToTopology(ME.EDITOR.map, child1);
         TPs.syncDivisionToTopology(ME.EDITOR.map, child2);
+      }
+      // 甲:split 后重算邻接(两新块 + 其邻居)
+      var _NBs = global.TM && TM.MapEditor.neighbor;
+      if (_NBs && _NBs.computeFor){
+        [child1, child2].forEach(function(_ch){
+          _ch.neighbors = _NBs.computeFor(_ch.id);
+          (_ch.neighbors || []).slice().forEach(function(_nid){
+            var _nb = ME.EDITOR.map.divisions.find(function(D){ return D.id === _nid; });
+            if (_nb && _nb.id !== child1.id && _nb.id !== child2.id) _nb.neighbors = _NBs.computeFor(_nid);
+          });
+        });
       }
     });
     ME.selectOne(child1.id);
@@ -691,17 +739,58 @@
     return mergeDivisions(ids);
   }
 
+  function cropSelectedToBounds(){
+    var sel = ME.getSelected();
+    if (!sel || !sel.length){ meAlert('请先选省·V 工具'); return false; }
+    var pu = ME.polyUtils;
+    if (!pu || !pu.cropDivisionGeometry){ meAlert('polyUtils 未加载'); return false; }
+    var map = ME.EDITOR.map;
+    var W = map.bitmapWidth || 0, H = map.bitmapHeight || 0;
+    if (!W || !H){ meAlert('无底图边界 (bitmapWidth/Height)·先载底图或设尺寸'); return false; }
+    var cropped = 0, emptied = 0;
+    ME.commitMutation('crop ' + sel.length + ' to bounds', function(){
+      sel.forEach(function(d){
+        var r = pu.cropDivisionGeometry(d, 0, 0, W, H);
+        if (r.empty){ emptied++; return; }
+        d.polygon = r.polygon;
+        d.extraPolygons = r.extraPolygons;
+        d.holes = r.holes;
+        cropped++;
+      });
+    });
+    if (global.meToast) meToast('裁剪 ' + cropped + ' 省到边界' + (emptied ? '·' + emptied + ' 省全出界已跳过' : ''), emptied ? 'warn' : 'success');
+    return true;
+  }
+
   // expose
+  function cropSubtractSelected(){
+    var sel = ME.getSelected();
+    if (sel.length !== 2){ meAlert('需正好选 2 省 (V 工具 shift 多选)·先选的减后选的'); return false; }
+    var pu = ME.polyUtils;
+    if (!pu || !pu.divisionBooleanGeometry){ meAlert('polyUtils 未加载'); return false; }
+    var a = sel[0], b = sel[1];
+    if (!a.polygon || a.polygon.length<3 || !b.polygon || b.polygon.length<3){ meAlert('两省都需有效多边形'); return false; }
+    var r = pu.divisionBooleanGeometry(a, b.polygon, 'diff');
+    if (r.empty){ meAlert('「' + (a.name||'A') + '」整体被覆盖·未改 (避免裁空)'); return false; }
+    ME.commitMutation('subtract overlap', function(){
+      a.polygon = r.polygon; a.extraPolygons = r.extraPolygons; a.holes = r.holes;
+    });
+    if (global.meToast) meToast('已从「' + (a.name||'A') + '」减去与「' + (b.name||'B') + '」的重叠', 'success');
+    return true;
+  }
   global.TM = global.TM || {};
   global.TM.MapEditor = global.TM.MapEditor || {};
   global.TM.MapEditor.mergeSplit = {
     mergeDivisions: mergeDivisions,
     mergeSelected: mergeSelected,
+    cropSelectedToBounds: cropSelectedToBounds,
+    cropSubtractSelected: cropSubtractSelected,
     splitDivisionByLine: splitDivisionByLine,
     extendCut: _extendCut,
     polygonBbox: _polygonBbox,
     convexHull: convexHull,
     tryAdjacentMerge: tryAdjacentMerge,
+    weldNearbyVertices: weldNearbyVertices,
     segmentIntersect: segmentIntersect
   };
 

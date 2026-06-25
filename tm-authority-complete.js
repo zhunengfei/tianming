@@ -161,7 +161,9 @@
     var ch = G.chars && G.chars.find(function(c) { return c.name === pm.name; });
     if (!ch || ch.alive === false) { G.huangquan.powerMinister = null; return; }
     // controlLevel 随时间上升（若皇权弱）
-    if (G.huangquan.index < 60) pm.controlLevel = Math.min(1.0, pm.controlLevel + 0.01 * mr);
+    // ③·D2 余级联：缙绅离心（clout 加权合法性崩·权贵弃君）→ 权贵倒向强人·权臣坐大加速（+50%·默认 1 回归安全·纯读 _legitimacy·不碰皇权）
+    var _pmLegBoost = (G._legitimacy && G._legitimacy.flag === '缙绅离心') ? 1.5 : 1;
+    if (G.huangquan.index < 60) pm.controlLevel = Math.min(1.0, pm.controlLevel + 0.01 * mr * _pmLegBoost);
     else if (G.huangquan.index > 80) pm.controlLevel = Math.max(0, pm.controlLevel - 0.02 * mr);
     // 招揽党羽
     var allies = G.chars.filter(function(c) {
@@ -747,17 +749,26 @@
     var hw = G.huangwei;
     if (!hw || !hw.lostAuthorityCrisis || !hw.lostAuthorityCrisis.active) return;
     var la = hw.lostAuthorityCrisis;
+    // D2·缙绅离心加速失威危机：clout 加权合法性远低于人口加权民心（缙绅/权贵离心）时，
+    //   地方督抚本即缙绅、外邦窥伺者亦观士心——合规流失/外邦蠢动/抗疏皆提速。
+    //   纯读 §三D 已建的 GM._legitimacy（clout 加权读模型）·不碰刻意自由写的皇威·与人口加权民变线(_tickRevoltUpgrade)不双计。
+    var _escMult = 1;
+    var _leg = G._legitimacy;
+    if (_leg && _leg.flag === '缙绅离心') {
+      var _gap = Number(_leg.pop) - Number(_leg.clout);   // 缙绅离心 ⇒ 人口加权民心高于 clout 加权（>0）
+      if (isFinite(_gap) && _gap > 0) _escMult = 1 + Math.min(0.6, _gap / 40);   // 离心越深越快·封顶 +60%
+    }
     // 抗疏频次暴增
-    la.objectionFrequency = Math.min(5, (la.objectionFrequency || 1) + 0.1 * mr);
+    la.objectionFrequency = Math.min(5, (la.objectionFrequency || 1) + 0.1 * mr * _escMult);
     // 地方观望：所有 region 合规率下降加速
     la.provincialWatching = true;
     if (G.fiscal && G.fiscal.regions) {
       Object.keys(G.fiscal.regions).forEach(function(rid) {
-        G.fiscal.regions[rid].compliance = Math.max(0.1, G.fiscal.regions[rid].compliance - 0.003 * mr);
+        G.fiscal.regions[rid].compliance = Math.max(0.1, G.fiscal.regions[rid].compliance - 0.003 * mr * _escMult);
       });
     }
     // 外邦蠢动
-    la.foreignEmboldened = Math.min(1, (la.foreignEmboldened || 0) + 0.02 * mr);
+    la.foreignEmboldened = Math.min(1, (la.foreignEmboldened || 0) + 0.02 * mr * _escMult);
     if (la.foreignEmboldened > 0.5 && !la._tributeStopped) {
       la._tributeStopped = true;
       if (global.addEB) global.addEB('皇威', '外邦蠢动，朝贡渐稀');
@@ -1247,13 +1258,39 @@
     return !!(G && G.settings && G.settings.passiveAuthorityLinkage === true);
   }
 
+  // ★变量联动 → 财政:走账本流水(同 tm-authority-engines.js _linkageFiscalFlow·治"裸改 .money 破坏 ledger.stock 镜像+下回合蒸发")。
+  function _linkageFiscalFlow(container, delta, tag) {
+    if (!container || !delta || !isFinite(delta)) return 0;
+    if (!container.ledgers) container.ledgers = {};
+    var led = container.ledgers.money;
+    if (!led || typeof led !== 'object') {
+      led = container.ledgers.money = { stock: Number(container.money) || Number(container.balance) || 0, sources: {}, sinks: {}, thisTurnIn: 0, thisTurnOut: 0, history: [] };
+    }
+    var before = Number(led.stock) || 0;
+    var after = Math.max(0, before + delta);
+    var applied = after - before;
+    led.stock = after;
+    if (applied >= 0) {
+      led.thisTurnIn = (Number(led.thisTurnIn) || 0) + applied;
+      if (!led.sources) led.sources = {};
+      led.sources[tag] = (Number(led.sources[tag]) || 0) + applied;
+    } else {
+      led.thisTurnOut = (Number(led.thisTurnOut) || 0) - applied;
+      if (!led.sinks) led.sinks = {};
+      led.sinks[tag] = (Number(led.sinks[tag]) || 0) - applied;
+    }
+    container.balance = led.stock;
+    container.money = led.stock;
+    return applied;
+  }
+
   function _tickFullLinkage(ctx, mr) {
     var G = global.GM;
 
     // 内帑 → 户口（内帑充盈可赐廪，户增）
     if (G.neitang && G.neitang.money > 3000000 && G.population && G.population.national) {
       var benefit = G.neitang.money * 0.001 * mr / 12;
-      G.neitang.money -= benefit;
+      _linkageFiscalFlow(G.neitang, -benefit, '赐廪养民');
       G.population.national.mouths = Math.min(500000000, G.population.national.mouths + benefit * 0.1);
     }
     // 内帑 → 皇权（丰厚时内帑支持宦官）
@@ -1268,7 +1305,7 @@
     // 户口 → 内帑（皇庄进项）
     if (G.population && G.population.byCategory && G.population.byCategory.huangzhuang && G.neitang) {
       var huangzhuangMouths = G.population.byCategory.huangzhuang.mouths || 0;
-      G.neitang.money = (G.neitang.money || 0) + huangzhuangMouths * 0.3 * mr / 12;
+      _linkageFiscalFlow(G.neitang, huangzhuangMouths * 0.3 * mr / 12, '皇庄进项');
     }
     // 户口 → 腐败（冗员多则腐败增）
     if (G.population && G.population.byCategory && G.population.byCategory.ruhu && G.corruption && typeof G.corruption === 'object') {
@@ -1297,11 +1334,11 @@
 
     // 皇权 → 帑廪（强皇权 → 税收效率高）
     if (G.huangquan && G.huangquan.index > 70 && G.guoku) {
-      G.guoku.money = (G.guoku.money || 0) + Math.max(0, (G.huangquan.index - 70)) * 100 * mr / 12;
+      _linkageFiscalFlow(G.guoku, Math.max(0, (G.huangquan.index - 70)) * 100 * mr / 12, '皇权·征收效率');
     }
     // 皇权 → 内帑（强皇权 → 内帑富实）
     if (G.huangquan && G.huangquan.index > 70 && G.neitang) {
-      G.neitang.money = (G.neitang.money || 0) + Math.max(0, (G.huangquan.index - 70)) * 50 * mr / 12;
+      _linkageFiscalFlow(G.neitang, Math.max(0, (G.huangquan.index - 70)) * 50 * mr / 12, '皇权·内帑充实');
     }
     // 皇权 → 户口（弱皇权 → 户口失控）
     if (G.huangquan && G.huangquan.index < 40 && G.population) {
@@ -1310,11 +1347,11 @@
 
     // 皇威 → 帑廪（威远 → 朝贡增）
     if (G.huangwei && G.huangwei.index > 85 && G.guoku && G.month === 1) {
-      G.guoku.money = (G.guoku.money || 0) + 50000;
+      _linkageFiscalFlow(G.guoku, 50000, '万邦朝贡');
     }
     // 皇威 → 内帑（暴君段 → 内帑挥霍）
     if (G.huangwei && G.huangwei.phase === 'tyrant' && G.neitang) {
-      G.neitang.money = Math.max(0, (G.neitang.money || 0) - 10000 * mr);
+      _linkageFiscalFlow(G.neitang, -(10000 * mr), '暴君挥霍');
     }
     // 皇威 → 户口（威严 → 民附）
     if (G.huangwei && G.huangwei.index > 80 && G.population) {

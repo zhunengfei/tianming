@@ -44,28 +44,30 @@ var OFFICE_SUBTABS = {
 // v10·部门分类器：按名称将部门归入 court + group
 // 正则匹配按先后顺序·首个命中即返回
 var _OFFICE_CLASSIFIER_PATTERNS = [
+  // 中央·寺监聚合（九寺/五监等合并节点·名内含子司名·须先于个别寺/监正则·跨朝代通用·非单朝专名）
+  [/九寺|五监/, { court:'central', group:'sijian' }],
   // 内廷·中朝机要
-  [/\u53F8\u793C\u76D1|\u4E1C\u5382|\u4E2D\u66F8|\u4FBF\u6BBF/, { court:'inner', group:'zhongchao' }],
+  [/\u53F8\u793C\u76D1|\u4E1C\u5382|\u4E2D\u66F8\u79D1|\u4FBF\u6BBF/, { court:'inner', group:'zhongchao' }],
   // 内廷·缇骑耳目
   [/\u9526\u8863|\u897F\u5382|\u7ED3\u9526|\u7EE3\u8863|\u7F07\u9A91/, { court:'inner', group:'tiqi' }],
   // 内廷·宿卫禁军
-  [/\u5FA1\u9A6C|\u56DB\u536B|\u4E94\u519B\u90FD\u7763|\u4F8D\u536B|\u5357\u5317\u519B|\u671F\u95E8|\u7FBD\u6797|\u5317\u8862|\u5343\u725B/, { court:'inner', group:'suwei' }],
+  [/\u5FA1\u9A6C|\u56DB\u536B|\u4E94\u519B\u90FD\u7763|\u4F8D\u536B|\u5357\u5317\u519B|\u671F\u95E8|\u7FBD\u6797|\u5317\u8862|\u5343\u725B|\u7687\u57CE|\u8BF8\u73ED\u76F4|\u73ED\u76F4/, { court:'inner', group:'suwei' }],
   // 内廷·供御宫务
   [/\u5185\u5B98\u76D1|\u5C1A\u8863|\u5C1A\u81B3|\u5C1A\u5BB6|\u5C1A\u529E|\u4E0A\u6797\u82D1|\u5185\u627F\u8FD0|\u795E\u5BAB|\u76F4\u6BBF|\u5185\u5EF7|\u6BBF\u4E2D\u7701|\u5C11\u5E9C|\u5185\u52A1/, { court:'inner', group:'gongyu' }],
   // 地方·边镇节帅
   [/\u603B\u5175|\u4E5D\u8FB9|\u8FB9\u9547|\u536B\u6240|\u5C06\u519B/, { court:'region', group:'bianzhen' }],
   // 地方·封疆督抚
-  [/\u603B\u7763|\u5DE1\u629A|\u7ECF\u7565|\u6309\u629A|\u7BC0\u5EA6|\u5B89\u629A|\u89C2\u5BDF|\u8F6C\u8FD0/, { court:'region', group:'fengjiang' }],
+  [/\u603B\u7763|\u5DE1\u629A|\u7ECF\u7565|\u6309\u629A|\u7BC0\u5EA6|\u5B89\u629A|\u89C2\u5BDF|\u8F6C\u8FD0|\u7559\u5B88|\u5BA3\u629A|\u5236\u7F6E|\u62DB\u629A|\u7ECF\u5236|\u9547\u629A|\u7763\u629A/, { court:'region', group:'fengjiang' }],
   // 地方·藩臬三司
-  [/\u5E03\u653F|\u6309\u5BDF|\u90FD\u6307\u6325|\u53C2\u653F|\u53C2\u8BAE/, { court:'region', group:'fannie' }],
+  [/\u5E03\u653F|\u6309\u5BDF|\u90FD\u6307\u6325|\u53C2\u653F|\u53C2\u8BAE|\u76D1\u53F8|\u6F15\u53F8|\u5BAA\u53F8|\u4ED3\u53F8|\u77E5\u5E9C|\u77E5\u5DDE|\u77E5\u53BF|\u5E9C\u5DDE|\u519B\u76D1|\u8BF8\u8DEF|\u8DEF\u5206|\u53BF|\u4EB2\u6C11|\u8D64\u757F/, { court:'region', group:'fannie' }],
   // 中央·枢机辅政
-  [/\u5185\u9601|\u7FF0\u6797|\u8A79\u4E8B|\u4E2D\u4E66\u7701|\u95E8\u4E0B\u7701|\u5C1A\u4E66\u7701|\u540C\u5E73\u7AE0\u4E8B|\u53C2\u77E5\u653F\u4E8B|\u4E1E\u76F8|\u5927\u5B66\u58EB|\u519B\u673A/, { court:'central', group:'shuji' }],
+  [/\u5185\u9601|\u7FF0\u6797|\u8A79\u4E8B|\u4E2D\u4E66\u7701|\u95E8\u4E0B\u7701|\u5C1A\u4E66\u7701|\u540C\u5E73\u7AE0\u4E8B|\u53C2\u77E5\u653F\u4E8B|\u4E1E\u76F8|\u5927\u5B66\u58EB|\u519B\u673A|\u653F\u4E8B\u5802|\u4E2D\u4E66\u95E8\u4E0B|\u67A2\u5BC6|\u5E73\u7AE0|\u5BB0\u6267|\u90FD\u5802|\u6BBF\u9601/, { court:'central', group:'shuji' }],
   // 中央·台谏风宪（先于六部匹配·避免都察院被判为六部）
-  [/\u90FD\u5BDF\u9662|\u5FA1\u53F2|\u5927\u7406|\u901A\u653F|\u516D\u79D1|\u7ED9\u4E8B\u4E2D|\u8C0F\u9662|\u8C0F\u8BAE|\u53F8\u9685/, { court:'central', group:'taijian' }],
+  [/\u90FD\u5BDF\u9662|\u5FA1\u53F2|\u5927\u7406|\u901A\u653F|\u516D\u79D1|\u7ED9\u4E8B\u4E2D|\u8C0F\u9662|\u8C0F\u8BAE|\u53F8\u9685|\u94F6\u53F0|\u767B\u95FB|\u901A\u8FDB|\u9F13\u9662/, { court:'central', group:'taijian' }],
   // 中央·六曹百司
   [/\u5409\u90E8|\u6237\u90E8|\u793C\u90E8|\u5175\u90E8|\u5211\u90E8|\u5DE5\u90E8|\u540F\u90E8|\u5C1A\u4E66|\u4F8D\u90CE|\u4E5D\u537F(?!\u5BFA)|\u592A\u5E38|\u592A\u4EC6|\u592A\u5C09|\u5EF7\u5C09|\u5927\u9E3F\u81FA|\u5927\u53F8\u519C|\u5927\u884C\u4EBA/, { court:'central', group:'liucao' }],
   // 中央·寺监九卿
-  [/\u5149\u7984|\u592A\u4EC6|\u9E3F\u80EA|\u5C1A\u5B9D|\u56FD\u5B50|\u6B3D\u5929|\u592A\u533B|\u5BFA\u5378|\u76D1\u5378|\u5B9D\u6E90|\u79D8\u4E66|\u5DE6\u98DE|\u79D1\u9053/, { court:'central', group:'sijian' }],
+  [/\u5149\u7984|\u592A\u4EC6|\u9E3F\u80EA|\u5C1A\u5B9D|\u56FD\u5B50|\u94A6\u5929|\u6B3D\u5929|\u592A\u533B|\u5BFA\u5378|\u76D1\u5378|\u5B9D\u6E90|\u79D8\u4E66|\u5DE6\u98DE|\u79D1\u9053|\u53F8\u5929|\u592A\u53F2|\u5C06\u4F5C|\u519B\u5668|\u90FD\u6C34/, { court:'central', group:'sijian' }],
   // 中央·勋戚加衔
   [/\u5B97\u4EBA|\u4E09\u516C|\u4E09\u5B64|\u4E09\u5C11|\u592A\u5E08|\u592A\u5085|\u592A\u4FDD|\u5C11\u5E08|\u5C11\u5085|\u5C11\u4FDD|\u987A\u5929\u5E9C|\u5E94\u5929\u5E9C|\u7235|\u4F2F\u7235|\u4FAF|\u7687\u65CF|\u5B97\u5BA4/, { court:'central', group:'xunqi' }]
 ];
@@ -309,6 +311,36 @@ function _officePosMatchFilter(p, mode) {
   return true;
 }
 
+// 官制活化 Slice②c·履职徽标：读 position._dutyState 显示 称职/履职/失职 NN（无值则不显·缺省优雅降级）
+function _offDutyBadge(pos) {
+  var ds = pos && pos._dutyState;
+  if (!ds || typeof ds.fulfillment !== 'number') return '';
+  var f = Math.round(ds.fulfillment);
+  var c = f < 35 ? '#c0403a' : f > 70 ? '#2f8a4a' : '#8a7a4d';   // 失职赤·称职青·中性褐
+  var label = f < 35 ? '失职' : f > 70 ? '称职' : '履职';
+  var arrow = ds.trend === 'falling' ? '↓' : ds.trend === 'rising' ? '↑' : '';
+  return '<span class="og-duty-badge" title="履职度（官制活化·失职扣实征率·称职奖）" style="display:inline-block;margin-left:5px;padding:0 5px;border-radius:7px;font-size:11px;line-height:16px;color:#fff;background:' + c + ';vertical-align:middle;">' + label + f + arrow + '</span>';
+}
+
+// 官制活化 Slice④c·拟制态横幅：拟制中改制（含机械抵抗提示）·无拟制项则空（默认关时 _pendingReforms 恒空·零回归）
+function _offPendingReformsBanner() {
+  if (typeof GM === 'undefined' || !GM._pendingReforms || !GM._pendingReforms.length) return '';
+  var pend = GM._pendingReforms.filter(function (it) { return it.status === '拟制中'; });
+  if (!pend.length) return '';
+  var hw = (GM.huangwei && typeof GM.huangwei.index === 'number') ? GM.huangwei.index : 50;
+  var hq = (GM.huangquan && typeof GM.huangquan.index === 'number') ? GM.huangquan.index : 50;
+  var auth = (hw + hq) / 2;
+  var items = pend.slice(0, 6).map(function (it) {
+    var rTxt = '';
+    try { if (typeof computeReformResistance === 'function') { var r = computeReformResistance(GM, it, { authority: auth }); rTxt = '抵抗' + r.resistance + '·机械' + r.band; } } catch (e) {}
+    return '<span style="display:inline-block;margin:1px 6px 1px 0;padding:1px 7px;border-radius:6px;background:rgba(180,140,60,0.18);">' + escHtml((it.reformDetail || '') + ' ' + (it.dept || '') + (it.position ? ('·' + it.position) : '')) + (rTxt ? ' <i style="opacity:.8;font-style:normal;">(' + escHtml(rTxt) + ')</i>' : '') + '</span>';
+  }).join('');
+  return '<div class="og-pending-banner" style="margin:0 0 8px;padding:7px 10px;border-radius:8px;background:rgba(180,140,60,0.12);border:1px solid rgba(180,140,60,0.4);font-size:12px;line-height:1.8;color:var(--gold,#c9a84a);">'
+    + '<b>〔拟制中·待廷议裁定〕</b> ' + items
+    + (pend.length > 6 ? ' <span style="opacity:.7;">…另' + (pend.length - 6) + '项</span>' : '')
+    + '</div>';
+}
+
 // 预览样式·位置卡渲染（list 视图专用·与 _ogRenderPosCard 独立）
 function _ogpRenderPosCard(p, deptName, pathArr) {
   if (!p) return '';
@@ -332,6 +364,7 @@ function _ogpRenderPosCard(p, deptName, pathArr) {
   html += '<div class="ogp-pos-head"><div class="ogp-pos-title-group">';
   html += '<div class="ogp-pos-title">' + escHtml(p.name||'?');
   if (p.rank) html += '<span class="ogp-rank-seal' + _sealCls + '">' + escHtml(p.rank) + '</span>';
+  html += _offDutyBadge(p);
   html += '</div>';
   html += '<div class="ogp-pos-dept-sub">' + escHtml(deptName||'') + '</div>';
   html += '</div>' + mainBtn + '</div>';
@@ -568,6 +601,8 @@ function renderOfficeTree(force){
       el.innerHTML = '<div style="color:var(--vermillion-400);padding:1rem;">\u5B98\u5236\u6811\u6E32\u67D3\u5931\u8D25\uFF1A' + escHtml(e.message || String(e)) + '</div>';
     }
   }
+  // \u5B98\u5236\u6D3B\u5316 Slice\u2463c\u00B7\u62DF\u5236\u6001\u6A2A\u5E45 prepend \u5230\u9762\u677F\u9876\uFF08\u65E0\u62DF\u5236\u9879\u5219\u7A7A\u00B7\u96F6\u56DE\u5F52\uFF09
+  try { var _prbHtml = (typeof _offPendingReformsBanner === 'function') ? _offPendingReformsBanner() : ''; if (_prbHtml) el.insertAdjacentHTML('afterbegin', _prbHtml); } catch (_prbE) {}
 }
 
 /** v2 helper：每个节点的可视高度（部门 ~120，职位 ~196·有「待下诏书」条时 +34） */
@@ -740,6 +775,7 @@ function _ogRenderPosCard(fi, idx, NW, cardH) {
     _mainBtn = '<button class="og-pos-action-btn appoint" onclick="event.stopPropagation();_offOpenPicker(' + _safePath + ',\'' + _safeDept + '\',\'' + _safePos + '\',\'\')" title="\u4EFB\u547D">\u4EFB \u547D</button>';
   }
 
+  if (nd._aggregate) _mainBtn = '';   // 冗员聚合·群官·无单一任命
   // 在任者行 class
   var _holderCls = 'vacant';
   if (_holder) {
@@ -778,6 +814,7 @@ function _ogRenderPosCard(fi, idx, NW, cardH) {
   html += '<div class="og-pos-nm-wrap">';
   html += '<div class="og-pos-nm">' + escHtml(nd.name||'?');
   if (nd.rank) html += '<span class="og-rank-seal' + _sealCls + '">' + escHtml(nd.rank) + '</span>';
+  html += _offDutyBadge(nd);
   html += '</div>';
   var subParts = [];
   if (_deptName) subParts.push(escHtml(_deptName));
@@ -789,7 +826,16 @@ function _ogRenderPosCard(fi, idx, NW, cardH) {
 
   // 在任者行
   html += '<div class="og-pos-holder-row ' + _holderCls + '">';
-  if (_holder) {
+  if (nd._aggregate) {
+    // 冗官冗员聚合·群僚（添差/祠禄/选人/胥吏）·显编制实有岁俸·非单一在任者
+    html += '<div class="og-pos-portrait" style="background:var(--gold-d,#8a6d2f);color:#fff;font-weight:600;">群</div>';
+    html += '<div class="og-pos-holder-info">';
+    html += '<div class="og-pos-name-line"><span style="color:var(--gold);font-weight:600;">群僚·冗员</span>';
+    html += '<span class="og-hc-chip' + (_vacant<=0?' full':' part') + '">编' + _hc + '·实' + _ac + '</span>';
+    html += '</div>';
+    html += '<div class="og-pos-sub-line" style="color:var(--txt-d);">在职 ' + _ac + ' 员·缺 ' + Math.max(0,_vacant) + '·岁耗俸禄</div>';
+    html += '</div>';
+  } else if (_holder) {
     var _portrait = _holder.portrait ? '<img src="' + escHtml(_holder.portrait) + '">' : escHtml(String(_holder.name||'?').charAt(0));
     var _imperialCls = _rankLvl <= 4 ? ' og-portrait-imperial' : '';
     var _tenureHtml = (_tenureVal > 0) ? '<span class="og-tenure-ring">' + _tenureVal + '</span>' : '';
@@ -1351,7 +1397,7 @@ function _ogRenderPosCardV10(fi, courtKey) {
   // 头部
   html += '<div class="og-v10-pos-header">';
   html += '<div class="og-v10-pos-title-group">';
-  html += '<div class="og-v10-pos-title">' + escHtml(nd.name||'?') + ' <span class="og-v10-rank-seal ' + _sealCls + '">' + escHtml(nd.rank||'') + '</span></div>';
+  html += '<div class="og-v10-pos-title">' + escHtml(nd.name||'?') + ' <span class="og-v10-rank-seal ' + _sealCls + '">' + escHtml(nd.rank||'') + '</span>' + _offDutyBadge(nd) + '</div>';
   html += '<div class="og-v10-pos-sub">' + escHtml(_deptName) + (nd.duties ? ' \u00B7 ' + escHtml(String(nd.duties).slice(0, 24)) : '') + '</div>';
   html += '</div>';
   var btnLabel = '\u6539 \u6362', btnCls = '';
@@ -2038,7 +2084,7 @@ function _offRecommend(pathArr, deptName, posName) {
   }
   var capital = GM._capital || '京城';
   // 候选人：按职能匹配排序
-  var candidates = (GM.chars||[]).filter(function(c) { return c.alive !== false && !c.isPlayer; });
+  var candidates = (GM.chars||[]).filter(function(c) { return c.alive !== false && !c._captured && !c.isPlayer; });
   // 能力匹配分数
   var _dutyText = (pos.desc||'') + (pos.duties||'') + deptName;
   var _isMilitary = /兵|军|卫|武|都督|将/.test(_dutyText);

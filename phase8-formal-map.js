@@ -151,6 +151,10 @@
           e.preventDefault();
           e.stopPropagation();
           state.mapScale = scale.dataset.mapScale || 'region';
+          // 联动:按钮切层 → 缩放到该层 band(层级与缩放一致·CK3)·_syncScaleLevelFromZoom 见同 band 不会切回
+          state.mapView = state.mapView || { scale: 1, tx: 0, ty: 0 };
+          state.mapView.scale = bandToScale(state.mapScale);
+          applyMapTransform();
           updateMapChrome();
           renderFormalMap();
           refreshMapPpop();
@@ -562,6 +566,7 @@
         node.forEach(function(item){ walk(item, objectKey); });
         return;
       }
+      if (node.id) reg(regionKeyNorm(node.id), 'id', node, objectKey);  // id 精确登记·防同名/别名歧义
       var fields = regionMatchFields(node, objectKey);
       for (var i = 0; i < fields.length; i += 1) {
         reg(regionKeyNorm(fields[i]), 'field', node, objectKey);
@@ -579,7 +584,8 @@
   }
   function findLiveAdminDivision(r){
     var wanted = regionNameKeys(r).map(regionKeyNorm).filter(Boolean);
-    if (!wanted.length) return null;
+    var idKey = (r && r.id) ? regionKeyNorm(r.id) : '';
+    if (!wanted.length && !idKey) return null;
     var gmRoot = (window.GM && GM.adminHierarchy) || null;
     var pRoot = (window.P && P.adminHierarchy) || null;
     if (!gmRoot && !pRoot) return null;
@@ -589,6 +595,11 @@
       _admIdxCache.pRoot = pRoot;
       _admIdxCache.turn = turn;
       _admIdxCache.map = _buildAdminIndex(gmRoot, pRoot);
+    }
+    // id 精确匹配优先(region.id ↔ admin node.id)·命中即返回·防同名/别名走偏
+    if (idKey) {
+      var idHit = _admIdxCache.map.get(idKey);
+      if (idHit && idHit.kind === 'id') return idHit.node;
     }
     var best = null;
     for (var i = 0; i < wanted.length; i += 1) {
@@ -612,11 +623,13 @@
     if (rid && _liveVitalsCache.byRegion[rid]) return _liveVitalsCache.byRegion[rid];
     var root = liveDivision || findLiveAdminDivision(r);
     var mxW = 0, mxWsum = 0, corrW = 0, corrWsum = 0, prosW = 0, prosWsum = 0, unrestMax = NaN, leaves = 0;
-    function leafWeight(d){
-      var p = (d.population && typeof d.population === 'object') ? (Number(d.population.mouths) || 0)
-            : (typeof d.population === 'number' ? d.population : 0);
-      return p > 0 ? p : 1;
+    var popSum = 0, farmlandSum = 0, commerceSum = 0;  // 子地块「求和」聚到父(人口/田亩/商业·量纲可加)·区别于民心等「加权平均」
+    var fcClaimed = 0, fcActual = 0, fcRemit = 0, fcRetain = 0, fiscalLeaves = 0;  // P0-2(2026-06-20): 子叶 fiscalDetail 四账求和(省=Σ府)
+    function leafPop(d){
+      return (d.population && typeof d.population === 'object') ? (Number(d.population.mouths) || 0)
+           : (typeof d.population === 'number' ? d.population : 0);
     }
+    function leafWeight(d){ var p = leafPop(d); return p > 0 ? p : 1; }
     (function walk(d){
       if (!d || typeof d !== 'object') return;
       var kids = d.children || d.divisions;
@@ -627,16 +640,58 @@
       if (typeof d.corruption === 'number' && isFinite(d.corruption)) { corrW += d.corruption * w; corrWsum += w; }
       if (typeof d.prosperity === 'number' && isFinite(d.prosperity)) { prosW += d.prosperity * w; prosWsum += w; }
       var u = Number(d.unrest); if (isFinite(u)) unrestMax = isFinite(unrestMax) ? Math.max(unrestMax, u) : u;
+      popSum += leafPop(d);
+      var eb = d.economyBase || {};
+      farmlandSum += Number(eb.farmland) || 0;
+      commerceSum += Number(eb.commerceVolume) || 0;
+      var lfd = d.fiscalDetail;  // P0-2: 求和叶级 minxin 四账(与叶面板同源)
+      if (lfd && (typeof lfd.actualRevenue === 'number' || typeof lfd.claimedRevenue === 'number')) {
+        fcClaimed += Number(lfd.claimedRevenue) || 0;
+        fcActual += Number(lfd.actualRevenue) || 0;
+        fcRemit += Number(lfd.remittedToCenter) || 0;
+        fcRetain += Number(lfd.retainedBudget) || 0;
+        fiscalLeaves += 1;
+      }
     })(root);
     var out = {
       minxin: mxWsum ? Math.round((mxW / mxWsum) * 10) / 10 : null,
       corruption: corrWsum ? Math.round((corrW / corrWsum) * 10) / 10 : null,
       prosperity: prosWsum ? Math.round((prosW / prosWsum) * 10) / 10 : null,
       unrest: isFinite(unrestMax) ? unrestMax : null,
+      population: popSum,           // 子地块人口总和(府县→省·求和)
+      farmland: farmlandSum,        // 子地块田亩总和
+      commerceVolume: commerceSum,  // 子地块商业总和
+      fiscal: fiscalLeaves ? { claimedRevenue: fcClaimed, actualRevenue: fcActual, remittedToCenter: fcRemit, retainedBudget: fcRetain, leaves: fiscalLeaves } : null,  // P0-2: 子叶四账求和
       leaves: leaves
     };
     if (rid) _liveVitalsCache.byRegion[rid] = out;
     return out;
+  }
+
+  // region 几何级父子索引(按 region.parentId)·阶段2分级渲染用:省 region→其府县 children regions·
+  //   省级显示 merge 府县轮廓 / 点省聚焦下辖府县。按 map 引用失效。
+  var _regionChildIdxCache = { ref: null, byParent: null, byId: null };
+  function regionChildIndex(map){
+    if (_regionChildIdxCache.ref === map && _regionChildIdxCache.byParent) return _regionChildIdxCache;
+    var byParent = {}, byId = {};
+    var regions = (map && map.regions) || [];
+    regions.forEach(function(r){
+      if (!r) return;
+      var rid = r.id || r.name;
+      if (rid) byId[rid] = r;
+      if (r.parentId){ (byParent[r.parentId] = byParent[r.parentId] || []).push(r); }
+    });
+    _regionChildIdxCache = { ref: map, byParent: byParent, byId: byId };
+    return _regionChildIdxCache;
+  }
+  function regionChildren(map, parentRegion){
+    if (!parentRegion) return [];
+    var pid = parentRegion.id || parentRegion.name;
+    return (pid && regionChildIndex(map).byParent[pid]) || [];
+  }
+  function regionParent(map, childRegion){
+    if (!childRegion || !childRegion.parentId) return null;
+    return regionChildIndex(map).byId[childRegion.parentId] || null;
   }
 
   // perf round7: 原版每地块全扫 GM._provinceToFaction 的 Object.keys·逐省 = renderFormalMap 主峰之一(111ms)。
@@ -987,6 +1042,25 @@
     state.mapRenderTimer = setTimeout(renderFormalMap, 0);
   }
 
+  // ── 阶段3·zoom 联动(CK3)：缩放跨阈值自动切 mapScale 层级·按钮切层亦带动缩放·单一真相=mapView.scale ──
+  function scaleToBand(sc){
+    sc = Number(sc) || 1;
+    return sc >= 2.3 ? 'prefecture' : (sc >= 1.3 ? 'region' : 'realm');
+  }
+  function bandToScale(band){
+    return band === 'prefecture' ? 3.0 : (band === 'realm' ? 1.0 : 1.7);
+  }
+  function _syncScaleLevelFromZoom(){
+    if (state._zoomLevelLinkOff) return;  // 逃生阀:置真则关 zoom 联动(纯按钮切层)
+    var sc = (state.mapView && state.mapView.scale) || 1;
+    var band = scaleToBand(sc);
+    if (band !== state.mapScale){
+      state.mapScale = band;
+      updateMapChrome();
+      renderFormalMapSoon();  // 异步重渲(画新层级·避免 applyMapTransform 内同步递归)
+    }
+  }
+
   function zoomMap(factor){
     var v = state.mapView || { scale: 1, tx: 0, ty: 0 };
     v.scale = Math.max(0.72, Math.min(4.2, Number(v.scale || 1) * (factor || 1)));
@@ -1051,6 +1125,28 @@
       return (r.id || r.name || '') + ':' + canonicalOwnerKey(r) + ':' + regionColor(r) + (_sentinelMode ? ':' + modeScore(r, _sentinelMode) : '');
     }).join(',');
   }
+
+  // ── 阶段2·分级显示：按 mapScale(天下/行省/府县)过滤 region 层级 ──
+  //   region.level 走朝代级别链(province/prefecture/county/district)。老剧本无 level→全量(向后兼容)；
+  //   某级无地块(如剧本只画到省·府县视域空)→回落全量不空屏。realm 暂用势力着色全量(势力 merge 轮廓留后续 slice)。
+  function regionTier(r){
+    return String((r && (r.level || (r.data && r.data.level))) || '');
+  }
+  function levelsForScale(scale){
+    if (scale === 'prefecture') return ['prefecture', 'county', 'district'];
+    if (scale === 'region') return ['province'];
+    if (scale === 'realm') return ['country', 'power', 'empire', 'kingdom'];
+    return null;
+  }
+  function visibleRegionsForScale(map, scale){
+    var regions = (map && map.regions) || [];
+    if (!regions.length) return regions;
+    var want = levelsForScale(scale);
+    if (!want) return regions;
+    if (!regions.some(function(r){ return regionTier(r); })) return regions;  // 老剧本无层级数据→全量
+    var filtered = regions.filter(function(r){ return want.indexOf(regionTier(r)) >= 0; });
+    return filtered.length ? filtered : regions;  // 该级无地块→回落全量(不空屏)
+  }
   function renderFormalMap(){
     var shell = document.getElementById('tm-phase8-main-shell');
     var stage = mapStage();
@@ -1110,17 +1206,18 @@
       return;
     }
     state._lastFormalMapSig = _fmSig;
-    var regionWashes = map.regions.map(function(r){
+    var visibleRegions = visibleRegionsForScale(map, state.mapScale);  // 阶段2·按层级(天下/行省/府县)过滤
+    var regionWashes = visibleRegions.map(function(r){
       var d = pathForRegion(r);
       if (!d) return '';
       return '<path class="tmf-region-wash ming-region-wash" data-id="' + attr(r.id || r.name || '') + '" data-region-id="' + attr(r.id || r.name || '') + '" d="' + attr(d) + '" fill="' + attr(regionColor(r)) + '" fill-rule="evenodd"></path>';
     }).join('');
-    var regionHalos = map.regions.map(function(r){
+    var regionHalos = visibleRegions.map(function(r){
       var d = pathForRegion(r);
       if (!d) return '';
       return '<path class="tmf-region-halo ming-region-halo" data-id="' + attr(r.id || r.name || '') + '" data-region-id="' + attr(r.id || r.name || '') + '" d="' + attr(d) + '"></path>';
     }).join('');
-    var regionPaths = map.regions.map(function(r){
+    var regionPaths = visibleRegions.map(function(r){
       var d = pathForRegion(r);
       if (!d) return '';
       var c = actualCenter(r);
@@ -1259,6 +1356,7 @@
     world.setAttribute('transform', 'translate(' + v.tx.toFixed(2) + ' ' + v.ty.toFixed(2) + ') scale(' + v.scale.toFixed(4) + ')');
     var stage = mapStage();
     if (stage) stage.classList.toggle('zoomed', v.scale > 1.35);
+    _syncScaleLevelFromZoom();  // 阶段3·缩放跨阈值自动切层级(CK3)
   }
 
   function regionPathFromPoint(e){
@@ -2162,6 +2260,15 @@
       if (_rebuilt > 0) fiscal.actualRevenue = _rebuilt;
     }
     if (hasValue(fiscal.actualRevenue)) data.taxRevenue = fiscal.actualRevenue;
+    // P0-1(2026-06-20): 财政自主活账在 .fiscal.autonomyLevel(0-1·central-local/fiscal-engine 维护)·
+    // 面板字段名 autonomy 仅从顶层取(:2230)取不到嵌套 autonomyLevel → 补接活账
+    if (!(Number(fiscal.autonomy) > 0)) {
+      var _autoLvl = firstValue(
+        liveStats && liveStats.fiscal && liveStats.fiscal.autonomyLevel,
+        liveDivision && liveDivision.fiscal && liveDivision.fiscal.autonomyLevel
+      );
+      if (hasValue(_autoLvl)) fiscal.autonomy = _autoLvl;
+    }
     var treasury = assignKnown({},
       plainObject(base.publicTreasuryInit),
       plainObject(liveDivision && liveDivision.publicTreasuryInit),
@@ -2172,6 +2279,15 @@
       var value = firstValue(liveStats && liveStats[k], liveDivision && liveDivision[k]);
       if (hasValue(value)) treasury[k] = value;
     });
+    // P0-1(2026-06-20): 库藏布活账在 publicTreasury.cloth.stock(fiscal-engine cunliu 每回合写)·
+    // 顶层 cloth 取不到(money/grain 由 military 写顶层 treasury·cloth 走 publicTreasury) → 补接活账
+    if (!(Number(treasury.cloth) > 0)) {
+      var _clothStock = firstValue(
+        liveDivision && liveDivision.publicTreasury && liveDivision.publicTreasury.cloth && liveDivision.publicTreasury.cloth.stock,
+        liveStats && liveStats.publicTreasury && liveStats.publicTreasury.cloth && liveStats.publicTreasury.cloth.stock
+      );
+      if (hasValue(_clothStock)) treasury.cloth = _clothStock;
+    }
     var economy = assignKnown({},
       plainObject(base.economyBase),
       plainObject(liveDivision && liveDivision.economyBase),
@@ -2281,6 +2397,21 @@
     // liveStats 对省级地块恒空（provinceStats 按府级叶键存）、liveDivision 是开局冻结的省节点，
     // 二者都读不到引擎逐回合更新的叶值；vitals 才是真实活账，置于 firstValue 首位。
     var vitals = liveRegionVitals(r, liveDivision);
+    // P0-2(2026-06-20): 省级财赋四账=子叶 fiscalDetail 求和(vitals.fiscal·与叶级同源保证省=Σ府)。
+    // 省节点自身 fiscalDetail 是开局静数·liveStats 省级恒空——仅父节点(有子区)覆盖,叶子保持自身账(P0-1)。
+    var _isFiscalParent = liveDivision && (
+      (liveDivision.children && liveDivision.children.length) ||
+      (liveDivision.divisions && liveDivision.divisions.length)
+    );
+    if (_isFiscalParent && vitals.fiscal && vitals.fiscal.leaves > 0) {
+      fiscal.claimedRevenue = vitals.fiscal.claimedRevenue;
+      fiscal.actualRevenue = vitals.fiscal.actualRevenue;
+      fiscal.remittedToCenter = vitals.fiscal.remittedToCenter;
+      fiscal.retainedBudget = vitals.fiscal.retainedBudget;
+      data.taxRevenue = vitals.fiscal.actualRevenue;
+    }
+    // P1-B3b·省级耕地=子府和(farmland 父覆盖·vitals 已 Σ叶·像 P0-2 fiscal·父节点用聚合值·叶级保持自身)·economy 是 :2291 clone·:2446 赋 data.economyBase
+    if (_isFiscalParent && vitals.farmland > 0) economy.farmland = vitals.farmland;
     var minxin = firstValue(
       vitals.minxin,
       liveStats && liveStats.minxin, liveStats && liveStats.mood, liveStats && liveStats.stability,
@@ -2627,6 +2758,14 @@
     var vs = ppValue(v);
     return '<div class="bk-lr"' + (cause ? ' data-bk-cause="' + attr(cause) + '"' : '') + '><span class="bk-k">' + esc(k) + '</span><span class="bk-v ' + (tone || '') + (vs.length > 14 ? ' wrap' : '') + '">' + esc(vs) + '</span></div>';
   }
+  // 豪强势力数值条(读 provinceStats.magnatePower·tm-region-magnate 引擎):势力<20 不扰目,渐进定性。
+  function _magnateLabel(ls){
+    if (!ls || typeof ls.magnatePower !== 'number') return '';
+    var mp = ls.magnatePower;
+    if (mp < 20) return '';
+    var label = mp >= 70 ? '势大难制' : mp >= 50 ? '坐大' : mp >= 35 ? '渐起' : '抬头';
+    return Math.round(mp) + ' · ' + label + (ls._magnateCollusion ? ' · 勾结州县' : '');
+  }
   function bkLan(rows, one){
     var html = rows.join('');
     return html ? '<div class="bk-lan' + (one ? ' one' : '') + '">' + html + '</div>' : '';
@@ -2832,15 +2971,20 @@
     var labels = bw ? bw.fxLabels(bld, typeDef) : [];
     var doing = bld.status === 'building';
     var neglected = bld.status === 'neglected';
+    var damaged = bld.status === 'damaged';   // S6·半损态
+    var ledger = (bw && bw.buildingLedger && !doing && !bld._proposal) ? bw.buildingLedger(bld, typeDef) : null;   // S7·实入账(完工/半损卡显真贡献)
     var total = Number(bld.timeActual) || Number(typeDef && typeDef.buildTime) || Math.max(1, Number(bld.remainingTurns) || 1);
     var prog = doing ? Math.round(Math.max(0, Math.min(1, (total - (Number(bld.remainingTurns) || 0)) / total)) * 100) : 100;
-    var stCls = doing ? 'doing' : (neglected ? 'ni' : 'done');
-    var stTxt = doing ? '工 役 中' : (neglected ? '失 修' : '完 好');
+    var stCls = doing ? 'doing' : (neglected ? 'ni' : (damaged ? 'ni' : 'done'));
+    var stTxt = doing ? '工 役 中' : (neglected ? '失 修' : (damaged ? '半 损' : '完 好'));
     return '<div class="bk-ye' + (bld._proposal ? ' nijian' : '') + '">' +
       '<div class="ye-hd"><b>' + esc(bld.name) + '</b><span class="lv">' + (bld._proposal ? '候 诏' : esc((bld.isCustom ? '自拟 · ' : '') + (bld.level || 1) + ' 级')) + '</span><span class="st ' + stCls + '">' + (bld._proposal ? '候 诏' : stTxt) + '</span></div>' +
       (hasDisplayValue(bld.description) ? '<p>' + esc(compactText ? compactText(bld.description, 90) : String(bld.description).slice(0, 90)) + '</p>' : '') +
       (hasDisplayValue(bld.judgedEffects) && !labels.length ? '<p>' + esc(String(bld.judgedEffects).slice(0, 90)) + '</p>' : '') +
       (labels.length ? '<div class="fx">' + labels.map(function(x, i){ return '<em class="' + (i === labels.length - 1 && /维护/.test(x) ? 'cost' : '') + '">' + esc(x) + '</em>'; }).join('') + '</div>' : '') +
+      // S7·营造可观测账：完工/半损卡显「实入账」(真为本地所添·非 per-level 规则) + 工成之利岁入
+      (ledger && ledger.applied && ledger.applied.length ? '<div style="margin-top:4px;font-size:12px;color:#5a4a32;">实入账：' + esc(ledger.applied.join(' · ')) + (ledger.flowPct > 0 ? ' · 岁入 +' + ledger.flowPct + '%/回合' : '') + '</div>' : '') +
+      (damaged ? '<div style="margin-top:3px;font-size:12px;color:#9a3a2a;">半损 · 效用减半 · 库银可支半费则葺治复完</div>' : '') +
       (doing ? '<div class="gq"><div class="gq-bar"><i style="width:' + prog + '%"></i></div><em>余 ' + esc(bld.remainingTurns) + ' 回合</em></div>' : '') +
       '</div>';
   }
@@ -2911,8 +3055,8 @@
       bkRow('承载上限', data.carryingCapacity),
       bkRow('保甲', data.baojia),
       bkRow('繁荣', firstValue(data.prosperity, r && r.prosperity), null, 'prosperity'),
-      bkRow('财富', data.wealth),
-      bkRow('发展', data.development),
+      (hasDisplayValue(data.wealth) && String(data.wealth) !== String(firstValue(data.prosperity, r && r.prosperity)) ? bkRow('财富', data.wealth) : ''),            // P2-2·异于繁荣才显(去重同值·保留异值·不盲删)
+      (hasDisplayValue(data.development) && String(data.development) !== String(firstValue(data.prosperity, r && r.prosperity)) ? bkRow('发展', data.development) : ''),  // P2-2·同上
       bkRow('不稳', data.unrest, 'zhu')
     ]) + bkChips([
       ['性别', data.byGender], ['年龄', data.byAge], ['族群', data.byEthnicity],
@@ -2925,16 +3069,17 @@
       bkRow('留用地方', b.fiscal.retainedBudget),
       bkRow('合规率', pctValueIfPresent(b.fiscal.compliance), null, 'compliance'),
       bkRow('截留率', pctValueIfPresent(b.fiscal.skimmingRate), 'zhu', 'skim'),
-      bkRow('财政自主', b.fiscal.autonomy),
+      bkRow('财政自主', pctValueIfPresent(b.fiscal.autonomy)),
       bkRow('税负', firstValue(b.fiscal.taxBurden, data.taxBurden)),
       bkRow('税级', data.taxLevel),
       bkRow('库藏银', b.treasury.money),
       bkRow('库藏粮', b.treasury.grain),
       bkRow('库藏布', b.treasury.cloth),
       bkRow('本回合银产', b.fiscal.moneyOutput, 'jin'),
-      bkRow('本回合粮产', b.fiscal.grainOutput, 'jin')
+      bkRow('本回合粮产', b.fiscal.grainOutput, 'jin'),
+      bkRow('豪强', _magnateLabel(b.liveStats), 'zhu', 'magnate')
     ]);
-    var fortRow = hasDisplayValue(firstValue(data.fortification, b.army.fortification)) || (b.liveDivision && Number(b.liveDivision.fortLevel) > 0);
+    var fortRow = (b.liveDivision && Number(b.liveDivision.fortLevel) > 0) || hasDisplayValue(b.army.fortification);  // P0-5(2026-06-20): 删 data.fortification(剧本死字段)触发,城防只认活档+armyDetail回落
     // 活军卡（军地绑定·2026-06-12）：GM.armies 驻此地者列于卷首——驻军数即其合计
     var liveArmyHtml = '';
     if (b.army.liveArmies && b.army.liveArmies.length) {
@@ -2952,8 +3097,10 @@
       liveArmyHtml ? bkRow('在驻之师', b.army.liveArmyCount + ' 支（驻军数即其合计）') : '',
       bkRow('可募兵源', firstValue(data.militaryRecruits, b.army.recruits), null, 'recruits'),
       bkRow('军压', firstValue(data.armyPressure, r && r.armyPressure), 'zhu'),
-      fortRow ? bkRow('城防', [firstValue(data.fortification, b.army.fortification), (b.liveDivision && Number(b.liveDivision.fortLevel) > 0) ? b.liveDivision.fortLevel + ' 档' : ''].filter(hasDisplayValue).map(ppValue).join(' · '), 'jin', 'fort') : '',
-      bkRow('主将', firstValue(data.commander, b.army.commander)),
+      bkRow('月军费', data.localMilitaryCost, null, 'army'),                                       // P1-A2b·本地养兵月耗(armyPressureEnabled 关→叶无值·自动不渲染)
+      bkRow('净留用', data.retainedNet, (Number(data.retainedNet) < 0 ? 'zhu' : null), 'army'),    // P1-A2b·养兵后净留用·赤字(军费吃穿地方留用)标红
+      fortRow ? bkRow('城防', [(b.liveDivision && Number(b.liveDivision.fortLevel) > 0) ? b.liveDivision.fortLevel + ' 档' : '', b.army.fortification].filter(hasDisplayValue).map(ppValue).join(' · '), 'jin', 'fort') : '',  // P0-5: fortLevel 活档优先·删 data.fortification 死重复
+      bkRow('主将', firstValue(b.army.liveArmies && b.army.liveArmies[0] && b.army.liveArmies[0].commander, data.commander, b.army.commander)),
       bkRow('边警', firstValue(data.borderRisk, data.warRisk), 'zhu'),
       bkRow('补给', firstValue(data.supply, b.army.supply)),
       bkRow('水师 / 海防', firstValue(data.navy, data.coastalDefense)),

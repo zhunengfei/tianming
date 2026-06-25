@@ -1139,8 +1139,25 @@
                        scale === 'regional' ? 8 : 3;
       if (relieved === 0) minxinGain = Math.round(minxinGain / 2);
       if (GM.minxin) GM.minxin.trueIndex = Math.min(100, GM.minxin.trueIndex + minxinGain);
-      if (typeof addEB === 'function') addEB('朝代', '开仓赈济（' + scale + '）' + (relieved ? '·赈 ' + relieved + ' 处灾情' : ''), { credibility: 'high' });
-      return { success: true, relieved: relieved };
+      // 刀五·赈济→灾民回迁：开仓得食→流亡之民复归编户(减既有逃户池=釜底抽流寇之薪)。与刀B粮荒欠征(扣库粮)不同轴·非双算。
+      //   不碰 hukou.fugitives(每回合由 aggregatePopulation 从叶子重算·改之无效)·只动 byLegalStatus 流亡池→编户(守恒·持久)。
+      var resettled = 0;
+      try {
+        GM.population = GM.population || {};
+        var _bls = GM.population.byLegalStatus = GM.population.byLegalStatus || {};
+        var _tao = _bls.taoohu;
+        if (_tao && (Number(_tao.mouths) || 0) > 0 && (relieved > 0 || scale === 'national')) {
+          var _quota = scale === 'national' ? 200000 : scale === 'regional' ? 60000 : 20000;
+          resettled = Math.min(Number(_tao.mouths) || 0, _quota);
+          if (resettled > 0) {
+            _tao.mouths = (Number(_tao.mouths) || 0) - resettled;
+            var _hj = _bls.huangji || (_bls.huangji = { mouths: 0 });
+            _hj.mouths = (Number(_hj.mouths) || 0) + resettled; // 守恒回编户
+          }
+        }
+      } catch (_zhE) {}
+      if (typeof addEB === 'function') addEB('朝代', '开仓赈济（' + scale + '）' + (relieved ? '·赈 ' + relieved + ' 处灾情' : '') + (resettled ? '·流民复业 ' + resettled : ''), { credibility: 'high' });
+      return { success: true, relieved: relieved, resettled: resettled };
     },
 
     // 借贷（盐商/钱商/外国）
@@ -1314,8 +1331,10 @@
       if (go.quotaMoney !== undefined) GM.guoku.ledgers.money.quota = go.quotaMoney;
       if (go.quotaGrain !== undefined) GM.guoku.ledgers.grain.quota = go.quotaGrain;
       if (go.quotaCloth !== undefined) GM.guoku.ledgers.cloth.quota = go.quotaCloth;
-      // 月均估计
-      if (go.monthlyIncomeEstimate) {
+      // 月均估计（仅占位：剧本 monthlyIncomeEstimate 是静态估算·真值由 cascadeCollect 活算）。
+      // 守卫 _lastCascadeSummary：若已跑过真财政征收(开局/回合)则不让静态估算覆盖真活算值——
+      //   根治「绍宋开局月入显估算 20万/旧兜底 7万·实应 ~70万」。无真 settle 时仍用估算占位。
+      if (go.monthlyIncomeEstimate && !(typeof GM !== 'undefined' && GM && GM._lastCascadeSummary)) {
         if (go.monthlyIncomeEstimate.money != null) GM.guoku.monthlyIncome = go.monthlyIncomeEstimate.money;
         if (go.monthlyIncomeEstimate.grain != null) GM.guoku.monthlyGrainIncome = go.monthlyIncomeEstimate.grain;
         if (go.monthlyIncomeEstimate.cloth != null) GM.guoku.monthlyClothIncome = go.monthlyIncomeEstimate.cloth;

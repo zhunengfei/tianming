@@ -113,6 +113,17 @@
     if (!path) return { ok: false, reason: 'empty path' };
     if (!opts.force && isBlocked(path)) return { ok: false, reason: 'blocked path: ' + path };
 
+    // 顶层数组集合被整个设成非数组（agent 偶把 relations/events 这类整集合设成对象/单条）→ 转数组，
+    //   否则应用/校验/渲染处的 forEach 会炸（applyPush 早有此保护，applyEdit 之前缺）。
+    var _ARR_COLLS = { characters: 1, factions: 1, parties: 1, classes: 1, items: 1, events: 1, families: 1, relations: 1, factionRelations: 1, rigidHistoryEvents: 1, timeline: 1, openingLetters: 1, goals: 1 };
+    if (_ARR_COLLS[String(path)] && value != null && !Array.isArray(value)) {
+      if (typeof value === 'object') {
+        var _ks = Object.keys(value);
+        // 数字键对象 {0:..,1:..}（JSON 化的伪数组）→ 还原数组；命名对象（单条实体漏包数组）→ 包成 [实体]
+        value = (_ks.length && _ks.every(function (k) { return /^\d+$/.test(k); })) ? _ks.map(function (k) { return value[k]; }) : [value];
+      } else { value = [value]; }
+    }
+
     var r = _resolvePath(draft, path);
     if (!r.parent) {
       // 创建缺失路径（仅纯对象路径；数组按名创建不支持）
@@ -178,49 +189,61 @@
   /** 在 draft 某数组集合里按关键词查实体（读工具·让 agent 不盲改）。 */
   function _searchEntities(draft, collection, query) {
     var arr = draft && draft[collection];
+    // 虚拟集合：地图地块不在顶层数组，映射到 map.regions（mapData.regions 为镜像）
+    if (!Array.isArray(arr) && (collection === 'regions' || collection === '省' || collection === '地块')) {
+      var _m = (draft && draft.map) || (draft && draft.mapData) || {};
+      if (Array.isArray(_m.regions)) { arr = _m.regions; collection = 'map.regions'; }
+    }
     if (!Array.isArray(arr)) return { ok: false, reason: collection + ' 不是数组或不存在' };
     var q = String(query == null ? '' : query).trim();
     var matches = [];
     arr.forEach(function(it, i) {
       if (!it || typeof it !== 'object') return;
-      var hay = [it.name, it.faction, it.id, it.title, it.leader].filter(Boolean).join(' ');
+      var hay = [it.name, it.faction, it.id, it.title, it.leader, it.adminBinding].filter(Boolean).join(' ');
       if (!q || hay.indexOf(q) >= 0) matches.push({ index: i, name: it.name, faction: it.faction, fields: Object.keys(it).slice(0, 8) });
     });
     return { ok: true, collection: collection, count: matches.length, matches: matches.slice(0, 40) };
   }
 
-  // 方向C · 全局检索：跨所有集合关键词搜（agent 的"全仓 grep"·大剧本里也能精准定位）
+  // 方向C · 全局检索：深 walk 整棵 draft 找任意字符串命中（真·全剧本 grep·含 map.regions/adminHierarchy 等嵌套结构）
   function _globalSearch(draft, query, opts) {
     opts = opts || {};
     var q = String(query == null ? '' : query).trim().toLowerCase();
     if (!q) return { ok: false, reason: '需要 query' };
     var limit = Math.min(60, Number(opts.limit) || 30);
-    var labelKeys = ['name', 'id', 'title', 'leader', 'faction'];
+    var labelKeys = ['name', 'id', 'title', 'leader', 'faction', 'adminBinding'];
     var hits = [], capped = false;
-    var colls = Object.keys(draft || {});
-    for (var ci = 0; ci < colls.length && !capped; ci++) {
-      var coll = colls[ci], arr = draft[coll];
-      if (!Array.isArray(arr)) continue;
-      for (var i = 0; i < arr.length; i++) {
-        if (hits.length >= limit) { capped = true; break; }
-        var it = arr[i];
-        if (!it || typeof it !== 'object') {
-          if (it != null && String(it).toLowerCase().indexOf(q) >= 0) hits.push({ path: coll + '[' + i + ']', collection: coll, label: String(it).slice(0, 40) });
-          continue;
+    function labelOf(node) {
+      for (var li = 0; li < labelKeys.length; li++) { if (node[labelKeys[li]]) return String(node[labelKeys[li]]); }
+      return '';
+    }
+    function walk(node, path, ownerLabel) {
+      if (capped) return;
+      if (hits.length >= limit) { capped = true; return; }
+      if (node == null) return;
+      if (typeof node === 'string') {
+        if (node.toLowerCase().indexOf(q) >= 0) hits.push({ path: path, label: ownerLabel || '', snippet: node.slice(0, 60) });
+        return;
+      }
+      if (typeof node !== 'object') return;
+      if (Array.isArray(node)) {
+        for (var i = 0; i < node.length && !capped; i++) walk(node[i], path + '[' + i + ']', ownerLabel);
+        return;
+      }
+      var lbl = labelOf(node) || ownerLabel;
+      var keys = Object.keys(node);
+      for (var k = 0; k < keys.length && !capped; k++) {
+        var ck = keys[k], cv = node[ck], p = path ? path + '.' + ck : ck;
+        // 键控映射（adminHierarchy / map.factions 等）的条目键往往就是实体名/id——容器键命中也算；
+        // 但只认「值是对象/数组」的键，叶子字段名（name/type…）不算，避免搜「name」炸噪声。
+        if (cv && typeof cv === 'object' && ck.toLowerCase().indexOf(q) >= 0) {
+          if (hits.length >= limit) { capped = true; break; }
+          hits.push({ path: p, label: ck, snippet: '(键) ' + ck });
         }
-        var matchedField = null, snippet = '', keys = Object.keys(it);
-        for (var k = 0; k < keys.length; k++) {
-          var v = it[keys[k]];
-          if (typeof v === 'string' && v.toLowerCase().indexOf(q) >= 0) { matchedField = keys[k]; snippet = v.slice(0, 50); break; }
-        }
-        if (!matchedField) { try { if (JSON.stringify(it).toLowerCase().indexOf(q) >= 0) matchedField = '(深层字段)'; } catch (e) {} }
-        if (matchedField) {
-          var label = '';
-          for (var li = 0; li < labelKeys.length; li++) { if (it[labelKeys[li]]) { label = String(it[labelKeys[li]]); break; } }
-          hits.push({ path: coll + '[' + i + ']', collection: coll, label: label || ('#' + i), field: matchedField, snippet: snippet });
-        }
+        walk(cv, p, lbl);
       }
     }
+    walk(draft, '', '');
     return { ok: true, query: query, total: hits.length, hits: hits, truncated: capped };
   }
 
@@ -372,14 +395,21 @@
     if (!Array.isArray(facs) || !facs.length) {
       return { ok: true, violations: [], details: { skipped: '无 factions' } };
     }
-    var legal = {};
-    facs.forEach(function(f) { if (f && f.name) legal[f.name] = true; });
+    var legal = {}, legalId = {};
+    facs.forEach(function(f) { if (f && f.name) legal[f.name] = true; if (f && f.id) legalId[f.id] = true; });
     function check(ref, who) {
       if (ref == null || ref === '') return;
       if (!legal[ref]) v.push(who + ' 引用不存在的势力「' + ref + '」');
     }
+    // 人物势力关联：优先认 factionId（稳定真相·势力改名/编辑器细化命名后人物不沦孤儿）·factionId 合法即放行；
+    // 无 factionId 的人物回退查 faction 名串（兼容旧剧本）。国师 agent 生成/编辑人物时应同步维护 factionId（见 ensureCharFactionId）。
     (draft.characters || []).forEach(function(c) {
-      if (c) check(c.faction, '人物 ' + (c.name || '?'));
+      if (!c) return;
+      if (c.factionId != null && c.factionId !== '') {
+        if (!legalId[c.factionId]) v.push('人物 ' + (c.name || '?') + ' 的 factionId「' + c.factionId + '」不在 factions');
+      } else {
+        check(c.faction, '人物 ' + (c.name || '?'));
+      }
     });
     var troops = (draft.military && draft.military.initialTroops) || [];
     troops.forEach(function(t) {
@@ -489,16 +519,66 @@
     return { ok: v.length === 0, violations: v, details: { factions: facs.length, characters: chars.length } };
   }
 
+  // ── 时点合规（平行时空·跨剧本）：人物 bio/记忆/履历 + 开局内容(书信/议题/奏疏/已发生事件) 不应出现晚于
+  //    startYear 的纪年。剧本始于某时点·人物此刻不知未来(2026-06 绍宋整局教训：bio 通史式写到死后封谥)。
+  //    避开未来触发的 rigidHistoryEvents(triggerTurn≥2·设计上描述将来·不扫)。
+  function vTimelineCompliance(draft) {
+    var v = [];
+    if (!draft) return { ok: true, violations: [] };
+    var startYear = parseInt(draft.startYear || (draft.engineConstants && draft.engineConstants.startYear) || 0, 10);
+    if (!startYear) return { ok: true, violations: [], details: { skipped: '无 startYear·无法判时点' } };
+    function scan(text, who) {
+      if (!text || v.length >= 40) return;
+      var m = ('' + text).match(/(?:1[0-9]{3}|20[0-9]{2})/g);
+      if (!m) return;
+      for (var i = 0; i < m.length; i++) { var y = parseInt(m[i], 10); if (y > startYear) { v.push(who + ' 含晚于开始年(' + startYear + ')的纪年「' + y + '」——平行时空·此刻不应记将来'); break; } }
+    }
+    (draft.characters || draft.chars || []).forEach(function (c) {
+      if (!c) return;
+      scan(c.bio, '人物「' + (c.name || '?') + '」bio');
+      if (Array.isArray(c._memory)) c._memory.forEach(function (mm) { scan(mm && (mm.event || mm.text), '人物「' + (c.name || '?') + '」记忆'); });
+      if (Array.isArray(c.career)) scan(c.career.join(' '), '人物「' + (c.name || '?') + '」履历');
+    });
+    (draft.openingLetters || []).forEach(function (x) { scan(x && (x.content || x.body), '开场书信「' + (x && (x.title || x.id) || '?') + '」'); });
+    (draft.currentIssues || []).forEach(function (x) { scan(x && JSON.stringify(x), '御案时政「' + (x && x.title || '?') + '」'); });
+    (draft.memorials || []).forEach(function (x) { scan(x && (x.content || x.body), '奏疏「' + (x && x.title || '?') + '」'); });
+    // 仅扫「已发生」事件(triggerTurn 0/_alreadyHappened)·未来触发事件按设计描述将来不扫
+    (draft.rigidHistoryEvents || draft.events || []).forEach(function (x) { if (x && (x._alreadyHappened || x.triggerTurn === 0)) scan(x.narrative || x.description, '已发生事件「' + (x.name || '?') + '」'); });
+    return { ok: v.length === 0, violations: v, details: { startYear: startYear, hits: v.length } };
+  }
+
+  // ── 人物完整性（跨剧本）：史实人物应有五常(wuchangOverride 仁义礼智信·履职系统消费)；能力值应 0-100。
+  //    2026-06 绍宋整局教训：五常 0/501 全缺(履职靠兜底)·能力本就符史实——故重点查五常缺失。
+  function vCharCompleteness(draft) {
+    var v = [];
+    var chars = (draft && (draft.characters || draft.chars)) || [];
+    if (!Array.isArray(chars) || !chars.length) return { ok: true, violations: [] };
+    var histNoWC = chars.filter(function (c) { return c && (c.isHistorical !== false) && !c.isFictional && !(c.wuchangOverride && typeof c.wuchangOverride === 'object'); });
+    if (histNoWC.length) v.push('史实人物缺五常(wuchangOverride 仁义礼智信) ' + histNoWC.length + ' 人——履职系统消费·史实人物须定位。例：' + histNoWC.slice(0, 6).map(function (c) { return c.name || '?'; }).join('、'));
+    var abil = ['intelligence', 'military', 'administration', 'charisma', 'diplomacy', 'valor', 'management'], oob = 0, oobName = '';
+    chars.forEach(function (c) { if (!c) return; abil.forEach(function (f) { var x = c[f]; if (typeof x === 'number' && (x < 0 || x > 100)) { oob++; if (!oobName) oobName = (c.name || '?') + '.' + f + '=' + x; } }); });
+    if (oob) v.push('能力值越界(应 0-100) ' + oob + ' 处，例：' + oobName);
+    // 势力绑定一致性：有 factionId 但与 faction 名串对不上(canonical resolver 会修但剧本宜先一致)
+    var facById = {}; ((draft && draft.factions) || []).forEach(function (f) { if (f && f.id) facById[f.id] = f.name; });
+    // 容忍子势力前缀(如 faction「宋朝廷·内廷」factionId 指向「宋朝廷」)——前缀一致即视为同源·非错绑。
+    var mismatch = chars.filter(function (c) { return c && c.factionId && facById[c.factionId] && c.faction && ('' + c.faction).indexOf(facById[c.factionId]) !== 0; }).length;
+    if (mismatch) v.push('人物 factionId 与 faction 名串不一致 ' + mismatch + ' 人(绑定双锚应对齐·非子势力前缀)');
+    return { ok: v.length === 0, violations: v, details: { histNoWuchang: histNoWC.length, abilityOob: oob, factionMismatch: mismatch } };
+  }
+
   var _checks = {
     'admin-population': vAdminPopulation,
     'faction-refs': vFactionRefs,
     'region-coverage': vRegionCoverage,
+    'timeline-compliance': vTimelineCompliance,
+    'char-completeness': vCharCompleteness,
     'runtime-chars': vRuntimeChars,
     'runtime-office': vRuntimeOffice,
     'runtime-boot': vRuntimeBoot
   };
-  // validateDraft 默认只跑这 3 个结构检查（轻量·供频繁自查）；运行时检查(runtime-*)只在 preflight 跑（finish 前体检）。
-  var _defaultChecks = ['admin-population', 'faction-refs', 'region-coverage'];
+  // validateDraft 默认跑这几个结构检查（轻量·供频繁自查）；运行时检查(runtime-*)只在 preflight 跑（finish 前体检）。
+  // timeline-compliance(平行时空时点) + char-completeness(史实人物五常/绑定) 是 2026-06 绍宋整局教训沉淀的关。
+  var _defaultChecks = ['admin-population', 'faction-refs', 'region-coverage', 'timeline-compliance', 'char-completeness'];
 
   /** 聚合校验·返回 {ok, violations, results, stats}（沿用 tm-invariants 报告形状） */
   function validateDraft(draft, groupName) {
@@ -535,7 +615,44 @@
 
   // 方向E · 运行时体检裁决：跑全部检查，把"会影响运行"的归为 blockers、其余为 warnings，给"能否加载"verdict。
   var _BOOT_CRITICAL = ['runtime-boot', 'faction-refs', 'runtime-office', 'runtime-chars'];
+  // 人物 factionId ↔ faction 名串 双向同步（确定性·国师 agent 读改 factionId 的兜底）。
+  // factionId 为稳定真相：有 factionId 则用 factions[id].name 校正名串（势力改名/编辑器细化命名后人物不沦孤儿）；
+  // 无 factionId 则用名串回填 factionId。国师 agent 生成/编辑人物、preflight 体检前都应调用，避免名串脱节。
+  function ensureCharFactionId(draft) {
+    if (!draft || !Array.isArray(draft.characters) || !Array.isArray(draft.factions)) return { corrected: 0, backfilled: 0 };
+    var byId = {}, byName = {};
+    draft.factions.forEach(function(f) { if (f && f.id) byId[f.id] = f; if (f && f.name) byName[f.name] = f; });
+    var corrected = 0, backfilled = 0;
+    draft.characters.forEach(function(c) {
+      if (!c) return;
+      if (c.factionId != null && c.factionId !== '' && byId[c.factionId]) {
+        if (c.faction !== byId[c.factionId].name) { c.faction = byId[c.factionId].name; corrected++; }   // 有 id → 校正名串
+      } else if (c.faction && byName[c.faction]) {
+        c.factionId = byName[c.faction].id; backfilled++;                                                  // 有名 → 回填 id
+      }
+    });
+    return { corrected: corrected, backfilled: backfilled };
+  }
+
+  // 时间字段同步（跨剧本·国师 agent 死字段修复）：引擎读 gameSettings.startYear/startMonth 为权威，
+  // 但 schema 顶层亦列 startYear，国师 AI 常只写顶层 → 引擎读不到 gameSettings → 进游戏显示公元前。
+  // 双向兜底：顶层 ↔ gameSettings 互补，确保 gameSettings 有值（引擎权威源），并回填顶层保持一致。
+  function ensureTimeFields(draft) {
+    if (!draft || typeof draft !== 'object') return;
+    if (!draft.gameSettings || typeof draft.gameSettings !== 'object') draft.gameSettings = {};
+    var gs = draft.gameSettings;
+    var hasTop = (draft.startYear != null && draft.startYear !== '');
+    var hasGs  = (gs.startYear != null && gs.startYear !== '');
+    if (!hasGs && hasTop) gs.startYear = Number(draft.startYear);        // 顶层 → gameSettings（引擎权威源）
+    else if (!hasTop && hasGs) draft.startYear = gs.startYear;            // 反向回填，两处一致
+    if ((gs.startMonth == null || gs.startMonth === '') && draft.startMonth != null && draft.startMonth !== '') gs.startMonth = Number(draft.startMonth);
+    else if ((draft.startMonth == null || draft.startMonth === '') && gs.startMonth != null && gs.startMonth !== '') draft.startMonth = gs.startMonth;
+    if (draft.era != null && draft.era !== '' && (gs.era == null || gs.era === '')) gs.era = draft.era;  // 年号顶层 → gameSettings
+  }
+
   function preflight(draft) {
+    ensureCharFactionId(draft);   // 体检前先同步人物 factionId ↔ 名串（避免势力改名后误报"引用不存在势力"）
+    ensureTimeFields(draft);      // 体检前同步剧本时间 startYear/startMonth/era → gameSettings（引擎权威·修"进游戏显示公元前"死字段）
     var groups = Object.keys(_checks);   // 体检跑全部检查（结构 + 运行时）
     var results = {}, blockers = [], warnings = [];
     groups.forEach(function(g) {
@@ -937,6 +1054,14 @@
       }, required: ['region', 'owner'] }
     },
     {
+      name: 'renameRegion',
+      description: '给地图地块改名（改 map.regions 里某地块的显示 name，并同步 map/mapData 双镜像）。region 传现在的地块名/id/行政绑定（模糊匹配定位）；newName 传新名。专改地图地块/省名用它，比绕道 applyEdit 拼路径稳。注意：这只改这一块的 name；若还想把剧本里其他引用旧名的字符串一并联动改掉，改完再用 renameEntity(oldName,newName)。',
+      parameters: { type: 'object', properties: {
+        region: { type: 'string', description: '现地块名或 id（模糊匹配 name/adminBinding）' },
+        newName: { type: 'string', description: '新地块名' }
+      }, required: ['region', 'newName'] }
+    },
+    {
       name: 'applyEdit',
       description: '在剧本草稿上按 path 设值。path 形如 "name" / "factions.明.leader" / "playerInfo.factionName"。',
       parameters: { type: 'object', properties: {
@@ -959,6 +1084,11 @@
       parameters: { type: 'object', properties: { path: { type: 'string', description: '字段路径' } }, required: ['path'] }
     },
     {
+      name: 'getFields',
+      description: '一次读取多个路径的当前值（批量版 getField·省往返）。paths 传路径数组，如 ["name","factions","playerInfo.factionName"]。过大值会截断为预览+规模。需同时核对多处状态时优先用它，别一个个 getField。',
+      parameters: { type: 'object', properties: { paths: { type: 'array', items: { type: 'string' }, description: '路径数组（最多 40 个）' } }, required: ['paths'] }
+    },
+    {
       name: 'searchEntities',
       description: '在某集合按关键词查实体。collection 如 characters/factions/parties；query 匹配 name/faction/id/title 包含（留空=全部）。',
       parameters: { type: 'object', properties: {
@@ -967,7 +1097,7 @@
     },
     {
       name: 'globalSearch',
-      description: '跨【所有集合】按关键词全局检索（不知道东西在哪个集合时用这个，相当于全剧本 grep）。返回命中位置 path + 集合 + 标签 + 命中字段。大剧本里先 globalSearch 定位再动手。',
+      description: '深度检索整棵剧本里任意字符串（真·全剧本 grep，深 walk 所有嵌套结构，含 map.regions 地块名 / adminHierarchy 行政层级 / 各集合的深层字段）。不知道东西在哪、或顶层集合里查不到（如地图省名/地块名）时用它。返回命中的完整点路径 path（可直接拿去 getField/applyEdit）+ 所属对象标签 label + 命中片段。大剧本里先 globalSearch 定位再动手。',
       parameters: { type: 'object', properties: {
         query: { type: 'string', description: '关键词' }, limit: { type: 'number', description: '最多返回多少条（默认 30）' }
       }, required: ['query'] }
@@ -1074,12 +1204,32 @@
       }, required: ['questions'] }
     },
     {
+      name: 'remonstrate',
+      description: '进谏：当玩家需求确有硬伤（明显违背史实／会致某势力开局即崩盘或数值严重失衡／把某朝专名当通用机制违反朝代中立）时，先说清利害＋给一个可一键采纳的替代方案，停下来等玩家定夺，别默默照做。只在确有硬伤时用，别动辄劝阻；玩家坚持的尊重其最终决定。',
+      parameters: { type: 'object', properties: {
+        concern: { type: 'string', description: '这个需求的硬伤是什么、会导致什么后果（一两句，具体到实体/字段）' },
+        severity: { type: 'string', enum: ['史实', '平衡', '机制'], description: '硬伤类型：史实存疑／数值平衡／跨朝代机制' },
+        suggestion: { type: 'string', description: '一个可行的替代方案（玩家可一键采纳）' }
+      }, required: ['concern', 'suggestion'] }
+    },
+    {
       name: 'flagUncertain',
       description: '当你某处改动没把握（史实存疑、玩家可能想要别的、靠推测填充的内容）时，标记该路径，提醒玩家重点复核。只标真没把握的，别滥用。',
       parameters: { type: 'object', properties: {
         path: { type: 'string', description: '没把握的改动路径，如 characters[3].bio 或 factions[1].leader' },
         reason: { type: 'string', description: '为什么没把握（一句话）' }
       }, required: ['path', 'reason'] }
+    },
+    {
+      name: 'checkHistory',
+      description: '自查证：在写入涉及具体史实的内容（年号纪年、人物生卒/年龄、职官名称品级、重大事件时间地点）前，先把你将依据的关键史实逐条列出并自评把握。把握高的照写；把握低/拿不准的，落字用保守措辞（约/相传/据载）并对该路径 flagUncertain，别编成确定口吻。无外部资料时这是自我审视，治"自信地编"，但变不出你本就不知道的事。',
+      parameters: { type: 'object', properties: {
+        facts: { type: 'array', description: '要核验的史实声明清单', items: { type: 'object', properties: {
+          claim: { type: 'string', description: '一条具体史实，如"张居正卒于1582年"' },
+          verdict: { type: 'string', enum: ['确信', '存疑', '不确定'], description: '你对这条的把握' },
+          note: { type: 'string', description: '依据或存疑点（可选）' }
+        }, required: ['claim', 'verdict'] } }
+      }, required: ['facts'] }
     },
     {
       name: 'recordConvention',
@@ -1100,7 +1250,7 @@
   // ═══════════════════════════════════════════════════════════════════
 
   var ENTITY_TEMPLATES = {
-    character: { name: '', faction: '', officialTitle: '', loyalty: 80, ambition: 50, intelligence: 70, administration: 60, military: 50, age: 40, gender: '男', personality: '', bio: '' },
+    character: { name: '', faction: '', factionId: '', officialTitle: '', loyalty: 80, ambition: 50, intelligence: 70, administration: 60, military: 50, age: 40, gender: '男', personality: '', bio: '' },
     faction: { name: '', leader: '', territory: '', strength: '', culture: '', goal: '', desc: '' },
     party: { name: '', leader: '', members: '', desc: '' },
     class: { name: '', desc: '' },
@@ -1116,6 +1266,7 @@
     return [
       '【剧本结构速查】（applyEdit/applyPush 时遵循这些字段名与形状）',
       '- 顶层：name(剧本名) dynasty(朝代) emperor(帝王) overview(概述) startYear playerInfo gameSettings',
+      '  ※ 时间务必写入 gameSettings.startYear / gameSettings.startMonth（引擎权威读此·只写顶层 startYear 会导致进游戏显示公元前）',
       '- factions[]（势力）: ' + JSON.stringify(T.faction),
       '- characters[]（人物）: ' + JSON.stringify(T.character) + '  ← faction 必须等于某个 factions[].name',
       '- parties[]（党派）: ' + JSON.stringify(T.party) + ' / classes[]（阶层）: ' + JSON.stringify(T['class']),
@@ -1267,6 +1418,70 @@
     try { if (draft && draft.map && typeof draft.map === 'object' && draft.mapData && typeof draft.mapData === 'object') draft.mapData = JSON.parse(JSON.stringify(draft.map)); } catch (e) {}
   }
 
+  // 截断过大值给 LLM 看(原始小值原样返回·大对象/数组转成截断预览+规模提示·控上下文)
+  function _truncForLLM(v, max) {
+    max = max || 600;
+    if (v == null || typeof v !== 'object') return v;
+    try {
+      var s = JSON.stringify(v);
+      if (s.length <= max) return v;
+      if (Array.isArray(v)) return { _truncated: true, length: v.length, preview: s.slice(0, max) + '…' };
+      return { _truncated: true, keys: Object.keys(v).slice(0, 20), preview: s.slice(0, max) + '…' };
+    } catch (e) { return String(v).slice(0, max); }
+  }
+
+  // 工具C · 容错自纠：未知工具名 → 推最接近的合法工具名(子串/编辑距离)·让 agent 一轮自纠不空耗
+  function _editDist(a, b) {
+    var m = a.length, n = b.length; if (!m) return n; if (!n) return m;
+    var prev = []; for (var j = 0; j <= n; j++) prev[j] = j;
+    for (var i = 1; i <= m; i++) {
+      var cur = [i];
+      for (var k = 1; k <= n; k++) cur[k] = Math.min(prev[k] + 1, cur[k - 1] + 1, prev[k - 1] + (a[i - 1] === b[k - 1] ? 0 : 1));
+      prev = cur;
+    }
+    return prev[n];
+  }
+  function _suggestTool(name) {
+    var n = String(name || '').toLowerCase();
+    var names = AGENT_TOOLS.map(function (t) { return t.name; });
+    var near = names.filter(function (t) { var lt = t.toLowerCase(); return n && (lt.indexOf(n) >= 0 || n.indexOf(lt) >= 0); });
+    if (!near.length && n) near = names.map(function (t) { return { t: t, d: _editDist(n, t.toLowerCase()) }; }).sort(function (a, b) { return a.d - b.d; }).filter(function (x) { return x.d <= 5; }).slice(0, 2).map(function (x) { return x.t; });
+    return near.slice(0, 3);
+  }
+
+  // 工具D · 上下文瘦身：把"早先轮次"的工具结果内容压成占位·只留最近 keepRecent 轮详尽·控上下文窗口(保 id/name·provider 配对不破)
+  function _compactOldToolResults(conv, keepRecent) {
+    if (!Array.isArray(conv)) return;
+    var idxs = []; for (var i = 0; i < conv.length; i++) if (conv[i] && conv[i].role === 'tool') idxs.push(i);
+    var cut = idxs.length - keepRecent;
+    for (var j = 0; j < cut; j++) {
+      var trs = conv[idxs[j]].toolResults || [];
+      for (var k = 0; k < trs.length; k++) {
+        var tr = trs[k];
+        if (tr && typeof tr.content === 'string' && tr.content.length > 80 && tr.content.indexOf('[已省略') !== 0) tr.content = '[已省略·早先轮次结果·需要可重新查询]';
+      }
+    }
+  }
+
+  // 工具B · 写后回读：写类工具结果回挂"变更后当前值"·agent 不必再 getField 确认·减重复读
+  var _WRITE_TOOLS = { applyEdit: 1, applyPush: 1, multiEdit: 1, bulkAdd: 1, removeEntity: 1, mapAssignOwner: 1, renameRegion: 1 };
+  function _attachWriteVerify(draft, name, input, result) {
+    if (!result || result.ok === false || !_WRITE_TOOLS[name]) return result;
+    try {
+      if (name === 'applyEdit' || name === 'applyPush') {
+        var rr = _resolvePath(draft, input.path);
+        result.nowValue = _truncForLLM(rr && rr.value, 300);
+      } else if (name === 'multiEdit') {
+        var eds = Array.isArray(input.edits) ? input.edits : [];
+        result.nowValues = eds.slice(0, 20).map(function (e) { var rr2 = (e && e.path) ? _resolvePath(draft, e.path) : null; return { path: e && e.path, value: _truncForLLM(rr2 && rr2.value, 140) }; });
+      } else if (name === 'bulkAdd') {
+        var rrc = _resolvePath(draft, input.collection);
+        if (rrc && Array.isArray(rrc.value)) result.collectionLength = rrc.value.length;
+      }
+    } catch (e) {}
+    return result;
+  }
+
   function dispatchTool(draft, name, input, surfaces) {
     input = input || {};
     switch (name) {
@@ -1277,6 +1492,16 @@
         var rr = _resolvePath(draft, input.path);
         if (!rr.parent) return { ok: false, reason: 'path not found: ' + input.path };
         return { ok: true, path: input.path, value: rr.value };
+      }
+      case 'getFields': {
+        var _gpaths = Array.isArray(input.paths) ? input.paths : [];
+        if (!_gpaths.length) return { ok: false, reason: '需要非空 paths[]（路径数组）' };
+        var _gvals = _gpaths.slice(0, 40).map(function (p) {
+          var rr2 = _resolvePath(draft, p);
+          if (!rr2.parent) return { path: p, found: false };
+          return { path: p, found: true, value: _truncForLLM(rr2.value, 600) };
+        });
+        return { ok: true, count: _gvals.length, values: _gvals };
       }
       case 'searchEntities': return _searchEntities(draft, input.collection, input.query);
       case 'globalSearch': return _globalSearch(draft, input.query, { limit: input.limit });
@@ -1338,6 +1563,22 @@
         _mapSyncMirror(draft);
         return { ok: true, region: _region.name || _region.id || ('#' + _idx), from: _before, to: _fac.key + (_fac.label && _fac.label !== _fac.key ? '(' + _fac.label + ')' : ''), note: '已改归属（地图预览会按新势力上色）' };
       }
+      case 'renameRegion': {
+        var _mpr = draft && draft.map;
+        if (!_mpr || !Array.isArray(_mpr.regions) || !_mpr.regions.length) return { ok: false, reason: '当前剧本没有 map.regions，无法改地块名' };
+        var _to = String(input.newName == null ? '' : input.newName).trim();
+        if (!_to) return { ok: false, reason: '需要 newName（新地块名）' };
+        var _ridx = _mapFindRegionIndex(_mpr.regions, input.region);
+        if (_ridx < 0) return { ok: false, reason: '没找到地块「' + (input.region || '') + '」（用 mapOverview 看可用地块名）' };
+        var _rg2 = _mpr.regions[_ridx];
+        var _oldNm = _rg2.name || '';
+        _rg2.name = _to;
+        var _abSynced = false;
+        // 行政绑定原与显示名同名 → 一并更新保持一致
+        if (_rg2.adminBinding != null && String(_rg2.adminBinding) === _oldNm) { _rg2.adminBinding = _to; _abSynced = true; }
+        _mapSyncMirror(draft);
+        return { ok: true, region: _rg2.id || ('#' + _ridx), from: _oldNm, to: _to, adminBinding: _rg2.adminBinding || '', note: '已改地块名并同步 map/mapData' + (_abSynced ? '（行政绑定一并更新）' : '') + '。如需把剧本里所有引用旧名「' + _oldNm + '」处都联动改掉，再用 renameEntity。' };
+      }
       case 'listSource': return _listSourceTool(input.filter);
       case 'grepSource': return _grepSourceTool(input.query, { maxFiles: input.maxFiles, glob: input.glob });
       case 'listCollection': {
@@ -1388,14 +1629,19 @@
       }
       case 'note': return { ok: true, note: String(input.text || '').slice(0, 500) };
       case 'askClarification': return { ok: true, clarify: true, questions: (Array.isArray(input.questions) ? input.questions : []).filter(Boolean).slice(0, 3) };
+      case 'remonstrate': return { ok: true, remonstrate: true, concern: String(input.concern || ''), severity: String(input.severity || ''), suggestion: String(input.suggestion || '') };
       case 'flagUncertain': return { ok: true, flagged: String(input.path || ''), reason: String(input.reason || '') };
+      case 'checkHistory': { var _hf = Array.isArray(input.facts) ? input.facts : []; var _hlow = _hf.filter(function (f) { return f && f.verdict && f.verdict !== '确信'; }).length; return { ok: true, checked: _hf.length, lowConfidence: _hlow, note: _hf.length ? ('已自核 ' + _hf.length + ' 条史实' + (_hlow ? '；其中 ' + _hlow + ' 条把握不足，落字请用保守措辞并对该路径 flagUncertain' : '；均有把握，可照写')) : '未提供史实清单' }; }
       case 'recordConvention': return { ok: true, recorded: String(input.convention || '').slice(0, 200) };
       case 'proposePlan': return { ok: true, plan: true, steps: Array.isArray(input.steps) ? input.steps : [], summary: input.summary || '' };
       case 'submitReview': return { ok: true, review: true, findings: Array.isArray(input.findings) ? input.findings : [], summary: input.summary || '' };
       case 'submitAnswer': return { ok: true, answered: true, answer: String(input.answer || '') };
       case 'submitExplanation': return { ok: true, explained: true, summary: input.summary || '', points: Array.isArray(input.points) ? input.points : [] };
       case 'finish': return { ok: true, finish: true, summary: input.summary || '' };
-      default: return { ok: false, reason: '未知工具: ' + name };
+      default: {
+        var _sug = _suggestTool(name);
+        return { ok: false, reason: '未知工具: ' + name + (_sug.length ? '·你是否想用 ' + _sug.join(' / ') + '？' : '') + '（只能调用工具清单内的工具·勿臆造工具名）' };
+      }
     }
   }
 
@@ -1452,7 +1698,7 @@
     }, required: ['steps'] }
   };
   function _planTools() {
-    var readNames = { getField: 1, fieldContract: 1, genReference: 1, readSource: 1, listSource: 1, grepSource: 1, searchEntities: 1, globalSearch: 1, findReferences: 1, listGaps: 1, listCollection: 1, describeSchema: 1, mapOverview: 1, validateDraft: 1, preflight: 1 };
+    var readNames = { getField: 1, getFields: 1, fieldContract: 1, genReference: 1, readSource: 1, listSource: 1, grepSource: 1, searchEntities: 1, globalSearch: 1, findReferences: 1, listGaps: 1, listCollection: 1, describeSchema: 1, mapOverview: 1, validateDraft: 1, preflight: 1 };
     return AGENT_TOOLS.filter(function(t) { return readNames[t.name]; }).concat([PROPOSE_PLAN_TOOL]);
   }
   // 方向D · 审阅模式：只读工具 + submitReview（产出结构化体检报告，不动剧本）
@@ -1471,7 +1717,7 @@
     }, required: ['findings'] }
   };
   function _reviewTools() {
-    var readNames = { getField: 1, fieldContract: 1, genReference: 1, readSource: 1, listSource: 1, grepSource: 1, searchEntities: 1, globalSearch: 1, findReferences: 1, listGaps: 1, listCollection: 1, describeSchema: 1, mapOverview: 1, validateDraft: 1, preflight: 1 };
+    var readNames = { getField: 1, getFields: 1, fieldContract: 1, genReference: 1, readSource: 1, listSource: 1, grepSource: 1, searchEntities: 1, globalSearch: 1, findReferences: 1, listGaps: 1, listCollection: 1, describeSchema: 1, mapOverview: 1, validateDraft: 1, preflight: 1 };
     return AGENT_TOOLS.filter(function(t) { return readNames[t.name]; }).concat([SUBMIT_REVIEW_TOOL]);
   }
   // 方向L · 剧本问答：只读工具 + submitAnswer（查清后直接回答，不动剧本）
@@ -1483,7 +1729,7 @@
     }, required: ['answer'] }
   };
   function _qaTools() {
-    var readNames = { getField: 1, fieldContract: 1, genReference: 1, readSource: 1, listSource: 1, grepSource: 1, searchEntities: 1, globalSearch: 1, findReferences: 1, listGaps: 1, listCollection: 1, describeSchema: 1, mapOverview: 1 };
+    var readNames = { getField: 1, getFields: 1, fieldContract: 1, genReference: 1, readSource: 1, listSource: 1, grepSource: 1, searchEntities: 1, globalSearch: 1, findReferences: 1, listGaps: 1, listCollection: 1, describeSchema: 1, mapOverview: 1 };
     return AGENT_TOOLS.filter(function(t) { return readNames[t.name]; }).concat([SUBMIT_ANSWER_TOOL]);
   }
   // 方向N · 解释/教学：只读工具 + submitExplanation（讲解剧本设计意图与机制脉络，不动剧本）
@@ -1499,7 +1745,7 @@
     }, required: ['points'] }
   };
   function _explainTools() {
-    var readNames = { getField: 1, fieldContract: 1, genReference: 1, readSource: 1, listSource: 1, grepSource: 1, searchEntities: 1, globalSearch: 1, findReferences: 1, listGaps: 1, listCollection: 1, describeSchema: 1, mapOverview: 1 };
+    var readNames = { getField: 1, getFields: 1, fieldContract: 1, genReference: 1, readSource: 1, listSource: 1, grepSource: 1, searchEntities: 1, globalSearch: 1, findReferences: 1, listGaps: 1, listCollection: 1, describeSchema: 1, mapOverview: 1 };
     return AGENT_TOOLS.filter(function(t) { return readNames[t.name]; }).concat([SUBMIT_EXPLANATION_TOOL]);
   }
   // 方向B · 把玩家的「剧本约定」拼成系统提示词里的一段（空则不注入）
@@ -1521,21 +1767,41 @@
     ].join('\n');
   }
 
-  function _buildReviewSystemPrompt(conventions) {
-    return [
-      '你是历史策略游戏「天命」的剧本审阅官，现在处于【审阅模式】：把剧本当作品做体检，只诊断、不修改。',
-      '用 getField/searchEntities/listGaps/listCollection/describeSchema/validateDraft 充分了解剧本后，从这些维度找问题：',
-      '· 平衡性：势力强弱/资源/兵力是否失衡，是否某方碾压或开局即崩；',
-      '· 史实合理性：人物/势力/时间/官职/地理是否与设定时代相符，有无硬伤；',
-      '· 可玩性：玩家开局目标是否清晰、是否有可操作的抓手、节奏是否合理；',
-      '· 死局风险：是否存在玩家无论如何都赢不了/活不过的结构性死局；',
-      '· 内容缺口：运行时必需但缺失的字段（listGaps）、缺关键人物/事件/关系；',
-      '· 叙事：动机是否成立、忠奸是否脸谱化、开场是否抓人。',
-      '逐条要可定位（指出具体实体/字段）、给可执行建议、按严重度（高/中/低）标注。充分查证后调用 submitReview 提交报告；绝不调用任何修改工具、绝不改剧本。',
-      _conventionsBlock(conventions),
-      '',
-      buildSchemaGuide()
-    ].join('\n');
+  // focus（刀3 · 对抗式三角色）：'history'=史官只查史实硬伤·'balance'=谏官只批平衡死局可玩性·空=通用六维审阅官
+  function _buildReviewSystemPrompt(conventions, focus) {
+    var head, dims;
+    if (focus === 'history') {
+      head = '你是历史策略游戏「天命」的【史官】，现在为剧本做史实核查：把涉及史实处逐一核对，只诊断硬伤、不修改。';
+      dims = [
+        '· 史实合理性（本职·重点）：人物生卒与年龄、年号与纪年、官职名称与品级、地理建置与地名、势力存废时间，是否与设定时代相符；有无张冠李戴、时代错置、把虚构当定论、把孤证当信史；',
+        '· 旁及：凡落了确定口吻的具体史实都该经得起推敲，拿不准的应改保守措辞或标存疑。'
+      ];
+    } else if (focus === 'balance') {
+      head = '你是历史策略游戏「天命」的【谏官】，现在为剧本批可玩性与平衡：只挑失衡、死局与无趣，不修改。';
+      dims = [
+        '· 平衡性（本职·重点）：势力强弱/资源/兵力是否失衡，是否某方碾压或开局即崩；',
+        '· 死局风险：是否存在玩家无论如何都赢不了/活不过的结构性死局；',
+        '· 可玩性：玩家开局目标是否清晰、有无可操作抓手、节奏是否合理、忠奸是否脸谱化。'
+      ];
+    } else {
+      head = '你是历史策略游戏「天命」的剧本审阅官，现在处于【审阅模式】：把剧本当作品做体检，只诊断、不修改。';
+      dims = [
+        '· 平衡性：势力强弱/资源/兵力是否失衡，是否某方碾压或开局即崩；',
+        '· 史实合理性：人物/势力/时间/官职/地理是否与设定时代相符，有无硬伤；',
+        '· 可玩性：玩家开局目标是否清晰、是否有可操作的抓手、节奏是否合理；',
+        '· 死局风险：是否存在玩家无论如何都赢不了/活不过的结构性死局；',
+        '· 内容缺口：运行时必需但缺失的字段（listGaps）、缺关键人物/事件/关系；',
+        '· 叙事：动机是否成立、忠奸是否脸谱化、开场是否抓人。'
+      ];
+    }
+    return [head, '用 getField/searchEntities/listGaps/listCollection/describeSchema/validateDraft 充分了解剧本后，从这些维度找问题：']
+      .concat(dims)
+      .concat([
+        '逐条要可定位（指出具体实体/字段）、给可执行建议、按严重度（高/中/低）标注；只报本职范围内最值得修的问题，别凑数。充分查证后调用 submitReview 提交报告；绝不调用任何修改工具、绝不改剧本。',
+        _conventionsBlock(conventions),
+        '',
+        buildSchemaGuide()
+      ]).join('\n');
   }
 
   function _buildQaSystemPrompt(conventions) {
@@ -1566,10 +1832,12 @@
       '你是历史策略游戏「天命」的剧本编辑助手。通过调用工具编辑剧本草稿，满足用户需求。',
       '⓪ 多步/复杂任务先用 note 记一句计划（1. 2. 3.）再动手；用 listCollection/describeSchema 看清现状与字段、bulkAdd/multiEdit 一次多改提效。若需求含糊到无法动手（缺关键信息），先用 askClarification 问 1-3 个具体问题再继续；需求清楚就直接做。',
       '规则：① 只用工具修改/查询，不要直接输出 JSON 剧本正文。② 中文显示名（人物/势力/地名）保持中文，禁止英译。',
-      '③ 先用 getField/searchEntities/listGaps 查看现状与规格缺口再改；不确定东西在哪个集合时用 globalSearch 全局检索定位。想确认正式游戏怎么读某字段、读不读它，用 fieldContract 查契约（按需查，别凭印象）。想看游戏 UI/逻辑的源码实现，用 listSource 找文件、readSource 读、grepSource 全局搜——可直接读整个代码库。生成或大改某部分(人物/势力/经济/官制/封臣…)前，先 genReference 看老编辑器对该部分的生成范式(设定深度/字段形状/朝代逻辑/参数区间)，借鉴后再动手。改地图归属（把某地块划给某势力、调整疆域归属）时，先 mapOverview 看清现有地块/归属/势力，再 mapAssignOwner 按地块名+势力名改（自动上色、同步 map/mapData）。与用户需求相关的必需缺口顺手补齐，让剧本完整可玩。④ 每改完一批用 validateDraft 自查，有违规继续修。⑤ 改好后用 preflight 跑运行时体检（确保游戏能正常加载），有 blockers 继续修到 bootable，再调用 finish——summary 要向玩家说清「改了什么、为什么这么改」（具体到关键实体/字段，2-4 句中文），不要只写"完成"。',
+      '③ 先用 getField（单路径）/getFields（批量·一次读多个路径，省往返，需同时核对多处状态时优先用它，别一个个 getField）/searchEntities/listGaps 查看现状与规格缺口再改；不确定东西在哪个集合时用 globalSearch 全局检索定位。想确认正式游戏怎么读某字段、读不读它，用 fieldContract 查契约（按需查，别凭印象）。想看游戏 UI/逻辑的源码实现，用 listSource 找文件、readSource 读、grepSource 全局搜——可直接读整个代码库。生成或大改某部分(人物/势力/经济/官制/封臣…)前，先 genReference 看老编辑器对该部分的生成范式(设定深度/字段形状/朝代逻辑/参数区间)，借鉴后再动手。改地图归属（把某地块划给某势力、调整疆域归属）时，先 mapOverview 看清现有地块/归属/势力，再 mapAssignOwner 按地块名+势力名改（自动上色、同步 map/mapData）。与用户需求相关的必需缺口顺手补齐，让剧本完整可玩。④ 每改完一批用 validateDraft 自查，有违规继续修（写类工具 applyEdit/applyPush/multiEdit/bulkAdd 的返回已回挂变更后的当前值 nowValue/nowValues/collectionLength，据此确认改动已落地，无需再 getField 重读确认）。⑤ 改好后用 preflight 跑运行时体检（确保游戏能正常加载），有 blockers 继续修到 bootable，再调用 finish——summary 要向玩家说清「改了什么、为什么这么改」（具体到关键实体/字段，2-4 句中文），不要只写"完成"。',
       '⑥ 若发现该玩家/剧本有值得长期沿用的约定（命名规律、文风、设定惯例），可调 recordConvention 记一条（仅在确有发现时，别凑数）。⑦ 改名优先用 renameEntity（联动所有引用、不留死链）；删除实体前先 findReferences 查谁引用了它。⑧ 对没把握的改动（史实存疑、靠推测填充）调 flagUncertain 标一下路径，提醒玩家重点复核（只标真没把握的）。',
       '⑨【填实·禁空内容·铁律】新增或改写实体必须填到可直接用的质量，绝不留空：先用 listCollection / searchEntities 看一两个剧本里已有的同类实体（或 genReference 看生成范式），照着它们的字段集与丰满度，把新实体的所有相关字段都填上有意义的中文内容——身份/官衔/数值(能力/人口/兵力等)/背景小传/性格/目标/关系/履历等该有的都要有，数值要符合设定区间、彼此自洽。禁止留空字符串、0 占位（除非数值确为 0）、"待补/TODO/未知/暂无"之类占位词，也禁止只填 name 就交差。createEntity 模板只是最小骨架，拿到后必须逐字段补全。宁可少加一个实体，也要把加的每个都填实、达到与官方实体同等的完整度。',
       '⑩【高权限·可写任意字段】你对剧本草稿有完全的写入权限：applyEdit/applyPush 可以创建任意新字段、新嵌套结构，包括剧本编辑器当前没有专门面板/不在结构速查/fieldContract 查不到的"非标准/自定义"字段——编辑器会自动吸收并展示这些字段，不会丢。fieldContract 返回"不在游戏字段契约中"只表示它是扩展/自定义字段（正式游戏不直接读），并不代表禁止写；只要对实现用户需求有用就大胆写。唯一不可改的是：剧本唯一 id、下划线开头的内部字段、ai/conf/meta 等配置（改这些会损坏剧本）。其余一切随需求自由创建与修改。',
+      '⑪【遇硬伤先进谏·别默默照做】当玩家需求确有硬伤——明显违背史实（年号/生卒/职官/事件与正史冲突）、会致某势力开局即崩盘或数值严重失衡、或把某朝专名当通用机制（违反朝代中立）——先调 remonstrate 进谏：一句话说清利害＋给一个可一键采纳的替代方案，停下来等玩家定夺，别默默照做。这是「国师」的本分：给硬核可信的判断而非有求必应。但只在确有硬伤时进谏，别动辄劝阻、别为小事打断；玩家听谏后仍坚持的，尊重玩家最终决定、照办。',
+      '⑫【先核后写·自查证】新增/改写涉及具体史实的内容（年号纪年、人物生卒与年龄、职官名称品级、重大事件时间地点）前，先用 checkHistory 把你将依据的关键史实逐条列出并自评把握：把握高的照写；把握低/拿不准的，落字用保守措辞（约/相传/据载）并对该路径 flagUncertain，绝不把存疑当确定口吻硬写。这是「国师」对硬核可信的本分。注意：无外部资料时这是自我审视，治"自信地编"，但变不出你本就不知道的事——真拿不准就老实标出来交玩家定夺。',
       _conventionsBlock(conventions),
       '',
       buildSchemaGuide()
@@ -1756,7 +2024,7 @@
     var explainOnly = !!opts.explainOnly;   // 方向N · 讲解模式：只读 + submitExplanation，不动剧本
     var tools = explainOnly ? _explainTools() : (qaOnly ? _qaTools() : (reviewOnly ? _reviewTools() : (planOnly ? _planTools() : (opts.tools || AGENT_TOOLS))));
     var conventions = (opts.conventions != null ? opts.conventions : loadConventions()) || '';   // 方向B · 剧本约定（每次 run 注入·等价 CLAUDE.md）
-    var system = explainOnly ? _buildExplainSystemPrompt(conventions) : (qaOnly ? _buildQaSystemPrompt(conventions) : (reviewOnly ? _buildReviewSystemPrompt(conventions) : (planOnly ? _buildPlanSystemPrompt(conventions) : _buildSystemPrompt(conventions))));
+    var system = explainOnly ? _buildExplainSystemPrompt(conventions) : (qaOnly ? _buildQaSystemPrompt(conventions) : (reviewOnly ? _buildReviewSystemPrompt(conventions, opts.reviewFocus) : (planOnly ? _buildPlanSystemPrompt(conventions) : _buildSystemPrompt(conventions))));
     var surfaces = _getFieldSurfaces(opts);   // 刀A · 规格（游戏运行时要什么）
     var editorContext = opts.editorContext || '';   // 上下文感知：编辑器当前焦点（模块/集合/选中实体）
     var exemplars = opts.exemplars || '';   // 方向J · few-shot 范例（开关式·编辑官方剧本时即官方范例）
@@ -1777,6 +2045,7 @@
     var _qaResult = null;   // 方向L · 问答模式产出（submitAnswer 的回答）
     var _explainResult = null;   // 方向N · 讲解模式产出（submitExplanation）
     var _clarifyResult = null;   // 方向K · 交互式澄清产出（askClarification 的问题）
+    var _remonstrateResult = null;   // 刀1 · 国师进谏产出（remonstrate 的异议+替代方案）
     var _finishSummary = '';   // 改动说明：finish 时 agent 给的"做了什么+为什么"
     var control = { aborted: false };   // 刀E · 本次运行的中断句柄
     _activeRun = control;
@@ -1784,6 +2053,7 @@
     var noToolNudges = 0, maxNoToolNudges = (opts.maxNoToolNudges != null ? opts.maxNoToolNudges : 2);
     var stepRetries = 0, maxStepRetries = (opts.maxStepRetries != null ? opts.maxStepRetries : 2);
     var retryBaseMs = opts.retryBaseMs || 800;
+    var _budgetWarned = 0;   // 工具D · 预算反馈：分级提醒收尾(70%/90%)·避免硬撞 tokenBudget 半途而废
 
     function record(name, input, result) {
       transcript.push({ name: name, input: input, result: result });
@@ -1796,6 +2066,7 @@
       if (control.aborted) { stopReason = 'aborted'; return Promise.resolve(); }   // 刀E · 轮间中断
       if (iterations >= maxIterations) { stopReason = 'maxIterations'; return Promise.resolve(); }
       if (tokensUsed >= maxTokens) { stopReason = 'tokenBudget'; return Promise.resolve(); }
+      if (tokensUsed > maxTokens * 0.5) { try { _compactOldToolResults(conversation, 6); } catch (e) {} }   // 工具D · 半程后压旧工具结果·控窗口
       iterations++;
       return Promise.resolve(caller(conversation, tools, { maxTok: opts.maxTok, cfg: opts.cfg, system: system }))
         .then(function(resp) {
@@ -1838,6 +2109,8 @@
               if (c.name === 'submitAnswer' && result && result.answered) { _qaResult = { answer: result.answer }; finishAccepted = true; }
               if (c.name === 'submitExplanation' && result && result.explained) { _explainResult = { summary: result.summary, points: result.points }; finishAccepted = true; }
               if (c.name === 'askClarification' && result && result.clarify) { _clarifyResult = { questions: result.questions }; finishAccepted = true; }
+              if (c.name === 'remonstrate' && result && result.remonstrate) { _remonstrateResult = { concern: result.concern, severity: result.severity, suggestion: result.suggestion }; finishAccepted = true; }
+              result = _attachWriteVerify(draft, c.name, c.input, result);   // 工具B · 写后回读：回挂变更后当前值·省 agent 重读确认
               record(c.name, c.input, result);
               toolResults.push({ id: c.id, name: c.name, content: _resultToText(result) });
               return _procCall();
@@ -1847,7 +2120,13 @@
             conversation.push({ role: 'assistant', text: text, toolCalls: calls });
             conversation.push({ role: 'tool', toolResults: toolResults });
             tokensUsed += _estimateTokens(JSON.stringify(toolResults));
-            if (finishAccepted) { finished = true; stopReason = _clarifyResult ? 'needsClarification' : (_explainResult ? 'explained' : (_qaResult ? 'answered' : (_reviewResult ? 'reviewed' : (_planResult ? 'planned' : 'finish')))); return; }
+            // 工具D · 预算反馈：接近上限分级提醒收尾(让 agent 自控节奏·别非必要检索)
+            if (!finishAccepted && !control.aborted) {
+              var _frac = tokensUsed / maxTokens;
+              if (_frac >= 0.9 && _budgetWarned < 2) { _budgetWarned = 2; conversation.push({ role: 'user', text: '⚠ 预算已用约 ' + Math.round(_frac * 100) + '%·即将耗尽。请立刻完成最关键的改动并调用 finish·停止一切非必要的检索/校验。' }); }
+              else if (_frac >= 0.7 && _budgetWarned < 1) { _budgetWarned = 1; conversation.push({ role: 'user', text: '（预算提示：已用约 ' + Math.round(_frac * 100) + '%·剩余有限。请优先收尾核心改动·非必要的 globalSearch/preflight 可省·尽快 finish。）' }); }
+            }
+            if (finishAccepted) { finished = true; stopReason = _clarifyResult ? 'needsClarification' : (_remonstrateResult ? 'needsConfirmation' : (_explainResult ? 'explained' : (_qaResult ? 'answered' : (_reviewResult ? 'reviewed' : (_planResult ? 'planned' : 'finish'))))); return; }
             if (finishAttempts >= maxFinishAttempts) { stopReason = 'finishBlocked'; return; }
             return step();
           });
@@ -1868,7 +2147,7 @@
       if (_activeRun === control) _activeRun = null;   // 刀E · 收尾清句柄
       return {
         draft: draft, transcript: transcript, conversation: conversation,
-        iterations: iterations, finished: finished, plan: _planResult, review: _reviewResult, answer: _qaResult, explanation: _explainResult, clarification: _clarifyResult,
+        iterations: iterations, finished: finished, plan: _planResult, review: _reviewResult, answer: _qaResult, explanation: _explainResult, clarification: _clarifyResult, remonstrance: _remonstrateResult,
         finalValidation: validateDraft(draft), stopReason: stopReason,
         tokensUsed: tokensUsed, finishAttempts: finishAttempts,
         summary: _finishSummary,   // 改动说明：做了什么+为什么
@@ -1876,7 +2155,9 @@
         // 方向B · agent 回写：发现的可长期沿用约定（交玩家「记住」）
         suggestedConventions: transcript.filter(function(t) { return t.name === 'recordConvention'; }).map(function(t) { return (t.input && t.input.convention) || ''; }).filter(Boolean),
         // 置信度标注：agent 没把握的改动（path + reason），UI 在 diff 里高亮
-        uncertainties: transcript.filter(function(t) { return t.name === 'flagUncertain' && t.input && t.input.path; }).map(function(t) { return { path: t.input.path, reason: t.input.reason || '' }; })
+        uncertainties: transcript.filter(function(t) { return t.name === 'flagUncertain' && t.input && t.input.path; }).map(function(t) { return { path: t.input.path, reason: t.input.reason || '' }; }),
+        // 刀2 · 自查证轨迹：国师写入前自核的史实声明（供玩家审 + 后续史官重点复核低把握项）
+        historyChecks: transcript.filter(function(t) { return t.name === 'checkHistory'; }).reduce(function(acc, t) { return acc.concat((t.input && t.input.facts) || []); }, [])
       };
     });
   }
@@ -1937,6 +2218,80 @@
           finalValidation: validateDraft(draft), summary: summary,
           stopReason: aborted ? 'aborted' : 'finish'
         };
+      });
+    });
+  }
+
+  // ───────────────────────────────────────────────
+  //  刀3 · 对抗式三角色：国师拟稿 → 史官查史 + 谏官批平衡 → 国师据谏修订
+  //  复用 reviewOnly 审阅模式（史官/谏官＝两种 reviewFocus 人格）+ 同一可变 draft。
+  //  可选编排·不默认；一次跑 = 拟稿+史官+谏官+(修订) ≥3~4 次调用，比单 agent 贵，UI 侧按需触发。
+  // ───────────────────────────────────────────────
+  function _formatCritiques(histReview, balReview) {
+    function fmt(title, rev) {
+      if (!rev || !rev.findings || !rev.findings.length) return title + '：未发现需修订的问题。';
+      var lines = rev.findings.map(function (f, i) {
+        return (i + 1) + '. [' + (f.severity || '?') + '·' + (f.dimension || '') + '] '
+          + (f.location ? ('〔' + f.location + '〕') : '') + (f.issue || '') + ' → 建议：' + (f.suggestion || '');
+      });
+      return title + (rev.summary ? ('（总评：' + rev.summary + '）') : '') + '\n' + lines.join('\n');
+    }
+    return fmt('◆ 史官·史实核查', histReview) + '\n\n' + fmt('◆ 谏官·平衡可玩', balReview);
+  }
+
+  function runWithCritics(draft, userRequest, opts) {
+    opts = opts || {};
+    var notify = function (p) { if (typeof opts.onCritique === 'function') { try { opts.onCritique(p); } catch (e) {} } };
+    var steps = [];
+    var baseClean = function (extra) {
+      return Object.assign({}, opts,
+        { reviewOnly: false, reviewFocus: null, planOnly: false, priorConversation: null, onCritique: undefined, onSubtask: undefined },
+        extra || {});
+    };
+    // 1 · 国师拟稿（作者模式）
+    notify({ phase: 'draft' });
+    return runAuthoringLoop(draft, userRequest, baseClean()).then(function (authorRes) {
+      steps.push({ role: '国师·拟稿', result: authorRes });
+      // 拟稿被进谏/澄清打断（需玩家先定夺）→ 不进会审，原样交回
+      if (authorRes.stopReason === 'needsConfirmation' || authorRes.stopReason === 'needsClarification') {
+        return { draft: draft, critiqued: false, revised: false, steps: steps, findings: [],
+          summary: '拟稿阶段国师有异议/待澄清，先交玩家定夺再会审', stopReason: authorRes.stopReason,
+          remonstrance: authorRes.remonstrance, clarification: authorRes.clarification, authorConversation: authorRes.conversation };
+      }
+      // 2+3 · 史官 + 谏官 并行审（对已改 draft 只读，互不影响）
+      notify({ phase: 'review' });
+      var lowConf = (authorRes.historyChecks || []).filter(function (f) { return f && f.verdict && f.verdict !== '确信'; });
+      var histReq = userRequest + (lowConf.length
+        ? '\n\n【国师自核时把握不足、请你重点查证的史实】：\n' + lowConf.map(function (f) { return '· ' + f.claim + (f.note ? '（' + f.note + '）' : ''); }).join('\n')
+        : '');
+      return Promise.all([
+        runAuthoringLoop(draft, histReq, baseClean({ reviewOnly: true, reviewFocus: 'history' })),
+        runAuthoringLoop(draft, userRequest, baseClean({ reviewOnly: true, reviewFocus: 'balance' }))
+      ]).then(function (revs) {
+        var histR = revs[0], balR = revs[1];
+        steps.push({ role: '史官·史实审', result: histR });
+        steps.push({ role: '谏官·平衡审', result: balR });
+        var hf = (histR.review && histR.review.findings) || [];
+        var bf = (balR.review && balR.review.findings) || [];
+        var findings = [].concat(hf, bf);
+        // 无问题 → 拟稿即终稿，省下修订那次调用
+        if (!findings.length) {
+          return { draft: draft, critiqued: true, revised: false, steps: steps, findings: findings,
+            critiques: { history: histR.review, balance: balR.review },
+            summary: '三堂会审：史官/谏官均未发现需修订的问题，拟稿即终稿', stopReason: 'finish' };
+        }
+        // 4 · 国师据谏修订（审阅意见回灌进需求，作者模式）
+        notify({ phase: 'revise', findings: findings });
+        var reviseReq = '【三堂会审·修订】史官与谏官对你的拟稿提了以下意见，请逐条复核并修订当前剧本：采纳合理的；某条你判断不该改可以保留，但要在 finish 说明里言之有据。\n\n'
+          + _formatCritiques(histR.review, balR.review)
+          + '\n\n（原始需求："' + userRequest + '"）';
+        return runAuthoringLoop(draft, reviseReq, baseClean()).then(function (revRes) {
+          steps.push({ role: '国师·修订', result: revRes });
+          return { draft: draft, critiqued: true, revised: true, steps: steps, findings: findings,
+            critiques: { history: histR.review, balance: balR.review },
+            summary: '三堂会审：拟稿 → 史官查史(' + hf.length + '条)+谏官批平衡(' + bf.length + '条) → 国师据谏修订',
+            stopReason: revRes.stopReason };
+        });
       });
     });
   }
@@ -2117,14 +2472,18 @@
     estimateRun: estimateRun,
     AGENT_TOOLS: AGENT_TOOLS,
     dispatchTool: dispatchTool,
+    _compactOldToolResults: _compactOldToolResults,
     computeGaps: _computeGaps,
     preflight: preflight,
+    ensureCharFactionId: ensureCharFactionId,
+    ensureTimeFields: ensureTimeFields,
     buildExemplars: buildExemplars,
     buildEntityBundle: buildEntityBundle,
     mergeEntityBundle: mergeEntityBundle,
     applySelectedDiffs: applySelectedDiffs,
     runAuthoringLoop: runAuthoringLoop,
     runOrchestrated: runOrchestrated,
+    runWithCritics: runWithCritics,   // 刀3 · 对抗式三角色：拟稿→史官+谏官→修订
     // S5
     ENTITY_TEMPLATES: ENTITY_TEMPLATES,
     buildSchemaGuide: buildSchemaGuide,

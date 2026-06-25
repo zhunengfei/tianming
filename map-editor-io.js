@@ -59,6 +59,30 @@
     input.click();
   }
 
+  // 游戏 P.map / scenario.map (regions[]) → 编辑器格式 (divisions[])·使编辑器可直接导入游戏地图
+  function gameMapToEditor(gameMap, scenario){
+    var divisions = (gameMap.regions || []).map(function(r){
+      var d = {};
+      for (var k in r){ if (Object.prototype.hasOwnProperty.call(r, k)) d[k] = r[k]; }
+      // 无 polygon 但有扁平 coords [x,y,x,y,...] → 还原 [[x,y],...]
+      if ((!d.polygon || !d.polygon.length) && Array.isArray(r.coords)){
+        var p = [];
+        for (var i = 0; i < r.coords.length - 1; i += 2) p.push([r.coords[i], r.coords[i + 1]]);
+        d.polygon = p;
+      }
+      // 编辑器用 dejureOwner·游戏 region 用 owner / factionId / controller
+      if (d.dejureOwner == null) d.dejureOwner = r.owner || r.factionId || r.controller || '';
+      return d;
+    });
+    return {
+      title: (scenario && (scenario.name || scenario.title)) || gameMap.name || '导入地图',
+      dynasty: (scenario && scenario.dynasty) || gameMap.id || 'imported',
+      bitmapWidth: gameMap.width || 1920,
+      bitmapHeight: gameMap.height || 1200,
+      divisions: divisions
+    };
+  }
+
   function importJSON(){
     pickJSON(function(obj, fname){
       if (!obj) return;
@@ -67,9 +91,17 @@
         importGeoJSONData(obj, fname);
         return;
       }
+      // 游戏格式·obj.regions (P.map / s.map) 或 obj.map.regions (完整 scenario) → 转编辑器格式 divisions
+      if (!obj.divisions){
+        var gm = Array.isArray(obj.regions) ? obj
+               : (obj.map && Array.isArray(obj.map.regions)) ? obj.map : null;
+        if (gm){
+          obj = gameMapToEditor(gm, Array.isArray(obj.regions) ? null : obj);
+        }
+      }
       // 地图编辑器原生格式
       if (!obj.divisions){
-        meAlert('该 JSON 既非地图编辑器格式 (缺 divisions)·也非 GeoJSON FeatureCollection');
+        meAlert('该 JSON 既非地图编辑器格式 (缺 divisions)·也非游戏地图 (缺 regions)·也非 GeoJSON FeatureCollection');
         return;
       }
       ME.loadMap(obj);
@@ -658,13 +690,14 @@
           id: d.id,
           name: d.name,
           level: d.level,
-          parentId: d.dejureOwner || null,  // 暂用 dejureOwner·user 后期细化
+          parentId: d.parentId || d.dejureOwner || null,  // 优先用层级绘制设的真 parentId(子地块挂父)·回落 dejureOwner
           officialPosition: d.officialPosition,
           governor: d.governor,
           regionType: d.regionType,
           autonomy: d.autonomy,
           population: (d.populationDetail || {}).mouths || 0,
           populationDetail: d.populationDetail,
+          economyBase: d.economyBase,   // 田亩/商业/盐铁等·阶段1聚合(府县→省求和)需要
           prosperity: d.prosperity,
           taxLevel: d.taxLevel,
           terrain: d.terrain,
@@ -696,6 +729,8 @@
           return {
             id: d.id,
             name: d.name,
+            level: d.level,                  // 分级渲染：runtime 按 level 过滤(势力/省路/府县)
+            parentId: d.parentId || null,    // 层级：子地块(府县)挂父(省路)·聚合/分级用
             coords: flat,
             terrain: d.terrain,
             owner: d.dejureOwner || '',
@@ -736,6 +771,7 @@
       return true;
     } catch(e){
       console.error('[io] saveDraft fail:', e);
+      try { ME.fire('draft-save-failed', e); } catch(_){}
       return false;
     }
   }

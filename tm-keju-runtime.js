@@ -254,6 +254,18 @@ async function checkKejuTrigger() {
   // 如果当前有科举正在进行，不触发新的
   if (P.keju.currentExam) return;
 
+  // 【降本2026-06-19】已有待议头条 → 无需每回合重复问 LLM(礼部奏请已在·等陛下亲议)
+  if (P.keju._pendingAutoOpen) return;
+
+  // 【降本2026-06-19】廉价日期预判：固定间隔(≥2年/科)且距上次明显未到期 → 确定性跳过·免 LLM
+  // (科举间隔期内每回合本会问一次 high-priority LLM·绝大多数明显"未到期"·此预判省掉间隔期内几乎全部调用·
+  //  仅保留"临近/已过间隔"时让 LLM 做财政/时局微调判断·间隔 0/1(不定期/岁举)或从未办过则不预判·照旧问 LLM)
+  var _kjInterval = (typeof P.keju.examInterval === 'number' && P.keju.examInterval > 0) ? P.keju.examInterval : 0;
+  if (_kjInterval >= 2 && P.keju.lastExamDate && P.keju.lastExamDate.year) {
+    var _kjYearsSince = (GM.year || (P.time && P.time.year) || 0) - P.keju.lastExamDate.year;
+    if (_kjYearsSince >= 0 && _kjYearsSince < _kjInterval - 1) return;  // 离下次开科尚差≥2年·跳过
+  }
+
   try {
     var currentDate = {
       year: GM.year || P.time.year,
@@ -282,7 +294,7 @@ async function checkKejuTrigger() {
 
     var result = await callAISmart(prompt, 300, {
       maxRetries: 1,
-      priority: 'high',
+      priority: 'background',   // 【降本2026-06-19】开科判定非阻塞玩家操作(结果异步 spawn 头条)·无需 high 抢队列
       timeoutMs: 30000,
       fetchMaxRetries: 1
     });
@@ -3177,6 +3189,9 @@ function finishKeju() {
     });
   }
 
+  // G·科举守恒上行流（2026-06-16）：寒门上行受阻→士人激进(范进式怨望) + 寒门登科守恒人口上行流
+  try { _kejuMobilityFlow(exam, stats, results); } catch(e) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, '科举·G 上行流') : console.warn('[科举·G] 上行流失败', e); }
+
   // 2. 座主信息记入历史
   P.keju.history[P.keju.history.length - 1].chiefExaminer = exam.chiefExaminer || '';
   P.keju.history[P.keju.history.length - 1].examinerParty = exam.examinerParty || '';
@@ -3208,6 +3223,67 @@ function finishKeju() {
 // ══════════════════════════════════════════════════════════════════
 // v5·G1+G2·finalize：三甲纳入+未纳入填缺+阶层党派吏治影响
 // ══════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════
+// G·科举守恒上行流（2026-06-16·未 ship 未 commit）
+//   ① 上行受阻→士人激进：读已算的 stats.classRatio（寒门占比·AI 提供）判通道开闭，
+//      寒门占比低=避途被门阀把持→士大夫阶层 _aspirationBlock↑（tickClassRadical 第⑤项·范进式怨望·持久衰减）；占比高=泄压。
+//   ② 守恒上行人口流：寒门登科者按占比估算，自耕→士绅人口格子守恒迁移（best-effort·仅当两格子已存在·不创建·无则 no-op）。
+//   纯增量·朝代中立（读阶层名/占比·不写死专名）·失败静默兜底。
+function _kejuMobilityFlow(exam, stats, results) {
+  if (typeof GM === 'undefined' || !GM || !Array.isArray(GM.classes)) return;
+  function _cl(x, lo, hi) { x = Number(x); if (!isFinite(x)) x = 0; return x < lo ? lo : (x > hi ? hi : x); }
+  function _r2(x) { return Math.round(Number(x) * 100) / 100; }
+  var ratio = (stats && stats.classRatio) || {};
+  var hanmen = 0, hasRatio = false;
+  Object.keys(ratio).forEach(function(k) {
+    var v = Number(ratio[k]); if (!isFinite(v)) return; hasRatio = true;
+    if (/寒|庶|平民|布衣|自耕|农|贫/.test(k)) hanmen += v;   // 寒门/平民通道占比
+  });
+  // 士人阶层（科举上行通道之身·范进式怨望载体）：优先「士大夫」，否则名含 士/读书/生员/绅
+  var scholar = GM.classes.filter(function(c) { return c && /士大夫/.test(c.name || ''); })[0]
+             || GM.classes.filter(function(c) { return c && /士|读书|生员|绅/.test(c.name || ''); })[0];
+  // ① 上行受阻→士人激进（寒门避途 ④名额收紧 合成）
+  if (scholar && hasRatio) {
+    var openness = _cl(hanmen, 0, 1);                      // 寒门占比即通道开放度
+    var shareBlock = _cl((0.30 - openness) / 0.30, 0, 1);  // <30% 视为受阻·线性到 0
+    // ④·名额显式 throttle：名额较基线收紧→士人额外受阻(范进式)；放宽→泄压。基线懒设首见名额(初始 change=0)·向当前缓移(change vs 近期常态)。
+    var _q = Number((typeof P !== 'undefined' && P && P.keju) ? P.keju.quotaPerExam : NaN), qBlock = 0;
+    if (isFinite(_q) && _q > 0) {
+      if (P.keju._quotaBaseline == null) P.keju._quotaBaseline = _q;
+      var _qb = Number(P.keju._quotaBaseline) || _q;
+      if (_q < _qb) qBlock = _cl((_qb - _q) / _qb, 0, 0.5);   // 名额收紧→受阻↑
+      P.keju._quotaBaseline = _r2(_qb + (_q - _qb) * 0.25);   // 基线向当前缓移
+      scholar._kejuQuota = _q;                                // 透明字段供 UI/prompt
+    }
+    var block = _cl(shareBlock + qBlock, 0, 1);            // 寒门避途 + 名额收紧 合成受阻
+    if (block > 0) {
+      scholar._aspirationBlock = _r2(_cl(Math.max(Number(scholar._aspirationBlock) || 0, 0.45 * block), 0, 0.5));
+      if (block > 0.5 && typeof addEB === 'function') addEB('科举', '寒门上行道塞，士林怨望渐深');  // 寒门上行道塞，士林怨望渐深
+    } else if (scholar._aspirationBlock) {
+      scholar._aspirationBlock = _r2(Math.max(0, (Number(scholar._aspirationBlock) || 0) - 0.15));   // 通道宽·士人得遂所愿·泄压
+    }
+    scholar._kejuOpenness = _r2(openness);                 // 透明字段供 UI/prompt
+  }
+  // ② 守恒上行人口流（best-effort·不创建格子）
+  var pop = GM.population && GM.population.byClass;
+  if (pop && hasRatio) {
+    var hanmenGrads = Math.round(((results && results.length) || 0) * _cl(hanmen, 0, 1));
+    if (hanmenGrads > 0) {
+      var CE = (typeof TM !== 'undefined' && TM.ClassEngine && TM.ClassEngine.resolvePopulationKeys) ? TM.ClassEngine : null;
+      var srcCls = GM.classes.filter(function(c) { return c && /自耕|编户/.test(c.name || ''); })[0];
+      var dstCls = GM.classes.filter(function(c) { return c && /缙绅|士绅|士大夫/.test(c.name || ''); })[0];
+      var srcKeys = (CE && srcCls) ? CE.resolvePopulationKeys(srcCls, GM) : (srcCls ? ['peasant_self', 'bianhu'] : []);
+      var dstKeys = ((CE && dstCls) ? CE.resolvePopulationKeys(dstCls, GM) : []).concat(['gentry_low', 'gentry_high']);  // 兜底常见士绅人口键·仅当已存在才用
+      var srcKey = (srcKeys || []).filter(function(k) { return pop[k] && isFinite(Number(pop[k].mouths)); })[0];
+      var dstKey = (dstKeys || []).filter(function(k) { return pop[k] && isFinite(Number(pop[k].mouths)); })[0];
+      if (srcKey && dstKey && srcKey !== dstKey) {
+        var move = Math.min(hanmenGrads * 8, Math.floor(Number(pop[srcKey].mouths) * 0.02));  // 一名进士擢升其门户(×8)·守恒·封顶 2% 源格子
+        if (move > 0) { pop[srcKey].mouths -= move; pop[dstKey].mouths += move; }
+      }
+    }
+  }
+}
 
 /** 科举结束时的总结算 */
 function _kejuFinalize(exam) {

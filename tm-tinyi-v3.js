@@ -251,6 +251,7 @@ function _ty3_calcEligibilityByStatus(ch) {
   if (ch._retired)                            return { category: '不召', layer: 3 };
   if (ch._fled)                               return { category: '不召', layer: 3 };
   if (ch._missing)                            return { category: '不召', layer: 3 };
+  if (ch._captured)                           return { category: '不召', layer: 3 };  // 被俘(北狩/陷虏)·跨朝代通用·人在敌境不召
   return null;
 }
 
@@ -3940,7 +3941,7 @@ function _ty3_phase1_openSeating(topic, meta) {
 
   function _ty3_isEligibleOfficial(c) {
     if (!c || c.alive === false || c.isPlayer) return false;
-    if (c._imprisoned || c._exiled || c._retired || c._fled || c._mourning) return false;
+    if (c._imprisoned || c._exiled || c._retired || c._fled || c._mourning || c._captured) return false;
     if (c._sick && (c.health || 50) <= 20) return false;
     var rawTitle = c.officialTitle || c.title || '';
     if (!rawTitle) return false;
@@ -5603,8 +5604,6 @@ function _ty3_phase6_saveVerdictNote() {
         // D + 硬推 → 仍走草诏 picker → 用印
         var ctx = CY._ty3_settleCtx;
         if (ctx) setTimeout(function(){ _ty3_phase5_openDraftPicker(ctx.decision, 'D', ctx.opts); }, 300);
-      } else if (choice === 'yield') {
-        // D grade choice handling.
       }
     };
     window._ty3_dgPick._chainHooked = true;

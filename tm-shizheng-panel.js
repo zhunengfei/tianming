@@ -18,6 +18,9 @@ function openShizhengTasks() {
                    .sort(function(a,b){ return (b.raisedTurn||0) - (a.raisedTurn||0); });
   var resolved = all.filter(function(i){ return i.status === 'resolved'; })
                     .sort(function(a,b){ return (b.resolvedTurn||b.raisedTurn||0) - (a.resolvedTurn||a.raisedTurn||0); });
+  // 信息卡(_info·天机/军情/朝局等省览类·无须拍板)不计入「待决」数·单列「览」。跨朝代。
+  var pendingDecide = pending.filter(function(i){ return !i._info; });
+  var pendingInfo = pending.filter(function(i){ return i._info; });
 
   var exist = document.getElementById('shizheng-tasks-overlay');
   if (exist) exist.remove();
@@ -34,7 +37,7 @@ function openShizhengTasks() {
   html += '<div style="padding:0.9rem 1.4rem;display:flex;align-items:center;gap:1rem;border-bottom:1px solid rgba(201,168,76,0.2);background:linear-gradient(180deg,rgba(201,168,76,0.06),transparent);">';
   html += '<button onclick="closeShizhengTasks()" style="background:transparent;border:1px solid var(--gold-d);color:var(--gold);padding:0.35rem 0.9rem;cursor:pointer;font-size:0.88rem;border-radius:3px;letter-spacing:0.15em;font-family:\'STKaiti\',\'KaiTi\',serif;">‹ 返 回</button>';
   html += '<div style="flex:1;text-align:center;font-size:1.25rem;letter-spacing:0.7rem;color:var(--gold);font-family:\'STKaiti\',\'KaiTi\',serif;text-shadow:0 2px 8px rgba(201,168,76,0.2);">御 案 时 政</div>';
-  html += '<div style="width:5rem;text-align:right;"><span style="color:var(--txt-d);font-size:0.72rem;">'+pending.length+' 待 / '+resolved.length+' 决</span></div>';
+  html += '<div style="min-width:5rem;text-align:right;"><span style="color:var(--txt-d);font-size:0.72rem;">'+pendingDecide.length+' 待 / '+resolved.length+' 决'+(pendingInfo.length?(' / '+pendingInfo.length+' 览'):'')+'</span></div>';
   html += '</div>';
 
   html += '<div style="flex:1;overflow-y:auto;padding:1.1rem 1.4rem;scrollbar-width:thin;scrollbar-color:rgba(201,168,76,0.4) transparent;">';
@@ -86,10 +89,13 @@ function _renderShizhengCard(issue, _esc) {
   var cardBorder = isPending ? '#c9a85f' : '#a39373';
   var titleColor = isPending ? '#3d2f1a' : '#6b5d47';
   var descColor = isPending ? '#5a4a32' : '#8b7d68';
-  var badgeStyle = isPending
+  var _isInfo = !!issue._info;   // 信息卡(天机/军情/朝局)盖青色「省览」章·非朱「待解决」
+  var badgeStyle = _isInfo
+    ? 'background:rgba(58,125,103,0.10);border:1px solid rgba(58,125,103,0.5);color:#3a7d67;'
+    : (isPending
     ? 'background:rgba(192,64,48,0.08);border:1px solid rgba(192,64,48,0.45);color:#a13c2e;'
-    : 'background:rgba(90,90,90,0.08);border:1px solid rgba(90,90,90,0.45);color:#6b6b6b;';
-  var badgeText = isPending ? '待解决' : '已解决';
+    : 'background:rgba(90,90,90,0.08);border:1px solid rgba(90,90,90,0.45);color:#6b6b6b;');
+  var badgeText = _isInfo ? '省览' : (isPending ? '待解决' : '已解决');
 
   var h = '<div class="shizheng-card" data-issue-id="'+_esc(safeId)+'" ';
   h += 'style="background:'+cardBg+';border:1px solid '+cardBorder+';border-radius:4px;padding:0.9rem 1.1rem 0.95rem;cursor:pointer;position:relative;min-height:116px;transition:transform 0.15s ease-out,box-shadow 0.15s ease-out;'+(isPending?'':'opacity:0.78;')+'" ';
@@ -123,10 +129,13 @@ function _openShizhengDetail(issueId) {
   panel.style.cssText = 'width:min(90vw,760px);max-height:82vh;display:flex;flex-direction:column;background:linear-gradient(180deg,#1e1610,#14100a);border:1px solid var(--gold-d);border-radius:6px;box-shadow:0 10px 48px rgba(0,0,0,0.75);overflow:hidden;';
 
   var isPending = issue.status !== 'resolved';
-  var badgeStyle = isPending
+  var _isInfo = !!issue._info;   // 信息卡盖青色「省览」章
+  var badgeStyle = _isInfo
+    ? 'background:rgba(58,125,103,0.14);border:1px solid rgba(58,125,103,0.55);color:#4a9c80;'
+    : (isPending
     ? 'background:rgba(192,64,48,0.12);border:1px solid rgba(192,64,48,0.5);color:#c05030;'
-    : 'background:rgba(120,120,120,0.12);border:1px solid rgba(120,120,120,0.5);color:#888;';
-  var badgeText = isPending ? '待解决' : '已解决';
+    : 'background:rgba(120,120,120,0.12);border:1px solid rgba(120,120,120,0.5);color:#888;');
+  var badgeText = _isInfo ? '省览' : (isPending ? '待解决' : '已解决');
 
   var h = '';
   h += '<div style="padding:0.85rem 1.3rem;display:flex;align-items:center;border-bottom:1px solid rgba(201,168,76,0.2);background:linear-gradient(180deg,rgba(201,168,76,0.05),transparent);">';
@@ -245,20 +254,28 @@ function _shizhengConvene(issueId) {
   var issue = (GM.currentIssues||[]).find(function(i){ return String(i.id) === String(issueId); });
   var det = document.getElementById('shizheng-task-detail'); if (det) det.remove();
   var ov = document.getElementById('shizheng-tasks-overlay'); if (ov) ov.remove();
-  if (typeof openChaoyi === 'function') {
-    openChaoyi();
-    if (issue && issue.title) {
-      // 延迟预填议题
-      setTimeout(function(){
-        try {
-          var topicInp = document.getElementById('cy-topic-input');
-          if (topicInp) {
-            topicInp.value = issue.title + (issue.description ? '·' + String(issue.description).slice(0, 60) : '');
-          }
-          if (window.CY) window.CY.topic = issue.title + (issue.description ? '·' + String(issue.description).slice(0, 60) : '');
-        } catch(_){}
-      }, 120);
-    }
+  // 修：旧版写错 DOM id cy-topic-input（全库无此元素）→ 议题丢失、弹空白朝议。
+  // 改为推入 _pendingTinyiTopics 待议队列（与奏疏发廷议同源）+ 直开廷议筹备面板并预填真输入框 ty2-topic。
+  var _szTopic = (issue && issue.title) ? (issue.title + (issue.description ? '·' + String(issue.description).slice(0, 60) : '')) : '';
+  if (issue && _szTopic) {
+    try {
+      if (!Array.isArray(GM._pendingTinyiTopics)) GM._pendingTinyiTopics = [];
+      var _szQid = 'shizheng_' + (issue.id || issue.title || '') + '_' + (GM.turn || 0);
+      if (!GM._pendingTinyiTopics.some(function(x){ return x && x._memTinyiId === _szQid; })) {
+        GM._pendingTinyiTopics.unshift({
+          topic: _szTopic, from: '时政·御前召对', sourceType: 'shizheng',
+          turn: GM.turn || 1, status: 'pending', priority: 74,
+          reason: '御前召对群臣·付公议', _memTinyiId: _szQid, _shizhengId: issue.id || ''
+        });
+        if (GM._pendingTinyiTopics.length > 80) GM._pendingTinyiTopics = GM._pendingTinyiTopics.slice(0, 80);
+      }
+    } catch(_szE){}
+  }
+  if (typeof _ty2_openSetup === 'function') {
+    _ty2_openSetup(); // 廷议筹备面板·读 _pendingTinyiTopics 出待议下拉
+    if (_szTopic) setTimeout(function(){ try { var t = document.getElementById('ty2-topic'); if (t) t.value = _szTopic; } catch(_){} }, 60);
+  } else if (typeof openChaoyi === 'function') {
+    openChaoyi(); // 兜底·议题已在待议队列
   } else if (typeof toast === 'function') { toast('朝议系统加载中'); }
 }
 
@@ -854,8 +871,45 @@ function _mzShowSummary() {
     return { ch: c, replies: replies, containerId: containerId };
   }).filter(Boolean);
 
-  tasks.forEach(function(t){
-    _mzSummarizeOne(t.ch, t.replies, t.containerId, d.issue);
+  _mzSummarizeAll(tasks, d.issue);
+}
+
+// 【降本2026-06-19·count】N 臣建言归纳合并为单次 LLM 调用(原 _mzSummarizeOne 每臣一次·forEach 并发 N 次)·渲染块/按钮不变·合并失败/单臣/无key 自动退回逐个
+function _mzSummarizeAll(tasks, issue) {
+  var P = window.P || {};
+  if (!tasks || !tasks.length) return;
+  if (tasks.length === 1 || typeof callAI !== 'function' || !P.ai || !P.ai.key) {
+    tasks.forEach(function(t){ _mzSummarizeOne(t.ch, t.replies, t.containerId, issue); });
+    return;
+  }
+  var blocks = tasks.map(function(t, i){
+    return '【' + (i+1) + '·' + t.ch.name + '(' + (t.ch.officialTitle||t.ch.title||'') + ')】\n' + t.replies.join('\n');
+  }).join('\n\n');
+  var prompt = '以下为若干大臣在御前独召时就「' + (issue.title||'议题') + '」各自所进之奏对：\n\n' + blocks;
+  prompt += '\n\n【任务】对每位大臣·各以一段 60-120 字古典白话·精要归纳其立场·核心主张·建议策略(第三人称·如"该臣主张…"·不用"臣"字)。';
+  prompt += '\n返回纯 JSON：{"归纳":[{"name":"大臣名(须与上文完全一致)","summary":"归纳正文"}]}·无前言无解释。';
+  var _sumTier = (typeof _useSecondaryTier === 'function' && _useSecondaryTier()) ? 'secondary' : undefined;
+  callAI(prompt, Math.min(2500, 400 + tasks.length * 320), null, _sumTier).then(function(reply){
+    var obj = (typeof extractJSON === 'function') ? extractJSON(reply) : null;
+    var arr = null;
+    if (obj) {
+      if (Array.isArray(obj['归纳'])) arr = obj['归纳'];
+      else if (Array.isArray(obj.summaries)) arr = obj.summaries;
+      else if (Array.isArray(obj.list)) arr = obj.list;
+      else if (Array.isArray(obj)) arr = obj;
+    }
+    if (!arr) throw new Error('解析失败');
+    var byName = {};
+    arr.forEach(function(o){ if (o && o.name) byName[String(o.name).trim()] = String(o.summary || '').trim(); });
+    tasks.forEach(function(t){
+      var target = document.getElementById(t.containerId);
+      var actBar = document.getElementById(t.containerId + '-act');
+      var txt = byName[t.ch.name] || (t.ch.name + '主张：' + (t.replies[0] || '').slice(0, 60));  // 该臣缺失→首言兜底
+      if (target) { target.textContent = txt; target.dataset.summary = txt; }
+      if (actBar) actBar.style.display = 'block';
+    });
+  }).catch(function(){
+    tasks.forEach(function(t){ _mzSummarizeOne(t.ch, t.replies, t.containerId, issue); });  // 合并失败→退回逐个(鲁棒)
   });
 }
 

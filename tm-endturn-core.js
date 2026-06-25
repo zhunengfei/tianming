@@ -302,7 +302,7 @@ async function _endTurnCore(){
   try {
     if (typeof TM_SaveDB !== 'undefined' && typeof _prepareGMForSave === 'function') {
       _prepareGMForSave();
-      var _preState = { GM: deepClone(GM), P: deepClone(P) };
+      var _preState = { GM: deepClone(GM), P: _tmStripAiKeyInPlace(deepClone(P)) };
       var _scPre = (typeof findScenarioById === 'function' && GM.sid) ? findScenarioById(GM.sid) : null;
       var _preMeta = {
         name: '过回合前·' + (typeof getTSText === 'function' ? getTSText(GM.turn) : 'T' + GM.turn),
@@ -406,6 +406,10 @@ async function _endTurnCore(){
     if (GM.turn % _monthTurns !== 0) return;
 
     var _mCfg = (P.mechanicsConfig && P.mechanicsConfig.chronicleConfig) || {};
+    // 【降本·2026-06-19】月度纪事为孤儿 LLM 调用——GM.monthlyChronicles 全代码库零消费端
+    // (仅本函数自读续连贯 + save-lifecycle 存档·无 UI/无记忆/无 prompt 注入)·默认停发省每月一次后台调用·
+    // 年度正史走 ChronicleSystem 独立链路(monthDrafts·非 LLM)不受影响·剧本可设 chronicleConfig.monthlyEnabled=true 显式恢复。
+    if (!_mCfg.monthlyEnabled) return;
     var _wordLimit = _mCfg.monthlyWordLimit || 200;
     var _narrator = _mCfg.narratorRole || '史官';
     var _style = (P.conf && P.conf.style) || '';
@@ -528,6 +532,8 @@ async function _endTurnCore(){
   // 人力/徭役农政 tick（R2·2026-06-16·确定性步）：劳动力分流→双边际(在耕/地力)→粮产，写叶子 alloc + GM.renli 派生。
   // 须在 SocialFoundation 之后、final aggregate 之前。R2 只写 alloc/派生·不动 ding/mouths·暂无消费方读 alloc（良性休眠）。
   try { if (window.TM && TM.Renli && typeof TM.Renli.endturnTick === 'function') TM.Renli.endturnTick(GM, P); } catch(_rlTickE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_rlTickE, 'endTurn] renli tick') : console.warn('[endTurn] renli tick', _rlTickE); }
+  // 官制占位·久悬补缺 tick(2026-06-18·确定性步)：冷门空占位挂太久→引擎铨选虚拟官员补上(flag useOfficeFallback·前12回合给AI office_spawn机会)。
+  try { if (window.TM && TM.OfficeFallback && typeof TM.OfficeFallback.tick === 'function') TM.OfficeFallback.tick(GM, P); } catch(_ofTickE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_ofTickE, 'endTurn] office fallback tick') : console.warn('[endTurn] office fallback tick', _ofTickE); }
 
   // 回合结束前最后一次聚合：确保 七变量(national) 严格等于 各区划叶子之和
   // （因 AI 推演/各 engine.tick 都可能修改 division.population.mouths，需重新累计）
@@ -653,6 +659,13 @@ EndTurnHooks.register('after', function() {
       if (_eL.length) _edictText = _eL.join('\n  ');
     }
 
+    // 【史实顾问 agent·S2】开关开且未回落时·史实顾问 agent 接管(逼引证真实先例·替模型脑内臆测)·此写死 hist_check 跳；默认关/演义模式/连失回落 → 原 hist_check 原样跑零回归
+    try {
+      if (typeof window !== 'undefined' && window.TM && window.TM.HistoryAdvisor && window.TM.HistoryAdvisor.shouldHandle(GM)) {
+        await window.TM.HistoryAdvisor.run(GM, { edictText: _edictText, narrative: _histSnapshot, turn: _turnSnapshot, mode: mode, refText: (mode === 'strict_hist' ? (P.conf && P.conf.refText) : ''), era: (sc && sc.era) || '', role: (sc && sc.role) || '' });
+        return;
+      }
+    } catch (_haE) { try { console.warn('[史实顾问 agent] 失败·回落 hist_check:', _haE); } catch(_){} }
     var checkPrompt = '你是历史顾问 AI·剧本：' + (sc.era||'') + '·' + (sc.role||'') + '\n\n';
     checkPrompt += '【任务·识别玩家本回合诏令/行为里·与该时代历史逻辑相悖之处·并预测现实必然引起的反噬】\n';
     checkPrompt += '【铁律】\n';

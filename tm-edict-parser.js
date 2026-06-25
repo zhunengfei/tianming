@@ -1131,10 +1131,9 @@
       taxType: /商税|盐税|茶税|市舶|关税|算赋|田租/,
       base: /按人|按丁|按亩|按户|按产/,
       rate: /\d+\s*文|\d+%|百分之|什一|十分之/,
-      target: /江南|山西|陕西|京畿|直隶|广东|广西|福建|浙江|湖广|四川|山东|河南|某省|某路|某道/,
+      target: /江南|山西|陕西|京畿|直隶|广东|广西|福建|浙江|湖广|四川|山东|河南|某省|某路|某道|逃户|隐户|僧道|军户|编户/,
       policyId: /禁伐|封山|疏浚|水利|治水|复耕|屯田|休耕|限垦|开荒|垦荒|治盐|清污|禁猎/,
       action: /清查|重造|改色|变籍|入编/,
-      target: /逃户|隐户|僧道|军户|编户/,
       scope: /全国|天下|某省|某府|某县/,
       mode: /折银|钱粮|半折|全折|常额|均派/,
       commutationRate: /折\s*[五六七八九]\s*分/,
@@ -1793,6 +1792,19 @@
       corruption: hq < 40 ? 40 : 15,
       history: []
     };
+    // 官制活化 Slice④d·双表示收口：开 officeReformAdjudicationEnabled 时·设衙门改走 officeTree 改制拟制态(过廷议裁定·归官制树)·早返回·不再另造 dynamicInstitution(防双表示)·关则原样零回归
+    var _viaReform = false;
+    try {
+      if (typeof global.officeFlagOn === 'function' && global.officeFlagOn('officeReformAdjudicationEnabled') && typeof global.enqueuePendingReform === 'function') {
+        global.enqueuePendingReform(G, { action: 'reform', reformDetail: '增设', dept: inst.name, reason: inst.duties || '设衙门', newRank: inst.rank }, G.turn || 0);
+        _viaReform = true; inst.stage = 'pendingReform'; inst._viaReform = true;
+      }
+    } catch (_grdE) {}
+    if (_viaReform) {
+      if (global.addEB) global.addEB('机构', '设 ' + inst.name + ' 之议入拟制·待廷议裁定（官制活化·改制归官制树·不另立机构）');
+      _recordInstitutionLifecycleEvent(inst, 'pending_reform', { source: inst.createdBy || 'edict' });
+      return inst;
+    }
     G.dynamicInstitutions.push(inst);
     if (hq > 75 && typeof G.huangquan === 'object') {
       if (global.AuthorityEngines && global.AuthorityEngines.adjustHuangquan) {

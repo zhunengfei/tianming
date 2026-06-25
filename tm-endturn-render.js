@@ -1514,7 +1514,7 @@ function _endTurn_render(shizhengji, zhengwen, playerStatus, playerInner, edicts
     // A-1·端回合自动封存·走 selective snapshot·deepClone(GM) 2-5s 同步 → 400-600ms
     var _autoT0 = Date.now();
     var _gmSnap = (typeof _autoSaveSnapshotGM === 'function') ? _autoSaveSnapshotGM() : deepClone(GM);
-    var _autoState = { GM: _gmSnap, P: deepClone(P) };
+    var _autoState = { GM: _gmSnap, P: _tmStripAiKeyInPlace(deepClone(P)) };
     var _autoSnapMs = Date.now() - _autoT0;
     if (_autoSnapMs > 800) console.warn('[AutoSave] 端回合 snapshot 耗 '+_autoSnapMs+'ms·考虑 A-2');
     var _sc3 = typeof findScenarioById === 'function' ? findScenarioById(GM.sid) : null;
@@ -1596,6 +1596,7 @@ function _endTurn_render(shizhengji, zhengwen, playerStatus, playerInner, edicts
           if (typeof _prepareGMForSave === 'function') _prepareGMForSave();
           // A-1·N 回合 autoSave 走 selective snapshot
           var _asd=deepClone(P);
+          _tmStripAiKeyInPlace(_asd);
           _asd.gameState=(typeof _autoSaveSnapshotGM === 'function') ? _autoSaveSnapshotGM() : deepClone(GM);
           _asd._saveMeta={turn:GM.turn,gameMode:(P.conf&&P.conf.gameMode)||'',saveName:GM.saveName};
           window.tianming.autoSave(_asd).catch(function(e){ (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(e, 'catch] async:') : console.warn('[catch] async:', e); });
@@ -1910,7 +1911,7 @@ function _renderUnifiedChanges(oldVars) {
       var annual = Number(r.annualAmount || 0);
       if ((status === 'scheduled' || status === 'updated' || r.recurring) && annual > 0) {
         var annualTip = escHtml((r.reason || '') + (r.name?'\u00B7'+r.name:'') + '\u00B7\u5E74\u4F8B ' + annual).slice(0, 100);
-        var annualWord = status === 'updated' ? '\u6539\u5E74\u4F8B' : '\u5E74\u4F8B';
+        var annualWord = status === 'updated' ? '\u6539\u5E74\u4F8B' : (status === 'scheduled' ? '\u5E74\u4F8B\u00B7\u4E0B\u56DE\u5408\u8D77' : '\u5E74\u4F8B');  // \u3010\u843D\u5730\u6838\u5BF9\u00B7Slice5\u00B72026-06\u3011\u65B0\u8BBE\u5E74\u4F8B\u5F53\u56DE\u5408\u4E0D\u62E8\u4F59\u989D(actualApplied=0)\u00B7\u6807"\u4E0B\u56DE\u5408\u8D77"\u514D\u73A9\u5BB6\u8BEF\u4EE5\u4E3A\u672C\u56DE\u5408\u5DF2\u5165/\u51FA\u5E93
         out.push('<span class="tr-reason-chip ' + signCls + '" title="' + annualTip + '">' + annualWord + '\u00B7' + label + '<span class="v">' + signChar + _rucFmtBig(annual) + '/\u5E74</span></span>');
       } else if (status === 'stopped' || status === 'removed') {
         var stopTip = escHtml((r.reason || '') + (r.name?'\u00B7'+r.name:'') + (annual ? '\u00B7\u539F\u5E74\u4F8B ' + annual : '')).slice(0, 100);
@@ -1942,8 +1943,12 @@ function _renderUnifiedChanges(oldVars) {
     var _imp = _fExp.imperial && _fExp.imperial.money || 0;
     var turnIn = ng.turnIncome || 0;
     var turnOut = ng.turnExpense || 0;
+    // ★对齐顶栏权威取数(治"史记弹窗与顶部栏帑廪数值不一致"):史记原裸读 ng.money/.grain/.cloth·顶栏走 _barAccountStock(优先 .money·否则回落 .balance/账本 stock)·二者在 .money 缺失或与账本不同步时分歧。
+    //   此处统一改走 _barAccountStock(与顶栏 _renderGuoku 同源)·_barAccountStock 不可用时降级到 .money/.balance。
+    var _gkS = function (a, r) { return (typeof _barAccountStock === 'function') ? _barAccountStock(a, r) : (a && typeof a[r] === 'number' ? a[r] : (r === 'money' && a && typeof a.balance === 'number' ? a.balance : 0)); };
+    var _gkHas = function (r) { return !!(ng && (typeof ng[r] === 'number' || (r === 'money' && typeof ng.balance === 'number') || (ng.ledgers && ng.ledgers[r]))); };
     // 钱
-    if (typeof ng.money === 'number') {
+    if (_gkHas('money')) {
       var moneyReasons = [];
       if (turnIn > 0) moneyReasons.push('<span class="tr-reason-chip pos">\u5C81\u5165<span class="v">+' + _rucFmtBig(turnIn) + '</span></span>');
       if (_sal > 0) moneyReasons.push('<span class="tr-reason-chip neg">\u4FF8\u7984<span class="v">\u2212' + _rucFmtBig(_sal) + '</span></span>');
@@ -1951,21 +1956,21 @@ function _renderUnifiedChanges(oldVars) {
       if (_imp > 0) moneyReasons.push('<span class="tr-reason-chip neg">\u5BAB\u5EF7<span class="v">\u2212' + _rucFmtBig(_imp) + '</span></span>');
       // ★ 追加 AI/玩家触发的一次性调整
       Array.prototype.push.apply(moneyReasons, _collectFiscalAdjChips('guoku', 'money'));
-      gItems.push({ic:'\u94B1', name:'\u94F6\u4E24', unit:'\u4E24', ov:og.money, nv:ng.money, reasonsHtml: moneyReasons.join('')});
+      gItems.push({ic:'\u94B1', name:'\u94F6\u4E24', unit:'\u4E24', ov:_gkS(og,'money'), nv:_gkS(ng,'money'), reasonsHtml: moneyReasons.join('')});
     }
-    if (typeof ng.grain === 'number') {
+    if (_gkHas('grain')) {
       var grainR = [];
       var turnGIn = ng.turnGrainIncome || 0;
       var turnGOut = ng.turnGrainExpense || 0;
       if (turnGIn > 0) grainR.push('<span class="tr-reason-chip pos">\u6F15\u7CAE<span class="v">+' + _rucFmtBig(turnGIn) + '</span></span>');
       if (turnGOut > 0) grainR.push('<span class="tr-reason-chip neg">\u652F\u7528<span class="v">\u2212' + _rucFmtBig(turnGOut) + '</span></span>');
       Array.prototype.push.apply(grainR, _collectFiscalAdjChips('guoku', 'grain'));
-      gItems.push({ic:'\u7CAE', name:'\u7CAE\u7C73', unit:'\u77F3', ov:og.grain, nv:ng.grain, reasonsHtml: grainR.join('')});
+      gItems.push({ic:'\u7CAE', name:'\u7CAE\u7C73', unit:'\u77F3', ov:_gkS(og,'grain'), nv:_gkS(ng,'grain'), reasonsHtml: grainR.join('')});
     }
-    if (typeof ng.cloth === 'number') {
+    if (_gkHas('cloth')) {
       var clothR = _collectFiscalAdjChips('guoku', 'cloth');
       if (clothR.length === 0) clothR.push('<span class="tr-reason-txt">\u7EC7\u67D3\u4E0A\u89E3\u00B7\u8D4F\u8D50\u6263\u51CF</span>');
-      gItems.push({ic:'\u5E03', name:'\u5E03\u5339', unit:'\u5339', ov:og.cloth, nv:ng.cloth, reasonsHtml: clothR.join('')});
+      gItems.push({ic:'\u5E03', name:'\u5E03\u5339', unit:'\u5339', ov:_gkS(og,'cloth'), nv:_gkS(ng,'cloth'), reasonsHtml: clothR.join('')});
     }
     if (typeof ng.monthlyIncome === 'number') {
       gItems.push({ic:'\u6708', name:'\u6708\u5165', sub:'\u4E24/\u6708', ov:og.monthlyIncome, nv:ng.monthlyIncome, reasonsHtml: '<span class="tr-reason-txt">\u7A0E\u6536\u7EA7\u8054\u4E0A\u89E3\u4E2D\u592E</span>'});
@@ -2010,20 +2015,23 @@ function _renderUnifiedChanges(oldVars) {
     var on = GM._prevNeitang || {};
     var nn = GM.neitang;
     var nItems = [];
-    if (typeof nn.money === 'number') {
+    // 同帑廪:对齐顶栏权威取数 _barAccountStock(内帑亦有 .money 与 .balance/账本 stock 不同步之虞)·自包含不依赖帑廪块助手。
+    var _ntS = function (a, r) { return (typeof _barAccountStock === 'function') ? _barAccountStock(a, r) : (a && typeof a[r] === 'number' ? a[r] : (r === 'money' && a && typeof a.balance === 'number' ? a.balance : 0)); };
+    var _ntHas = function (r) { return !!(nn && (typeof nn[r] === 'number' || (r === 'money' && typeof nn.balance === 'number') || (nn.ledgers && nn.ledgers[r]))); };
+    if (_ntHas('money')) {
       var nMoneyR = _collectFiscalAdjChips('neitang', 'money');
       if (nMoneyR.length === 0) nMoneyR.push('<span class="tr-reason-txt">\u5185\u5EF7\u6536\u652F\u00B7\u5F92\u5FA1\u8D4F\u8D50</span>');
-      nItems.push({ic:'\u94B1', name:'\u94F6\u4E24', unit:'\u4E24', ov:on.money, nv:nn.money, reasonsHtml: nMoneyR.join('')});
+      nItems.push({ic:'\u94B1', name:'\u94F6\u4E24', unit:'\u4E24', ov:_ntS(on,'money'), nv:_ntS(nn,'money'), reasonsHtml: nMoneyR.join('')});
     }
-    if (typeof nn.grain === 'number') {
+    if (_ntHas('grain')) {
       var nGrainR = _collectFiscalAdjChips('neitang', 'grain');
       if (nGrainR.length === 0) nGrainR.push('<span class="tr-reason-txt">\u5F9D\u8180\u00B7\u5BAB\u7528\u6D88\u8017</span>');
-      nItems.push({ic:'\u7CAE', name:'\u7CAE\u7C73', unit:'\u77F3', ov:on.grain, nv:nn.grain, reasonsHtml: nGrainR.join('')});
+      nItems.push({ic:'\u7CAE', name:'\u7CAE\u7C73', unit:'\u77F3', ov:_ntS(on,'grain'), nv:_ntS(nn,'grain'), reasonsHtml: nGrainR.join('')});
     }
-    if (typeof nn.cloth === 'number') {
+    if (_ntHas('cloth')) {
       var nClothR = _collectFiscalAdjChips('neitang', 'cloth');
       if (nClothR.length === 0) nClothR.push('<span class="tr-reason-txt">\u5BAB\u4E2D\u8D50\u8D21</span>');
-      nItems.push({ic:'\u5E03', name:'\u5E03\u5339', unit:'\u5339', ov:on.cloth, nv:nn.cloth, reasonsHtml: nClothR.join('')});
+      nItems.push({ic:'\u5E03', name:'\u5E03\u5339', unit:'\u5339', ov:_ntS(on,'cloth'), nv:_ntS(nn,'cloth'), reasonsHtml: nClothR.join('')});
     }
     if (typeof nn.huangzhuangAcres === 'number') nItems.push({ic:'\u5E84', name:'\u7687\u5E84', unit:'\u4EA9', ov:on.huangzhuangAcres, nv:nn.huangzhuangAcres, reasonsHtml: '<span class="tr-reason-txt">\u4ECA\u5C81\u65B0\u8F9F/\u5931\u7BA1</span>'});
     if (nItems.length > 0) {
@@ -2272,215 +2280,6 @@ function _renderUnifiedChanges(oldVars) {
   return '<div class="turn-section unified-changes"><h3>\u6570 \u503C \u53D8 \u5316 \u00B7 \u5206 \u7C7B \u8BE6 \u6CE8</h3><div class="tr-changes-wrap">' + html + '</div></div>';
 }
 
-/** v1 保留（未用·若外部仍调则走 fallback 渲染） */
-function _renderUnifiedChangesLegacy(oldVars) {
-  oldVars = oldVars || {};
-  var groups = {
-    '\u8981\u70B9': [],   // 本回合要点（最突出的几项变化）
-    '\u8D22\u653F': [],   // 财政
-    '\u5730\u65B9': [],   // 地方
-    '\u519B\u4E8B': [],   // 军事
-    '\u653F\u6CBB': [],   // 政治
-    '\u52BF\u529B': [],   // 势力
-    '\u515A\u6D3E': [],   // 党派
-    '\u9636\u5C42': [],   // 阶层
-    '\u4EBA\u7269': []    // 人物
-  };
-
-  // —— 本回合要点（最突出的 NPC 忠诚/势力实力/伤疤/阴谋/NPC 行动） ——
-  (function _collectHighlights(){
-    // 忠诚变动最大的角色
-    if (GM.turnChanges && GM.turnChanges.characters) {
-      var _maxLoyD = 0, _maxLoyInfo = null;
-      GM.turnChanges.characters.forEach(function(cc) {
-        (cc.changes||[]).forEach(function(ch) {
-          if (ch.field === 'loyalty' && Math.abs(ch.newValue - ch.oldValue) > _maxLoyD) {
-            _maxLoyD = Math.abs(ch.newValue - ch.oldValue);
-            _maxLoyInfo = { name: cc.name, d: ch.newValue - ch.oldValue, nv: ch.newValue };
-          }
-        });
-      });
-      if (_maxLoyInfo && _maxLoyD >= 5) {
-        groups['\u8981\u70B9'].push(_maxLoyInfo.name + ' \u5FE0\u8BDA' + (_maxLoyInfo.d > 0 ? '+' : '') + _maxLoyInfo.d + '\uFF08\u2192' + _maxLoyInfo.nv + '\uFF09');
-      }
-    }
-    // 实力变化最大的势力
-    if (GM.turnChanges && GM.turnChanges.factions) {
-      var _maxStrD = 0, _maxStrInfo = null;
-      GM.turnChanges.factions.forEach(function(fc) {
-        (fc.changes||[]).forEach(function(ch) {
-          if (ch.field === 'strength' && Math.abs(ch.newValue - ch.oldValue) > _maxStrD) {
-            _maxStrD = Math.abs(ch.newValue - ch.oldValue);
-            _maxStrInfo = { name: fc.name, d: ch.newValue - ch.oldValue };
-          }
-        });
-      });
-      if (_maxStrInfo && _maxStrD >= 3) {
-        groups['\u8981\u70B9'].push(_maxStrInfo.name + ' \u5B9E\u529B' + (_maxStrInfo.d > 0 ? '+' : '') + _maxStrInfo.d);
-      }
-    }
-    // 新伤疤
-    if (GM.chars) {
-      GM.chars.forEach(function(c) {
-        if (c._scars && c._scars.length > 0) {
-          var newest = c._scars[c._scars.length - 1];
-          if (newest.turn === GM.turn - 1) groups['\u8981\u70B9'].push(c.name + '\uFF1A' + newest.event);
-        }
-      });
-    }
-    // 新阴谋
-    if (GM.activeSchemes) {
-      GM.activeSchemes.forEach(function(s) {
-        if (s.startTurn === GM.turn - 1) groups['\u8981\u70B9'].push(s.schemer + ' \u5BC6\u8C0B' + (s.target ? '\u9488\u5BF9' + s.target : ''));
-      });
-    }
-    // 最重要NPC行动
-    if (GM.evtLog) {
-      var _topNpcEvt = GM.evtLog.filter(function(e){ return e.type === 'NPC\u81EA\u4E3B' && e.turn === GM.turn - 1; })[0];
-      if (_topNpcEvt) groups['\u8981\u70B9'].push(_topNpcEvt.text || '');
-    }
-  })();
-
-  // 判断指标是否与地方/省份有关
-  function _isLocal(name) {
-    return /\u6C11\u5FC3|\u53DB\u4E71|\u7A0E\u6536|\u707E\u5BB3|\u4EBA\u53E3|\u7E41\u8363/.test(name) &&
-      !/\u56FD\u5E93|\u5185\u5E91|\u8D22\u4EA7/.test(name);
-  }
-
-  // —— 岁入岁出总览（每回合固定显示，优先级最高） ——
-  (function _collectFiscalSummary() {
-    try {
-      var g = GM.guoku;
-      if (!g) return;
-      var turnIn = g.turnIncome || 0;
-      var turnInG = g.turnGrainIncome || 0;
-      var turnOut = g.turnExpense || 0;
-      var turnOutG = g.turnGrainExpense || 0;
-      var net = turnIn - turnOut;
-      var unit = (typeof CurrencyUnit !== 'undefined' && CurrencyUnit.getUnit) ? CurrencyUnit.getUnit() : { money: '两', grain: '石' };
-      var _fmt = function(v) { v = Math.round(v); if (Math.abs(v) >= 1e4) return (v/1e4).toFixed(1) + '万'; return String(v); };
-      if (turnIn > 0 || turnOut > 0) {
-        groups['\u8D22\u653F'].push('本回合岁入 ' + _fmt(turnIn) + unit.money + (turnInG > 0 ? ' ' + _fmt(turnInG) + unit.grain : '') + '（税收级联上解中央）');
-        var feBreakdown = GM._lastFixedExpense;
-        if (feBreakdown) {
-          var sal = feBreakdown.salary && feBreakdown.salary.money || 0;
-          var arm = feBreakdown.army && feBreakdown.army.money || 0;
-          var imp = feBreakdown.imperial && feBreakdown.imperial.money || 0;
-          groups['\u8D22\u653F'].push('本回合岁出 ' + _fmt(turnOut) + unit.money + ' ：俸禄 ' + _fmt(sal) + ' · 军饷 ' + _fmt(arm) + ' · 宫廷 ' + _fmt(imp));
-        } else {
-          groups['\u8D22\u653F'].push('本回合岁出 ' + _fmt(turnOut) + unit.money + '（俸禄+军饷+宫廷）');
-        }
-        var netLbl = net >= 0 ? '结余' : '亏空';
-        groups['\u8D22\u653F'].push(netLbl + ' ' + _fmt(Math.abs(net)) + unit.money + '（' + (net >= 0 ? '+' : '−') + '入库）');
-      }
-    } catch(_fsE) {}
-  })();
-
-  // —— 财政（核心指标+财务明细）——
-  var _fiscalKeys = /\u56FD\u5E93|\u5185\u5E91|\u8D22\u4EA7|\u8C0B\u8FC6|\u6536\u5165|\u652F\u51FA|\u7A0E\u6536\u7387/;
-  if (GM.turnChanges && GM.turnChanges.variables) {
-    GM.turnChanges.variables.forEach(function(vc) {
-      var name = vc.name || '';
-      var ov = Math.round(vc.oldValue||0), nv = Math.round(vc.newValue||0);
-      var d = nv - ov;
-      if (d === 0) return;
-      var reason = (vc.reasons && vc.reasons.length>0) ? vc.reasons.map(function(r){return r.desc||r.type||'';}).filter(Boolean).slice(0,3).join('、') : '';
-      var line = name + '（' + ov.toLocaleString() + ' → ' + nv.toLocaleString() + '）' + (reason?'：'+reason:'');
-      if (_fiscalKeys.test(name)) groups['\u8D22\u653F'].push(line);
-      else if (_isLocal(name)) groups['\u5730\u65B9'].push(line);
-      else groups['\u653F\u6CBB'].push(line);
-    });
-  }
-
-  // —— 核心指标（prestige/unrest等）——
-  if (typeof CORE_METRIC_LABELS === 'object') {
-    Object.keys(CORE_METRIC_LABELS).forEach(function(k) {
-      if (typeof GM[k] !== 'number') return;
-      var nv = Math.round(GM[k]);
-      var prevKey = '_prev_' + k;
-      var ov = Math.round(GM[prevKey] !== undefined ? GM[prevKey] : nv);
-      if (nv === ov) return;
-      var label = CORE_METRIC_LABELS[k] || k;
-      groups['\u653F\u6CBB'].push(label + '（' + ov + ' → ' + nv + '）');
-    });
-  }
-
-  // —— 军事（军队变化）——
-  if (GM.turnChanges && GM.turnChanges.military) {
-    GM.turnChanges.military.forEach(function(mc) {
-      (mc.changes||[]).forEach(function(ch) {
-        var _fN = ch.field === 'soldiers' ? '\u5175\u529B' : ch.field === 'morale' ? '\u58EB\u6C14' : ch.field === 'training' ? '\u8BAD\u7EC3' : ch.field === 'supply' ? '\u8865\u7ED9' : ch.field;
-        var line = mc.name + ' ' + _fN + '（' + (ch.oldValue||0) + ' → ' + (ch.newValue||0) + '）' + (ch.reason?'：'+ch.reason:'');
-        groups['\u519B\u4E8B'].push(line);
-      });
-    });
-  }
-
-  // —— 势力 ——
-  if (GM.turnChanges && GM.turnChanges.factions) {
-    GM.turnChanges.factions.forEach(function(fc) {
-      (fc.changes||[]).forEach(function(ch) {
-        var _fN = ch.field === 'strength' ? '\u5B9E\u529B' : ch.field === 'economy' ? '\u7ECF\u6D4E' : ch.field === 'playerRelation' ? '\u5BF9\u5DF1\u5173\u7CFB' : ch.field;
-        var line = fc.name + ' ' + _fN + '（' + (ch.oldValue||0) + ' → ' + (ch.newValue||0) + '）' + (ch.reason?'：'+ch.reason:'');
-        groups['\u52BF\u529B'].push(line);
-      });
-    });
-  }
-
-  // —— 党派 ——
-  if (GM.turnChanges && GM.turnChanges.parties) {
-    GM.turnChanges.parties.forEach(function(pc) {
-      (pc.changes||[]).forEach(function(ch) {
-        var _fN = ch.field === 'influence' ? '\u5F71\u54CD\u529B' : ch.field === 'satisfaction' ? '\u6EE1\u610F\u5EA6' : ch.field === 'status' ? '\u72B6\u6001' : ch.field;
-        // 数字字段 fallback 0；非数字字段原样显示
-        var _ov = (typeof ch.oldValue === 'number' || typeof ch.oldValue === 'string') ? ch.oldValue : 0;
-        var _nv = (typeof ch.newValue === 'number' || typeof ch.newValue === 'string') ? ch.newValue : 0;
-        var line = pc.name + ' ' + _fN + '（' + _ov + ' → ' + _nv + '）' + (ch.reason?'：'+ch.reason:'');
-        groups['\u515A\u6D3E'].push(line);
-      });
-    });
-  }
-
-  // —— 阶层 ——
-  if (GM.turnChanges && GM.turnChanges.classes) {
-    GM.turnChanges.classes.forEach(function(cc) {
-      (cc.changes||[]).forEach(function(ch) {
-        var _fN = ch.field === 'satisfaction' ? '\u6EE1\u610F\u5EA6' : ch.field === 'influence' ? '\u5F71\u54CD\u529B' : ch.field;
-        var line = cc.name + ' ' + _fN + '（' + (ch.oldValue||0) + ' → ' + (ch.newValue||0) + '）' + (ch.reason?'：'+ch.reason:'');
-        groups['\u9636\u5C42'].push(line);
-      });
-    });
-  }
-
-  // —— 人物 ——
-  if (GM.turnChanges && GM.turnChanges.characters) {
-    GM.turnChanges.characters.forEach(function(cc) {
-      (cc.changes||[]).forEach(function(ch) {
-        var _fN = {'loyalty':'\u5FE0\u8BDA','ambition':'\u91CE\u5FC3','stress':'\u538B\u529B','influence':'\u5F71\u54CD\u529B','strength':'\u5B9E\u529B'}[ch.field] || ch.field;
-        var line = cc.name + ' ' + _fN + '（' + (ch.oldValue||0) + ' → ' + (ch.newValue||0) + '）' + (ch.reason?'：'+ch.reason:'');
-        groups['\u4EBA\u7269'].push(line);
-      });
-    });
-  }
-
-  // —— 渲染 ——
-  var any = Object.keys(groups).some(function(k){return groups[k].length>0;});
-  if (!any) return '';
-  var html = '<div class="turn-section unified-changes"><h3>\u6570 \u503C \u53D8 \u5316 \u8BF4 \u660E</h3>';
-  Object.keys(groups).forEach(function(gk) {
-    if (groups[gk].length === 0) return;
-    html += '<div style="margin-bottom:0.8rem;">';
-    html += '<div style="font-size:0.78rem;color:var(--gold);font-weight:700;margin-bottom:0.3rem;letter-spacing:0.08em;">\u3010' + gk + '\u3011</div>';
-    html += '<div style="font-size:0.82rem;color:var(--txt-s);line-height:1.8;">';
-    groups[gk].forEach(function(line) {
-      html += '<div style="padding:0.15rem 0.4rem;border-bottom:1px dashed var(--color-border-subtle,rgba(255,255,255,0.05));">' + escHtml(line) + '</div>';
-    });
-    html += '</div></div>';
-  });
-  html += '</div>';
-  return html;
-}
-
 // ============================================================
 // 人事变动（从AI返回的personnel_changes数组渲染）
 // 格式：姓名（原职）：变动描述
@@ -2509,13 +2308,14 @@ function _renderPersonnelChanges(personnelChanges) {
     var change = pc.change || pc.desc || '';
     var reason = pc.reason || '';
     var t = _pcType(change, reason);
-    html += '<div class="tr-person-row ' + t.cls + '">';
+    html += '<div class="tr-person-row ' + t.cls + (pc._applyFailed ? ' unapplied' : '') + '"' + (pc._applyFailed ? ' style="opacity:0.6;"' : '') + '>';
     html += '<span class="type">' + t.lbl + '</span>';
     html += '<span class="who">' + escHtml(pc.name) + '</span>';
     html += '<span class="from-to">';
     if (former) html += escHtml(former) + ' <span class="arrow">\u2192</span> ';
     html += escHtml(change);
     if (reason) html += ' \uFF08' + escHtml(reason) + '\uFF09';
+    if (pc._applyFailed) html += ' <span class="unapplied-badge" title="\u672A\u843D\u5730\u00B7\u8BE6\u89C1\u63A7\u5236\u53F0 GM._unappliedChanges" style="color:#c9534f;font-size:0.7rem;">\u26A0\u672A\u843D\u5730</span>';  // \u3010\u843D\u5730\u6838\u5BF9\u00B72026-06\u3011applier \u6807\u8BB0\u7684\u672A\u843D\u5730\u4EBA\u4E8B\u00B7\u6253\u6807\u800C\u975E\u5047\u663E
     html += '</span>';
     html += '</div>';
   });

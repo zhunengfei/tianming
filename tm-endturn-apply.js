@@ -24,6 +24,23 @@
 // ============================================================
 (function(global) {
 
+  // 【落地核对·2026-06】applyAITurnChanges 返回 {applied:{failed:[]}}·原两调用点丢弃返回值→AI 声明应用失败 100% 静默(owner 痛点#1:摘要显示了却没改到状态)。此助手接住失败清单·记 GM._unappliedChanges + console.warn + addEB·让"显示了却没落地"从看不见变看得见(这是修#1的 keystone·后续按 GM._unappliedChanges 对症)。
+  function _surfaceUnappliedChanges(applyRes, source) {
+    try {
+      var failed = (applyRes && applyRes.applied && Array.isArray(applyRes.applied.failed)) ? applyRes.applied.failed : [];
+      if (!failed.length) return;
+      if (typeof GM === 'undefined' || !GM) return;
+      if (!Array.isArray(GM._unappliedChanges)) GM._unappliedChanges = [];
+      failed.forEach(function (f) { try { GM._unappliedChanges.push(Object.assign({ turn: GM.turn || 0, source: source }, f)); } catch (_) {} });
+      if (GM._unappliedChanges.length > 80) GM._unappliedChanges = GM._unappliedChanges.slice(-80);
+      var byReason = {};
+      failed.forEach(function (f) { var r = (f && f.reason) || 'unknown'; byReason[r] = (byReason[r] || 0) + 1; });
+      var summary = Object.keys(byReason).map(function (r) { return r + '×' + byReason[r]; }).join('·');
+      try { console.warn('[落地核对·' + source + '] ' + failed.length + ' 项 AI 声明未落地: ' + summary, failed); } catch (_) {}
+      if (typeof addEB === 'function') { try { addEB('⚠落地核对', source + '·' + failed.length + ' 项 AI 声明未能落地(' + summary + ')·详见控制台 GM._unappliedChanges'); } catch (_) {} }
+    } catch (e) { try { console.warn('[落地核对] surface failed', e); } catch (_) {} }
+  }
+
   // ── NPC 行为类型→中文动词(供记忆/事件文案·复用 prompt 既有标签·防英文 behaviorType 漏进中文叙事·2026-06-13) ──
   var _NPC_BEHAVIOR_CN = { appoint:'任用', dismiss:'罢黜', declare_war:'宣战', reward:'赏赐', punish:'惩处', request_loyalty:'拉拢', reform:'推行新政', betray:'背叛', conspire:'密谋串联', petition:'进谏', investigate:'查劾', impeach:'弹劾', obstruct:'阻挠', slander:'中伤', reconcile:'和解', mentor:'提携', train_troops:'操练', fortify:'整饬城防', patrol:'巡防', flee:'出逃', retire:'告老', travel:'游历', develop:'兴修', donate:'捐输', hoard:'囤积', smuggle:'走私', suppress:'镇压', petition_jointly:'联名上书', recruit:'招募', study:'查访', recommend:'举荐', confront:'对质', mediate:'调和', frame_up:'构陷', expose_secret:'揭发', share_intelligence:'通风报信', guarantee:'担保', gift_present:'馈赠', private_visit:'私访', invite_banquet:'宴请', correspond_secret:'通密信', form_clique:'结党', marriage_alliance:'联姻', master_disciple:'收徒', duel_poetry:'诗文唱和', mourn_together:'共哀', mourn:'致哀', rival_compete:'争胜', obey:'听命', desert:'哗变' };
   function _npcBehaviorVerbCN(bt) {
@@ -113,7 +130,7 @@
         // 方案融入：AI 产出的通用变化/任免/机构/区划/事件/NPC行动/关系 → 统一应用
         try {
           if (typeof applyAITurnChanges === 'function') {
-            applyAITurnChanges({
+            var _applyRes1 = applyAITurnChanges({
               narrative: p1.shizhengji || '',
               changes: Array.isArray(p1.changes) ? p1.changes : [],
               appointments: Array.isArray(p1.appointments) ? p1.appointments : [],
@@ -139,8 +156,20 @@
               directive_compliance: Array.isArray(p1.directive_compliance) ? p1.directive_compliance : [],
               regent_decisions: Array.isArray(p1.regent_decisions) ? p1.regent_decisions : []
             });
+            _surfaceUnappliedChanges(_applyRes1, 'sc1主应用');  // 【落地核对】接住失败清单·让静默 #1 可见
           }
         } catch(_applyErr) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_applyErr, 'endturn] applyAITurnChanges:') : console.warn('[endturn] applyAITurnChanges:', _applyErr); }
+
+        // 【落地核对·Slice3·2026-06】province_changes 是无 handler 的冗余自由字段(省级意图应走 population_adjustments/central_local_actions/localActions/fiscal 等有 handler 字段)·原本被收集喂下回合却从不 mutate state→纯静默落空。此处显式 surface·让真机从 GM._unappliedChanges 看到 AI 实际往里塞什么·据此再决定补 handler 还是删 schema(不盲改)。
+        try {
+          if (p1 && Array.isArray(p1.province_changes) && p1.province_changes.length && typeof GM !== 'undefined' && GM) {
+            if (!Array.isArray(GM._unappliedChanges)) GM._unappliedChanges = [];
+            GM._unappliedChanges.push({ turn: GM.turn || 0, source: 'province_changes', count: p1.province_changes.length, sample: p1.province_changes.slice(0, 3), reason: 'province_changes 无 apply handler(省级变化请走 population_adjustments/central_local_actions)' });
+            if (GM._unappliedChanges.length > 80) GM._unappliedChanges = GM._unappliedChanges.slice(-80);
+            try { console.warn('[落地核对·province_changes] ' + p1.province_changes.length + ' 项省级变化无 handler·未落地·样本:', p1.province_changes.slice(0, 3)); } catch (_) {}
+            if (typeof addEB === 'function') { try { addEB('⚠落地核对', 'province_changes·' + p1.province_changes.length + ' 项省级变化无 handler 未落地·详见 GM._unappliedChanges'); } catch (_) {} }
+          }
+        } catch (_pcSurfaceE) {}
 
         // ═══════════════════════════════════════════════════════════════════
         // 辅臣拟议·AI 生成 (Stage 2·2026-06-02)·御前待批奏疏的辅臣处理建议
@@ -223,6 +252,16 @@
               '请检查 narrative 中提到但未在结构化数据里体现的状态变化·只补遗漏的·不要重复已写过的。\n' +
               '使用提供的 5 个工具之一记录补录·若完全无需补录请调用 record_no_changes。\n' +
               '注意：每个工具可调用多次·按领域分别调用（人事/任命/财政/军事各自独立）。';
+
+            // 【落地核对·structured↔state 残差修复·搭车·2026-06】把主应用「已尝试应用但未落地」的结构化变化(applied.failed·多因目标名对不上)喂进**同一次**自审·让 LLM 解析正确目标后用上面**同一组工具**重记·随 _patch 经下方 L653 重应用·**零新增调用/零新工具**。只挑"目标对不上"类(排除 blocked 等故意拦截·不喂回去)·重应用若仍失败由 _applyRes2 的 surface 兜住(不静默)。
+            try {
+              var _failedForRepair = (typeof _applyRes1 !== 'undefined' && _applyRes1 && _applyRes1.applied && Array.isArray(_applyRes1.applied.failed))
+                ? _applyRes1.applied.failed.filter(function(f){ return f && f.reason && /not found|未找到|对不上|未落地|无法解析/i.test(String(f.reason)) && !/blocked|玩家保护/i.test(String(f.reason)); }).slice(0, 12)
+                : [];
+              if (_failedForRepair.length) {
+                _reconcilePrompt += '\n\n【另有结构化变化已尝试应用但未落地·多因目标名对不上】\n' + JSON.stringify(_failedForRepair) + '\n请把其中的目标(人名/势力/地区)解析为当前实际存在的对象后·用上面同一组工具按正确名字重新记录·解析不出的跳过·切勿凭空捏造对象。';
+              }
+            } catch (_repairPromptErr) {}
 
             // 取 reconcile 工具集
             var _reconcileTools = (window.TM_AI_SCHEMA && TM_AI_SCHEMA.reconcileTools) || [];
@@ -650,7 +689,7 @@ inst._imprisonedTurn = GM.turn||0;
 
             var _patched = _patch.personnel_changes.length + _patch.office_assignments.length + _patch.fiscal_adjustments.length + _patch.military_changes.length + _patch.sentiment_changes.length + _patch.population_changes.length + _patch.war_events.length + _patch.revolt_events.length + _patch.disaster_events.length + _patch.diplomacy_events.length + _patch.keju_events.length + _patch.party_events.length + _patch.edict_events.length + _patch.court_ceremony_events.length + _patch.construction_events.length + _patch.omen_events.length + _patch.marriage_birth_events.length + _patch.conspiracy_events.length + _patch.currency_events.length + _patch.religion_events.length;
             if ((_patch.personnel_changes.length + _patch.office_assignments.length + _patch.fiscal_adjustments.length + _patch.military_changes.length) > 0 && typeof applyAITurnChanges === 'function') {
-              applyAITurnChanges({
+              var _applyRes2 = applyAITurnChanges({
                 personnel_changes: _patch.personnel_changes,
                 office_assignments: _patch.office_assignments,
                 fiscal_adjustments: _patch.fiscal_adjustments,
@@ -659,6 +698,7 @@ inst._imprisonedTurn = GM.turn||0;
                 shilu_text: '',
                 shizhengji: ''
               });
+              _surfaceUnappliedChanges(_applyRes2, 'reconcile补录');  // 【落地核对】二审补录也接住失败清单
               if (!GM._reconcilePatchLog) GM._reconcilePatchLog = [];
               GM._reconcilePatchLog.push({ turn: GM.turn||0, patch: _patch, mode: _toolResp.fallback ? 'fallback' : 'tool_use', timestamp: Date.now() });
               if (GM._reconcilePatchLog.length > 10) GM._reconcilePatchLog = GM._reconcilePatchLog.slice(-10);
@@ -743,6 +783,14 @@ inst._imprisonedTurn = GM.turn||0;
             }
 
             if (!_tmNpcLedgerPreflight({ source: 'main_ai:npc_actions', kind: 'npc_action', actor: act.name, behaviorType: act.behaviorType || act.type || 'unknown', type: act.type || act.behaviorType || 'unknown', target: act.target || '', action: act.action || '' }, 'AI NPC行动已阻止')) return;
+
+            // 官制活化 ④B·npc_action → 履职反哺（开 officeDutyStateEnabled·官的本回合行止定性回调其履职度·与才五常基线漂移叠加·关则零回归）
+            try {
+              if (typeof officeFlagOn === 'function' && officeFlagOn('officeDutyStateEnabled') && typeof applyNpcActionToDuty === 'function') {
+                var _dutyBack = applyNpcActionToDuty(GM, act);
+                if (_dutyBack && typeof addEB === 'function') addEB('官制', '履职随行·' + _dutyBack.dept + _dutyBack.pos + '(' + _dutyBack.holder + ')因本回合行止·履职' + (_dutyBack.delta > 0 ? '+' : '') + _dutyBack.delta + '→' + _dutyBack.fulfillment);
+              }
+            } catch (_dutyBackE) {}
 
             // 尝试机械执行（让 AI 的决策产生真实游戏效果）
             var mechanicallyExecuted = false;
@@ -1084,6 +1132,10 @@ inst._imprisonedTurn = GM.turn||0;
             if (_isSameLocation(_nlCh.location, _cap)) {
               // 在京 NPC 不应走鸿雁——但 AI 已生成内容·改投奏疏避免内容浪费
               _nlSkipCapital++;
+              // 势力守卫(owner 2026-06)：奏疏=臣→君·仅本朝臣子可转奏疏。敌方/异势力角色(纵在京·如质子/降人/使节)不上奏疏给玩家。
+              if (typeof _memSameFactionAsPlayer === 'function' && !_memSameFactionAsPlayer(_nlCh)) {
+                _dbg('[npc_letters] 在京NPC ' + nl.from + ' 非本朝(' + (_nlCh.faction||'?') + ')·不转奏疏'); return;
+              }
               _dbg('[npc_letters] 在京NPC ' + nl.from + ' 写信·改投奏疏');
               if (!GM.memorials) GM.memorials = [];
               GM.memorials.push({
@@ -2933,9 +2985,22 @@ inst._imprisonedTurn = GM.turn||0;
               economicIndicators: { wealth: 40, taxBurden: 40, landHolding: 20 },
               description: '【新兴阶层】' + (ce.origin || '') + (ce.reason ? '——' + ce.reason : ''),
               _emergeTurn: GM.turn,
-              _origin: ce.origin
+              _origin: ce.origin,
+              descriptor: (ce.descriptor && typeof ce.descriptor === 'object') ? ce.descriptor : undefined
             };
-            GM.classes.push(newC);
+            GM.classes.push(newC); if (typeof TM !== 'undefined' && TM.ClassEngine && TM.ClassEngine.ensureClassPopulationCell) TM.ClassEngine.ensureClassPopulationCell(newC, GM); if (typeof TM !== 'undefined' && TM.SocialFoundation && TM.SocialFoundation.reconcileClassDescriptor) TM.SocialFoundation.reconcileClassDescriptor(newC, GM);
+            if (newC.descriptor && newC.descriptor._needsAdjudication && typeof callAI === 'function') {
+              // ⑤·硬骨头升 secondary-LLM 裁：现生阶层带表外 novel 标签→低优先 AI 归一通用词表(fire-and-forget·失败保确定性兜底)
+              (function (_c) {
+                var _ap = '【阶层定性·归一】新兴阶层「' + _c.name + '」(治生:' + (_c.economicRole || '') + '·特权:' + String(_c.privileges || '无').slice(0, 30) + '·影响' + (_c.influence || '') + ')现有标签 fiscalStatus=' + (_c.descriptor.fiscalStatus || '') + '·unrestArchetype=' + (_c.descriptor.unrestArchetype || '') + '(或为表外原词)。请归一到通用词表后输出：stratum(上/中/下)、fiscalStatus(优免/编户/受饷/法外)、unrestArchetype(暴烈/撤离/不合作/哗变/倒戈)。只输出 JSON {"stratum":"","fiscalStatus":"","unrestArchetype":""}·勿输出其他。';
+                Promise.resolve(callAI(_ap, 300, undefined, 'secondary', { priority: 'low', timeoutMs: 40000, maxRetries: 1 })).then(function (_ar) {
+                  try {
+                    var _aj = JSON.parse(String(_ar || '').replace(/```json|```/g, '').trim());
+                    if (_aj && TM.SocialFoundation && TM.SocialFoundation.applyAdjudicatedDescriptor && TM.SocialFoundation.applyAdjudicatedDescriptor(_c, _aj) && typeof addEB === 'function') addEB('阶层', '【定性】' + _c.name + '·' + _c.descriptor.stratum + '/' + _c.descriptor.fiscalStatus + '/' + _c.descriptor.unrestArchetype);
+                  } catch (_pe) {}
+                }).catch(function () {});
+              })(newC);
+            }
             addEB('\u9636\u5C42', '\u3010\u65B0\u9636\u5C42\u5174\u8D77\u3011' + ce.name + (ce.origin?'\u2014\u2014' + ce.origin:'') + (ce.reason?'\uFF1A' + ce.reason:''));
             if (GM.qijuHistory) GM.qijuHistory.unshift({ turn: GM.turn, date: typeof getTSText==='function'?getTSText(GM.turn):'', content: '\u3010\u9636\u5C42\u5174\u66BF\u3011' + ce.name + '\u5174\u8D77\u3002' + (ce.reason||''), category: '\u9636\u5C42' });
           });
@@ -3006,8 +3071,16 @@ inst._imprisonedTurn = GM.turn||0;
           });
         }
 
+        // 官制活化 Slice④ 改制裁定 pass：拟制满一回合→裁定（开关 officeReformAdjudicationEnabled·默认关零回归）
+        if (typeof officeFlagOn === 'function' && officeFlagOn('officeReformAdjudicationEnabled') && typeof adjudicatePendingReforms === 'function') {
+          try { adjudicatePendingReforms(GM, { aiVerdicts: (p1 && p1.reform_verdicts) || null }); } catch (_arpE) { (window.TM && TM.errors && TM.errors.capture) ? TM.errors.capture(_arpE, 'apply] reform adjudicate:') : console.warn('[apply] reform adjudicate:', _arpE); }
+        }
         // 处理官制变动（AI可任命/罢免官员）
         if (p1.office_changes && Array.isArray(p1.office_changes) && GM.officeTree) {
+          // 官制活化 Slice④ 拟制态捕获：adjudication 开时·reform oc 入队(拟制中)·不即落·关则原样(3340 即落·零回归)
+          if (typeof officeFlagOn === 'function' && officeFlagOn('officeReformAdjudicationEnabled') && typeof enqueuePendingReform === 'function') {
+            p1.office_changes = p1.office_changes.filter(function (oc) { if (oc && oc.action === 'reform' && oc.reformDetail) { enqueuePendingReform(GM, oc); return false; } return true; });
+          }
           var _officeMoveExitMap = _tmBuildOfficeMoveExitMap(GM, p1);
           p1.office_changes.forEach(function(oc) {
             if (!oc.dept || !oc.position || !oc.action) return;
@@ -3673,6 +3746,11 @@ inst._imprisonedTurn = GM.turn||0;
                 if (_targetDiv) {
                   if (!_targetDiv.buildings) _targetDiv.buildings = [];
                   var _bcDisp = ((typeof BUILDING_TYPES !== 'undefined' && BUILDING_TYPES[bc.type] && BUILDING_TYPES[bc.type].name) || bc.type);
+                  // 刀三:标准 build 但该地已有同名建筑 → 规范为 upgrade(扩建意图),不重复新建同名工程
+                  if (bc.action === 'build' && !bc.isCustom) {
+                    var _sameName = _targetDiv.buildings.find(function(b){ return b && b.name === bc.type; });
+                    if (_sameName) bc.action = 'upgrade';
+                  }
                   if (bc.action === 'destroy') {
                     // 2026-06-12: 拆毁前按 appliedDelta 回退已入账效果（建筑工役引擎·存量可逆）
                     _targetDiv.buildings.forEach(function(b) {
@@ -3686,6 +3764,9 @@ inst._imprisonedTurn = GM.turn||0;
                     var _exB = _targetDiv.buildings.find(function(b) { return b.name === bc.type; });
                     if (_exB) {
                       _exB.level = (_exB.level || 1) + 1;
+                      // 丙:扩建按本次追加投入/新核定入账——回报随投入,不再只给固定一级
+                      if (bc.costActual) _exB.costActual = bc.costActual;
+                      if (bc.effectsStructured && typeof bc.effectsStructured === 'object') _exB.effectsStructured = bc.effectsStructured;
                       // 2026-06-12: 升级即时再入账一级份效果（appliedDelta 累计·拆毁整体回退）
                       if (typeof TM !== 'undefined' && TM.BuildingWorks) {
                         try {
@@ -4475,7 +4556,7 @@ inst._imprisonedTurn = GM.turn||0;
               id: 'work_T' + GM.turn + '_' + Math.random().toString(36).slice(2, 8),
               author: w.author,
               turn: GM.turn,
-              date: w.date || (typeof getTSText === 'function' ? getTSText(GM.turn) : ''),
+              date: (typeof getTSText === 'function' ? getTSText(GM.turn) : (w.date || '')),  // engine-deterministic year for this-turn works; ignore AI-hallucinated dates
               location: w.location || '',
               triggerCategory: w.triggerCategory || 'mood',
               trigger: w.trigger || 'casual_mood',
@@ -4823,6 +4904,12 @@ inst._imprisonedTurn = GM.turn||0;
           });
         }
 
+        // ①·C4 流寇处置（AI roving_actions→剿/抚·走 PhaseF3 API·邸报由 API 出·单行避混 CRLF）
+        if (p1.roving_actions && Array.isArray(p1.roving_actions) && typeof PhaseF3 !== 'undefined') { p1.roving_actions.forEach(function(ra){ if(!ra||!ra.action) return; try { var _rid=ra.id||ra.name; if(/suppress|剿|镇压|平叛|围剿/.test(ra.action)) PhaseF3.suppressRovingRebel(_rid, Number(ra.force)||30000); else if(/pacify|抚|招抚|招安|赦/.test(ra.action)) PhaseF3.pacifyRovingRebel(_rid); } catch(_re){} }); }
+
+        // ④·G 名额杠杆（AI keju_quota_change→调 quotaPerExam·夹50-1500·下一科 _kejuMobilityFlow 据此 throttle 士人受阻·单行避混 CRLF）
+        if (p1.keju_quota_change && typeof p1.keju_quota_change === 'object' && typeof P !== 'undefined' && P && P.keju) { var _kq = p1.keju_quota_change, _kcur = Number(P.keju.quotaPerExam) || 0, _knv = (_kq.value != null) ? Number(_kq.value) : (_kcur + (Number(_kq.delta) || 0)); if (isFinite(_knv)) { _knv = Math.max(50, Math.min(1500, Math.round(_knv))); if (_knv !== _kcur) { P.keju.quotaPerExam = _knv; if (typeof addEB === 'function') addEB('科举', '诏调科举名额 ' + _kcur + '→' + _knv + (_kq.reason ? '·' + _kq.reason : '') + (_knv < _kcur ? '（取士益严·恐激士林怨望）' : '（广开取士·然稀清流增优免）')); } } }
+
         // 处理 AI 功名升降（立功涨/失职减·失败全表由 AI 按情节报责任人·激活既有 FAILURE_DELTA 全表）
         if (p1.merit_changes && Array.isArray(p1.merit_changes) && p1.merit_changes.length > 0 && window.CharEconEngine) {
           var _mcPName = (P.playerInfo && P.playerInfo.characterName) || '';
@@ -4943,9 +5030,14 @@ inst._imprisonedTurn = GM.turn||0;
           var actor = it.actor, desc = it.description || typeInfo;
           var turn = GM.turn;
           var date = typeof getTSText==='function'?getTSText(turn):'';
+          // 势力守卫(owner 2026-06)：弹章/荐表=臣→君奏疏·须本朝臣子。异势力角色不上奏疏给玩家(其私信/通报仍可走鸿雁·见下分支)。
+          // actor 解析为真实角色且非本朝→视为「非本朝臣」;无名职衔(解析为 null)属本朝官·放行。
+          var _actorChDp = (typeof findCharByName==='function') ? findCharByName(actor) : null;
+          var _actorNonCourt = !!(_actorChDp && typeof _memSameFactionAsPlayer === 'function' && !_memSameFactionAsPlayer(_actorChDp));
           // 按 type 分发
           if (it.type === 'impeach' || it.type === 'slander' || it.type === 'expose_secret') {
             // 弹劾/诽谤/揭发 → 奏疏（弹章）
+            if (_actorNonCourt) return; // 异势力不上弹章
             if (!GM.memorials) GM.memorials = [];
             GM.memorials.push({
               id: 'mem_auto_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),
@@ -4955,6 +5047,7 @@ inst._imprisonedTurn = GM.turn||0;
             });
           } else if (it.type === 'recommend' || it.type === 'guarantee' || it.type === 'petition_jointly') {
             // 举荐/担保/联名 → 奏疏
+            if (_actorNonCourt) return; // 异势力不上荐表
             if (!GM.memorials) GM.memorials = [];
             GM.memorials.push({
               id: 'mem_auto_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),
@@ -5334,7 +5427,34 @@ inst._imprisonedTurn = GM.turn||0;
                 gmEvt.triggered = true;
                 gmEvt.triggeredTurn = GM.turn;
                 gmEvt.triggeredResult = tt.result || '';
-                addEB('\u4E8B\u4EF6', gmEvt.name + '\u5DF2\u89E6\u53D1' + (tt.result ? '\uFF1A' + tt.result : ''));
+                // v0.2\u00B7\u4E8B\u4EF6\u5E76\u5165\u5FA1\u6848\u65F6\u653F:\u88AB AI \u89E6\u53D1\u7684\u7F16\u8F91\u5668\u4E8B\u4EF6\u82E5\u5E26 choices(\u5F85\u73A9\u5BB6\u51B3\u65AD)\u2192 \u8FDB currentIssues \u5FA1\u6848\u65F6\u653F\u00B7\u8BA9\u73A9\u5BB6\u5728\u90A3\u91CC\u6289\u62E9(\u5F00\u5173\u5F00\u00B7\u590D\u7528\u5F00\u5C40\u4E8B\u4EF6 issue \u7ED3\u6784)\u3002
+                //   \u65E0 choices(\u7EAF\u53D9\u4E8B/\u7EAF effect \u4E8B\u4EF6)\u2192 \u8D70\u539F addEB \u4E8B\u4EF6\u680F\u64AD\u62A5(\u8FD1\u4E8B\u901A\u77E5)\u3002\u5F00\u5173\u5173 \u2192 \u5168\u8D70\u539F addEB(\u96F6\u56DE\u5F52)\u3002
+                // 选项来源:choices(开局/史实式·tianqi7 用此)优先·playerChoices(剧本作者玩家选项·{label,consequence})兜底映射→choice 结构。
+                var _evChoices = (Array.isArray(gmEvt.choices) && gmEvt.choices.length) ? gmEvt.choices
+                  : (Array.isArray(gmEvt.playerChoices) && gmEvt.playerChoices.length)
+                    ? gmEvt.playerChoices.map(function(_pc){ return { text: _pc.label || _pc.text || '应对', desc: _pc.consequence || _pc.desc || '', aiHint: _pc.consequence || _pc.aiHint || '' }; })
+                    : null;
+                var _evToIssue = (typeof _eventAdjudicationOn === 'function' && _eventAdjudicationOn() && _evChoices && _evChoices.length);
+                if (_evToIssue) {
+                  if (!Array.isArray(GM.currentIssues)) GM.currentIssues = [];
+                  var _evIid = 'issue_' + (gmEvt.id || gmEvt.name || 'evt');
+                  var _evDup = GM.currentIssues.some(function(i){ return (gmEvt.id && i.sourceEventId === gmEvt.id) || i.id === _evIid; });
+                  if (!_evDup) {
+                    GM.currentIssues.push({
+                      id: _evIid, sourceEventId: gmEvt.id || '',
+                      title: gmEvt.name || '\u4E8B\u4EF6', description: gmEvt.narrative || gmEvt.description || '',
+                      category: gmEvt.importance === '\u5173\u952E' ? '\u5173\u952E\u51B3\u7B56' : '\u8981\u4E8B',
+                      status: 'pending', raisedTurn: GM.turn, raisedDate: GM._gameDate || '',
+                      choices: _evChoices.slice(),
+                      linkedChars: gmEvt.linkedChars || [], linkedFactions: gmEvt.linkedFactions || [],
+                      longTermConsequences: gmEvt.longTermConsequences || null,
+                      historicalNote: gmEvt.historicalNote || ''
+                    });
+                    addEB('\u8981\u52A1', '\u4E8B\u4EF6\u4E34\u5FA1\u6848\uFF1A' + (gmEvt.name || ''));
+                  }
+                } else {
+                  addEB('\u4E8B\u4EF6', gmEvt.name + '\u5DF2\u89E6\u53D1' + (tt.result ? '\uFF1A' + tt.result : ''));
+                }
                 _dbg('[EventTrigger] ' + gmEvt.name);
                 // 连锁事件：如果有chainNext，提示AI关注
                 if (gmEvt.chainNext) {
