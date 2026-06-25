@@ -1222,7 +1222,21 @@
           if (lrAll) lrLetter = { id:lrAll.id, from:lrAll.from, title:lrAll.title, content:lrAll.content, reply:lrAll.reply, time:(typeof letterTimeFormal === 'function' ? letterTimeFormal(lrAll) : ''), source:lrAll };
         }
       } catch(_) {}
-      if (lrLetter) openLetterReadOverlay(lrLetter);
+      if (lrLetter) {
+        // #3 修复:展阅即标「已读」。收件未阅判定读 playerRead(回书读 _replyRead)，
+        //   而此前「展阅」只开弹窗、从不置位 → 永远显示未阅。在源头 GM.letters 上按 id
+        //   置位(playerRead/_playerRead/_replyRead 全覆盖·兼容历史字段)+ 持久化 + 刷新徽标。
+        try {
+          var _gmL = (typeof GM !== 'undefined' && GM) ? GM : (window.GM || null);
+          if (_gmL && Array.isArray(_gmL.letters)) {
+            var _realL = _gmL.letters.find(function(x){ return x && String(x.id || '') === String(lrId); });
+            if (_realL) { _realL.playerRead = true; _realL._playerRead = true; _realL._replyRead = true; }
+          }
+        } catch(_e2) {}
+        try { saveFormalDraftsToGM(false); } catch(_e3) {}
+        try { openHongyanPreviewPanel(); } catch(_e4) {}
+        openLetterReadOverlay(lrLetter);
+      }
     } else if (action === 'letter-multi-toggle-desk') {
       state.letterMultiMode = !state.letterMultiMode;
       state.letterMultiTargets = state.letterMultiMode && Array.isArray(state.letterMultiTargets) ? state.letterMultiTargets : [];
@@ -1622,19 +1636,6 @@
     }).join('') + '</div>';
   }
 
-  function getEdictArchiveRows(){
-    var gm = window.GM || {};
-    return firstArray(gm._edictTracker, gm.edicts, gm.edictLog, gm._issuedEdicts).slice(-8).reverse().map(function(x, i){
-      return {
-        title: x.title || compactText(x.content || x.text || x.body || '既有诏令', 24),
-        turn: x.date || getTurnText(x.turn || ((window.GM && GM.turn) || 1)),
-        status: x.status || x.result || '追踪中',
-        target: x.assignee || x.target || x.receiver || '有司',
-        effect: x.forecast || x.effect || x.resultText || compactText(x.content || x.text || '', 54)
-      };
-    });
-  }
-
   function getEdictSuggestionRows(){
     var gm = window.GM || {};
     var list = Array.isArray(gm._edictSuggestions) ? gm._edictSuggestions : (Array.isArray(gm.edictSuggestions) ? gm.edictSuggestions : []);
@@ -1660,15 +1661,6 @@
       if (tb !== ta) return tb - ta;
       return a.realIndex - b.realIndex;
     });
-  }
-
-  function getFormalEdictCategories(){
-    return [
-      { id:'policy', badge:'政', label:'政令', hint:'朝政、制度、地方处置', forecast:'牵动皇权、吏治、党争与地方执行。' },
-      { id:'military', badge:'军', label:'军令', hint:'兵马、边镇、粮饷调度', forecast:'牵动军心、边防、国库与将领忠诚。' },
-      { id:'finance', badge:'财', label:'财赋', hint:'税赋、盐引、矿关、漕运', forecast:'牵动国库、民心、商贸与地方阻力。' },
-      { id:'private', badge:'密', label:'密旨', hint:'私下诏谕、试探、任免前置', forecast:'牵动人物态度、派系关系与隐秘记忆。' }
-    ];
   }
 
   function ensureFormalEdictDrafts(){
@@ -2667,12 +2659,6 @@
     return loc || '其他';
   }
 
-  function letterStateClassFormal(stateText){
-    if (/拦截|截获|失约|阻断|可疑/.test(stateText || '')) return 'lost intercepted';
-    if (/在途|追回|核验|traveling|sent/i.test(stateText || '')) return 'transit';
-    return '';
-  }
-
   function letterTypeLabelFormal(type){
     var map = {
       personal: '私函',
@@ -2797,8 +2783,14 @@
   }
 
   // 2026-06-11·鸿雁来函「展阅」大阅览浮层:大居中卡片·宽 680px·16px 仿宋·行高 2·长则卡内滚动·舒适读全文。
-  function openLetterReadOverlay(letter){
+  function openLetterReadOverlay(letter, navList, navIdx){
     if (!letter) return;
+    // #4 上一封/下一封导航:未传入则按收件箱顺序现算
+    if (!Array.isArray(navList)) {
+      try { navList = (typeof formalIncomingLetters === 'function') ? formalIncomingLetters(getLetters()) : []; } catch(_nl) { navList = []; }
+      navIdx = navList.findIndex(function(x){ return String(x.id || '') === String(letter.id || ''); });
+      if (navIdx < 0) { navList = [letter]; navIdx = 0; }
+    }
     if (!document.getElementById('tm-letter-read-style')) {
       var st = document.createElement('style');
       st.id = 'tm-letter-read-style';
@@ -2825,7 +2817,15 @@
           'background:rgba(74,94,138,0.06);flex:0 0 auto;max-height:34vh;overflow-y:auto;}' +
         '.tm-letter-read-card .lr-reply > b{display:block;font-size:13px;color:#4a5e8a;margin-bottom:8px;letter-spacing:0.1em;}' +
         '.tm-letter-read-card .lr-reply-body{font-size:15px;line-height:1.95;white-space:pre-wrap;color:#3a3022;}' +
-        '.tm-letter-read-card .lr-reply-body .hy-fulltext-v5{white-space:pre-wrap;}';
+        '.tm-letter-read-card .lr-reply-body .hy-fulltext-v5{white-space:pre-wrap;}' +
+        '.tm-letter-read-card .lr-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px;padding-top:13px;border-top:1px solid rgba(168,131,58,0.3);flex:0 0 auto;}' +
+        '.tm-letter-read-card .lr-reply-btn{padding:7px 18px;border-radius:7px;border:1px solid #4a5e8a;background:linear-gradient(150deg,#6a7eaa,#33456a);color:#fff;font-size:14px;cursor:pointer;letter-spacing:0.06em;font-family:inherit;}' +
+        '.tm-letter-read-card .lr-reply-btn:hover{filter:brightness(1.1);}' +
+        '.tm-letter-read-card .lr-nav{margin-left:auto;display:flex;align-items:center;gap:8px;}' +
+        '.tm-letter-read-card .lr-nav-btn{padding:6px 12px;border-radius:6px;border:1px solid #a8833a;background:rgba(168,131,58,0.12);color:#7a5a18;font-size:13px;cursor:pointer;font-family:inherit;}' +
+        '.tm-letter-read-card .lr-nav-btn:disabled{opacity:0.35;cursor:default;}' +
+        '.tm-letter-read-card .lr-nav-btn:not(:disabled):hover{background:rgba(168,131,58,0.22);}' +
+        '.tm-letter-read-card .lr-nav-pos{font-size:12.5px;color:#9c8b6b;min-width:46px;text-align:center;}';
       (document.head || document.documentElement).appendChild(st);
     }
     var from = letter.from || '来信者';
@@ -2833,6 +2833,16 @@
     var content = letter.content || '暂无正文。';
     var reply = (letter.reply && typeof letter.reply === 'string') ? letter.reply : ((letter.source && letter.source.reply) || '');
     var time = letter.time || '';
+    // #4 底部:回信(来函且尚无回书) + 上一封/下一封翻页
+    var canReply = !reply && String(from) !== '玩家';
+    var navHtml = (navList && navList.length > 1) ?
+      ('<div class="lr-nav">' +
+        '<button type="button" class="lr-nav-btn" onclick="window._tmLetterReadGo&&window._tmLetterReadGo(-1)"' + (navIdx <= 0 ? ' disabled' : '') + '>◀ 上一封</button>' +
+        '<span class="lr-nav-pos">' + (navIdx + 1) + ' / ' + navList.length + '</span>' +
+        '<button type="button" class="lr-nav-btn" onclick="window._tmLetterReadGo&&window._tmLetterReadGo(1)"' + (navIdx >= navList.length - 1 ? ' disabled' : '') + '>下一封 ▶</button>' +
+      '</div>') : '';
+    var replyBtnHtml = canReply ? '<button type="button" class="lr-reply-btn" onclick="window._tmLetterReadReply&&window._tmLetterReadReply()">✍ 回　信</button>' : '';
+    var footHtml = (replyBtnHtml || navHtml) ? ('<div class="lr-foot">' + replyBtnHtml + navHtml + '</div>') : '';
     var html = '<div class="tm-letter-read-card" role="dialog" aria-modal="true">' +
       '<button type="button" class="lr-close" data-close-bridge="1" title="关闭">×</button>' +
       '<div class="lr-head"><span class="lr-seal">函</span><div class="lr-who"><b>' + esc(from) + '</b><span>' +
@@ -2840,7 +2850,12 @@
       '<div class="lr-title">' + fullHongyanText(title, '来函', 'lr-title-text') + '</div>' +
       '<div class="lr-body wd-selectable">' + fullHongyanText(content, '暂无正文。', 'lr-body-text') + '</div>' +
       (reply ? '<div class="lr-reply"><b>回　函</b><div class="lr-reply-body wd-selectable">' + fullHongyanText(reply, '', 'lr-reply-text') + '</div></div>' : '') +
+      footHtml +
       '</div>';
+    // #4 全局回调(闭包当前 letter/navList/navIdx):翻页=重开弹窗(openDeskOverlay 替换式);回信=走 reply 流程并打开写信面板
+    var _curId = letter.id;
+    window._tmLetterReadGo = function(d){ var ni = navIdx + d; if (ni >= 0 && ni < navList.length) { openLetterReadOverlay(navList[ni], navList, ni); } };
+    window._tmLetterReadReply = function(){ try { handleModuleAction('letter-thread-action-desk', { id: _curId, letterAction: 'reply' }); } catch(_r){} try { openHongyanPreviewPanel(); } catch(_p){} };
     openDeskOverlay('tm-letter-read-overlay', html);
   }
   function renderFormalLetterCard(l, targetName){
@@ -2891,7 +2906,6 @@
       mini +
       '<div class="lc-acts">' + actions + '</div></article>';
   }
-
 
   // ═══ 御案·鸿雁 (yan-yuan) · 落地 2026-06-03 ═══
   var YAN_TYPE = {
@@ -3031,7 +3045,6 @@
         '<aside class="inbox"><div class="inbox-hd"><span class="inbox-seal">函</span><div><b>鸿雁来函</b><span>主动来函 · 回书 · 未阅</span></div></div><div class="inbox-sum"><span>总来函 <b>' + esc(inboxRows.length) + '</b></span><span class="' + (unreadInbox?'hot':'') + '">未阅 <b>' + esc(unreadInbox) + '</b></span></div><div class="inbox-scroll">' + inbox + '</div></aside>' +
       '</div></section>';
   }
-
 
   function openZhaoPreviewPanel(){
     removeFormalEdictHiddenInputs();

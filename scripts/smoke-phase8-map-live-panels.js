@@ -158,6 +158,7 @@ const LIVE_FACTION_GOAL = 'LIVE faction goal field 920';
 const OLD_FACTION_GOAL = 'OLD faction goal field 120';
 const LIVE_FACTION_RELATIONS = 'LIVE faction relations field 921';
 const OLD_FACTION_RELATIONS = 'OLD faction relations field 121';
+const STATIC_RECRUITS = 789;
 const OLD_HOUJIN_LABEL = '\u65e7\u540e\u91d1\u6807\u7b7e';
 const LIVE_HOUJIN_LABEL = '\u5927\u91d1\u56fd';
 const LIVE_LEADER = '\u7687\u592a\u6781';
@@ -200,6 +201,10 @@ sandbox.GM.mapData = {
     controllerKey: 'OLD controller key field 120',
     type: 'OLD region type field 121',
     troops: 555,
+    militaryRecruits: STATIC_RECRUITS,
+    recruits: STATIC_RECRUITS,
+    levyPool: STATIC_RECRUITS,
+    militaryDetail: { availableRecruits: STATIC_RECRUITS },
     armyPressure: 44,
     terrain: OLD_TERRAIN,
     resources: OLD_RESOURCE,
@@ -216,8 +221,12 @@ sandbox.GM.mapData = {
       populationDetail: { mouths: 1000, households: 200 },
       fiscalDetail: { actualRevenue: 100, claimedRevenue: 120, remittedToCenter: 130, retainedBudget: 140, compliance: 0.31, skimmingRate: 0.41, autonomy: 'OLD fiscal autonomy field 118', taxBurden: 'OLD tax burden field 119' },
       publicTreasuryInit: { money: 150, grain: 1000, cloth: 160 },
-      armyDetail: { troops: 500, commander: OLD_COMMANDER, supply: 'OLD supply field 111' },
+      armyDetail: { troops: 500, recruits: STATIC_RECRUITS, availableRecruits: STATIC_RECRUITS, commander: OLD_COMMANDER, supply: 'OLD supply field 111' },
       garrison: 500,
+      militaryRecruits: STATIC_RECRUITS,
+      recruits: STATIC_RECRUITS,
+      levyPool: STATIC_RECRUITS,
+      militaryDetail: { availableRecruits: STATIC_RECRUITS },
       armyPressure: 45,
       fortification: 46,
       commander: OLD_COMMANDER,
@@ -313,7 +322,10 @@ sandbox.GM.provinceStats = {
     threats: LIVE_THREAT,
     moneyOutput: 4321,
     grainOutput: 1234,
-    militaryRecruits: 456
+    militaryRecruits: 0,
+    recruits: 0,
+    levyPool: 0,
+    militaryDetail: { availableRecruits: 0 }
   }
 };
 sandbox.GM.adminHierarchy = {
@@ -491,7 +503,9 @@ assertNone(regionHtml, [
 
 assertAll(regionTab('mood'), ['9000', '2100', '3100', '41', '52', '33', '67', '72', '58', '27', '6789', 'LIVE baojia field 918', 'LIVE gender field 919', 'LIVE age field 920', 'LIVE ethnicity field 921', 'LIVE faith field 922', 'LIVE settlement field 917', 'LIVE temple field 916', LIVE_DISASTER], 'region mood tab');
 assertAll(regionTab('tax'), ['999', '777', '778', '779', '82%', '18%', 'LIVE fiscal autonomy field 925', 'LIVE tax burden field 934', '8765', '3210', '9876', '4321', '1234', 'LIVE tax level field 924'], 'region tax tab');
-assertAll(regionTab('army'), ['1234', '77', '78', '456', LIVE_COMMANDER, 'LIVE border field 911', 'LIVE supply field 912', LIVE_STRATEGIC, LIVE_THREAT, LIVE_TRADE, '976', '977', '975', 'LIVE navy field 931'], 'region army tab');
+const armyTabHtml = regionTab('army');
+assertAll(armyTabHtml, ['1234', '77', '78', String(STATIC_RECRUITS), LIVE_COMMANDER, 'LIVE border field 911', 'LIVE supply field 912', LIVE_STRATEGIC, LIVE_THREAT, LIVE_TRADE, '976', '977', '975', 'LIVE navy field 931'], 'region army tab');
+assertNone(armyTabHtml, ['456'], 'region army tab dead live recruit fallback');
 assertAll(regionTab('office'), ['LIVE office field 910', LIVE_OFFICIAL, 'LIVE vacancy field 923', '66', 'LIVE execution field 913', 'LIVE local faction field 914', LIVE_GENTRY, 'LIVE academy field 915', 'LIVE tax level field 924', 'LIVE keju field 932', 'LIVE zhizao field 933', 'LIVE note field 930'], 'region office tab');
 const ownerTabHtml = regionTab('owner');
 assertAll(ownerTabHtml, [LIVE_HOUJIN_LABEL, HOUJIN, 'LIVE dejure field 926', 'LIVE core field 928', 'LIVE owner history field 929'], 'region owner tab');

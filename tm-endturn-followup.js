@@ -967,6 +967,12 @@
           var tp16L = '本回合非玩家势力前 3 优先级精简推演 (lite mode·SC16 Q5)·';
           var _facsLite = (GM.facs || []).filter(function(f) { return f && (!f.player); }).slice(0, 8);
           tp16L += '势力：' + _facsLite.map(function(f){ return f.name + '(' + (f.strength||0) + ')'; }).join('、') + '\n';
+          try {
+            if (typeof TM !== 'undefined' && TM.FactionAiMainloopBridge && typeof TM.FactionAiMainloopBridge.formatForPrompt === 'function') {
+              var _fai16L = TM.FactionAiMainloopBridge.formatForPrompt(GM, P, { limit: 8 });
+              if (_fai16L) tp16L += '\n' + _fai16L + '\n';
+            }
+          } catch(_fai16LErr) { try { _dbg('[sc16 lite faction-ai bridge] fail:', _fai16LErr); } catch(_){} }
           tp16L += '\n请返回 JSON·只含·{"faction_priorities":[{"faction":"势力名","priority":1-3,"urgency":"high|normal|low","reason":"为何"}],"diplomatic_shifts":[{"from":"","to":"","old_relation":"","new_relation":"","reason":""}],"power_balance_shift":"力量对比一句话(50字)"}\n';
           tp16L += '只输出最该行动的 top 3 势力·diplomatic_shifts 无变化也返回 []。';
           var _sc16LBody = { model: P.ai.model || 'gpt-4o', messages: [{role:'system',content:_maybeCacheSys(sysPFor('sc16L'))},{role:'user',content:tp16L}], temperature: 0.5, max_tokens: _tok(2000) };
@@ -998,6 +1004,12 @@
         if (GM.factionRelations && GM.factionRelations.length > 0) {
           tp16 += '\u52BF\u529B\u5173\u7CFB\uFF1A' + GM.factionRelations.map(function(r){return r.from+'\u2192'+r.to+' '+r.type+'('+r.value+')';}).join('\uFF1B') + '\n';
         }
+        try {
+          if (typeof TM !== 'undefined' && TM.FactionAiMainloopBridge && typeof TM.FactionAiMainloopBridge.formatForPrompt === 'function') {
+            var _fai16 = TM.FactionAiMainloopBridge.formatForPrompt(GM, P, { limit: 12 });
+            if (_fai16) tp16 += '\n' + _fai16 + '\n';
+          }
+        } catch(_fai16Err) { try { _dbg('[sc16 faction-ai bridge] fail:', _fai16Err); } catch(_){} }
         try {
           var _adminHierarchy16 = (typeof TM !== 'undefined' && TM.FactionNpcLlmDecision && typeof TM.FactionNpcLlmDecision.buildFactionAdminSummaryForSc16 === 'function')
             ? TM.FactionNpcLlmDecision.buildFactionAdminSummaryForSc16({ maxFactions: 16, maxDivisions: 4, maxChars: 8000 })
@@ -1814,6 +1826,11 @@
           p1Summary += '【死亡】' + p1.character_deaths.map(function(d) { return d.name + ':' + d.reason; }).join('；') + '\n';
         }
         if (p1.event && p1.event.title) p1Summary += '【事件】' + p1.event.title + '\n';
+        if (Array.isArray(p1.faction_ai_outcomes) && p1.faction_ai_outcomes.length > 0) {
+          p1Summary += '【势力AI】' + p1.faction_ai_outcomes.slice(0, 8).map(function(o) {
+            return (o.faction || o.factionId || '势力') + ':' + (o.publicSummary || o.result || o.action || o.intent || '');
+          }).join('；') + '\n';
+        }
         if (personnelChanges && personnelChanges.length > 0) {
           p1Summary += '【人事】' + personnelChanges.map(function(p){return p.name+'→'+p.change;}).join('；') + '\n';
         }
@@ -1827,6 +1844,12 @@
       _branchSpecialtySummary = _tmLimitPromptSection('分支专项摘要', _branchSpecialtySummary, 5000);
       if (_branchSpecialtySummary) p1Summary += _branchSpecialtySummary;
       var _basisBrief = '';
+      try {
+        if (typeof TM !== 'undefined' && TM.FactionAiMainloopBridge && typeof TM.FactionAiMainloopBridge.formatRecentOutcomesForNarrative === 'function') {
+          var _faiNarr = TM.FactionAiMainloopBridge.formatRecentOutcomesForNarrative(GM, { limit: 8 });
+          if (_faiNarr) _basisBrief += _faiNarr;
+        }
+      } catch(_faiNarrErr) { try { _dbg('[sc2 faction-ai narrative] fail:', _faiNarrErr); } catch(_){} }
       // 名望/贤能显著变动的 NPC（供后人戏说穿插议论）
       try {
         var _fvMovers = (GM.chars || []).filter(function(c){

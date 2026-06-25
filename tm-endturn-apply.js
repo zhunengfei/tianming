@@ -106,6 +106,14 @@
     }
     return "";
   }
+  function _tmAppendUniqueText(base, extra) {
+    base = (typeof base === "string") ? base.trim() : "";
+    extra = (typeof extra === "string") ? extra.trim() : "";
+    if (!extra) return base;
+    if (!base) return extra;
+    if (base.indexOf(extra) >= 0) return base;
+    return base + "\n\n" + extra;
+  }
   ns.writeBack = async function(ctx) {
     ensureGroups(ctx);
     var _applyStart = Date.now();
@@ -728,6 +736,20 @@ inst._imprisonedTurn = GM.turn||0;
         szjSummary = _tmFirstText(p1.szj_summary, p1.shizhengji_summary, p1.summary);
         if (!zhengwen) zhengwen = _tmFirstText(p1.zhengwen, p1.houren_xishuo, p1.hourenXishuo, p1.houren);
         personnelChanges = Array.isArray(p1.personnel_changes) ? p1.personnel_changes : [];
+        try {
+          if (global.TM && global.TM.FactionAiMainloopBridge && typeof global.TM.FactionAiMainloopBridge.applyTurnOutcomes === 'function') {
+            var _faiBridge = global.TM.FactionAiMainloopBridge.applyTurnOutcomes(GM, p1, { source: 'sc1-writeback' });
+            if (_faiBridge && _faiBridge.shizhengjiAppend) {
+              shizhengji = _tmAppendUniqueText(shizhengji, _faiBridge.shizhengjiAppend);
+              p1.shizhengji = shizhengji;
+            }
+            if (_faiBridge && _faiBridge.hourenAppend) {
+              hourenXishuo = _tmAppendUniqueText(hourenXishuo, _faiBridge.hourenAppend);
+              p1.houren_xishuo = _tmAppendUniqueText(p1.houren_xishuo || p1.hourenXishuo || '', _faiBridge.hourenAppend);
+              p1.hourenXishuo = p1.houren_xishuo;
+            }
+          }
+        } catch(_faiBridgeE) { try { console.warn('[faction-ai-mainloop] apply failed', _faiBridgeE); } catch(_) {} }
         // 将主角内省记入角色记忆（兼容旧逻辑）
         if (playerInner && typeof NpcMemorySystem !== 'undefined' && P.playerInfo && P.playerInfo.characterName) {
           var _innerEmo = /痛|苦|忧|恨|怒|惧|恐|悲|泪/.test(playerInner) ? '忧' : /喜|乐|慰|畅|笑/.test(playerInner) ? '喜' : '平';
@@ -5591,7 +5613,8 @@ inst._imprisonedTurn = GM.turn||0;
     _applied.factions = _applied.factions || {
       faction_changes: p1 && Array.isArray(p1.faction_changes) ? p1.faction_changes.length : 0,
       faction_events: p1 && Array.isArray(p1.faction_events) ? p1.faction_events.length : 0,
-      faction_relation_changes: p1 && Array.isArray(p1.faction_relation_changes) ? p1.faction_relation_changes.length : 0
+      faction_relation_changes: p1 && Array.isArray(p1.faction_relation_changes) ? p1.faction_relation_changes.length : 0,
+      faction_ai_outcomes: p1 && Array.isArray(p1.faction_ai_outcomes) ? p1.faction_ai_outcomes.length : 0
     };
     _applied.offices = _applied.offices || {
       office_assignments: p1 && Array.isArray(p1.office_assignments) ? p1.office_assignments.length : 0,

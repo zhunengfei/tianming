@@ -5015,6 +5015,16 @@ function _cc3_createModal() {
   stage.className = 'cy-stage';
   stage.id = 'cy-stage';
   stage.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:5000;';
+  // #1 移动端(安卓 Capacitor)常朝整体偏小修复:fit.js 把桌面舞台等比缩到手机,而常朝又被 CSS
+  //   max-width:1080px 卡在舞台 ~56% → 手机上一小块、四周大片空。移动端解除上限、铺满舞台(桌面不动)。
+  //   ⚠️ 值待真机微调:仍小可再调大、溢出可调小;fit.js 的 anchorEl 会把这里的内联 vw/vh→px。
+  try {
+    if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
+      stage.style.maxWidth = 'none';
+      stage.style.width = '96vw';
+      stage.style.height = '95vh';
+    }
+  } catch (_cyFit) {}
   stage.innerHTML = `
     <div class="cy-ceremony" id="cy-ceremony">
       <h1 id="cy-ceremony-title">〔 早 朝 〕</h1>

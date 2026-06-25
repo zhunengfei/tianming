@@ -1720,6 +1720,19 @@
     return null;
   }
 
+  function recruitPoolValue(source){
+    if (!source || typeof source !== 'object') return null;
+    var md = source.militaryDetail;
+    if (md && typeof md === 'object' && hasValue(md.availableRecruits)) {
+      var available = Number(md.availableRecruits);
+      var base = Number(md.recruitmentBase);
+      if (isFinite(available) && (available > 0 || (isFinite(base) && base > 0) || hasValue(md.recruitmentSource))) {
+        return Math.max(0, Math.round(available));
+      }
+    }
+    return firstPositive(source.militaryRecruits, source.recruits, source.levyPool);
+  }
+
   function hasDisplayValue(v){
     if (v === undefined || v === null || v === '') return false;
     if (Array.isArray(v)) return v.some(hasDisplayValue);
@@ -2335,7 +2348,18 @@
       army.liveArmies = boundArmies.armies;
       army.liveArmyCount = boundArmies.armies.length;
     }
-    var recruits = firstValue(liveStats && liveStats.militaryRecruits, liveStats && liveStats.recruits, liveStats && liveStats.levyPool, liveDivision && liveDivision.militaryRecruits, liveDivision && liveDivision.recruits);
+    var recruits = firstValue(
+      recruitPoolValue(liveStats),
+      recruitPoolValue(liveDivision),
+      firstPositive(
+        data.militaryRecruits,
+        data.recruits,
+        data.levyPool,
+        data.militaryDetail && data.militaryDetail.availableRecruits,
+        army.recruits,
+        army.availableRecruits
+      )
+    );
     if (hasValue(recruits)) {
       army.recruits = recruits;
       data.militaryRecruits = recruits;

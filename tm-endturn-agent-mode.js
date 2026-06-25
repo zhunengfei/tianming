@@ -215,17 +215,32 @@
 
   // 自适应深化:据本回合实际内容(引擎报告 + 玩家操作)判定哪些维度真有活动·空维度不跑深化(去填充噪音 + 省按次计费调用)
   //   命门:深度不丢——地板维度(记忆/NPC/世界/史记)永远跑;仅"势力/经济/军事/关系"这四个可能真的整回合零动静的维度才门控。空维度跑只会逼模型编填充。
-  function _activeDims(gm) {
+  function _activeDims(gm, state) {
     var hay = '';
     try {
       (gm._turnReport || []).forEach(function (r) { if (r) hay += ' ' + (r.path || '') + ' ' + (r.reason || '') + ' ' + (r.type || '') + ' ' + (r.actor || '') + ' ' + (r.target || '') + ' ' + (typeof r.new === 'string' ? r.new : ''); });
       hay += ' ' + (gm._turnPlayerOps || '');
     } catch (_) {}
     var d = {};
+    if (state && state.engineDims) Object.keys(state.engineDims).forEach(function (k) { if (state.engineDims[k]) d[k] = 1; });
     if (/财|赋|税|粮|银|帑|国库|内帑|盐|矿|商|贸|民生|灾|荒|赈|俸|饷|漕/.test(hay)) d.fiscal = 1;
     if (/兵|军|战|征|伐|围|攻|守|将|帅|边|寇|虏|营|饷|武|防|塞|镇|捷|溃/.test(hay)) d.military = 1;
     if (/势力|外交|盟|邦交|宣战|议和|和亲|遣使|朝贡|党|阉|东林|藩|夷|酋/.test(hay)) d.faction = 1;
     if (/弹劾|举荐|构陷|结党|背叛|和解|联姻|师徒|私访|对质|恩怨|交恶|问对|朝议|密信|党争/.test(hay)) d.relations = 1;  // ⚠ 勿用裸"举/劾"(会误中"举措"等表头)·只用复合词
+    return d;
+  }
+  function _jsonLite(v) {
+    try { return JSON.stringify(v); } catch (e) { try { return String(v); } catch (_) { return ''; } }
+  }
+  function _changed(before, after, key) {
+    return _jsonLite(before && before[key]) !== _jsonLite(after && after[key]);
+  }
+  function _engineDiffDims(before, after) {
+    var d = {};
+    if (!before || !after) return d;
+    ['guoku', 'neitang', 'huji', 'population', 'minxin'].forEach(function (k) { if (_changed(before, after, k)) d.fiscal = 1; });
+    ['armies', 'activeWars'].forEach(function (k) { if (_changed(before, after, k)) { d.military = 1; d.faction = 1; } });
+    ['facs', 'factions', 'factionRelations', 'relations', 'parties', 'classes'].forEach(function (k) { if (_changed(before, after, k)) d.faction = 1; });
     return d;
   }
   function _detectSpineGaps(gm, state) {
@@ -239,7 +254,7 @@
     var gaps = [];
     var _Pg = root.P || {};
     var _adaptiveG = !(_Pg.conf && _Pg.conf.agentAdaptiveDeepen === false);
-    var _actG = _adaptiveG ? _activeDims(gm) : null;   // 与刀1同源·判维度本回合是否真有活动
+    var _actG = _adaptiveG ? _activeDims(gm, state) : null;   // 与刀1同源·判维度本回合是否真有活动
     COVERAGE_SPINE.forEach(function (s) {
       if (covered[s.key]) return;                                   // 对应深化工具已调=该维度已覆盖
       if (s.key === 'narrative') { if (!hasNarr) gaps.push(s.label); return; }
@@ -607,7 +622,17 @@
     }
     if (RT && RT.isToolName(name)) return await RT.handle(name, input, ctx);
     if (WT && WT.isToolName(name)) { state.writeAttempts++; var r = await WT.handle(name, input, ctx); if (r && r.ok) state.writeOk++; return r; }
-    if (DT && DT.isToolName(name)) { var d = await DT.handle(name, input, ctx); if (d && d.ok) { state.writeOk++; if (!state.depthTools) state.depthTools = {}; state.depthTools[name] = (state.depthTools[name] || 0) + 1; } return d; }  // 深化成功算产出 + 记账深度工具(供深度门 D1)
+    if (DT && DT.isToolName(name)) {
+      var d = await DT.handle(name, input, ctx);
+      if (d && d.ok) {
+        if (!state.depthTools) state.depthTools = {};
+        state.depthTools[name] = (state.depthTools[name] || 0) + 1;
+      } else {
+        if (!state.depthFailed) state.depthFailed = [];
+        if (state.depthFailed.indexOf(name) < 0) state.depthFailed.push(name);
+      }
+      return d;
+    }  // 深化成功只记深度覆盖·不冒充守护写落地
     // T3·未知工具→列可用工具引导纠正(弱模型常拼错名)
     var _avail = []; try { if (RT) _avail = _avail.concat(RT.defs().map(function (t) { return t.name; })); if (WT) _avail = _avail.concat(WT.defs().map(function (t) { return t.name; })); _avail.push('finalize_turn'); } catch (e) {}
     return { ok: false, name: name, text: '✗ 未知工具「' + name + '」。可用工具:' + _avail.join(' / ') + '。请用其中之一。' };
@@ -668,6 +693,7 @@
     // ── S5 甲案:快照 → 引擎先算硬核基线 ──
     var snapshot = _snapshot(gm);
     var engineRan = false;
+    var engineDims = {};
     // 回落兜底:engineRan 时先回滚再回落(让 mode a 在干净态重跑)
     function bail(reason) { if (engineRan && snapshot) _rollback(gm, snapshot, ctx); return { ok: false, fallback: true, reason: reason }; }
 
@@ -675,7 +701,9 @@
       try {
         _show('⟨执政⟩引擎结算·硬核基线…', 40);          // 加载层:agent-engine 拍
         var tr = (typeof root.getTimeRatio === 'function') ? root.getTimeRatio() : 0;
-        await root._endTurn_updateSystems(tr, '');     // 引擎先算硬核基线(turn++ + 50 tick)
+        var queueResult = await root._endTurn_updateSystems(tr, '');     // 引擎先算硬核基线(turn++ + 50 tick)
+        if (ctx) { ctx.results = ctx.results || {}; ctx.results.queueResult = queueResult || null; }
+        engineDims = _engineDiffDims(snapshot, gm);
         if (ctx && ctx.input) ctx.input._systemsRan = true;  // 让后续 systems 步幂等跳过引擎 tick(防双跑)
         engineRan = true;
       } catch (engErr) {
@@ -712,7 +740,7 @@
     try { if (_agentAnomalyOn(P)) { var _anRes = await _anomalyScan(ctx, gm); if (_anRes) { _anomalyN = _anomalyNudge(_anRes); gm._agentAnomaly = _anRes; } } } catch (_anE) {}
     var _timeCtx = _timeContext(gm, resolutionTurn);   // 本回合时间(纪元年月+历时+时间相关后果指引)·显要处·让 agent 推演不脱离时间
     var baseTranscript = _buildSystemPrompt() + (_biasInject ? '\n' + _biasInject : '') + (_timeCtx ? '\n' + _timeCtx : '') + '\n\n' + (gm._turnPlayerOps ? gm._turnPlayerOps + '\n\n' : '') + (_anomalyN ? _anomalyN + '\n\n' : '') + (_memDossier ? _memDossier + '\n\n' : '') + (_edictDossier ? _edictDossier + '\n\n' : '') + basis; // 常量基线(系统词+偏差校正+本回合时间+玩家操作+冷门深查+跨回合记忆+在办诏令+依据)·不随轮数膨胀
-    var state = { finalized: false, summary: '', narrative: '', writeAttempts: 0, writeOk: 0, rounds: 0, depthTools: {}, finalizeRejects: 0 };
+    var state = { finalized: false, summary: '', narrative: '', writeAttempts: 0, writeOk: 0, rounds: 0, depthTools: {}, depthFailed: [], finalizeRejects: 0, engineDims: engineDims };
     var _stall = 0;  // 连续"只察看不动手"轮数·防空转(真机逮弱模型重复 get_overview 原地打转)
     var roundLog = [];  // 上下文瘦身:滚动存每轮工具结果·call 时只带最近 2 轮全文 + 更早轮 1 行摘要(token 不随轮数膨胀)
     var _kRecent = (P.conf && P.conf.agentTranscriptRecentRounds) || 2;  // 带全文的近轮数(可配)
@@ -804,10 +832,10 @@
         var _floorDeepen = { recall_consolidate: 1, deepen_npcs: 1, deepen_world: 1, deepen_narrative: 1, deepen_court: 1 };
         var _gateDim = { deepen_factions: 'faction', deepen_economy: 'fiscal', deepen_military: 'military', deepen_relations: 'relations', deepen_letters: 'relations' };
         var _adaptiveDeepen = !(P.conf && P.conf.agentAdaptiveDeepen === false);
-        var _activeD = _adaptiveDeepen ? _activeDims(gm) : null;
+        var _activeD = _adaptiveDeepen ? _activeDims(gm, state) : null;
         state.deepenSkipped = [];
         // 工具调用优化(2026-06):auto-suite 三相——recall 先(记忆/状态盘供叙事)→ 中段独立维度深析**并行**(墙钟大降·AI 队列自限真并发)→ 史记后(综合 _turnReport 成文)。
-        //   各深析写不同 gm 字段(_turnReport 为 append·JS 单线程·各 resolve 回调不交错→无竞态);每工具自带跳过+记账+try/catch·一败不累及全批。回归=自适应跳过/已调跳过/depthTools 记账全保留。
+        //   各深析写不同 gm 字段(_turnReport 为 append·JS 单线程·各 resolve 回调不交错→无竞态);每工具自带跳过+try/catch·一败不累及全批。只有 ok=true 才记 depthTools 覆盖，失败进 deepenFailed。
         function _runOneDeepen(_tn) {
           if (state.depthTools[_tn]) return Promise.resolve();
           if (_adaptiveDeepen && _gateDim[_tn] && !(_activeD && _activeD[_gateDim[_tn]])) {
@@ -816,8 +844,14 @@
             return Promise.resolve();
           }
           return Promise.resolve().then(function () { return _DTac.handle(_tn, {}, ctx); })
-            .catch(function (_e1) { try { console.warn('[agent-mode] 自动深化失败(不阻断):' + _tn, _e1); } catch (_) {} })
-            .then(function () { state.depthTools[_tn] = (state.depthTools[_tn] || 0) + 1; });   // 跑过即记账(成功/失败均·与原 for 循环同口径);跳过的不记
+            .then(function (_dr) {
+              if (_dr && _dr.ok) state.depthTools[_tn] = (state.depthTools[_tn] || 0) + 1;
+              else if (state.depthFailed.indexOf(_tn) < 0) state.depthFailed.push(_tn);
+            })
+            .catch(function (_e1) {
+              try { console.warn('[agent-mode] 自动深化失败(不阻断):' + _tn, _e1); } catch (_) {}
+              if (state.depthFailed.indexOf(_tn) < 0) state.depthFailed.push(_tn);
+            });
         }
         var _midParallel = _suite.filter(function (_tn) { return _tn !== 'recall_consolidate' && _tn !== 'deepen_narrative'; });
         _show('⟨执政⟩固化记忆·理清脉络…', 82);
@@ -868,7 +902,7 @@
     var gaps = _detectSpineGaps(gm, state);
     gm._agentSpineGaps = gaps;
     gm._agentResolutionTurn = resolutionTurn;
-    gm._agentTurnMeta = { rounds: state.rounds, writeOk: state.writeOk, writeAttempts: state.writeAttempts, finalized: state.finalized, autoClosed: !!state.autoClosed, scaffolded: !!state.scaffolded, scaffoldActions: state.scaffoldActions || 0, engineFirst: engineRan, resolutionTurn: resolutionTurn, spineGaps: gaps, turn: gm.turn || 0, finalizeRejects: state.finalizeRejects || 0, depthTools: state.depthTools || {}, deepenSkipped: state.deepenSkipped || [], depthOk: !!state.depthOk, depthIncomplete: state.depthIncomplete || null };
+    gm._agentTurnMeta = { rounds: state.rounds, writeOk: state.writeOk, writeAttempts: state.writeAttempts, finalized: state.finalized, autoClosed: !!state.autoClosed, scaffolded: !!state.scaffolded, scaffoldActions: state.scaffoldActions || 0, engineFirst: engineRan, resolutionTurn: resolutionTurn, spineGaps: gaps, turn: gm.turn || 0, finalizeRejects: state.finalizeRejects || 0, depthTools: state.depthTools || {}, deepenSkipped: state.deepenSkipped || [], deepenFailed: state.depthFailed || [], engineDims: state.engineDims || {}, depthOk: !!state.depthOk, depthIncomplete: state.depthIncomplete || null };
     try { console.log('[agent-mode] 回合 ' + resolutionTurn + '→' + (gm.turn || 0) + ' 完成 · 引擎先=' + engineRan + ' · 轮' + state.rounds + ' · 落地' + state.writeOk + '/' + state.writeAttempts + ' · 脊柱缺口[' + gaps.join('、') + ']'); } catch (_) {}
 
     // ── D7 产出焊缝:把 agent 产出映射成史记弹窗渲染器(_endTurn_render)期望的富结构 ──
@@ -951,6 +985,7 @@
     allTools: _allTools,
     actTools: _actTools,             // 工作流·动手阶段工具集(读+写·无深化·测试用)
     activeDims: _activeDims,         // 自适应深化·维度活动判定(测试用)
+    engineDiffDims: _engineDiffDims, // engine-first 状态差异→活动维度(测试用)
     coerceArgs: _coerceArgs,         // T2·健壮参数(测试用)
     playerOpsDigest: _playerOpsDigest,   // 玩家操作摘要(测试用·验 engine-first 回合错位)
     readToolsOnly: _readToolsOnly,   // DA-Q3·首轮只读工具集(治超窗)

@@ -3720,13 +3720,21 @@
         } else {
           // 大型剧本：只列出重要角色（有官职或高重要度的）
           var _importantNames = (GM.chars || []).filter(function(c) {
-            return c.alive !== false && (c.officialTitle || (c.importance || 0) > 50 || c.isPlayer);
+            // #5 策名(A):玩家亲自策名的人物务必进白名单·否则大剧本(>60人)里无官职低重要度的被裁剪→AI「不认」
+            return c.alive !== false && (c.officialTitle || (c.importance || 0) > 50 || c.isPlayer || c.cemingByPlayer);
           }).map(function(c) { return c.name; });
           if (_importantNames.length > 0) {
             sysP += '\n\n【重要角色名单（严禁虚构不存在的人名，另有' + (_aliveNames.length - _importantNames.length) + '名次要角色未列出）】';
             sysP += '\n' + _importantNames.join('、');
           }
         }
+      }
+      // #5 策名认人(A:策名成功=永久认):玩家亲自策名的人物务必被主推演认作合法在场角色,
+      //   不受大剧本「重要角色名单」裁剪、不当作虚构或时代错乱(配合史实检查的同名豁免)。
+      var _cemingNames = (GM.chars || []).filter(function(c){ return c && c.cemingByPlayer === true && c.alive !== false; }).map(function(c){ return c.name; });
+      if (_cemingNames.length > 0) {
+        sysP += '\n\n【玩家亲自策名·已在场的合法角色（务必认作真实在场·可正常参与推演与叙事·不得当作虚构或时代错乱）】';
+        sysP += '\n' + _cemingNames.join('、');
       }
       // 有效地名白名单（从行政区划收集）
       if (P.adminHierarchy) {

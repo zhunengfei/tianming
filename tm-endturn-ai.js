@@ -180,6 +180,7 @@
       // 势力/外交
       copy('faction_changes', ['factionChanges','势力变化','势力变动']);
       copy('faction_events', ['factionEvents','势力事件','势力间事件']);
+      copy('faction_ai_outcomes', ['factionAiOutcomes','faction_ai_results','factionAiResults','势力AI结果','势力AI推演结果']);
       copy('faction_relation_changes', ['factionRelationChanges','势力关系变化','势力关系变动']);
       copy('faction_relation_shift', ['factionRelationShift','势力关系流转','势力关系变迁']);
       copy('faction_interactions_advanced', ['factionInteractionsAdvanced','势力深度互动']);
@@ -661,6 +662,7 @@
               institution_changes: { type: 'array', items: { type: 'object', additionalProperties: true } },
               personnel_changes: { type: 'array', items: { type: 'object', additionalProperties: true } },
               office_changes: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              faction_ai_outcomes: { type: 'array', items: { type: 'object', additionalProperties: true } },
               faction_relation_changes: { type: 'array', items: { type: 'object', additionalProperties: true } },
               faction_relation_shift: { type: 'array', items: { type: 'object', additionalProperties: true } },
               party_changes: { type: 'array', items: { type: 'object', additionalProperties: true } },
@@ -701,6 +703,7 @@
             additionalProperties: true,
             properties: {
               faction_events: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              faction_ai_outcomes: { type: 'array', items: { type: 'object', additionalProperties: true } },
               faction_interactions_advanced: { type: 'array', items: { type: 'object', additionalProperties: true } },
               faction_relation_changes: { type: 'array', items: { type: 'object', additionalProperties: true } },
               faction_succession: { type: 'array', items: { type: 'object', additionalProperties: true } },
@@ -988,7 +991,7 @@
         var _why = reason && (reason.message || String(reason)) || 'SC1 returned no usable structured JSON';
         var _brief = (_dateText ? (_dateText + '，') : '') + '朝廷诸务照常，所颁诏令俱已分发有司奉行，一时未有大变上闻，余事俟后报。';
         var _p = { shizhengji:_brief, zhengwen:_brief, shilu_text:_brief, szj_title:'时移事去', szj_summary:'主推演结构化结果暂缺，系统采用保守降级账本。', turn_summary:'SC1 emergency fallback: no synthetic gameplay deltas applied.', player_status:'朝局暂按既有状态延续。', player_inner:'', events:[{ type:'AI降级', title:'主推演结构化结果暂缺', text:_brief, turn:_turn }], _g2Fallback:true, _emergencyFallback:true, _fallbackReason:String(_why).slice(0, 200) };
-        ['changes','resource_changes','variable_changes','char_updates','character_deaths','npc_actions','npc_interactions','npc_letters','npc_correspondence','cultural_works','faction_changes','faction_events','faction_relation_changes','faction_interactions','fiscal_adjustments','currency_adjustments','population_adjustments','central_local_actions','environment_actions','institution_changes','office_assignments','office_dismissals','personnel_changes','army_changes','province_changes','table_updates','suggestions'].forEach(function(k){ _p[k] = []; });
+        ['changes','resource_changes','variable_changes','char_updates','character_deaths','npc_actions','npc_interactions','npc_letters','npc_correspondence','cultural_works','faction_changes','faction_events','faction_ai_outcomes','faction_relation_changes','faction_interactions','fiscal_adjustments','currency_adjustments','population_adjustments','central_local_actions','environment_actions','institution_changes','office_assignments','office_dismissals','personnel_changes','army_changes','province_changes','table_updates','suggestions'].forEach(function(k){ _p[k] = []; });
         try {
           if (!GM._turnAiResults) GM._turnAiResults = {};
           if (!Array.isArray(GM._turnAiResults._fallbacks)) GM._turnAiResults._fallbacks = [];
@@ -2280,6 +2283,7 @@
         "\"affinity_changes\":[{\"a\":\"\u89D2\u8272A\",\"b\":\"\u89D2\u8272B\",\"delta\":\u53D8\u5316\u91CF,\"reason\":\"\u539F\u56E0\",\"relType\":\"blood/marriage/mentor/sworn/rival/benefactor/enemy(\u53EF\u9009\uFF0C\u65B0\u589E\u6216\u5F3A\u5316\u5173\u7CFB\u7C7B\u578B)\"}],"+
         "\"goal_updates\":[{\"name\":\"\u89D2\u8272\u540D\",\"goalId\":\"goal_1\",\"action\":\"update/add/complete/replace\",\"longTerm\":\"\u957F\u671F\u76EE\u6807(add/replace\u65F6\u5FC5\u586B)\",\"shortTerm\":\"\u5F53\u524D\u77ED\u671F\u76EE\u6807\",\"progress\":\"0-100\",\"context\":\"\u5F53\u524D\u884C\u52A8\u65B9\u5411(1\u53E5)\",\"type\":\"power/wealth/revenge/protect/knowledge/faith(add\u65F6\u5FC5\u586B)\",\"priority\":\"1-10\"}],\"character_deaths\":[{\"name\":\"角色名\",\"reason\":\"死因描述\"}],\"char_updates\":[{\"name\":\"角色名\",\"loyalty_delta\":0,\"ambition_delta\":0,\"stress_delta\":0,\"intelligence_delta\":0,\"valor_delta\":0,\"military_delta\":0,\"administration_delta\":0,\"management_delta\":0,\"charisma_delta\":0,\"diplomacy_delta\":0,\"benevolence_delta\":0,\"legitimacy_delta\":0,\"add_traits\":[\"新获得的特质id\"],\"remove_traits\":[\"失去的特质id\"],\"new_location\":\"新所在地(可选,如被贬/外派/召回)\",\"new_stance\":\"新立场(可选)\",\"new_party\":\"新党派(可选)\",\"action_type\":\"行为类型(punish/reward/betray/mercy/declare_war/reform等)\",\"reason\":\"原因\"}],\"faction_changes\":[{\"name\":\"\u52BF\u529B\u540D\",\"strength_delta\":0,\"economy_delta\":0,\"playerRelation_delta\":0,\"reason\":\"\u539F\u56E0\"}],\"party_changes\":[{\"name\":\"\u515A\u6D3E\u540D\",\"influence_delta\":0,\"new_status\":\"\u6D3B\u8DC3/\u5F0F\u5FAE/\u88AB\u538B\u5236/\u5DF2\u89E3\u6563(\u53EF\u9009)\",\"new_leader\":\"\u65B0\u9996\u9886(\u53EF\u9009)\",\"new_agenda\":\"\u65B0\u8BAE\u7A0B(\u53EF\u9009)\",\"new_shortGoal\":\"\u65B0\u77ED\u671F\u76EE\u6807(\u53EF\u9009)\",\"reason\":\"\u539F\u56E0\"}],"+
         "\"faction_events\":[{\"actor\":\"\u52BF\u529BA\",\"target\":\"\u52BF\u529BB\u6216\u7A7A(\u5185\u653F\u4E8B\u4EF6\u53EF\u4E0D\u586Btarget)\",\"action\":\"\u5177\u4F53\u884C\u4E3A\u63CF\u8FF0(30\u5B57)\",\"actionType\":\"\u5916\u4EA4/\u5185\u653F/\u519B\u4E8B/\u7ECF\u6D4E\",\"result\":\"\u7ED3\u679C(30\u5B57)\",\"strength_effect\":0,\"geoData\":{\"routeKm\":0,\"terrainDifficulty\":0.5,\"hasOfficialRoad\":true,\"routeDescription\":\"\u7ECF\u2026\u2026\",\"passesAndBarriers\":[],\"fortLevel\":0,\"garrison\":0}}],"+
+        "\"faction_ai_outcomes\":[{\"faction\":\"势力名\",\"factionId\":\"可选\",\"intent\":\"势力AI本回合意图\",\"action\":\"实际推动的行动\",\"target\":\"目标势力/地区/人物\",\"motive\":\"依据aiPersonality/aiDecisionWeights/aiConditionalBehaviors和当前局势的动机\",\"result\":\"结果\",\"publicSummary\":\"可进时政记的公开摘要\",\"posterityComment\":\"可进后人戏说的场景线索\",\"recordTarget\":\"shizhengji|houren|both|none\",\"structuralLinks\":[\"faction_events[0]\"]}],"+
         "\"faction_relation_changes\":[{\"from\":\"\u52BF\u529BA\",\"to\":\"\u52BF\u529BB\",\"type\":\"\u65B0\u5173\u7CFB\",\"delta\":\u53D8\u5316\u91CF,\"reason\":\"\u539F\u56E0\"}],"+
         "\"class_changes\":[{\"name\":\"\u9636\u5C42\u540D\",\"satisfaction_delta\":0,\"influence_delta\":0,\"new_demands\":\"\u65B0\u8BC9\u6C42(\u53EF\u9009)\",\"new_status\":\"\u65B0\u5730\u4F4D(\u53EF\u9009)\",\"partyOutcomeRef\":[{\"partyName\":\"\u515A\u6D3E\u540D\",\"outcome\":\"win/lose/blocked\"}],\"reason\":\"\u539F\u56E0\"}],"+
         "\"class_alert_responses\":[{\"alertId\":\"class:\u9636\u5C42\u540D\",\"action\":\"address/defer/partial\",\"reason\":\"\u4E3A\u4F55\u5904\u7406\u3001\u6401\u7F6E\u6216\u90E8\u5206\u5904\u7406\"}],"+
@@ -3310,7 +3314,7 @@
         var _sc1bOwn = !(P.ai && P.ai.sc1OwnedBySc1b === false);
         var _sc1cOwn = !(P.ai && P.ai.sc1OwnedBySc1c === false);
         var _sc1bFields = ['npc_interactions','cultural_works','npc_letters','npc_correspondence'];
-        var _sc1cFields = ['faction_events','npc_schemes','hidden_moves','faction_interactions_advanced','fengwen_snippets'];
+        var _sc1cFields = ['faction_events','faction_ai_outcomes','npc_schemes','hidden_moves','faction_interactions_advanced','fengwen_snippets'];
         var _toPrune = [];
         if (_sc1bOwn) _toPrune = _toPrune.concat(_sc1bFields);
         if (_sc1cOwn) _toPrune = _toPrune.concat(_sc1cFields);
@@ -3329,7 +3333,7 @@
         // append 单条边界 note·告诉 AI 哪些字段不要输出
         var _noteParts = [];
         if (_sc1bOwn) _noteParts.push('cultural_works/npc_letters/npc_correspondence/npc_interactions (由 SC1b 专管)');
-        if (_sc1cOwn) _noteParts.push('faction_events/npc_schemes/hidden_moves/faction_interactions_advanced/fengwen_snippets (由 SC1c 专管)');
+        if (_sc1cOwn) _noteParts.push('faction_events/faction_ai_outcomes/npc_schemes/hidden_moves/faction_interactions_advanced/fengwen_snippets (由 SC1c 专管)');
         if (_noteParts.length) {
           tp1 += '\n\n【SC1 字段边界·重要】本回合 sc1 不输出以下字段·\n  · ' + _noteParts.join('\n  · ') + '\n即使本 prompt 上方残留提及·sc1 也只返回除上列字段外的其他字段。';
         }
@@ -3349,7 +3353,7 @@
           tp1 += '\n\n【★模型能力降级·SC1 schema 精简】\n';
           tp1 += '  · 检测到单次输出 ≤ 4K tokens·请尽量压缩 schema\n';
           tp1 += '  · 必填核心字段：turn_summary/shizhengji_basis/playerStatus/playerInner + edict_feedback 数组\n';
-          tp1 += '  · 可缩或留空：cultural_works/npc_letters/npc_correspondence/npc_interactions/faction_interactions_advanced/faction_events/npc_schemes/hidden_moves/fengwen_snippets（这些由 SC1b/SC1c 补充·此处可 []）\n';
+          tp1 += '  · 可缩或留空：cultural_works/npc_letters/npc_correspondence/npc_interactions/faction_interactions_advanced/faction_events/faction_ai_outcomes/npc_schemes/hidden_moves/fengwen_snippets（这些由 SC1b/SC1c 补充·此处可 []）\n';
           tp1 += '  · 人物/势力/阶层 updates 只给最要紧 3 条·不要凑数\n';
           tp1 += '  · shizhengji_basis 控制在 200 字内·不要长篇铺陈\n';
         } else if (_outCapK_G1 <= 8) {
@@ -4168,7 +4172,7 @@
         }
         if (_npcsBriefC) tp1c += '\n\u3010\u4E3B\u8981 NPC\uFF08\u542B\u5B98\u804C/\u6D3E\u7CFB/\u5FE0\u5FD7\u5EC9/\u7279\u8D28\uFF09\u3011\n' + _npcsBriefC + '\n';
 
-        tp1c += '\n\u3010\u4EFB\u52A1\u3011\u751F\u6210\u4EE5\u4E0B\u4E03\u7C7B\u5185\u5BB9\uFF0C\u8FD4\u56DE\u4E25\u683C JSON\uFF08\u4EC5\u5305\u542B\u8FD9\u4E9B\u5B57\u6BB5\uFF09\uFF1A\n\n';
+        tp1c += '\n\u3010\u4EFB\u52A1\u3011\u751F\u6210\u4EE5\u4E0B\u4E5D\u7C7B\u5185\u5BB9\uFF0C\u8FD4\u56DE\u4E25\u683C JSON\uFF08\u4EC5\u5305\u542B\u8FD9\u4E9B\u5B57\u6BB5\uFF09\uFF1A\n\n';
 
         tp1c += '\u25C6 faction_interactions_advanced\uFF08\u52BF\u529B\u6DF1\u5EA6\u4E92\u52A8\u00B7\u5E38\u6001 3-6 \u6761\uFF0C\u5916\u4EA4\u6D3B\u8DC3\u671F 6-10 \u6761\uFF09\u2014\u2014\n';
         tp1c += '  23 \u79CD type\uFF1A\n';
@@ -4186,6 +4190,11 @@
         tp1c += '\u25C6 faction_events\uFF08\u52BF\u529B\u95F4/\u5185\u90E8\u4E8B\u4EF6\u00B7\u5E38\u6001 3-6 \u6761\uFF09\u2014\u2014\n';
         tp1c += '  \u5B57\u6BB5\uFF1A{actor, target?(\u5185\u653F\u4E8B\u4EF6\u53EF\u7701), action(30\u5B57), actionType:"\u5916\u4EA4/\u5185\u653F/\u519B\u4E8B/\u7ECF\u6D4E", result(30\u5B57), strength_effect:0, geoData?:{routeKm, terrainDifficulty:0.5, hasOfficialRoad, routeDescription("\u7ECF\u2026\u2026"), passesAndBarriers[], fortLevel, garrison}}\n';
         tp1c += '  \u519B\u4E8B\u7C7B geoData \u5FC5\u586B\uFF0C\u5176\u4ED6\u7C7B\u53EF\u7701\n\n';
+
+        tp1c += '\u25C6 faction_ai_outcomes\uFF08\u52BF\u529BAI\u4E3B\u5FAA\u73AF\u6865\u8D26\u672C\u00B72-6 \u6761\uFF09\u2014\u2014\n';
+        tp1c += '  \u8FD9\u4E0D\u662F\u65C1\u8DEF\u8BBE\u5B9A\uFF1A\u5FC5\u987B\u628A aiPersonality/aiDecisionWeights/aiConditionalBehaviors \u4E0E\u5F53\u524D\u519B\u653F\u8D22\u5730\u76D8\u5173\u7CFB\u8054\u52A8\uFF0C\u5E76\u901A\u8FC7 faction_events/faction_interactions_advanced/faction_relation_changes/\u519B\u653F\u8D22\u5B57\u6BB5\u843D\u5730\u3002\n';
+        tp1c += '  \u5B57\u6BB5\uFF1A{faction, factionId?, intent, action, target?, motive, result, publicSummary, posterityComment, recordTarget:"shizhengji|houren|both|none", structuralLinks:["faction_events[0]"]}\n';
+        tp1c += '  publicSummary \u4F9B\u65F6\u653F\u8BB0\u8FFD\u52A0\uFF0CposterityComment \u4F9B\u540E\u4EBA\u620F\u8BF4/\u8336\u8086/\u8FB9\u62A5/\u58EB\u6797\u8BAE\u8BBA\u4F7F\u7528\u3002\n\n';
 
         tp1c += '\u25C6 faction_relation_changes\uFF08\u52BF\u529B\u5173\u7CFB\u53D8\u5316\u00B72-5 \u6761\uFF09\u2014\u2014\n';
         tp1c += '  \u5B57\u6BB5\uFF1A{from, to, type, delta, reason}\n';
@@ -4379,7 +4388,7 @@
         tp1c += '    \u00B7 \u53EC\u96C6\u90E8\u843D\u5927\u4F1A/\u8BF8\u4FAF\u76DF\u4F1A\n\n';
 
         tp1c += '\u3010\u786C\u89C4\u5219\u3011\n';
-        tp1c += '  \u00B7 \u4EC5\u8FD4\u56DE\u4E0A\u8FF0 8 \u4E2A\u5B57\u6BB5\u7684 JSON\uFF0C\u4E0D\u8981\u4EFB\u4F55\u5176\u4ED6\u5B57\u6BB5\n';
+        tp1c += '  \u00B7 \u4EC5\u8FD4\u56DE\u4E0A\u8FF0 9 \u4E2A\u5B57\u6BB5\u7684 JSON\uFF0C\u4E0D\u8981\u4EFB\u4F55\u5176\u4ED6\u5B57\u6BB5\n';
         tp1c += '  \u00B7 \u4EBA\u540D/\u52BF\u529B\u540D\u5FC5\u987B\u4F7F\u7528\u4E0A\u65B9\u5217\u51FA\u7684\u540D\u79F0\n';
         tp1c += '  \u00B7 \u9632\u6B62"\u5FA1\u53F2\u5FC5\u8C0F\u00B7\u5C06\u519B\u5FC5\u6218\u00B7\u6E05\u6D41\u5FC5\u52BE\u5BA6\u5B98"\u5DE5\u5177\u4EBA\u6A21\u677F\u2014\u2014\u6309 NPC \u6027\u683C/\u6D3E\u7CFB/\u4E0E\u76EE\u6807\u5173\u7CFB/\u5FE0\u5FD7\u5EC9\u9009\u884C\u4E3A\n';
         tp1c += '  \u00B7 \u591A\u6570\u4EBA\u89C2\u671B/\u660E\u54F2\u4FDD\u8EAB\uFF0C\u5C11\u6570\u4EBA\u4ECB\u5165\n';
@@ -4387,7 +4396,7 @@
         tp1c += '  \u00B7 \u5386\u53F2\u8D26\u672C\u4E00\u81F4\u6027\u2014\u2014\u767E\u5E74\u524D\u7684\u4EE4\u6068/\u6069\u60E0\u4ECA\u4ECD\u6709\u4F59\u6CE2\uFF1B\u4E0D\u53EF\u8F7B\u6613\u201C\u548C\u597D\u201D\u4E4B\u524D\u7684\u5C60\u57CE/\u80CC\u76DF\u4EC7\u6577\n';
 
         tp1c += '\n\u8FD4\u56DE\u683C\u5F0F\u793A\u4F8B\uFF1A\n';
-        tp1c += '{\n  "faction_interactions_advanced":[{...}],\n  "faction_events":[{...}],\n  "faction_relation_changes":[{...}],\n  "faction_succession":[{...}],\n  "npc_schemes":[{...}],\n  "scheme_actions":[{...}],\n  "hidden_moves":["..."],\n  "fengwen_snippets":[{...}]\n}';
+        tp1c += '{\n  "faction_interactions_advanced":[{...}],\n  "faction_events":[{...}],\n  "faction_ai_outcomes":[{...}],\n  "faction_relation_changes":[{...}],\n  "faction_succession":[{...}],\n  "npc_schemes":[{...}],\n  "scheme_actions":[{...}],\n  "hidden_moves":["..."],\n  "fengwen_snippets":[{...}]\n}';
 
         // 动态 max_tokens：取模型输出上限与业务 8K 的较小值
         var _sc1cBaseTok = Math.min(_effectiveOutCap || 8192, 8192);
@@ -4422,7 +4431,7 @@
         var _sc1cCall = await _callEndturnAI(_sc1cBody, {
           id: 'sc1c',
           label: '\u52BF\u529B\u9634\u8C0B',
-          expectedKeys: ['faction_events', 'faction_interactions_advanced', 'npc_schemes', 'scheme_actions'],
+          expectedKeys: ['faction_events', 'faction_ai_outcomes', 'faction_interactions_advanced', 'npc_schemes', 'scheme_actions'],
           priority: 'high'
         });
         if (_sc1cCall && _sc1cCall.data) {
@@ -4439,6 +4448,7 @@
             // ── sc1 自动派发的 5 字段：concat 合并即可 ──
             if (Array.isArray(p1c.faction_interactions_advanced)) p1.faction_interactions_advanced = (Array.isArray(p1.faction_interactions_advanced) ? p1.faction_interactions_advanced : []).concat(p1c.faction_interactions_advanced);
             if (Array.isArray(p1c.faction_events)) p1.faction_events = (Array.isArray(p1.faction_events) ? p1.faction_events : []).concat(p1c.faction_events);
+            if (Array.isArray(p1c.faction_ai_outcomes)) p1.faction_ai_outcomes = (Array.isArray(p1.faction_ai_outcomes) ? p1.faction_ai_outcomes : []).concat(p1c.faction_ai_outcomes);
             if (Array.isArray(p1c.faction_relation_changes)) p1.faction_relation_changes = (Array.isArray(p1.faction_relation_changes) ? p1.faction_relation_changes : []).concat(p1c.faction_relation_changes);
             if (Array.isArray(p1c.faction_succession)) p1.faction_succession = (Array.isArray(p1.faction_succession) ? p1.faction_succession : []).concat(p1c.faction_succession);
             if (Array.isArray(p1c.scheme_actions)) p1.scheme_actions = (Array.isArray(p1.scheme_actions) ? p1.scheme_actions : []).concat(p1c.scheme_actions);
@@ -4502,7 +4512,7 @@
               });
             }
 
-            _dbg('[sc1c] \u5408\u5E76: \u52BF\u4E92\u52A8+' + (p1c.faction_interactions_advanced||[]).length + ' \u52BF\u4E8B\u4EF6+' + (p1c.faction_events||[]).length + ' \u5173\u7CFB+' + (p1c.faction_relation_changes||[]).length + ' \u7EE7\u627F+' + (p1c.faction_succession||[]).length + ' \u63A8\u8FDB+' + (p1c.scheme_actions||[]).length + ' \u65B0\u9634\u8C0B+' + (p1c.npc_schemes||[]).length + ' \u6697\u6D41+' + (p1c.hidden_moves||[]).length + ' \u98CE\u95FB+' + (p1c.fengwen_snippets||[]).length);
+            _dbg('[sc1c] \u5408\u5E76: \u52BF\u4E92\u52A8+' + (p1c.faction_interactions_advanced||[]).length + ' \u52BF\u4E8B\u4EF6+' + (p1c.faction_events||[]).length + ' \u52BFAI+' + (p1c.faction_ai_outcomes||[]).length + ' \u5173\u7CFB+' + (p1c.faction_relation_changes||[]).length + ' \u7EE7\u627F+' + (p1c.faction_succession||[]).length + ' \u63A8\u8FDB+' + (p1c.scheme_actions||[]).length + ' \u65B0\u9634\u8C0B+' + (p1c.npc_schemes||[]).length + ' \u6697\u6D41+' + (p1c.hidden_moves||[]).length + ' \u98CE\u95FB+' + (p1c.fengwen_snippets||[]).length);
           }
           GM._subcallTimings.sc1c = Date.now() - _sc1cStart;
         } else {

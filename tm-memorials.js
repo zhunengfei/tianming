@@ -122,25 +122,17 @@ function generateMemorials(){
   var maxCount = P.conf.memorialMax || 10;
   var count = minCount + Math.floor(random() * (maxCount - minCount + 1));
   if(!GM.chars || GM.chars.length === 0){ GM.memorials = []; renderMemorials(); return; }
+  // 开局首回合：保留剧本预置奏疏(_sid 标记)·不被生成/AI 覆盖（修「开局空占位奏疏」bug：
+  //   绍宋等剧本由 tm-patches 在 doActualStart 把 sc.memorials 真内容载入 GM.memorials，
+  //   随后本函数被调用会把它们冲掉，故首回合若已有剧本预置奏疏则原样保留）
+  if((GM.turn||1) <= 1){
+    var _scMems = (GM.memorials||[]).filter(function(m){ return m && m._sid; });
+    if(_scMems.length){ GM.memorials = _scMems; renderMemorials(); return; }
+  }
   if(P.ai.key){ genMemorialsAI(count); return; }
-  // 无AI时：按忠诚和野心优先选人（不纯随机）
-  var candidates = GM.chars.filter(_memCanPresent);
-  candidates.sort(function(a, b) {
-    var sa = (a.ambition || 50) + (100 - (a.loyalty || 50)); // 野心高+忠诚低→更想上奏
-    var sb = (b.ambition || 50) + (100 - (b.loyalty || 50));
-    return sb - sa;
-  });
-  count = Math.min(count, candidates.length);
-  GM.memorials = candidates.slice(0, count).map(function(ch){
-    // 根据特质推断奏疏类型
-    var type = '政务';
-    if (ch.traitIds) {
-      if (ch.traitIds.indexOf('brave') >= 0 || ch.traitIds.indexOf('militant') >= 0) type = '军务';
-      else if (ch.traitIds.indexOf('compassionate') >= 0 || ch.traitIds.indexOf('merciful') >= 0) type = '民生';
-      else if (ch.traitIds.indexOf('greedy') >= 0 || ch.traitIds.indexOf('diligent') >= 0) type = '经济';
-    }
-    return { id: uid(), from: ch.name, title: ch.title || '', type: type, content: ch.name + '奏报：臣以为当务之急…', status: 'pending', turn: GM.turn, reply: '' };
-  });
+  // 无AI：不再凭空生成空占位奏疏（原「<官>奏报：臣以为当务之急…」无实义·只会塞满空奏疏）。
+  //   保留剧本预置(若有)·否则留空——等玩家配置 AI 或由剧本作者预置开局奏疏。
+  GM.memorials = (GM.memorials||[]).filter(function(m){ return m && m._sid; });
   renderMemorials();
 }
 
