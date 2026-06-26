@@ -401,7 +401,17 @@
     function _isThisTurn(t) { return t != null && (t === pt || t === curTurn); }
     var L = [];
     var edicts = inp.edicts || [];
-    if (edicts.length) { L.push('▸ 诏令/举措:'); edicts.slice(0, 12).forEach(function (e) { L.push('   · ' + _brief(e, 140)); }); }
+    // 根治(2026-06-26)：ctx.input.edicts 在 prep 路径是对象 {political,military,diplomatic,economic,other,decree}(非数组)·
+    // 旧码 edicts.length / edicts.slice 对对象失效 → agent「本回合玩家操作」摘要 + 历回 directives 一直取不到当回合诏令·
+    // 只剩 memory 旧内容 =「agent 只读第一回合操作」。统一规整成可读行数组 _edArr。
+    var _edArr = [];
+    if (Array.isArray(edicts)) { _edArr = edicts.slice(); }
+    else if (edicts && typeof edicts === 'object') {
+      if (edicts.decree) _edArr.push('诏书:' + edicts.decree);
+      var _edK = { political: '政', military: '军', diplomatic: '外', economic: '经', other: '他' };
+      Object.keys(_edK).forEach(function (k) { if (edicts[k]) _edArr.push(_edK[k] + ':' + edicts[k]); });
+    }
+    if (_edArr.length) { L.push('▸ 诏令/举措:'); _edArr.slice(0, 12).forEach(function (e) { L.push('   · ' + _brief(e, 140)); }); }
     if (inp.xinglu) L.push('▸ 君上行止:' + _brief(inp.xinglu, 180));
     try {
       var mems = (gm && gm.memorials || []).filter(function (m) { return m && m.reply && (_isThisTurn(m.turn) || _isThisTurn(m._repliedTurn)); });
@@ -425,10 +435,10 @@
     } catch (e) {}
     // 多回合诏书/行止:滚动存(owner"诏书行止也应多回合读")·按 pt 去重·cap 24·save-lifecycle 持久
     try {
-      if ((edicts.length || inp.xinglu) && pt) {
+      if ((_edArr.length || inp.xinglu) && pt) {
         if (!Array.isArray(gm._agentRecentDirectives)) gm._agentRecentDirectives = [];
         if (!gm._agentRecentDirectives.some(function (d) { return d && d.turn === pt; })) {
-          gm._agentRecentDirectives.push({ turn: pt, edicts: edicts.slice(0, 12).map(function (e) { return _brief(e, 120); }), xinglu: inp.xinglu ? _brief(inp.xinglu, 180) : '' });
+          gm._agentRecentDirectives.push({ turn: pt, edicts: _edArr.slice(0, 12).map(function (e) { return _brief(e, 120); }), xinglu: inp.xinglu ? _brief(inp.xinglu, 180) : '' });
           if (gm._agentRecentDirectives.length > 24) gm._agentRecentDirectives = gm._agentRecentDirectives.slice(-24);
         }
       }
@@ -729,6 +739,8 @@
     var _memDossier = _memoryDossier(gm);
     // 玩家操作摘要:stash 到 gm 供深化工具 ground(命门:据玩家操作推演)·并置于 transcript 显要处
     gm._turnPlayerOps = _playerOpsDigest(ctx, gm, resolutionTurn);   // 传玩家回合 N(engine-first 后 gm.turn=N+1·玩家操作盖 N 章)
+    // 诊断(2026-06-26)：确认 agent 每回合读到的玩家操作不再陈旧(修复后应逐回合变化·不再恒为第一回合)
+    try { console.log('[agent操作诊断] 回合' + resolutionTurn + '(gm.turn=' + gm.turn + ') 玩家操作摘要前160:', (gm._turnPlayerOps ? String(gm._turnPlayerOps).slice(0, 160) : '(空)')); } catch (_dgE) {}
     // 切片1·自我反思:把滚动偏差画像(上回合末反思更新)注入 basis·让本回合推演时就校正系统性盲点(命门:越玩越可信)·开关关/无偏差则空
     var _biasInject = '';
     try { if (_agentSelfReflectOn(P) && TM.ReflectionAgent && typeof TM.ReflectionAgent.formatBiasForSc0 === 'function') _biasInject = TM.ReflectionAgent.formatBiasForSc0(gm) || ''; } catch (_biE) {}

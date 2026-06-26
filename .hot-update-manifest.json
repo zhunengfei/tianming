@@ -1,18 +1,88 @@
 {
   "type": "tianming-hot-update",
-  "version": "1.3.3.9",
+  "version": "1.3.4.3",
   "entry": "index.html",
-  "generatedAt": "2026-06-14T16:38:23.275Z",
+  "generatedAt": "2026-06-26T03:39:23.651Z",
   "files": [
     {
       "path": "_app_main.js",
-      "sha256": "6219f404b995159c8e3e6be9a36f806d57ae9d6e6c7cd21de2aa538a9e8fcdd9",
-      "size": 123533
+      "sha256": "19519a6603cc3aef32af86b184bfd4e9a03203d4352377d1c6bd5a04c77cb5ff",
+      "size": 123810
     },
     {
       "path": "_app_preload.js",
       "sha256": "f4612f2488d57006964d2fb3915b211a875b81a948e86941bcf5a710f9d2b3a4",
       "size": 6170
+    },
+    {
+      "path": "_game-entry-shot.png",
+      "sha256": "a3aa287c6bb1db320629fcba420e46e87ce7d6880303e0790c32809ae0494ab3",
+      "size": 500113
+    },
+    {
+      "path": "_ingame-full.png",
+      "sha256": "aa966364c9bcce87a9cca5d55fa3aaa068c8c4c9a63709fca61318adfbda93f5",
+      "size": 429359
+    },
+    {
+      "path": "_ingame-panel.png",
+      "sha256": "1f33f3761fb1d4b23dc65813ca7e8363ddd394ac8eb66bfb7c1d23e8aa8991c4",
+      "size": 868974
+    },
+    {
+      "path": "_ingame-time.png",
+      "sha256": "d55310553f50771aaaf0da97d8de9ecd9e2c3b429396718b20d2faac848bcb3b",
+      "size": 434100
+    },
+    {
+      "path": "_ingame-topbar.png",
+      "sha256": "a34f6b4fedf4f929d34cdc2a5d7af74f937d84ebfc07b72d424fbc09d206191c",
+      "size": 60636
+    },
+    {
+      "path": "_preview_map.json",
+      "sha256": "5b7d203f1b5613210c62d93586f2e16a039b56838b27567b49c91e303bbb2083",
+      "size": 559387
+    },
+    {
+      "path": "_pw-scratch/patch-battle-deterministic.js",
+      "sha256": "afde210aea9339adf1a3a137fc5b99dfa6135c823656343bb0623192c4f58681",
+      "size": 3901
+    },
+    {
+      "path": "_pw-scratch/patch-battle-toggle.js",
+      "sha256": "cb5438e23a8d2c53ffb464c2f5551ed9d5390e225b2e07d6fc91dc7fe672fdae",
+      "size": 2145
+    },
+    {
+      "path": "_pw-scratch/patch-diebao-display.js",
+      "sha256": "9e4ee149ebcd608df155e79c9d6a35c0190b5decdadb25371b5413dc119c443c",
+      "size": 2867
+    },
+    {
+      "path": "_pw-scratch/patch-disaster-duration.js",
+      "sha256": "25d7cbf831d03a3a159b33b30e927e9ba6da834ea62f0666bf18e70c9f8555af",
+      "size": 2104
+    },
+    {
+      "path": "_pw-scratch/patch-keju-h-toggle.js",
+      "sha256": "6676ae4d0a029fb6fcb4b1a435721470a598b118c06def6c1291bf34bf0c1d46",
+      "size": 940
+    },
+    {
+      "path": "_pw-scratch/patch-keju-hl-default-on.js",
+      "sha256": "4e8456eaabd53b02f24cf708b7627112d4ccbd7657c7b486606e0d51f102d19e",
+      "size": 2860
+    },
+    {
+      "path": "_pw-scratch/patch-wdsusp-prompt.js",
+      "sha256": "a75aaac81b89f64212f93dc8b5705d5c0ade37d0e35430ba0b6c56ac9c0fe40c",
+      "size": 2307
+    },
+    {
+      "path": "_shaosong_map_for_edit.json",
+      "sha256": "8e8a1756e1b39369c1811860b4dcc0ecc50c4975e2c9511a1d57fb6e53b37f71",
+      "size": 962921
     },
     {
       "path": "_yan_harness.html",
@@ -248,6 +318,896 @@
       "path": "assets/fonts/ZCOOLXiaoWei-Regular.ttf",
       "sha256": "a42b620140f493db42f741351dfbf343c0936d58588ee8004b8b2a218d997ff1",
       "size": 6313808
+    },
+    {
+      "path": "assets/portraits/shaosong/俺巴孩.png",
+      "sha256": "3d153e87a754ab9992b5e6f080cf586b5bfc0271187ae36a67cc7b9e7e1afe2a",
+      "size": 3946186
+    },
+    {
+      "path": "assets/portraits/shaosong/把儿坛.png",
+      "sha256": "e0c31a205089d810c8c95c450824d06fa98d3120dfc13baff595b92123688fca",
+      "size": 3468085
+    },
+    {
+      "path": "assets/portraits/shaosong/蔡松年.png",
+      "sha256": "80d6b1d677d83d6bf06851dae0e6eff2b983f3763b9a8d8a7acd9de883069fbd",
+      "size": 3622187
+    },
+    {
+      "path": "assets/portraits/shaosong/察哥.png",
+      "sha256": "9fbefe4542d069181be02932906098fe010e83a69b9579670c506d2006ba93c9",
+      "size": 3729126
+    },
+    {
+      "path": "assets/portraits/shaosong/陈规.png",
+      "sha256": "fcd5af84cbb19cbc9c1bb8abccced999a212bbc537e2ffeb88d8099e1c2882f2",
+      "size": 3387502
+    },
+    {
+      "path": "assets/portraits/shaosong/陈与义.png",
+      "sha256": "ac2715a55f16ba58cdbba3d7bfbf392c1cf7c2a58dd7a09387fef7958b771e8a",
+      "size": 3476610
+    },
+    {
+      "path": "assets/portraits/shaosong/董先.png",
+      "sha256": "ce173c4771279986d4efc3cc2cc5b0fce0f1b2b6d0500087d7ee729e9793acab",
+      "size": 3791854
+    },
+    {
+      "path": "assets/portraits/shaosong/杜充.png",
+      "sha256": "41fdcb1ff3f63b0feb66e9bde517d9d3f761414cd15fe1ff46bd5016c9712033",
+      "size": 3422596
+    },
+    {
+      "path": "assets/portraits/shaosong/段正严.png",
+      "sha256": "ca53d0635732b7def931adc3e2ce4e751c39af94bac6dace6fdfd1d11f6e4ee7",
+      "size": 2847410
+    },
+    {
+      "path": "assets/portraits/shaosong/范致虚.png",
+      "sha256": "c0f1f235c2e3b9ab231a50a061e46548109cd17f7aab7462499950def6b1173c",
+      "size": 3512382
+    },
+    {
+      "path": "assets/portraits/shaosong/傅亮.png",
+      "sha256": "527f6f741c116b89cfa45ec7d880597adc9da1a5c69968268e4f634ade386428",
+      "size": 3867123
+    },
+    {
+      "path": "assets/portraits/shaosong/富直柔.png",
+      "sha256": "1f2a32aa775b2e07f55e122c3d96b9605ac96ff75783042e456ad36e45d70846",
+      "size": 3508607
+    },
+    {
+      "path": "assets/portraits/shaosong/高量成.png",
+      "sha256": "beed03b5d5ce6bc9beed01d47903dc10a28f74642d8ef0544fc5c036ed10e5a5",
+      "size": 3859725
+    },
+    {
+      "path": "assets/portraits/shaosong/高令则.png",
+      "sha256": "a344e4e0547bcdb3c30d6b7ef6113343753cb586a1a95ee7f6b15b60e0e6e7ef",
+      "size": 3811724
+    },
+    {
+      "path": "assets/portraits/shaosong/高庆裔.png",
+      "sha256": "48942fab6e8003d1b635bbe8599a963c0aa08f036fac546c31709cdf39db6c6b",
+      "size": 3380896
+    },
+    {
+      "path": "assets/portraits/shaosong/高桢.png",
+      "sha256": "7be3bfcc978ec9f1e5699804a2dbeaaa606f268069d8fa81fc3b716380cf6ba2",
+      "size": 3214544
+    },
+    {
+      "path": "assets/portraits/shaosong/贡噶宁布.png",
+      "sha256": "d31b3e1dc806cad57f25cdf635e68c20c28febb2fbb1c531e7a75f60f47eee29",
+      "size": 3407825
+    },
+    {
+      "path": "assets/portraits/shaosong/关师古.png",
+      "sha256": "da64edcd29e82b845249d8bde1b17e3300a5654c0fdeac7d5c200797e3c61f80",
+      "size": 3851755
+    },
+    {
+      "path": "assets/portraits/shaosong/郭浩.png",
+      "sha256": "5ab8ecdab863e364d9acf4d6a21abfc605d0ee98d3de393a1de96b23067dc6e6",
+      "size": 3443744
+    },
+    {
+      "path": "assets/portraits/shaosong/韩昉.png",
+      "sha256": "179695be9e0cee2c52fe0fdddaca53e9c9c8a1d222b97b183051d556b001864d",
+      "size": 2357677
+    },
+    {
+      "path": "assets/portraits/shaosong/韩企先.png",
+      "sha256": "f287297cb0fce34ecd83caea977afa31c9d19d20edb7261aebc774409928ebc6",
+      "size": 2359216
+    },
+    {
+      "path": "assets/portraits/shaosong/韩世忠.png",
+      "sha256": "f542c5813794de4a20023bf88133c1a01fea34b6ccc9385d9300988c12048cff",
+      "size": 2926317
+    },
+    {
+      "path": "assets/portraits/shaosong/韩肖胄.png",
+      "sha256": "ae6809ea2368840c99a2c889a1c276b160d195cb9709b7bb153c2e6ad52d6630",
+      "size": 3384366
+    },
+    {
+      "path": "assets/portraits/shaosong/郝晸.png",
+      "sha256": "d3495bf73f463543acd36b22748f8fb4a95195a2cd4c75caeefdc588ca8af6b5",
+      "size": 3607262
+    },
+    {
+      "path": "assets/portraits/shaosong/洪皓.png",
+      "sha256": "f75905288f96f66f64e94cf4598a0ea9b9328c708280c8a61514bd860ecb65ef",
+      "size": 3412582
+    },
+    {
+      "path": "assets/portraits/shaosong/呼延通.png",
+      "sha256": "6b1f9b7062a2b6da5220025aec33dd4118b4c8db80ed191b8e85e370a6182ffb",
+      "size": 3687319
+    },
+    {
+      "path": "assets/portraits/shaosong/忽图剌.png",
+      "sha256": "94f3e1c8152edf1977ba826d2f7f29c6440fe030da04923622ab8d69d11da01f",
+      "size": 3645000
+    },
+    {
+      "path": "assets/portraits/shaosong/胡安国.png",
+      "sha256": "3303e1717a52688774feb9f843b4a7a2bdb13a4026923b0239cae796313ae841",
+      "size": 3196513
+    },
+    {
+      "path": "assets/portraits/shaosong/胡闳休.png",
+      "sha256": "102e3cd83b2e0707e21f835955241b0434698145573e5eb5a5741c5642d56622",
+      "size": 2704480
+    },
+    {
+      "path": "assets/portraits/shaosong/黄潜善.png",
+      "sha256": "401f041adb923d1e529be405d4c1fd8dd3a96af2d9121f770c58844db17822b8",
+      "size": 2746972
+    },
+    {
+      "path": "assets/portraits/shaosong/解元.png",
+      "sha256": "741eff668b70abe1e77f2dec414e539dce72f828760f43909d2c13a481f578d4",
+      "size": 3558974
+    },
+    {
+      "path": "assets/portraits/shaosong/金富轼.png",
+      "sha256": "747d313bc3325808b30333d73daacd4e775ae4644ee0e885236b1b3877d4c273",
+      "size": 2456293
+    },
+    {
+      "path": "assets/portraits/shaosong/金富仪.png",
+      "sha256": "6cd35ced605446b6ae987551bb9ae501cf62f7b1f0f9cc83de8f819fdeef53d2",
+      "size": 3342890
+    },
+    {
+      "path": "assets/portraits/shaosong/巨师古.png",
+      "sha256": "ef17621de9859a5973f769782f9ef2203c4fe9c5d193a3c43c9418f27b4f539c",
+      "size": 3270823
+    },
+    {
+      "path": "assets/portraits/shaosong/康履.png",
+      "sha256": "4168bad54db4ce4485ffd2d4997b8ba798734af62ce5903e71fdd3e4506cf741",
+      "size": 2371488
+    },
+    {
+      "path": "assets/portraits/shaosong/黎伯玉.png",
+      "sha256": "61e96c1821c211052d5a328bc71e9f03290efc5a09c1924b438dd564441707c2",
+      "size": 3525600
+    },
+    {
+      "path": "assets/portraits/shaosong/李纲.png",
+      "sha256": "dc35dabc9d60b1f15198e1a8c9473483733535aca7290a154be1beb7521c9406",
+      "size": 2559701
+    },
+    {
+      "path": "assets/portraits/shaosong/李横.png",
+      "sha256": "2fbff1596a5e64c26ea85442223ace0786f7b7020c0d0548140aaa361cf7be95",
+      "size": 3604708
+    },
+    {
+      "path": "assets/portraits/shaosong/李乾顺.png",
+      "sha256": "3757c4e4c0d104c7a4d56a978cacec019adfcb523856573507855d276ba98b14",
+      "size": 2785954
+    },
+    {
+      "path": "assets/portraits/shaosong/李仁礼.png",
+      "sha256": "d44a01c4cee5495aa4fd9c77797cf9eed9e5f093c0f679318db5c44aa35dcf77",
+      "size": 3648964
+    },
+    {
+      "path": "assets/portraits/shaosong/李仁忠.png",
+      "sha256": "5ed4895d6975c171ce0870b65f6af8593cf3bf616db44ddf78347cbf60ba29bf",
+      "size": 3483678
+    },
+    {
+      "path": "assets/portraits/shaosong/李彦仙.png",
+      "sha256": "abc61fe6b70756eb70cdad108182b35f9604d4704d7e8785890bace2931c2207",
+      "size": 2915084
+    },
+    {
+      "path": "assets/portraits/shaosong/梁红玉.png",
+      "sha256": "64b1754261f68e26878f6c6e376990697888c7efc0733a0aa43f3c94f23db2b1",
+      "size": 2837985
+    },
+    {
+      "path": "assets/portraits/shaosong/林景默.png",
+      "sha256": "aeb615474808262388bbdde0cf3f906aa414e3a32b99c40fa6ca22f3faa2c481",
+      "size": 2546141
+    },
+    {
+      "path": "assets/portraits/shaosong/刘光世.png",
+      "sha256": "8c6a9b1f1f61aab77cc1dbbbfd0ad3d4338ae4930b512f25a7df5bb9a06265e8",
+      "size": 3624296
+    },
+    {
+      "path": "assets/portraits/shaosong/刘锜.png",
+      "sha256": "d6bab33e52d128c55c615f43acee1993cdc7c52762d6e7955ab332938f704377",
+      "size": 2945549
+    },
+    {
+      "path": "assets/portraits/shaosong/刘庆覃.png",
+      "sha256": "cdaed8dafe3e7e4b2303170004506b97e993f4231d15271e9493359cae48b22b",
+      "size": 3595119
+    },
+    {
+      "path": "assets/portraits/shaosong/刘锡.png",
+      "sha256": "7fee2b5c24fa841eba367132e0ea2cb3726a3f637e155c4e9139419daa01925e",
+      "size": 3367450
+    },
+    {
+      "path": "assets/portraits/shaosong/刘晏.png",
+      "sha256": "c3422ce70d30c031b5f5efa41b4bfd006a7ad5588f287d6dbc10cffc435a1288",
+      "size": 2362319
+    },
+    {
+      "path": "assets/portraits/shaosong/刘豫.png",
+      "sha256": "84191e1fa81adc87d0b46cfd2e0c677ff4d891ba0ae122a38acb5b33284e51aa",
+      "size": 3184638
+    },
+    {
+      "path": "assets/portraits/shaosong/刘正彦.png",
+      "sha256": "97aa63790b372c35f474d7cf8c66a60c3ad52eeb2a4c8c59b75cc7b5b0fc4ba5",
+      "size": 2687046
+    },
+    {
+      "path": "assets/portraits/shaosong/卢益.png",
+      "sha256": "3a0dc27aae0aec64ca1c7dd095630efd066d2ce40952486a00121db334e3c5f7",
+      "size": 3475836
+    },
+    {
+      "path": "assets/portraits/shaosong/路允迪.png",
+      "sha256": "0bbeef279eeb6b61fce10470bd16f0c74af2c9897775db5aaf5a03a66d886993",
+      "size": 3420284
+    },
+    {
+      "path": "assets/portraits/shaosong/吕好问.png",
+      "sha256": "fb938e7de93f4427d9be9cf7624b1d0fb572d57241d85ee39592e1e698197fb4",
+      "size": 3522410
+    },
+    {
+      "path": "assets/portraits/shaosong/吕颐浩.png",
+      "sha256": "0a3d0fb9e3d7ab62a7bd05ea83928a746a0b0a7a29b1a9c8ece681b25855aa8c",
+      "size": 2829127
+    },
+    {
+      "path": "assets/portraits/shaosong/孟皇后.png",
+      "sha256": "86ffb475bf4e1b7b1cbae6e31d1a7e99a89f7e9b7c8aedbe0e08064ff5a83a00",
+      "size": 2600579
+    },
+    {
+      "path": "assets/portraits/shaosong/孟忠厚.png",
+      "sha256": "8e3dec051efece5cea83cdacc7179555c523ede9b50d2e47ff2204d28c6f9c30",
+      "size": 3335716
+    },
+    {
+      "path": "assets/portraits/shaosong/苗傅.png",
+      "sha256": "abf86f957c9308ca2e92f042743224d1a3dfd87e81c24d331330517638c39585",
+      "size": 2883694
+    },
+    {
+      "path": "assets/portraits/shaosong/妙清.png",
+      "sha256": "ea8e85f47331144f76af349bda31caf90b692bc043d794bb81497a84db817588",
+      "size": 3354769
+    },
+    {
+      "path": "assets/portraits/shaosong/牛皋.png",
+      "sha256": "138e2cf28373d05498e06e202c3fc6a1cfdefb7525fd241c394e241738a3db9e",
+      "size": 3532230
+    },
+    {
+      "path": "assets/portraits/shaosong/潘贤妃.png",
+      "sha256": "fcf1915eea30449cf83bbb0c173217b07d569935c17f127156ec2c865f38151b",
+      "size": 2350890
+    },
+    {
+      "path": "assets/portraits/shaosong/庞荣.png",
+      "sha256": "d6d147cfc470e28004eb4d8bfcfa90804aaf047b1ab5186ae677085609bfdfc1",
+      "size": 3313208
+    },
+    {
+      "path": "assets/portraits/shaosong/平忠盛.png",
+      "sha256": "63970499aa93776735ceb42f0ee37d4f875cbebdd252954da9ece9ecce596883",
+      "size": 3665728
+    },
+    {
+      "path": "assets/portraits/shaosong/秦桧.png",
+      "sha256": "d152840c92da52a6ef1b6d2c4830c5bf88dc12114e59a4aafa7b4d89c1d1bf3f",
+      "size": 2544998
+    },
+    {
+      "path": "assets/portraits/shaosong/曲端.png",
+      "sha256": "09c1f9f7396e639b6b4558926b4773563a4330900a75d6d52abca2b2ae6f5d51",
+      "size": 2938483
+    },
+    {
+      "path": "assets/portraits/shaosong/任得敬.png",
+      "sha256": "5cbb37bf6084190da1f0bf1c64631dd1c12812c6e5d01a9b72fe55acf3fe48d9",
+      "size": 3554932
+    },
+    {
+      "path": "assets/portraits/shaosong/柔福帝姬.png",
+      "sha256": "98c9ea92a37b9ecb87314839a7eb073f2af61a392d1a76aa4ca9de06309a4e4c",
+      "size": 3654464
+    },
+    {
+      "path": "assets/portraits/shaosong/时立爱.png",
+      "sha256": "7ba508d6f0619738c813cfc4adfa53e3e04cd46f34b3b0131d60b7d72fd401b4",
+      "size": 3271455
+    },
+    {
+      "path": "assets/portraits/shaosong/滕康.png",
+      "sha256": "a97e91567419679c639294d26ea4aada4bead0f37a990b5b1c4eb2ced44b126b",
+      "size": 3476861
+    },
+    {
+      "path": "assets/portraits/shaosong/完颜拔离速.png",
+      "sha256": "86ef89efc24464f133e88ba4954f15b20e0d6192f9433354a2eafc7e6ab2fbf0",
+      "size": 3546034
+    },
+    {
+      "path": "assets/portraits/shaosong/完颜阇母.png",
+      "sha256": "3d4e47e092de1a8e001993e1ecb14566aabb725576df0004e733e59414ef1928",
+      "size": 3511287
+    },
+    {
+      "path": "assets/portraits/shaosong/完颜杲(撒离喝).png",
+      "sha256": "614c017cb2b969c7527bdd7e169ba26cbeb5e7480cec39cd7016f4eb3ddd3554",
+      "size": 3490365
+    },
+    {
+      "path": "assets/portraits/shaosong/完颜活女.png",
+      "sha256": "996512b8fc00b102c379cc20f4291984c2a15f1df8765a8f05b36958444b5c4f",
+      "size": 3583843
+    },
+    {
+      "path": "assets/portraits/shaosong/完颜娄室.png",
+      "sha256": "a9ea2f7d78c070c13962d6d92ae42feb68ed5eb7b70cbc85cd69e0dc2dc1930c",
+      "size": 2663895
+    },
+    {
+      "path": "assets/portraits/shaosong/完颜蒲鲁虎.png",
+      "sha256": "6c45128803da1e4d5d8d6295396dd6ff3f2aa69937cf6b7d1fb9da61ddcdd285",
+      "size": 3522530
+    },
+    {
+      "path": "assets/portraits/shaosong/完颜挞懒.png",
+      "sha256": "b0d96ac022e0c9a16371689cd3aa1653b44f5cf84c49281c1b87f6eb0d385b4b",
+      "size": 2443253
+    },
+    {
+      "path": "assets/portraits/shaosong/完颜吴乞买.png",
+      "sha256": "a01280aab5117a84ff00d49e700a30319ed21d1ae3a2e47c0d5aef7e7192a895",
+      "size": 2431130
+    },
+    {
+      "path": "assets/portraits/shaosong/完颜希尹.png",
+      "sha256": "cd0c1fb7c7f1d9ac1d41fcaf97e354141a74bb16178b0712e0fad8df0981d7c7",
+      "size": 2386100
+    },
+    {
+      "path": "assets/portraits/shaosong/完颜斜也.png",
+      "sha256": "b775acc4d299d1dbbce7e28f466085e4b50c760d85cb013061c5582051a6d942",
+      "size": 3186067
+    },
+    {
+      "path": "assets/portraits/shaosong/完颜银术可.png",
+      "sha256": "2fee66ef128740c61314be4e1f6ce30773c3371ba1a3d1a1c2517963815d8853",
+      "size": 3637545
+    },
+    {
+      "path": "assets/portraits/shaosong/完颜宗弼.png",
+      "sha256": "50e5ac23e1c4ece2731f5233dc357c5c20f5daae632275aee11945e0f13f6838",
+      "size": 2489196
+    },
+    {
+      "path": "assets/portraits/shaosong/完颜宗辅.png",
+      "sha256": "1050f79905c678ab0fd61eb0c64f9eb0e5b2d76278fb5b6c67c3b76ec4770975",
+      "size": 2655499
+    },
+    {
+      "path": "assets/portraits/shaosong/完颜宗翰.png",
+      "sha256": "849590ce7ab84c5373c93c1be5c69d985f409a5c80cfd0f42f536e380de59c8b",
+      "size": 3002352
+    },
+    {
+      "path": "assets/portraits/shaosong/完颜宗望.png",
+      "sha256": "464ef318d6fc1b76a8dd5a50d7c4f3fa538865b917c6550552d7167c81ec1d71",
+      "size": 2597393
+    },
+    {
+      "path": "assets/portraits/shaosong/汪伯彦.png",
+      "sha256": "dc0a1323529ec9836870024554199ba7b1228886a38e255a3f747dadb2bad4d9",
+      "size": 2627695
+    },
+    {
+      "path": "assets/portraits/shaosong/王贵.png",
+      "sha256": "4a78323fe0d29f82d96e447cf546c1d7ae02943b216ad40a2a5e8001da57a72c",
+      "size": 3645887
+    },
+    {
+      "path": "assets/portraits/shaosong/王楷.png",
+      "sha256": "f428b7c0c023e98177b594916b6cb47bccb06f9bffd03df0f38a2b2ac074485b",
+      "size": 2727631
+    },
+    {
+      "path": "assets/portraits/shaosong/王时雍.png",
+      "sha256": "d0c7363210ef290c191a5d477d9b95d9d36fc99f3bd55d144997433e00bef5f6",
+      "size": 3398066
+    },
+    {
+      "path": "assets/portraits/shaosong/王庶.png",
+      "sha256": "34b6c12f5bed024cefc8ce1572bc0c871a1a021c706d60242d68f495038f29f8",
+      "size": 3545441
+    },
+    {
+      "path": "assets/portraits/shaosong/王彦.png",
+      "sha256": "10cfbfca331e0b97324af318b8ee06c1d6289fd8f0e11bb650c981c19e7373d8",
+      "size": 2822704
+    },
+    {
+      "path": "assets/portraits/shaosong/王渊.png",
+      "sha256": "e0f9193ccd689b156261f6939f008d8087af9980f0909fb4d0cf34a31eae6dc8",
+      "size": 2896208
+    },
+    {
+      "path": "assets/portraits/shaosong/韦氏.png",
+      "sha256": "f9e2f51d5fd93a5ffc2ca3ba0e738ad1fde209f34ab491278d290b1d87d4dc15",
+      "size": 2553209
+    },
+    {
+      "path": "assets/portraits/shaosong/斡道冲.png",
+      "sha256": "fa3f3c65ab98ea18b104098c865ae8f93c056a9c6401a0823216f52aa0e87969",
+      "size": 3423837
+    },
+    {
+      "path": "assets/portraits/shaosong/吴玠.png",
+      "sha256": "aaa9fd99384d792232e1e437ebff98bafadb4679587c69263437df05ab8129ec",
+      "size": 2956787
+    },
+    {
+      "path": "assets/portraits/shaosong/吴氏.png",
+      "sha256": "a7b7499e295928b3a9964d31e3d91704c53b646abaa736b965d3df45a6e79feb",
+      "size": 2352290
+    },
+    {
+      "path": "assets/portraits/shaosong/萧查剌阿不.png",
+      "sha256": "b94a88784617dd6f9538db7fdf88a80cd1c74e9ae67fabf54d558d1bc57d77a1",
+      "size": 3515000
+    },
+    {
+      "path": "assets/portraits/shaosong/萧高六.png",
+      "sha256": "8c9f3f7bab01e9a6485b5b294d24d89d991b2f3ba31c2030ddb0c6939a426d4f",
+      "size": 3152880
+    },
+    {
+      "path": "assets/portraits/shaosong/萧合达.png",
+      "sha256": "09608ac145f935fe89e368eb8936a0e4826128f7e69827eab0fbb8acfc9ba497",
+      "size": 3637472
+    },
+    {
+      "path": "assets/portraits/shaosong/萧庆.png",
+      "sha256": "cb7c6d8a614c8851527944eec3dbab09377c894c5d781934b6b5326ce8ed82be",
+      "size": 2385990
+    },
+    {
+      "path": "assets/portraits/shaosong/萧特谋.png",
+      "sha256": "7498b9e46f769977ee5752a77349e06548853d8c629764ff8693992f381d44de",
+      "size": 3377677
+    },
+    {
+      "path": "assets/portraits/shaosong/邢秉懿.png",
+      "sha256": "a0680d0399870d7c6c4d97aca8e09cd2985487dbb757b796c4665dc9d6eb5317",
+      "size": 2392712
+    },
+    {
+      "path": "assets/portraits/shaosong/徐庆.png",
+      "sha256": "de5f6b78ffe346b9b4fc059a473427ddf34c1edbe53ebac514781c0f6cd9a473",
+      "size": 3390026
+    },
+    {
+      "path": "assets/portraits/shaosong/许翰.png",
+      "sha256": "3bf560e1b13be00bfa73fcefbce128c6115ab7f2c2e74930698ea76071a02aed",
+      "size": 3528535
+    },
+    {
+      "path": "assets/portraits/shaosong/颜岐.png",
+      "sha256": "cbb28e5811f6634f49c66a49fb66fc9b7522cb1627ce129125dc152674ed5a8b",
+      "size": 3141011
+    },
+    {
+      "path": "assets/portraits/shaosong/杨时.png",
+      "sha256": "4d4968a7a6caa347f83d8012ef5cfcbd8919031f90510629db8e7282aa41b74a",
+      "size": 2406745
+    },
+    {
+      "path": "assets/portraits/shaosong/杨惟忠.png",
+      "sha256": "67542fd5fb9b8a10a6a56508bf86ed5879fd0c2fc395160cba307c4a6f0b8dc4",
+      "size": 3611263
+    },
+    {
+      "path": "assets/portraits/shaosong/杨沂中.png",
+      "sha256": "a509b0dbab14410a81d40e2c6424f4da666c1c4f44eb52781b51b9295638e8a1",
+      "size": 2826122
+    },
+    {
+      "path": "assets/portraits/shaosong/杨政.png",
+      "sha256": "7a9ed5ff772556c1aae0ce719df0f48b514305457dd76344b96502f95a9eb468",
+      "size": 3545446
+    },
+    {
+      "path": "assets/portraits/shaosong/姚端.png",
+      "sha256": "f612e4c303ab51d2d53c26fe8105599bde6081b0111bcbc01176ee7d7dc802ec",
+      "size": 3450644
+    },
+    {
+      "path": "assets/portraits/shaosong/耶律南仙.png",
+      "sha256": "c02d09462c71e242e5f320962dd05ee753a86e2574f0778d7ae075420e596f7a",
+      "size": 3659976
+    },
+    {
+      "path": "assets/portraits/shaosong/耶律余睹.png",
+      "sha256": "c805e2d134112577fdfe029d06303fd7c52230f2a0c54579c6ea95d7f460bb78",
+      "size": 2638812
+    },
+    {
+      "path": "assets/portraits/shaosong/叶梦得.png",
+      "sha256": "e6f5deafd19da5600a32b54a7afdce449f93c007d08b510c9ae4daa231377187",
+      "size": 3480567
+    },
+    {
+      "path": "assets/portraits/shaosong/源为义.png",
+      "sha256": "74c09c0dec9f7448516e4157164d96f1360a34674e1d839d93b05ca834b3af30",
+      "size": 3431127
+    },
+    {
+      "path": "assets/portraits/shaosong/岳飞.png",
+      "sha256": "2f48af512a08b17ac411e171f5e36dace96dcecbb01a137a9cd031615489145e",
+      "size": 2712460
+    },
+    {
+      "path": "assets/portraits/shaosong/张邦昌.png",
+      "sha256": "b2f2b92b1ac8f8d72abe2aeda71628366a4d90c80fbf772e6aab760762f4cbf4",
+      "size": 2322241
+    },
+    {
+      "path": "assets/portraits/shaosong/张九成.png",
+      "sha256": "db72ee4c8e61c1ad852fa3367a4666ec33f8b2b425c23b26af0ca7ea5eae2a1f",
+      "size": 3587215
+    },
+    {
+      "path": "assets/portraits/shaosong/张俊.png",
+      "sha256": "564b09da3c226065120ad7a84c4334dd259c60d4b8666024a4339cf3a21ea24b",
+      "size": 2960939
+    },
+    {
+      "path": "assets/portraits/shaosong/张浚.png",
+      "sha256": "1f6b2f0e6d38ad5c5a6b82358c95aaf735bfcd80e57992faf00468d67b4f0b9c",
+      "size": 2619959
+    },
+    {
+      "path": "assets/portraits/shaosong/张悫.png",
+      "sha256": "f1519fce2b0da0eaee6130c240312e82fb16cca4a381a048efa7dd12e067ce09",
+      "size": 3431309
+    },
+    {
+      "path": "assets/portraits/shaosong/张氏(婕妤).png",
+      "sha256": "9d5d7e2ff616ef591a3c4bdee4a99f5516126249a173c2d744833545afc0bb7b",
+      "size": 3672684
+    },
+    {
+      "path": "assets/portraits/shaosong/张所.png",
+      "sha256": "c9a50677d6131f6c1af1ee6d673c831b082f2d662fa78ef5ba660542c537b285",
+      "size": 2801645
+    },
+    {
+      "path": "assets/portraits/shaosong/张宪.png",
+      "sha256": "1e3fac3ce360d24bf04dfceb028f223a896711884ac853fe9c9c060a96a1e12d",
+      "size": 3486989
+    },
+    {
+      "path": "assets/portraits/shaosong/张孝纯.png",
+      "sha256": "0d0ed77a120d72607da8235976ce8286b31e06230548a63ebf8458f41b0134dc",
+      "size": 3319675
+    },
+    {
+      "path": "assets/portraits/shaosong/张中孚.png",
+      "sha256": "188157a97450a942defce9d2af1d366580cf3c791e922f1e2ea94cd2201ba3ad",
+      "size": 3502850
+    },
+    {
+      "path": "assets/portraits/shaosong/赵谌.png",
+      "sha256": "93a589987a8dc22472b9e950adf8e430783cce238a075725d39ffab50b7bc6a2",
+      "size": 2386925
+    },
+    {
+      "path": "assets/portraits/shaosong/赵鼎.png",
+      "sha256": "ad0253a50b50326fecc113848f9fd4f9b6d9333cc77d93a8e9e4926c6de957ac",
+      "size": 2622662
+    },
+    {
+      "path": "assets/portraits/shaosong/赵构.png",
+      "sha256": "17aaab61e4df0fa8585cc354cd0f2afa61f0d76e95278381f0a0dc3867d42b61",
+      "size": 2628871
+    },
+    {
+      "path": "assets/portraits/shaosong/赵桓.png",
+      "sha256": "37e85a1d47196d413f852969c8a6db0ea6c39bd29121431dc0b42f6c7908fd41",
+      "size": 2345337
+    },
+    {
+      "path": "assets/portraits/shaosong/赵佶.png",
+      "sha256": "85fee084a5af80da6d2f5a11305c13086ea53961d4bba084a9108e75bcb1eca4",
+      "size": 2728498
+    },
+    {
+      "path": "assets/portraits/shaosong/赵令畤.png",
+      "sha256": "5eb5031a0cc01eb8b9f8586b62cad8535cb6beff0f5f8381d047379d4e6a56f2",
+      "size": 2421743
+    },
+    {
+      "path": "assets/portraits/shaosong/赵哲.png",
+      "sha256": "d124745b7c8794cce7dbd31e0f2b297934463cff0e1eff09e836e5ed52ee9e32",
+      "size": 3406353
+    },
+    {
+      "path": "assets/portraits/shaosong/赵榛.png",
+      "sha256": "9eabd12e072fb21785b5d957a894eeabf8b7dddff41f707d53ba64768fb9ef5f",
+      "size": 2476879
+    },
+    {
+      "path": "assets/portraits/shaosong/折可求.png",
+      "sha256": "592196318acf454f6552ee87dfa57bb1f8fcc59e3d09f23ca9d5ccf79649bad6",
+      "size": 3488748
+    },
+    {
+      "path": "assets/portraits/shaosong/折彦质.png",
+      "sha256": "55785837c1686badf6d20c3d63de5b6f51e736ac34916b93889681f0ae475d9c",
+      "size": 3416400
+    },
+    {
+      "path": "assets/portraits/shaosong/郑知常.png",
+      "sha256": "05b2ed231108b43d549e316774b7115a3a75335f585af630a2d4a0fc9e551929",
+      "size": 3606417
+    },
+    {
+      "path": "assets/portraits/shaosong/周望.png",
+      "sha256": "a65c4e104bd10c4bdf415017bce062b0bf3fef47030ec42e05944521383fe0a0",
+      "size": 3450758
+    },
+    {
+      "path": "assets/portraits/shaosong/朱凤英.png",
+      "sha256": "64d3f171319098d63e94ae20840420aa32424863f3892d2f0de48fde96cea390",
+      "size": 2678009
+    },
+    {
+      "path": "assets/portraits/shaosong/朱琏.png",
+      "sha256": "cf08feed005229e42952bc8a87ba619afbde63fec41c1ddb8ccc11f4febbb883",
+      "size": 2313419
+    },
+    {
+      "path": "assets/portraits/shaosong/朱胜非.png",
+      "sha256": "526e907f4ffa8d07d73a3f5c461efb6e1da74749c5928b1abed838544689ed04",
+      "size": 2424863
+    },
+    {
+      "path": "assets/portraits/shaosong/朱松.png",
+      "sha256": "5c89fdb4d8b992c084e7124048d119b40737e60782dbd4d0a0167c4f7b1179a1",
+      "size": 3693931
+    },
+    {
+      "path": "assets/portraits/shaosong/宗泽.png",
+      "sha256": "b91638af38b07c75a376ea226f69b29f76ce0d4e25e002856051afbbe80f58c6",
+      "size": 2788814
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_bandit_rebel.png",
+      "sha256": "8372986e612ea0b4e1f56c02e882bbd2f0f1a00a0f86a832a381e7993cf28b82",
+      "size": 3670769
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_east_asian_foreign_civil.png",
+      "sha256": "3009333107fae0b7fadb169f11bcf45c2e28e14a570eca940a6d3e3e78775ab4",
+      "size": 3528676
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_east_asian_foreign_lady.png",
+      "sha256": "35c793d052a11fd538440c8a0363d2f1d02a3d05749c813a53046fdefb39c2c3",
+      "size": 3692200
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_east_asian_foreign_military.png",
+      "sha256": "39788cba853c524a447b7f0dd3006f519c62194e57ca65aabfe00b0b25158967",
+      "size": 3399478
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_east_asian_foreign_monk.png",
+      "sha256": "1161592f639ec57c796a34b398b793af9f99a70df9fec0028ecbf14fd8b560e8",
+      "size": 3492563
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_jin_han_official_defector.png",
+      "sha256": "78185d4db92e82e3c5c1fa3516dd3cd4c55498ffe6b33b5d0e3201f7c8630453",
+      "size": 3369841
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_jin_jurchen_commander.png",
+      "sha256": "0a67c23ff2bc60f594138cdc76719204587aa020bf61c29ee32d4b6f7b018dd0",
+      "size": 3626088
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_jin_jurchen_noble.png",
+      "sha256": "4529751e5dd08f57dc14b7f8edc8f63e2e6cbdcb1cd5ce75ef812fd0746ec5ce",
+      "size": 3204648
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_liao_khitan_exile_commander.png",
+      "sha256": "034c69304b6a9d21a213ed4e4db8e283d7e3abf6290422e9332621fedc9f75ed",
+      "size": 3558506
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_maritime_island_chief_merchant.png",
+      "sha256": "8065467a11a795dadbc47933cca98921e3310b9ae00c1e1ad48fcb410b1f0bbc",
+      "size": 3859457
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_maritime_island_elite_woman_priest.png",
+      "sha256": "0f31911b6031558f85a3360813d877f365320342170f00e19b6579b489e061e0",
+      "size": 3712173
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_maritime_island_warrior.png",
+      "sha256": "a027d9d1692c141bde6cf5cf925e556247d6ecd299bf018db1ba7230b717366c",
+      "size": 3756165
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_misc_male_official.png",
+      "sha256": "fb0c40e6c911b70929732df9dec9b5b34da9bae461d361aa446de98ee7ca82ac",
+      "size": 3429519
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_outer_northeast_hunter_chief.png",
+      "sha256": "74d1adb25c599a32b52960c66a80ccdc7385f420b637076515af4e5e0af671c1",
+      "size": 3899942
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_silkroad_cleric_scholar.png",
+      "sha256": "119b8c461ddadd51ca52f3b5087297746c13bfab2fc8fdbedfe114ac25a90c6c",
+      "size": 3748229
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_silkroad_merchant_official.png",
+      "sha256": "af764c552ea0af2ff19853b7504d4779741b53482a0948ce1c16f79f91f269ad",
+      "size": 3885741
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_silkroad_turkic_warrior.png",
+      "sha256": "6aa457ee218a987abbf64bbe0b8467e65aa4574d6dee6c658f58ee30ee680812",
+      "size": 3737856
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_song_civil_official.png",
+      "sha256": "000d2ce523f3ae162d623f565c50f866576e1b9b599c1bc0b7fe92294574fd88",
+      "size": 3266932
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_song_eunuch_attendant.png",
+      "sha256": "bbe2e2a44eae021743a4fc88721b0f3bfc12847ba3dd82359f2a4b8333e1afe0",
+      "size": 3097311
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_song_female_elite.png",
+      "sha256": "77ced28fb59ea5b5903337c6e1f407ba3d902c99abb776119fcd52fe0be5e43e",
+      "size": 3453997
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_song_field_officer.png",
+      "sha256": "614d6cd36e2f4f3e24145139bec6c3ba48c3d98330edd5d75f84970a8d0ed092",
+      "size": 3181358
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_song_loyalist_commander.png",
+      "sha256": "30200c583c9c79da4d61ab93c1034b9314e040b10ba20437f85749dc2dd6fa71",
+      "size": 3566061
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_song_scholar.png",
+      "sha256": "ec17caa9dc8a427165c0d64cce17f2d95bf62e52f5bfb767c64ea6a12cc44969",
+      "size": 3499710
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_southeast_asian_court_chief.png",
+      "sha256": "972d93f1ca3d4b3ea450012d39b5bc657b58c6a0f5f0a795ec9695111637577f",
+      "size": 4019476
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_southwest_chieftain_envoy.png",
+      "sha256": "c4fcb2629de3c4730ce44345bd4b20f8952d5fe6483a842eb4d29daaf8b9eb06",
+      "size": 3555186
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_southwest_female_chieftain.png",
+      "sha256": "5f41cacfb6b561b426df731fed464313084dddd1a63586fdc24e2aac655e5e30",
+      "size": 3544673
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_southwest_priest.png",
+      "sha256": "9c7e7f53c3e2dcf856a07f0b59984a9b986955d586783c3a8f021154e8072ed5",
+      "size": 3429674
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_southwest_warrior_chief.png",
+      "sha256": "7e20393146a4525147045301b2d54d7711f362f758ae7c01fb759a8c6a2a440c",
+      "size": 3685837
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_steppe_noblewoman.png",
+      "sha256": "181070506d57ec4d51625fcb6380cdd282b3d834ffbc60822e658f1af7b447ee",
+      "size": 3786619
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_steppe_scribe_envoy.png",
+      "sha256": "b94bf2389e2185fe91fc34b0ea67e9b7e40f524a4cdb4ea85f068251cb62dc48",
+      "size": 3531446
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_steppe_shaman.png",
+      "sha256": "fb455596e22c78dfb98a91d1813b07de55858905943b08a9695f4c18a7c602f6",
+      "size": 3345777
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_steppe_warrior_chieftain.png",
+      "sha256": "6a5d5c34d2cde8f73f13e8d9f9e538e98cef23af2844c2c035ba28b28b49680d",
+      "size": 3499021
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_tibetan_chieftain.png",
+      "sha256": "83331166542f9bdbc7ab942860d39da80b0583d7349ccca0d33fb77130125faa",
+      "size": 3765548
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_tibetan_monk_priest.png",
+      "sha256": "86903acb3ce8e9e22d0750c5607962b2eb58db18e977b5762756988a02ed9b90",
+      "size": 3240367
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_xixia_frontier_officer.png",
+      "sha256": "6e17497d514f326986cf38bb10e5cafa0ed1e64058d756f36b68305295684e15",
+      "size": 3471593
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_xixia_official.png",
+      "sha256": "fbed73d2db1d06165aa3acf5b530583a993d57fdd1b7a060104b7aba5ebb101b",
+      "size": 3380723
+    },
+    {
+      "path": "assets/portraits/shaosong/generic/generic_young_noble_male.png",
+      "sha256": "fec92607bc9cdded9d51250e3afb1156a0e5c751ffe5858b23b0ea5cfefae2d2",
+      "size": 3561652
     },
     {
       "path": "assets/portraits/tianqi7/阿济格.png",
@@ -925,19 +1885,34 @@
       "size": 11100
     },
     {
+      "path": "battle/_BUNDLED_FROM.txt",
+      "sha256": "2ffd2a9af2a9e546763b87769907d3844bc7fce39e5d0ad790925644ab7a1ae0",
+      "size": 135
+    },
+    {
+      "path": "battle/index.html",
+      "sha256": "f357cf83a2b398db841fab0a8ebb720d4ebd3a4f28b1cf2844a06287dbaa6b64",
+      "size": 340956
+    },
+    {
+      "path": "bundled-scenarios/绍宋·建炎元年八月_182区草案.json",
+      "sha256": "d2e23c907bb7d6e07259af7bff336aecd2a61d04a98eb3152f046f98791cbdae",
+      "size": 9960002
+    },
+    {
       "path": "bundled-scenarios/绍宋·建炎元年八月（官方）.json",
-      "sha256": "b33e667ac41ddf63dd35f33c3abee1bf4c78cac8951e9b19b000be63aecb63c4",
-      "size": 11060044
+      "sha256": "0267d2e528dc9a366b1510e014c3996506f372d32a68de0ee8c90a8eaed09e0b",
+      "size": 10788846
     },
     {
       "path": "bundled-scenarios/天启七年·九月（官方）.json",
-      "sha256": "3c8c4191a80473fda21e1bcef75b3c4f68ef075af33e13d1793aef52b1e86135",
-      "size": 14805158
+      "sha256": "fc7207cb2fe5b8c801f4ab8affb3f67c68b3e120b374f34716d81bab52719217",
+      "size": 14805331
     },
     {
       "path": "changelog.json",
-      "sha256": "f4ab21d52cbb5d2c7c50ecb6800dc2c7be9978f66ab3c7c49a2bf0b6298b323d",
-      "size": 982013
+      "sha256": "e43a097b80a05fb43e8d793d5a2e6d94ba79fa44b8156c49a0e8308482d078c7",
+      "size": 945846
     },
     {
       "path": "data/maps/default-map.json",
@@ -991,8 +1966,8 @@
     },
     {
       "path": "data/scenario-supplements/tianqi7-official-runtime-snapshot.js",
-      "sha256": "70e4ec2bff1ef3237ee905bf1fcbf9da73a40f0b73876d43ebb1dc675ed8cb06",
-      "size": 7263892
+      "sha256": "cf50659866b0fe30c23d5365f43be3a27c3ab3d01df86c838d226397957c8992",
+      "size": 8422844
     },
     {
       "path": "demo-guoshi.html",
@@ -1016,23 +1991,23 @@
     },
     {
       "path": "editor-ai-multipass.js",
-      "sha256": "a8b369d47823f354e85ab6d56360cf71386b5b396bb0a196f95ae55a7f261dba",
-      "size": 60597
+      "sha256": "1bb072fe174ce8f117684ef290a86e189401e4af20fe3fddff99d23417df0909",
+      "size": 63389
     },
     {
       "path": "editor-ai-validate.js",
-      "sha256": "eb73af253dbb857241fdfac50e62a6ea995a8a6e54b4990fc23af7703e119bf5",
-      "size": 76020
+      "sha256": "66dd39b49912d78674a7e8c149b2e8261ba363782cd67c0ef959f07cbdbf14af",
+      "size": 77222
     },
     {
       "path": "editor-authoring-agent-ui.js",
-      "sha256": "dd7bd544054246f77d1a0ab8cdfb5c15422c9398856e9047fbbe4b9e3592e295",
-      "size": 123667
+      "sha256": "1f05820062d8df4230e3db418836f24afc7e8a3e72eb1c7d2d90607fe3a38b8b",
+      "size": 143528
     },
     {
       "path": "editor-authoring-agent.js",
-      "sha256": "924f2c57e09e92cdccea5ab7b28a65aca071e953d73ee68e04ce16dd62a03b0f",
-      "size": 136515
+      "sha256": "cf670ca7eb4f0008989af3a4747ba1a6c8c54b662d6afafd1f97275b958283b1",
+      "size": 167000
     },
     {
       "path": "editor-core.js",
@@ -1066,8 +2041,8 @@
     },
     {
       "path": "editor-fiscal.js",
-      "sha256": "d8cc019a79c1eec2eb618472a476d30cbc7afe473c3577aadd7a5f667279f5c7",
-      "size": 44210
+      "sha256": "dd44a46a38788ead95726e5aeae76f45adc4d642b90ab7ca091c707fc3b16b2f",
+      "size": 48440
     },
     {
       "path": "editor-form-edicts.js",
@@ -1141,8 +2116,8 @@
     },
     {
       "path": "editor.js",
-      "sha256": "827d271fabed957b9231b3f94211031e197da0803d7bc200aefe962613ee53cb",
-      "size": 114694
+      "sha256": "eaaf80c1604857f678642dc988e21956e4499a580d53b16e83e6456d6f53475a",
+      "size": 115048
     },
     {
       "path": "generated_images/qq-bridge/smoke-imagegen-marker.png",
@@ -1156,8 +2131,8 @@
     },
     {
       "path": "index.html",
-      "sha256": "27f6b29dd7e13102a05bf0fca03dcabab0889a6af323cb9d7940f3b8976828db",
-      "size": 55893
+      "sha256": "7932520e0b26aa7e93225fa141b27295be3a4b849d92b482a3ff14695e5c6d43",
+      "size": 59642
     },
     {
       "path": "INDEX.md",
@@ -1176,8 +2151,8 @@
     },
     {
       "path": "map-editor-ai.js",
-      "sha256": "f19ecd8d904b43d7d1f9aed801d2026d5aa17767ff03bc84b27b43441a72908f",
-      "size": 10329
+      "sha256": "fd688576fcaf3818c63e0ea2cca5e1304652b6df5acbd8d06e60b3475a5883d6",
+      "size": 12244
     },
     {
       "path": "map-editor-arealinks.js",
@@ -1201,8 +2176,8 @@
     },
     {
       "path": "map-editor-bitmap.js",
-      "sha256": "3098cfea1b46a05d50dfecfd4dc29ec143e28bbf7ecd5121cccf1b321aa5b348",
-      "size": 19600
+      "sha256": "e09a834d7abff58134bc028a7d1b381047bc0de38e07270df69ac48c9ba04c88",
+      "size": 20741
     },
     {
       "path": "map-editor-bookmarks.js",
@@ -1251,8 +2226,8 @@
     },
     {
       "path": "map-editor-core.js",
-      "sha256": "707a0c1aad4300491d2f4369019ca4e0b6728ac3221ee347626358e8c346f26e",
-      "size": 53553
+      "sha256": "34d6bc6427b6e3d75f1aa19afcf6b6ca4e1d447bef7ceb41dd1d397960c12e6d",
+      "size": 60874
     },
     {
       "path": "map-editor-cross-time.js",
@@ -1306,8 +2281,8 @@
     },
     {
       "path": "map-editor-ghost.js",
-      "sha256": "f5b5f2618e6d8d157f9e2d8910fa030ae6db4d3f189f99a48a16c4bf275e7b7d",
-      "size": 8696
+      "sha256": "a57ba7a44c567cad6e739b8aa759bbd0c25948d244d18ddd5de7f21673d2e0e0",
+      "size": 9528
     },
     {
       "path": "map-editor-hierarchical-gen.js",
@@ -1336,8 +2311,8 @@
     },
     {
       "path": "map-editor-io.js",
-      "sha256": "510ebc14e99a217f16e91d723b7579881c0a89bb888770330a724b1d4af13218",
-      "size": 30796
+      "sha256": "f79b18ce17f9b266e8bff00e97340050d247d726c8bf281fdad5ed624095b8ae",
+      "size": 32801
     },
     {
       "path": "map-editor-juben-handoff.js",
@@ -1366,8 +2341,8 @@
     },
     {
       "path": "map-editor-merge-split.js",
-      "sha256": "b669b16c695468ec89975b3f345f8cce44352c39613ce250f8fd67e2dceb9654",
-      "size": 27710
+      "sha256": "4442c0ee73513ce91f132529ace37bddf0c2d848db6ba8ab3a53bc672902b6a0",
+      "size": 33294
     },
     {
       "path": "map-editor-minimap.js",
@@ -1376,8 +2351,8 @@
     },
     {
       "path": "map-editor-mode-banner.js",
-      "sha256": "693adac551e8644c8c43d42c973eede079453af095216c74188f19cec732637d",
-      "size": 6667
+      "sha256": "c5ea8380dc3e193fcbe9c09ab49e56491839257f6211bf3d875bd388a641a3a2",
+      "size": 7589
     },
     {
       "path": "map-editor-multi-diff.js",
@@ -1391,8 +2366,8 @@
     },
     {
       "path": "map-editor-panel.js",
-      "sha256": "82dda70a0fa2fe3d8b202f2763e173bbfae94c431f573a0620599ef102a77fb5",
-      "size": 62365
+      "sha256": "fca5ba2dd136c29d2bf46c7e4e60d12adc1846bb3eb602642c0b1e842215961c",
+      "size": 65486
     },
     {
       "path": "map-editor-perf.js",
@@ -1411,13 +2386,13 @@
     },
     {
       "path": "map-editor-poly-utils.js",
-      "sha256": "f728882526bec859ec544c00ed9e809f70c415fcd0ade47c3cc12205da17a945",
-      "size": 6040
+      "sha256": "644fff927ed1fff3ce88225ef03f956e4af62b6eec2778fa1acc860980e47c54",
+      "size": 15773
     },
     {
       "path": "map-editor-polygon-fix.js",
-      "sha256": "a291838b07476d48428d39ea4fab09b153e27453dc2e784a964aba4d0dbaf711",
-      "size": 15248
+      "sha256": "5fa298e45bb01dd91ef7e1614eb7017f909e7cb694e4563eba9e7aab54c98cf2",
+      "size": 16474
     },
     {
       "path": "map-editor-postprocess.js",
@@ -1436,8 +2411,8 @@
     },
     {
       "path": "map-editor-rastermaps.js",
-      "sha256": "181874e57ec774bc461e61c9d0ab3621cc88b87df6b4966c94ff6e0a24fa9e24",
-      "size": 16124
+      "sha256": "b8d0ac22989e25517e6630c4e38abc62f1976779f34589e006762a87ffa107bf",
+      "size": 17292
     },
     {
       "path": "map-editor-rivers.js",
@@ -1486,8 +2461,8 @@
     },
     {
       "path": "map-editor-text.js",
-      "sha256": "20dc4f3ce1d6ab990e58e32af39fa2eab90326c482ece3ce54c90c2920c49d07",
-      "size": 39416
+      "sha256": "d5ea7409e26184dab2d15276203784b3072b183ae7de6bdbbd8ab34c5481caa5",
+      "size": 39366
     },
     {
       "path": "map-editor-timeline.js",
@@ -1496,13 +2471,13 @@
     },
     {
       "path": "map-editor-to-game.js",
-      "sha256": "288c30a2dff3a1e5dee2923d242153cf436252b48ee09491278010379676cbe5",
-      "size": 20189
+      "sha256": "5c6dd5fb2a448daa931a491046ac38fcab06ebe35b4b52b02a7cf1b84af46c32",
+      "size": 20950
     },
     {
       "path": "map-editor-tools.js",
-      "sha256": "2da1e1881ce092e30ada141ac1f1a4a4312ff31fbc4fbb34935ba1026cd7429a",
-      "size": 48138
+      "sha256": "e9678ac77c09ca0fef2c4cf3365831e52b22d107ca14e3ad3c24342b54240d48",
+      "size": 53802
     },
     {
       "path": "map-editor-tooltips.js",
@@ -1526,8 +2501,8 @@
     },
     {
       "path": "map-editor-validation.js",
-      "sha256": "a9c322fc185987397a653974eb2b5c3a690f63f62a680455a5d352859c408c94",
-      "size": 10479
+      "sha256": "2bcbd45b21ecedf8aa12018cb8fc4b60a48870afdcac7b169caf0b2bd4b26517",
+      "size": 12791
     },
     {
       "path": "map-editor-voronoi.js",
@@ -1551,8 +2526,8 @@
     },
     {
       "path": "map-editor.html",
-      "sha256": "3fde56561c7dc6dc96dfb7e371927d955663c11b59b6f27388bd34da08a022c9",
-      "size": 110690
+      "sha256": "b16f7f76f4bdc13067523116fa1f3bd1450bb6176170012e7cce0d3fbc1f1e1b",
+      "size": 111222
     },
     {
       "path": "map-integration.js",
@@ -1561,8 +2536,8 @@
     },
     {
       "path": "map-recognition.js",
-      "sha256": "e735e6d3df235919daf6748e3d7336666d44baef3a9935256a4b743244cbefbe",
-      "size": 65182
+      "sha256": "38e4f06b3f3de48580fa11e933700e4cd90a16174417435fc3efba42464795c7",
+      "size": 68867
     },
     {
       "path": "maps/asia-map.png",
@@ -1595,44 +2570,89 @@
       "size": 205695
     },
     {
+      "path": "output/playwright/A_main_yuan.png",
+      "sha256": "98a188321a2868b3943c676a16488ed8d1a0583ec3b6c96d162b398ce847aa03",
+      "size": 1110668
+    },
+    {
+      "path": "output/playwright/B_office_bianzhiwai.png",
+      "sha256": "e99c2fd941694578a646bda84b1d2bb3757c5a84d8ca35beb7d81ee403a0ff3c",
+      "size": 230973
+    },
+    {
+      "path": "output/playwright/B_office_list_bzw.png",
+      "sha256": "636d147aeec75c77ab67e486828f2cf03d8de106a94275346ef590b56668a011",
+      "size": 234452
+    },
+    {
+      "path": "output/playwright/B_office_panel.png",
+      "sha256": "e17faf86e741a2f850d34e2cd2a776634a3e3761d2b7566c3ba06c0a1223fef1",
+      "size": 872719
+    },
+    {
+      "path": "output/playwright/B_office_tree.png",
+      "sha256": "a1c97906b69586000a6809345c8b364cd6bc4c197b72b2651ac14ce37d4b90d4",
+      "size": 267414
+    },
+    {
+      "path": "output/playwright/C_zhi_linyaoyu.png",
+      "sha256": "f31d777a0be014c57569585260ad2a3431f031376fe679047ec536e272b15b5a",
+      "size": 713084
+    },
+    {
+      "path": "output/playwright/D_office_after_bzw.png",
+      "sha256": "733bbede2be1dba700b9c25a8eefd9b2bbd466f75cb5383665b03bd61ca5f737",
+      "size": 274912
+    },
+    {
+      "path": "output/playwright/D_office_tianergeng_formal.png",
+      "sha256": "3527875a288bcecc4d5fa28bb45760fd209d2c3023f3fd3064d2cc1bab3bf741",
+      "size": 713550
+    },
+    {
+      "path": "output/playwright/D_zhi_tianergeng_after.png",
+      "sha256": "39f5d99500b049592badfa15743c0be0772e9d316d06735a419f7f2c6cc3ea64",
+      "size": 713544
+    },
+    {
       "path": "package.json",
       "sha256": "c7a2d06338f1251662f3c886f1966ca51c77a893af6d1622b4d185615a7bbf11",
       "size": 1528
     },
     {
       "path": "phase8-formal-bridge.js",
-      "sha256": "bd2998166c6af36e9ad189f57c4605e16c1d67daf3ddc004d74751c952cd7485",
-      "size": 423678
+      "sha256": "db2ce9459e21227b618c591c64a884da689c82186a8430c353e161e8201381f7",
+      "size": 445502
     },
     {
       "path": "phase8-formal-drafts.js",
-      "sha256": "8ef9fc36fff7e2d40c5da0c0ab94b49a8581f72010b301687f53b9f9d4494d39",
-      "size": 333271
+      "sha256": "7ebe94e7a7effeddb426cef335a9d9469299d96d36ed902247ae9ddb1a73ff94",
+      "size": 335679
     },
     {
       "path": "phase8-formal-map.js",
-      "sha256": "ebcd89d46063e24b5050eacfa48303570ed8324370766436afa634d4df8f9904",
-      "size": 188825
+      "sha256": "4c050adacb4cd5873332d9c56306b7585460e513a4c010cccd2b3a64d5c6a92a",
+      "size": 203601
     },
     {
       "path": "phase8-formal-modules.js",
-      "sha256": "16d427e89a40e7a73b50c9aa07977bbd72b65f861fa563db22f2f0a2f358f483",
-      "size": 93915
+      "sha256": "62c806fd96b063926620e5d5ee7530ba036ed5463f2bebebeea497932918dc81",
+      "size": 95104
     },
     {
       "path": "phase8-formal-records.js",
-      "sha256": "062e4a90f1f2796e01badb22814c31edaf58120c987bc1540293f78bac138b74",
-      "size": 115980
+      "sha256": "789ba2d7c00486bc4812540151a7188ef23de3a71384bdb725c8d5297b40cc77",
+      "size": 116619
     },
     {
       "path": "phase8-formal-rightrail.js",
-      "sha256": "bc6fa7c323ee9519ce532b3a3c0a8bbab5e6fd7e7adc0892d2036daa11275dd6",
-      "size": 208881
+      "sha256": "d17712bf94eb283516bfcb482c67d0010398f4c2d8164bbb6ef2300c74c57b92",
+      "size": 214176
     },
     {
       "path": "phase8-formal-topbar.js",
-      "sha256": "5b5cf4f24b5344f1aa148193c78679c27ad06460c1f65461fc11ee265082f775",
-      "size": 11890
+      "sha256": "027d7385b65058572917bff01c6c9261047fedc964e45ffa60438e11afe27e41",
+      "size": 18713
     },
     {
       "path": "preview-biannian.html",
@@ -1785,9 +2805,29 @@
       "size": 37519
     },
     {
+      "path": "preview/changchao-preview.html",
+      "sha256": "4985469c3bc98581d1864587e17d83a7625e8f4bdb0a41afc53e807fc6d53a0f",
+      "size": 23915
+    },
+    {
+      "path": "preview/chaoyi-fullpage-preview.html",
+      "sha256": "614ad5cab57e589d253fa66366c04e48898de1eb4ced4187111b4f885c2dd0d6",
+      "size": 24274
+    },
+    {
+      "path": "preview/chaoyi-realportrait-preview.html",
+      "sha256": "2a6cf96d48b3b27dc828d999b0becb73a3a6e1e3b58c9adc1ac5a1112ce9b8b0",
+      "size": 22747
+    },
+    {
       "path": "preview/cursor-fx-preview.html",
       "sha256": "a7c55a5b1c50754c2ccb6197f4daf689732c793934d050ff6c3c8b4d347be3a3",
       "size": 20654
+    },
+    {
+      "path": "preview/dialogue-modes-overview-preview.html",
+      "sha256": "1c8f0ff5931bce6cf0098c2d0be93a3c76b0109d4b69f2cb1bb0fa5255a87272",
+      "size": 14692
     },
     {
       "path": "preview/edict-redesign-preview.html",
@@ -2101,8 +3141,13 @@
     },
     {
       "path": "preview/official-scenarios-bundle.js",
-      "sha256": "5e319e81ae3477384e54b986b78fa409d351f008c046baf05cfa86727f5314f6",
-      "size": 12237583
+      "sha256": "5019b2b4ec13a293b30375328f3136eb16aa9ae13e714ebc020b2b390b019837",
+      "size": 15533951
+    },
+    {
+      "path": "preview/opening-redesign-preview.html",
+      "sha256": "3fddbfab967fcb629866705f8f82463c12df9fd853c9489732e4f88db4203c72",
+      "size": 17800
     },
     {
       "path": "preview/phase8-b-shell-preview.html",
@@ -2181,8 +3226,8 @@
     },
     {
       "path": "preview/scenario-editor-reset-app.js",
-      "sha256": "746240a8f230629492d563a93b828a6ca2b7d263a58bdd4948f85ba112f7608e",
-      "size": 1364581
+      "sha256": "7ac99dd7fb17553c92ab5a9f061562bbad7c5a268941da743ed7f54d4b8b368b",
+      "size": 1364904
     },
     {
       "path": "preview/scenario-editor-reset-data.js",
@@ -2191,8 +3236,8 @@
     },
     {
       "path": "preview/scenario-editor-reset-preview.html",
-      "sha256": "bcbef40f71307b621387d0c5ce2214c595b4efb0cb7719adcd67bb4ed41d2418",
-      "size": 484222
+      "sha256": "7b88986c2c49be01c28f6c4a76df7882e783c22b93efbf4c9770f8bbce30ddbb",
+      "size": 488146
     },
     {
       "path": "preview/scenario-editor-sandbox-bridge.js",
@@ -2205,6 +3250,11 @@
       "size": 17899
     },
     {
+      "path": "preview/tingyi-preview.html",
+      "sha256": "a2e4c7e31481c1bbddb71d2d27a35bd86ca852fd5b795a47ec4e84ca997c9a4a",
+      "size": 24160
+    },
+    {
       "path": "preview/topbar-full-paradigms.html",
       "sha256": "4958b73caf5e7fdbd1ef6a84d949137e1992f3432ecfce27daada5ed8ceca297",
       "size": 118054
@@ -2213,6 +3263,16 @@
       "path": "preview/topbar-left-paradigms.html",
       "sha256": "44296d6a241dd597949ec3ebc97082d3666036187c255cf7f6451f62a32f407e",
       "size": 56083
+    },
+    {
+      "path": "preview/topbar-optimized-preview.html",
+      "sha256": "42daa18f549bef9c4213db39ce06f4b75ee17ab41902b5a97e18ce1b861b711f",
+      "size": 29949
+    },
+    {
+      "path": "preview/topbar-refined-preview.html",
+      "sha256": "10a12f5925e746c5e064c30c9319da6ea30e7f3f71a069923dd455f0724df9ab",
+      "size": 24275
     },
     {
       "path": "preview/topbar-v3-iconography.html",
@@ -2230,8 +3290,43 @@
       "size": 97555
     },
     {
+      "path": "preview/var-panel-refined-preview.html",
+      "sha256": "aa58a28ce29c72541e888bdb00871aafab9f9bc016e868b078e58eb5f6b55e69",
+      "size": 15644
+    },
+    {
+      "path": "preview/wendui-chat-refined-preview.html",
+      "sha256": "b55561165b8b2defd0c2b9dffa847215ee276e8377c05b40daa4593d188e7701",
+      "size": 15188
+    },
+    {
+      "path": "preview/wendui-complete-preview.html",
+      "sha256": "eee26665f89be5895c90fd9b0351443e2ee6c1098c19eb19968a957ff1f8c79d",
+      "size": 19196
+    },
+    {
+      "path": "preview/wendui-fullpage-preview.html",
+      "sha256": "5e31a169035d2d102c34d8240b752663377f13f0b707748d86cb811b0818a53c",
+      "size": 22413
+    },
+    {
+      "path": "preview/wendui-opening-states-preview.html",
+      "sha256": "0aa68a2d46bc60c3a597714a42dbd3011e05f865a081ee83decffe5d5121a231",
+      "size": 26520
+    },
+    {
+      "path": "preview/wendui-realportrait-preview.html",
+      "sha256": "5068f7cb2b75cfd3f980cfa1741b4c41bcb71fd83718a3a9b2472d13c4de94e5",
+      "size": 19975
+    },
+    {
+      "path": "preview/yuqian-preview.html",
+      "sha256": "43f605028c2028adc856857c1507a7dbf625310b89a01ecf0117a80498e95132",
+      "size": 23822
+    },
+    {
       "path": "README.md",
-      "sha256": "1c14bf2166944f6f6380277c82653162cde0e6b5cef469ba7f92dafe7f4d41d2",
+      "sha256": "9a3682044bbe99b5c6fa7b6822992e9dff82961f71e0eddc72c9fd4c1bb9e68e",
       "size": 23880
     },
     {
@@ -2240,14 +3335,34 @@
       "size": 2334
     },
     {
+      "path": "scenarios/shaosong-jianyan-1127.js",
+      "sha256": "3d1c033cd37df87f11c439a4fa3eb55b67e035b8ffa9b6cc86014ec254360c7f",
+      "size": 10789666
+    },
+    {
       "path": "scenarios/tianqi7-1627.js",
-      "sha256": "904a04fed0fda2b818ded6f4f9994accd0168f914de9ca513f09ca97a5a96b05",
-      "size": 925297
+      "sha256": "7f9a26d19b77cf0c6629f28508e4796b2f8992b18ba0d66e04cb01ea4c2dd37c",
+      "size": 14806345
     },
     {
       "path": "schemas/sc1.schema.json",
       "sha256": "e84feac29fed1525c9065138f338f673f92fdcc6cdb24e79704f2b0c9450ed9d",
       "size": 2701
+    },
+    {
+      "path": "scope_a.txt",
+      "sha256": "005f712805e3be00677ee361a4e2e6592f3be775c21bb4ba9f7e57e5fbe9093b",
+      "size": 6668
+    },
+    {
+      "path": "scope_raw.txt",
+      "sha256": "3f8127a2de5a2be33df674ed8cea3be1aa2553b9d217c2f083e98f709392b76d",
+      "size": 6830
+    },
+    {
+      "path": "scope.txt",
+      "sha256": "ab9c88ec8bddfd6edd1a68c8f80be0b6ef70a8e61d2597b8512994a5a64a13ba",
+      "size": 6668
     },
     {
       "path": "source-manifest.json",
@@ -2256,23 +3371,28 @@
     },
     {
       "path": "styles.css",
-      "sha256": "15d9df113e4bb4179c51666ee8bc913d5fd488d09c45a7931ba9791759af6113",
-      "size": 568246
+      "sha256": "0d248c039fd3e830771ea707b3bd867601b2ebc666f174f5941f6278fb646c97",
+      "size": 628203
+    },
+    {
+      "path": "tm-agent-flags.js",
+      "sha256": "3e61adde5019f38737b8302b99f1e85fad3614ced88416198407eafef99285e5",
+      "size": 6566
     },
     {
       "path": "tm-ai-apply-deaths.js",
-      "sha256": "5e7c45a654e3fed99e49264863969ef8f6edfde4035ae9ee1693f2ef406ce44c",
-      "size": 14721
+      "sha256": "66d7889cc31aa4441c207d8d81531796cd3ea5565559488c5ffba355157febf6",
+      "size": 14653
     },
     {
       "path": "tm-ai-change-applier.js",
-      "sha256": "5e76985e6a8688464249290716dea503646d492db8d54e342968d11f954769d6",
-      "size": 259618
+      "sha256": "0e1e75037fde2f0a8c5ba514ac14368c2044333cf95b1a338aa24727362b1dc7",
+      "size": 287364
     },
     {
       "path": "tm-ai-change-army.js",
-      "sha256": "e6a944e4696c2516c453e62f188e487448814c228dbd3d8b8c4df0feda707a49",
-      "size": 41455
+      "sha256": "d3c8d53fa808b9982a746ccaa670618ba9fbfcbec8a70ba9b9d81b8946b4e66e",
+      "size": 42577
     },
     {
       "path": "tm-ai-change-narrative.js",
@@ -2281,13 +3401,18 @@
     },
     {
       "path": "tm-ai-change-pathutils.js",
-      "sha256": "a3dd6b35cd99830b57efba1b59e29882fe1a4aa78a544063fd3b7969fe00aa67",
-      "size": 25192
+      "sha256": "d6c85340cac56ff14dab27f8c1ff95e41c5cad09b700b84eb8f31dca6eee755a",
+      "size": 25744
     },
     {
       "path": "tm-ai-infra.js",
-      "sha256": "b1cc0e906ebc7c1820ed623fa6c89a4fb1a0e0babd210144f0c15ce9a6984f55",
-      "size": 212214
+      "sha256": "38eae2b9702ab4750a77619192481a4da4c79660e739d769cd5a17492b76c252",
+      "size": 212244
+    },
+    {
+      "path": "tm-ai-narrative-guards.js",
+      "sha256": "703021c8efaab3d0af0d5099e4daed42fefd36e0064a8b9b1b0d7f9508664e7d",
+      "size": 4972
     },
     {
       "path": "tm-ai-npc-memorials.js",
@@ -2296,8 +3421,8 @@
     },
     {
       "path": "tm-ai-output-validator.js",
-      "sha256": "476bc5b38b8cb8e81ab6318fa610c3f454b8903e07792eba88f131fa338cc148",
-      "size": 10488
+      "sha256": "553cc2108a1a59a6d9abc11ac059ae5b6de9ff93572b65f7730b63dc3e5b7715",
+      "size": 10513
     },
     {
       "path": "tm-ai-planning.js",
@@ -2306,8 +3431,8 @@
     },
     {
       "path": "tm-ai-schema.js",
-      "sha256": "ed0010a7a764345e39644c0ab175bccc32b6b3c1796adeb73e7747c1e7c5c9e7",
-      "size": 45751
+      "sha256": "772dee76b8235e7ccafc08fb87b14395c7b905ddc39514d7271886be81a08e19",
+      "size": 47910
     },
     {
       "path": "tm-arcs.js",
@@ -2315,9 +3440,19 @@
       "size": 7677
     },
     {
+      "path": "tm-armory.js",
+      "sha256": "6e8a1fa63c3f837918334e470de7f22e06295af410dd30743f0c99c424bab1b1",
+      "size": 28989
+    },
+    {
+      "path": "tm-army-units.js",
+      "sha256": "e916a66f2f07cac3bbd1267c625984ca1d3e5902b1576aa6e67650492e3f23a4",
+      "size": 12737
+    },
+    {
       "path": "tm-audio-theme.js",
-      "sha256": "c03bf6da19066af20fdad22d599ff824301cd5ea7f8358595584876ab04f97d9",
-      "size": 34595
+      "sha256": "dae8bd4bc2eeec1e5308f290163d3cb154ddb9f13c099d25b24d9c39d40ee7ae",
+      "size": 34614
     },
     {
       "path": "tm-audit.js",
@@ -2326,8 +3461,8 @@
     },
     {
       "path": "tm-authority-complete.js",
-      "sha256": "5685e69ef0a2a3ddb8f839384469821af3961415141c5e00ed54de7f66a09150",
-      "size": 71888
+      "sha256": "9521bbcf9630b52e42a7dfbb79b16bcf4edff25d4813e8021a885d3916205954",
+      "size": 74772
     },
     {
       "path": "tm-authority-deep.js",
@@ -2336,8 +3471,8 @@
     },
     {
       "path": "tm-authority-engines.js",
-      "sha256": "520620b70d1fee8b0978390cb77963772d359a4dbdb2e6bdbabe982c3880e7fd",
-      "size": 87101
+      "sha256": "294aa2f46994028314f34c629bd30b4bef3b9895615739b435b3f2b3f5256eda",
+      "size": 88848
     },
     {
       "path": "tm-authority-ui.js",
@@ -2345,19 +3480,44 @@
       "size": 32815
     },
     {
+      "path": "tm-battle-adapter.js",
+      "sha256": "de7e721b95ec153fc9a0bff4779a923e81582eadf6e61232eb08d29561083ffb",
+      "size": 9018
+    },
+    {
+      "path": "tm-battle-embed.js",
+      "sha256": "89d01645dce66682ad45bd12d2d81d8034e99709dc16c56f0e10745b53ca4600",
+      "size": 3533
+    },
+    {
+      "path": "tm-battle-resolve.js",
+      "sha256": "4c0d2adfaed93c21bb7d2d86f394dde1962daaa47434430bce47a7cf8baaddc3",
+      "size": 8012
+    },
+    {
+      "path": "tm-battle-turn.js",
+      "sha256": "f24e0e5630fb333bfdf40a00c02ade7688400f82af6b487ff11af16eb09c674e",
+      "size": 15103
+    },
+    {
       "path": "tm-bgm-config.js",
       "sha256": "205e6746b1b1b01e2d01a30c6081dab654230b5a9dce2deffc181dd64f64c8a2",
       "size": 1297
     },
     {
+      "path": "tm-border-risk.js",
+      "sha256": "afc887861533a3960a50f117a2a271baaf5262348e7c9dca8cd451cd8b5444dc",
+      "size": 8313
+    },
+    {
       "path": "tm-building-works.js",
-      "sha256": "27c04924d99aba291e3e95de86e5abe1920b52296cdfd6ff165df8630f81f618",
-      "size": 20650
+      "sha256": "22838344f147cef1b4c0ef644a551f63e890ac53d6419f413c6224c6ac426a80",
+      "size": 31333
     },
     {
       "path": "tm-capacitor-boot.js",
-      "sha256": "f87d777c9f72975354e36b98babf2155af200d18e80c67604c62f101399bfebb",
-      "size": 20998
+      "sha256": "3e53de57f04cd152aada0e4955cd8765502b9f30cb7d3a72d0cc746c43e93b2e",
+      "size": 23148
     },
     {
       "path": "tm-ceming.js",
@@ -2381,23 +3541,23 @@
     },
     {
       "path": "tm-chaoyi-changchao.css",
-      "sha256": "0e1a279edde184c556a7415951e6299dba0a20ca505ed4167ce584f06b56819d",
-      "size": 32560
+      "sha256": "20ade602a26150af5f5bc505de94a5bcb80270d4f6e090a5bdff9bf1649f4e8d",
+      "size": 41583
     },
     {
       "path": "tm-chaoyi-changchao.js",
-      "sha256": "40ee51ad5b78c09a7b280fba2ccaf554ead349bc752166787d5f83e11e445456",
-      "size": 259774
+      "sha256": "8d6e7a80e6b9e646fc4b686b7b1ec4a5c4d5ef7145922a8b48ee7531ec403866",
+      "size": 266616
     },
     {
       "path": "tm-chaoyi-tinyi.js",
-      "sha256": "1a6b617bf05d8cf5fea151bc7af626c8ac6b46ba4c42aebc944bc5f1dd074d2a",
-      "size": 60304
+      "sha256": "a693c63e45eb0f11076edb2b6fb6430d24e9f121c5a4b2966a0b08c3a48fd31a",
+      "size": 74876
     },
     {
       "path": "tm-chaoyi-yuqian.js",
-      "sha256": "440205b3a90b84e8720ef9e1db93e400551cd9e2f2023b0a5d2ae526fa3f2188",
-      "size": 29690
+      "sha256": "a1d1b2340557e1081c9a88313fdc19de51c3e86457326b760485b0cd556d5b0f",
+      "size": 41597
     },
     {
       "path": "tm-chaoyi.js",
@@ -2406,8 +3566,8 @@
     },
     {
       "path": "tm-char-arcs.js",
-      "sha256": "994a5a283cc39d98c6daef675229f36cc9b7ef2d7519a61b2c6ea870a14ed171",
-      "size": 13656
+      "sha256": "c71ae4b19db90df515a6e121fab1ba5262f6d3efc9a43305b543c447a2fbc04f",
+      "size": 14017
     },
     {
       "path": "tm-char-autogen.js",
@@ -2416,8 +3576,8 @@
     },
     {
       "path": "tm-char-economy-engine.js",
-      "sha256": "795bd915aec2423be6707cf1cb30de1ffc05aa5e46d6ba8204f70f3b25a66324",
-      "size": 85977
+      "sha256": "5551ac079ab217b1f193db1e4762cc0eff2a73a13528c302469f14df6308d8e0",
+      "size": 86836
     },
     {
       "path": "tm-char-economy-ui.js",
@@ -2521,8 +3681,8 @@
     },
     {
       "path": "tm-class-engine.js",
-      "sha256": "fa6b260a84ad0fe4b5eade331614f5937dd2ddf76f68af07e17b53b3f059fd32",
-      "size": 49959
+      "sha256": "50d434c77c65cdb39658b64c5eebbee82df7839240d1f7ca363ffdcd59fbafc3",
+      "size": 52631
     },
     {
       "path": "tm-class-minxin-bridge.js",
@@ -2531,13 +3691,23 @@
     },
     {
       "path": "tm-class-mobility.js",
-      "sha256": "007e0536fb8bbdb0f38bac159d3ae1aaf948bc385bfbc2edc6d2272130cbf2d5",
-      "size": 20386
+      "sha256": "cc264b04e5a9d8f01e83f2633841fe4b8af10a5b8b15c367c98a782e8d2edb90",
+      "size": 40201
+    },
+    {
+      "path": "tm-coastal-raid.js",
+      "sha256": "62f08980dc665558583ffd2faa3c5789f74ff06c2c9008e0f269f4657ef7ef96",
+      "size": 4480
+    },
+    {
+      "path": "tm-conspiracy.js",
+      "sha256": "0c3ed7e07903ffcbb5708adc985378492b5f4156c1f9b173d926c7dbdea8b127",
+      "size": 23699
     },
     {
       "path": "tm-content-manager.js",
-      "sha256": "0c370fa74b5a157973595a8a64637d68a535513e23b13c0bdf4f3aca625f51dc",
-      "size": 300577
+      "sha256": "92b38e5ebfdba613d99579274e4dbbe2aa56d27e8a018cb038ec0f603d4fb3ed",
+      "size": 298910
     },
     {
       "path": "tm-context-zones.js",
@@ -2546,13 +3716,18 @@
     },
     {
       "path": "tm-corruption-engine.js",
-      "sha256": "a49045c08bbc8901b918e9a7278210f8b07bd3910f9df3fd2b0b9bf777dbc80c",
-      "size": 115657
+      "sha256": "f8391ee3941391bbc670a3f7b155313d6d60878ad0bac867b5ce029c5810a4fe",
+      "size": 116163
     },
     {
       "path": "tm-court-meter.js",
       "sha256": "f70d80bc7811f64952620e9f134b40049b7bdeb557fecb72c5745be8a7893415",
       "size": 14094
+    },
+    {
+      "path": "tm-custom-build-agent.js",
+      "sha256": "b1104388d619620676000ad2e431d4b49420cc649805d2e337653f3b2293c0ea",
+      "size": 28369
     },
     {
       "path": "tm-data-access.js",
@@ -2561,8 +3736,8 @@
     },
     {
       "path": "tm-data-model.js",
-      "sha256": "7cd6d7d9d56b82e81bb9915cefa4d1e7fb7ec2848a7da8b2bd7817eb7334ea08",
-      "size": 53047
+      "sha256": "dcef359ec09a2f4bf403805f500e58c01c4eca1dbfc87ddbff9c85bf7a2e0529",
+      "size": 57858
     },
     {
       "path": "tm-debug-logger.js",
@@ -2596,13 +3771,13 @@
     },
     {
       "path": "tm-economy-engine.js",
-      "sha256": "2087bf9cbc5c011141c18509091f89917f3236c2d199bae161cc8223c878e35a",
-      "size": 159640
+      "sha256": "bfa53d6b0611e34b75dfe7b32684170b5390c571c1f9a5d3f2b66ff9a3d11b35",
+      "size": 160167
     },
     {
       "path": "tm-economy.js",
-      "sha256": "6924253fe8364dd47807d33845fc3e1c4878d5f15ec94e5eab16f3c9dd7aedc8",
-      "size": 30217
+      "sha256": "bbbd88c0bdea6660474d3b331ce0feda50b70f0651ab2f3ba69c83892c7ebc5e",
+      "size": 30165
     },
     {
       "path": "tm-edict-complete.js",
@@ -2611,13 +3786,18 @@
     },
     {
       "path": "tm-edict-lifecycle.js",
-      "sha256": "6df7e916b171d6ee8d5fc8ca51172fbe35047a4f25c2ca126f9b220b2f9afe26",
-      "size": 16599
+      "sha256": "77d01e6bda6f74620ab0f84b6ded0e7786bf3b17b2c0cf1bd9f70f616aa7da5c",
+      "size": 20344
+    },
+    {
+      "path": "tm-edict-oversight.js",
+      "sha256": "7dd314b135dee75257d6974b30b436085da38bb3614041bcee3822c3c0042694",
+      "size": 15776
     },
     {
       "path": "tm-edict-parser.js",
-      "sha256": "e038d289cae44e891088ef641d909054659f512900f2481ecd8f1c4e707c8f1d",
-      "size": 106690
+      "sha256": "c9083812c7f64f041f7c54e7d0b501b0dd69b30b0927d663fb486f593b1d6a88",
+      "size": 107717
     },
     {
       "path": "tm-edict-thresholds.js",
@@ -2635,14 +3815,34 @@
       "size": 37362
     },
     {
+      "path": "tm-endturn-agent-depth-tools.js",
+      "sha256": "9ed9bd958f2fefcc4a71594a33b817f6a4a574f876c26fa249d4f110db9989eb",
+      "size": 64035
+    },
+    {
+      "path": "tm-endturn-agent-mode.js",
+      "sha256": "667f3be346affa3996712e0d4feaebba59e7383b0f2c185936f8b60fedf43270",
+      "size": 88172
+    },
+    {
+      "path": "tm-endturn-agent-read-tools.js",
+      "sha256": "99a586f71be1526c4c5ea99a64f84a48db6677c4f7f536fdba0e65c7a88b6faf",
+      "size": 26362
+    },
+    {
+      "path": "tm-endturn-agent-write-tools.js",
+      "sha256": "cf9dfaf7bd302d20fe027262c3386e287105cb50b8a11b523b39fdf1d7beade1",
+      "size": 45004
+    },
+    {
       "path": "tm-endturn-ai-context.js",
-      "sha256": "080ad8a986b0ca3d351a9d94dd14a689ee15ac9ae60acec564b62616be7c5822",
-      "size": 10407
+      "sha256": "6e47c8e4bf5dd952d3c33c89af4fdf15f8a32a5f7c02dca5b7dbb9045c6fd40b",
+      "size": 16862
     },
     {
       "path": "tm-endturn-ai-helpers.js",
-      "sha256": "600ffff4631cd12be2290aa438c811d80ad575a251d8edb5184344a86480d901",
-      "size": 25779
+      "sha256": "7ae6301ff6712190b43ba1228b0ad3488b687cfd8edeffe357d2e771a7c381b0",
+      "size": 25942
     },
     {
       "path": "tm-endturn-ai-infer.js",
@@ -2651,38 +3851,38 @@
     },
     {
       "path": "tm-endturn-ai.js",
-      "sha256": "2b98eb26d8e47fb7b4a42ff62d70e640bdda5aca7cdeb8aa072de99c7aa3bb58",
-      "size": 366208
+      "sha256": "4750a414c8331e528c3fab45676222d60b48beed2c82dc4230892a78d5fcb1e9",
+      "size": 378567
     },
     {
       "path": "tm-endturn-apply.js",
-      "sha256": "49f8a04eb17e3d1207817b40a2fd67daf7c01bec48817f77f51d88f029f69add",
-      "size": 376893
+      "sha256": "08d5f22b010da8620cc4a347ec75c61786241f4dec78796f21e7ccbf43b48c81",
+      "size": 394411
     },
     {
       "path": "tm-endturn-core.js",
-      "sha256": "cdcf1c47a69526a8d0478fcea5012a4a534c64d65774599c82dabc15825d0ba4",
-      "size": 58620
+      "sha256": "0a02a558306e0c3d333d01aebca0f9245cfca5d2b89b75e62f813f6fff9446a5",
+      "size": 74759
     },
     {
       "path": "tm-endturn-edict.js",
-      "sha256": "50d915d62b7bb799d543f445864b30596edd1e2835c1c11c8c7e3bd803dfd383",
-      "size": 52848
+      "sha256": "d9970bdd6ce934a2d00949effdb9fe587049b53a818b0c80770e2faaf4ba1f1a",
+      "size": 56328
     },
     {
       "path": "tm-endturn-followup.js",
-      "sha256": "2e30709cc2fa115725402f308ecd5838c196fc6281a5bd2451da006cbb1a9dec",
-      "size": 255424
+      "sha256": "66439c190ee9208443801003b7deb06eaf275e709d4bb0971c925a6d97651d47",
+      "size": 257633
     },
     {
       "path": "tm-endturn-helpers.js",
-      "sha256": "070e2e816d1eeb9afcdcb70dc0fb2d96a848244bd8f9e5aea377587fa39d4952",
-      "size": 91480
+      "sha256": "f1f6d51a2e04cad68a434c2c983a72b2f0821b301972baf9774ffc2c5b4af9b7",
+      "size": 96570
     },
     {
       "path": "tm-endturn-loading.js",
-      "sha256": "534d3ad974e8779e471606916264e4414bf79372649526dd9bfa6b5fb7228565",
-      "size": 39076
+      "sha256": "1f3a85b8c7d56343e31b9d02ec214859dd622c66564651ea7a02fb45634827bc",
+      "size": 40459
     },
     {
       "path": "tm-endturn-pipeline-executor.js",
@@ -2691,8 +3891,8 @@
     },
     {
       "path": "tm-endturn-pipeline-steps.js",
-      "sha256": "51b65fc416197e526980c4987317389627749af136e1c386d1b37790e8e16e9b",
-      "size": 55226
+      "sha256": "88722558691549c4eda9d6e3e3f5ada1f46cdf6fb1f2e2c21ecde1a402ca46fd",
+      "size": 59912
     },
     {
       "path": "tm-endturn-pipeline-types.js",
@@ -2701,28 +3901,33 @@
     },
     {
       "path": "tm-endturn-prep.js",
-      "sha256": "85d508f7d7086fc6036c017161ee962df3e8e975e635503ad5d3c55b3ae4d56c",
-      "size": 38084
+      "sha256": "9784779cd861894bdc1c5aee8156c9b57b00fd282fcc1a92f03dd050e9dea66f",
+      "size": 37841
     },
     {
       "path": "tm-endturn-progress.js",
-      "sha256": "afbc1804bf73b712d7eab2e927920e41f0b0e0f08606168dd8e9074db2423251",
-      "size": 8922
+      "sha256": "750011513e049004447d0f8d27b4b025e1d2dd9120528676fcd4919882b146ee",
+      "size": 11366
     },
     {
       "path": "tm-endturn-prompt.js",
-      "sha256": "d39c77cb915d058855ea9578ee84abadd3d4a2d59f0c957806ba6a6bd272bd7c",
-      "size": 302547
+      "sha256": "dfff4f330edb06218d6ab3ef4eaf520eb8be6305bcca9883e314325ccd58efef",
+      "size": 325548
     },
     {
       "path": "tm-endturn-province.js",
-      "sha256": "7c218af416d9f6a68710f70eb168889002266953fb7ae106c102c713269b58da",
-      "size": 118248
+      "sha256": "454e7d7f602bb9d4b23f276bdf98215d77a6f94cdad2ddab24508f89fa09ddfc",
+      "size": 121934
     },
     {
       "path": "tm-endturn-qiaozhi.js",
       "sha256": "09fbd37050d0a3c1e0df3a71de2f0bb92c2b5dccdf703ac6a4f8478ac3b5e786",
       "size": 13008
+    },
+    {
+      "path": "tm-endturn-record-specs.js",
+      "sha256": "edf2c3d47cfc26fed718feb3a554856a0fa6c39cde38ca5661cfc871a4ca6aa3",
+      "size": 9625
     },
     {
       "path": "tm-endturn-record.js",
@@ -2731,13 +3936,13 @@
     },
     {
       "path": "tm-endturn-render.js",
-      "sha256": "0dbbb3206b48e898c13f1bb3cdf38b64ec08d5e2f0fb3104e65c93b5c90cf426",
-      "size": 153710
+      "sha256": "de923e939e4ed035e8086478f905b82d2bd6a4f8a1ea7c98832dbf8914c2ba50",
+      "size": 145791
     },
     {
       "path": "tm-endturn-systems.js",
-      "sha256": "cf7bd5afb1283da0856ef833602ec335090daec322c3eb44b78859dbec0c71a4",
-      "size": 35025
+      "sha256": "a56e466c1e872956ef61fa49af0a71cc41dd5b030a3d1c4e79e81bfb65c8f26d",
+      "size": 37693
     },
     {
       "path": "tm-endturn-timing-ledger.js",
@@ -2765,6 +3970,11 @@
       "size": 9969
     },
     {
+      "path": "tm-era-language-pack.js",
+      "sha256": "411d523e558157b3b39f4acacf261b3e89b013a5a2d3c6e8583bee312e6e2578",
+      "size": 5391
+    },
+    {
       "path": "tm-ethnic-religion.js",
       "sha256": "98ad7832bf7af1823fb2e7061f076c6d6334c605c0fbee0535c9ca1c09c9c5ad",
       "size": 36293
@@ -2776,13 +3986,18 @@
     },
     {
       "path": "tm-event-system.js",
-      "sha256": "3a15fa7edc7edb02fdf0c271fa42f7c13a5fdb5be62457a0360d9b13f083f76a",
-      "size": 8887
+      "sha256": "eb57c0ec2480fc4a8e0567d39a94f667cfa7b719ba4dd4abbc72075eaa854e36",
+      "size": 9992
     },
     {
       "path": "tm-faction-action-engine.js",
-      "sha256": "a85ecf6bd2b13db235259d61a50996b47c6963433c45006d3e6f9050ff68bd43",
-      "size": 73715
+      "sha256": "b411cfe7cd19b1aeca2a47e5c25e3541526c6642cf281393e94ce1bdadcf0d05",
+      "size": 74260
+    },
+    {
+      "path": "tm-faction-decision-tools.js",
+      "sha256": "fb0e4e3b5a3f4185f810d8d4d85e41716485cb139a17c6cefb05018393f4bc04",
+      "size": 6233
     },
     {
       "path": "tm-faction-derived-cohesion.js",
@@ -2803,6 +4018,16 @@
       "path": "tm-faction-derived-strength.js",
       "sha256": "cf01c37276bf9fd87d209cc68acf07e29856d4137e2e94e41fa82a25743f4ca5",
       "size": 4164
+    },
+    {
+      "path": "tm-faction-diplomacy.js",
+      "sha256": "876ddc75e67bd137431a7e619c0242e9ee9d5fb85ac69ba6336bee3b59e7c439",
+      "size": 14508
+    },
+    {
+      "path": "tm-faction-goal-stack.js",
+      "sha256": "35771156783f304042087b68e106f8669dd4467804d290c01c4c00b51d4e40a4",
+      "size": 9361
     },
     {
       "path": "tm-faction-index.js",
@@ -2836,8 +4061,8 @@
     },
     {
       "path": "tm-faction-npc-in-turn-driver.js",
-      "sha256": "c651fb5f586501a0d8de1b51efb98edb30158031b8a0188a20bd1497d23733c1",
-      "size": 13135
+      "sha256": "621787ac00a7484698817a1c70ede59f2adec80e5e7370578cc8e97a6e985246",
+      "size": 16120
     },
     {
       "path": "tm-faction-npc-intervention.js",
@@ -2846,8 +4071,8 @@
     },
     {
       "path": "tm-faction-npc-llm-decision.js",
-      "sha256": "769bee51cae39b4a41e79b1f148fef84cb8cb56493ebd86306166a0059a5c291",
-      "size": 123585
+      "sha256": "e531cbb7502466446b3f9c108b93640950aeca842e6a7a84b4411246ab4cb211",
+      "size": 153628
     },
     {
       "path": "tm-faction-npc-llm-enrich.js",
@@ -2861,8 +4086,8 @@
     },
     {
       "path": "tm-faction-npc-news-bridge.js",
-      "sha256": "e9813f6a8e892787b78659893178e541ef233c60d956ababc39b60c6808bc630",
-      "size": 8068
+      "sha256": "443ef3c4affc9faf5a2c2dc2e510ed86169b6875caff0f96cafa29572307daf3",
+      "size": 8331
     },
     {
       "path": "tm-faction-npc-office.js",
@@ -2891,8 +4116,8 @@
     },
     {
       "path": "tm-feudal.js",
-      "sha256": "d754bea99cf52a19e484371e48dfbd9ee0aca93caf982c17cc9a6eddfedd9eb8",
-      "size": 109579
+      "sha256": "77d47169ab22b4c5bc670d0236e9c5424b49fc9c2c90a959aedb941e47076498",
+      "size": 108259
     },
     {
       "path": "tm-field-pipelines.js",
@@ -2901,8 +4126,8 @@
     },
     {
       "path": "tm-fiscal-engine.js",
-      "sha256": "04ee891d6c0202f98007ccfe8f63ab0277dbf5a7ad181d9cdca3389f3ca98f56",
-      "size": 82258
+      "sha256": "fee399ae769712a64457bbaeee775739c2845911f60df6038f84f0920c110ced",
+      "size": 99094
     },
     {
       "path": "tm-fiscal-ui.js",
@@ -2911,13 +4136,13 @@
     },
     {
       "path": "tm-fixed-fit.js",
-      "sha256": "1623b9eb6f6d922183e3fada8da92eaa529bd139a55fdea0f5270bd249879836",
-      "size": 12663
+      "sha256": "b8389ca46a89cd691cf007a1439d8a5d43f638dcf6175dc7ccab36dbd1420abc",
+      "size": 15410
     },
     {
       "path": "tm-game-loop.js",
-      "sha256": "e2324787281aa76f31948ff8c2e3ff51dfe734fbd375029a80313957b52e8dc0",
-      "size": 133929
+      "sha256": "2a5858ca582b2b13d1b0a8538b01507c2e83fe499157fa52cf43557993e29472",
+      "size": 136016
     },
     {
       "path": "tm-gongming.js",
@@ -2926,8 +4151,8 @@
     },
     {
       "path": "tm-guoku-engine.js",
-      "sha256": "92910f5b1b8ad9af65642259444485841eb78891d597513c0ad377a93fc4c8c4",
-      "size": 114375
+      "sha256": "d4596abc556c3df64d8fef20ea7a15e81f8c03ab0d226ee9834a09d98b926f8f",
+      "size": 121517
     },
     {
       "path": "tm-guoku-panel.js",
@@ -2945,14 +4170,19 @@
       "size": 45718
     },
     {
+      "path": "tm-history-advisor.js",
+      "sha256": "c785bebf9c2b1311b803e3dec60b2406c5d6e1b8c9a4d71f2a768ffc07263df0",
+      "size": 12022
+    },
+    {
       "path": "tm-history-events.js",
-      "sha256": "de9c2a68eb2a37e2739c69ab8c08c5ddf3271a21913c8065f9465d3b6c5632ae",
-      "size": 13891
+      "sha256": "c329235e2301852f3916eeb8751d4de31bf9bcc39ab8e969b6e663961d2b2007",
+      "size": 18552
     },
     {
       "path": "tm-hongyan-office.js",
-      "sha256": "ce42bf7d70071ca9cc500e9ac2c94731758f758de26d7eaeebd842c0f426a87e",
-      "size": 173624
+      "sha256": "3af10c5454d501c06672224f56ae10c49ccbca60e4658d04e5229f244daa8854",
+      "size": 173946
     },
     {
       "path": "tm-hooks-tracker.js",
@@ -2971,8 +4201,8 @@
     },
     {
       "path": "tm-huji-engine.js",
-      "sha256": "83a28255e9c7f0ba8ced60188e5f867c15a0f6c9862084c7e793f8213dd404f5",
-      "size": 48656
+      "sha256": "22c86e3fa926704c388735f8f4b2e63ce68027f4321705a70ecd87f8133156ce",
+      "size": 58439
     },
     {
       "path": "tm-huji-governance-loop.js",
@@ -2981,13 +4211,13 @@
     },
     {
       "path": "tm-huji-runtime-bridge.js",
-      "sha256": "befff6404605f37833109e5cb72284b801c2c7b185d42ac3476cdd8a7185d926",
-      "size": 56751
+      "sha256": "b79fb12ae2b66473774d9b6982f7a78dbd088bceb230c79aa6d14795445b93b9",
+      "size": 57168
     },
     {
       "path": "tm-indices.js",
-      "sha256": "5f1ff4cdd344d8b89b4e43e635e70961b138359720c58ac6a34c3407604a58a5",
-      "size": 36750
+      "sha256": "986bf3a4b19a15e048921394d735b0850dbf2a4cb8734ca2fccde6819cdb5430",
+      "size": 37193
     },
     {
       "path": "tm-influence-groups.js",
@@ -3003,6 +4233,11 @@
       "path": "tm-invariants.js",
       "sha256": "2281acf450612860907c72e92c1a3cccc29e9c79b40cff1cc5016895b9ca0741",
       "size": 10688
+    },
+    {
+      "path": "tm-junqing-brief.js",
+      "sha256": "08254d78ebd526bfac5a5d8fc04b2bf5a1472f05035615524ae57c043065ef28",
+      "size": 5486
     },
     {
       "path": "tm-keju-activation.js",
@@ -3021,8 +4256,8 @@
     },
     {
       "path": "tm-keju-cohort-meet.js",
-      "sha256": "e4b29b8ae4361ff7816e9f86d03ed66b0a0f633adf211dfcfa99142cb2ca407d",
-      "size": 5303
+      "sha256": "2d33b8cf09d2632978e970cb75f39df752e8ee4200d7cfde40c42c59f321a68a",
+      "size": 5420
     },
     {
       "path": "tm-keju-corruption.js",
@@ -3036,13 +4271,13 @@
     },
     {
       "path": "tm-keju-disciple-graph.js",
-      "sha256": "d1f3c82ce5d326113bcee06789236f74fa7bbedcd0cbbd64467c78a5c7dd83de",
-      "size": 10344
+      "sha256": "63ca33c075e39c6e1584ae1ae77ed16aee6ab15d59a03d8275f921a9f0deead4",
+      "size": 10461
     },
     {
       "path": "tm-keju-disciple-memorial.js",
-      "sha256": "3ff659d620e124360e6dbf7801cfecb2b236c25613133a032f814301e56aae47",
-      "size": 8485
+      "sha256": "c40542f2457c7d7710d336d92bad49c905f4b018849bc49ce9590c668c010a02",
+      "size": 8602
     },
     {
       "path": "tm-keju-enke-player-initiative.js",
@@ -3051,8 +4286,8 @@
     },
     {
       "path": "tm-keju-enke.js",
-      "sha256": "1cc2ccf20cf639111fb14b7d7a70c5fe314917eea8838beb98eddf76d83e571d",
-      "size": 54277
+      "sha256": "6bd3bafda5793beea1780b9a6fdf0d9aeb5b0fcf358eb2908f56387fea7704d5",
+      "size": 54986
     },
     {
       "path": "tm-keju-event-hooks.js",
@@ -3081,8 +4316,8 @@
     },
     {
       "path": "tm-keju-paradigm-panel.js",
-      "sha256": "b915586a78583641233da905fc26daa86321f4ea695bdfe6acf4bafff28d261d",
-      "size": 177059
+      "sha256": "56efec2b1aa6bcf80d7163f796625b0d8cc8de050be2766242e64f181708af60",
+      "size": 177063
     },
     {
       "path": "tm-keju-paradigm-presets.js",
@@ -3111,18 +4346,18 @@
     },
     {
       "path": "tm-keju-reform-evolution.js",
-      "sha256": "408e90de342e9d4b6b3d0c83d9384c31d0f73a0add9a415afbfc89d2d856d1ac",
-      "size": 52025
+      "sha256": "9ef974e59a098fca4fe8229527519036554a1d55ce7c5bb76ce81a8808711784",
+      "size": 52030
     },
     {
       "path": "tm-keju-reform-llm.js",
-      "sha256": "2259ce9db500a5e649195ea1a45eaa51c26d92d8ff85e26d51fe3a8aef5d72ba",
-      "size": 76326
+      "sha256": "20a47c1b1e9479df5330d82e815186f2dc5cfda9c8760101ba6447803651ba2b",
+      "size": 76327
     },
     {
       "path": "tm-keju-reform-memorial.js",
-      "sha256": "b1bd204097ce0ab9003bf61c8f49dad906731310d00bbdc5403b7268deb0afd6",
-      "size": 9716
+      "sha256": "5065c5936180bd89843495514a4077889953ba909177c81cf5251db8eeb8338a",
+      "size": 9717
     },
     {
       "path": "tm-keju-reform-presets-history.js",
@@ -3131,23 +4366,28 @@
     },
     {
       "path": "tm-keju-reform-rollback.js",
-      "sha256": "805014d7e81d8b0a8d826dada70baf004610c92b3351d397890ebb8f4d3ef35b",
-      "size": 36677
+      "sha256": "8d7e64debfe40d6507dbd8c14185d725662308e1b798cebe1896eb46dc4f1334",
+      "size": 36679
     },
     {
       "path": "tm-keju-reformer-bio.js",
-      "sha256": "c056f1963e2e2cdd07e9cb047b48115e658d62ce6e83bf81f7682b23c6d97ccd",
-      "size": 28907
+      "sha256": "e8f1231129b7b1941402ec2a092e0372b0c91d6c0c27cb84c801cdaf569e6fd3",
+      "size": 28908
     },
     {
       "path": "tm-keju-runtime.js",
-      "sha256": "98f1a981798392d8b22bce5005a845ed06e0794b1dca3c8ccd07f4ff1b7aecbc",
-      "size": 199720
+      "sha256": "abcc0d8eb7563b29ed05d378686cabfbf44eea68f81cdc6bc59ef6fdf1275adb",
+      "size": 206082
+    },
+    {
+      "path": "tm-keju-scandal.js",
+      "sha256": "2a9a7526127c31598b0748054d1aff97cb180a6b0331f903598673bb10d85064",
+      "size": 17752
     },
     {
       "path": "tm-keju-school-network.js",
-      "sha256": "e8f1ad01cc4e871053601778a8ae502942f5a62758600ed86b89c25324344c72",
-      "size": 89664
+      "sha256": "7eea00ceba12444348ac72f895e676e2735b87d0c2d8adde6019d0b63972ca2d",
+      "size": 89665
     },
     {
       "path": "tm-keju-special-exams.js",
@@ -3156,8 +4396,8 @@
     },
     {
       "path": "tm-keju-tension.js",
-      "sha256": "a49c360922f4848fffdc064391e2f2d89984c8e17707e15fae8769d0a99fb389",
-      "size": 6298
+      "sha256": "030f43d9cbe6db62be3dbd2a63691e4176a07add7af640d1f97232e07915a8d0",
+      "size": 7784
     },
     {
       "path": "tm-keju-tier.js",
@@ -3176,28 +4416,28 @@
     },
     {
       "path": "tm-keju-wuju.js",
-      "sha256": "d8a2fa7100be86bb750c432808a6f46517031a36232920f2eebcf692a1ed06a6",
-      "size": 74951
+      "sha256": "e3c3c99e16dff0a67c213512645cdf68e82948c8799ebbfc707b474c371a81d6",
+      "size": 75474
     },
     {
       "path": "tm-keju-yanguan-attribution.js",
-      "sha256": "399a8f7df2a3c66c58364970bea6b96f13f202d74eb1b4f4375da707cf014e48",
-      "size": 3834
+      "sha256": "829de3182ec86bb8596cf5c2432e04248c2b8f7473162d4d89e5290895365333",
+      "size": 3951
     },
     {
       "path": "tm-keju-yanguan-qingyi.js",
-      "sha256": "dd139ef9d68be72525de78d4c85cfd1756b06b0d66c37bd817f0133db95168b4",
-      "size": 6158
+      "sha256": "3903df70f9032f6333fabc824266ae51d816eb56d191a1a320db18012c4f074a",
+      "size": 6275
     },
     {
       "path": "tm-keju.js",
-      "sha256": "ac2ce7b0e0bc688a5d0ea531db2ac5d3eab0c232670e2a91703a2f00b035c5af",
-      "size": 64299
+      "sha256": "aada8dad1858d6f6c9e8f639ad595d567e270f6c18bbcaf3069da881eb80a6a0",
+      "size": 67345
     },
     {
       "path": "tm-launch.js",
-      "sha256": "b0630d72c27076d8bcc8b940e44a5bb2405ae4a51b4366d44b14594dadf32cfc",
-      "size": 90386
+      "sha256": "b94c39ffb4869dacd10077e0764001087c1a3e3b279a4c1c69edab5675bec644",
+      "size": 91179
     },
     {
       "path": "tm-ledger-paper.js",
@@ -3211,8 +4451,8 @@
     },
     {
       "path": "tm-map-system.js",
-      "sha256": "447fec699d05a749790be545b3e4f0100fc2ac6f171171cad6b28fa895a185bc",
-      "size": 85747
+      "sha256": "1819cc5ff64829e3b21856e0b6490fa94ff5c086b013592f7ca7c63ad7f4ebb5",
+      "size": 80273
     },
     {
       "path": "tm-mapeditor-fit.js",
@@ -3221,23 +4461,28 @@
     },
     {
       "path": "tm-mechanics-world.js",
-      "sha256": "fd9a70ada6c4f72563bcc712394e38c95d1b7c2331d01a5b3664f0e444cd1c9a",
-      "size": 81350
+      "sha256": "815096fa771b2c77e9f8a276e3a2468964dbe519b7a1c3d13b140cd154b85bf3",
+      "size": 81911
     },
     {
       "path": "tm-mechanics.js",
-      "sha256": "bfba613a963b45f92aaf211a0c8d8c6153f9ddc46fe8af9ec9098edd72045061",
-      "size": 101943
+      "sha256": "2b669bd60945d15e8c004f2d73fe070732b9d83ba900f620ee7a76d45f5fa6b2",
+      "size": 99928
     },
     {
       "path": "tm-memorials.js",
-      "sha256": "9a0971a721fa0c2c94df34a05dd0e8652f17dec0f505cc0a0f6760519a082e07",
-      "size": 68616
+      "sha256": "5539fd4ac2f98b2ddd51149fded78985edea38e89117a6256618206825711e55",
+      "size": 73044
     },
     {
       "path": "tm-memory-adapter.js",
       "sha256": "00ce07d6c689de20e60797fa137bace1f34e97115376c59354e93d464f8270fe",
       "size": 7595
+    },
+    {
+      "path": "tm-memory-agent-tools.js",
+      "sha256": "2bc79ddef6ea1136e3960f2ef8215635686cff89f00fbbf36286c3f802fa8fd9",
+      "size": 17982
     },
     {
       "path": "tm-memory-anchors.js",
@@ -3285,14 +4530,19 @@
       "size": 8325
     },
     {
+      "path": "tm-memory-steward.js",
+      "sha256": "d4d0e4bab2c33c6d40f019f3d4341b1cce6354865320365e98033403ecacb627",
+      "size": 22086
+    },
+    {
       "path": "tm-memory-tables.js",
       "sha256": "9034f0ef90f65ce11156780d027128ecd1e47eb664d5ae75a8c69f9add9f8990",
       "size": 49263
     },
     {
       "path": "tm-memory-trace.js",
-      "sha256": "feb3c57246bc37669cbeeae3cb63afdea823f16e61b4b52ff1afa9faf3185345",
-      "size": 21986
+      "sha256": "93b772d587c651964db9ab0d68e0b04c945f11b95798635e69603793bdb43a18",
+      "size": 22784
     },
     {
       "path": "tm-memory-turn-archive.js",
@@ -3336,13 +4586,13 @@
     },
     {
       "path": "tm-military-ui.js",
-      "sha256": "69ab4c22a03bc576146e68ac696ad40518b3dca3239047a7454bd335121e62c5",
-      "size": 12503
+      "sha256": "f77a84fe81c77bde2c43c248330a699ae125738126100c16d019afb83d88bb18",
+      "size": 13285
     },
     {
       "path": "tm-military.js",
-      "sha256": "af19da83694c1b9b54357aad002ff3eb48f9c0c94e6c099c9d1aad497b53d451",
-      "size": 137334
+      "sha256": "bc2e93b90b051f62c541c936162db31b3787068de58cb9f92b034cbbc5aa1615",
+      "size": 135215
     },
     {
       "path": "tm-minxin-commitment-tracker.js",
@@ -3356,8 +4606,8 @@
     },
     {
       "path": "tm-minxin-hard-links.js",
-      "sha256": "aa95ade1e4ac84159b82648428698ed43d55984df23200b3fcdea9d5d6db7776",
-      "size": 23659
+      "sha256": "53f24cbaade68682fae8792d2afc338b053ea31fd478865d1eafd0ebbf7f74a8",
+      "size": 23810
     },
     {
       "path": "tm-minxin-ledger.js",
@@ -3376,8 +4626,8 @@
     },
     {
       "path": "tm-namespaces.js",
-      "sha256": "fe52e9c2b469705d80ed50fc01fff558019cfd5f15e6a87912be121e4cba05b4",
-      "size": 49793
+      "sha256": "98bd7b85e9cc61d2d1ef6dedb171f74165a917a2cdf81ae5c4eaa4bee69b76e5",
+      "size": 48962
     },
     {
       "path": "tm-neitang-engine.js",
@@ -3396,13 +4646,23 @@
     },
     {
       "path": "tm-npc-decision.js",
-      "sha256": "7230f4d7017e74c5bcbc009f0c9f2530790e695df6b9567d74bca3c3a7474c1d",
-      "size": 168041
+      "sha256": "267241f37959389e145120802a1cc984359f320ca5099a72fdaef2641417cfe9",
+      "size": 157081
     },
     {
       "path": "tm-npc-engine.js",
-      "sha256": "86e6a3c87b146e51a3f4261ce227620c1e05ea5a77ff30f83d5135579640532e",
-      "size": 72435
+      "sha256": "f15113e40754a637ac21ac91fcaa96a4f968f025292b0a7b085feacb20473889",
+      "size": 27420
+    },
+    {
+      "path": "tm-office-authority.js",
+      "sha256": "04cd8af5b111b801d4f24768f9ca9e38f6ce9415bfded2c9c16252f1c48bd984",
+      "size": 5614
+    },
+    {
+      "path": "tm-office-dutystate.js",
+      "sha256": "9d60ebda724d20815b9bda2e095c0edc4bb19a96cecc38fc322b8178482e3ac8",
+      "size": 9256
     },
     {
       "path": "tm-office-editor.js",
@@ -3410,29 +4670,59 @@
       "size": 118662
     },
     {
+      "path": "tm-office-fallback.js",
+      "sha256": "2e66ba123bcf84db5662a011b777a001129e4acbe8e35684b5a56a9935ccbbb7",
+      "size": 4839
+    },
+    {
+      "path": "tm-office-flags.js",
+      "sha256": "dbc00a896a18bf1d8a1b97c2e3eda567732ac0c0664246c972511b2a0f6247fa",
+      "size": 2335
+    },
+    {
       "path": "tm-office-panel.js",
-      "sha256": "21ba41b428c845f2a8569f3d8ec643bdcc5aac8b1ba8c63d00ab6d53c17b2a33",
-      "size": 100299
+      "sha256": "480b3ab6c46fe69efdd34845b372dd42b1a922ea2809908c5a3ca6048cfbe15d",
+      "size": 101448
+    },
+    {
+      "path": "tm-office-powermap.js",
+      "sha256": "0af5d52a921a9591b0a7c33f966e2ab09f437bc5c78f077579c439101c360459",
+      "size": 12602
+    },
+    {
+      "path": "tm-office-recall-agent.js",
+      "sha256": "2086bc49a7b97017f6955bcef660dcaab496c4285513c4b49236335132195bd7",
+      "size": 6234
+    },
+    {
+      "path": "tm-office-reform.js",
+      "sha256": "7e8e366dcbd22f9f657c8dcbe678755f8ff3776c9b730c1edbcc9b6d2322b376",
+      "size": 16233
     },
     {
       "path": "tm-office-runtime.js",
-      "sha256": "d86322fcfaebd7eb1e498fee690e77e3bd8bc54dd56688f515054a2e14b8db65",
-      "size": 133131
+      "sha256": "a7d1e81053a7e8b11cfcb9da38cc5fe6cfcfbd87dc8a328e3f7212032ffb4095",
+      "size": 137736
     },
     {
       "path": "tm-office-system.js",
-      "sha256": "d1a72824eb89eade9d5819586beac7368f45e6d0b5f8a6fddf78c1ef81b2144e",
-      "size": 63500
+      "sha256": "66c8c6e1266d1801575e2be36749fb8f076af3aa69a478bedd63c77a5630363a",
+      "size": 66080
+    },
+    {
+      "path": "tm-office-vacancy.js",
+      "sha256": "fccaf4e49a378daa7f2f91760c30180308bb463d26b22a67d6d8a4afb7cd69b1",
+      "size": 3400
     },
     {
       "path": "tm-official-scenario-bundle.js",
-      "sha256": "a6ee0b976e096820836a29f21f98d4381ce5afcee57f66aa68933954321ef233",
-      "size": 9262406
+      "sha256": "d0377e19bfd96189c350b60a3793f708fed1d380b6b32388ec19ead96335cf9d",
+      "size": 15534077
     },
     {
       "path": "tm-official-scenario-seeder.js",
-      "sha256": "a764c3a02d2b0991a5bfc8ae0777f3fe6ee742fb8d5bd4c368da4457f0c56fba",
-      "size": 3802
+      "sha256": "8f9b0d8f33dc4b8ccbb07e395401a7be4f27ea5b55c051ff465a93645cb135d2",
+      "size": 3800
     },
     {
       "path": "tm-onboard-tools.js",
@@ -3486,8 +4776,8 @@
     },
     {
       "path": "tm-patches.js",
-      "sha256": "2f794adb8dbccb73422e0e48e7c70d3611485a6d71fa51d7c80136bbe2600e5f",
-      "size": 182011
+      "sha256": "472ac0259d130d9358835e4cc31e295652c2903576fad123b5c3d84cc681eacd",
+      "size": 223827
     },
     {
       "path": "tm-pause-fab.js",
@@ -3516,13 +4806,13 @@
     },
     {
       "path": "tm-player-core.js",
-      "sha256": "4d5ff602a51ec4df16957d53df710816c5c004db053f9297d404fbe6354d0c0e",
-      "size": 202860
+      "sha256": "06af7c885ce79708b840e82335fdc506c692bfe243694d59a2afa4a65fb6aedf",
+      "size": 209574
     },
     {
       "path": "tm-player-settings.js",
-      "sha256": "253e9b4827fe16bf904958a8032dde63e73615c5eae6090814b9de2bc5737cfe",
-      "size": 29485
+      "sha256": "2256384070a6daad4f95654a56f7289e47bbf36df778bd786696d120b34a2a03",
+      "size": 32811
     },
     {
       "path": "tm-player-tools.js",
@@ -3531,18 +4821,18 @@
     },
     {
       "path": "tm-post-turn-jobs.js",
-      "sha256": "4da3aadf11c3132c3e706d94c07ad85a65a078fb2192c2e4a33d1eb9de64eb9d",
-      "size": 25913
+      "sha256": "bfbf24b973d546f531b9163d2c66e44e6df8679bd2506c30fbe7f89ae1183572",
+      "size": 26866
     },
     {
       "path": "tm-promotion.js",
-      "sha256": "6e5b1b3cf1f44539bfe32309e57bf0e37e355dbad1e8e138b3801081cdd20cc8",
-      "size": 20060
+      "sha256": "83aa6d3acae5fdd8389db134252fa4786c373ce9502c12f861c90e998f82b974",
+      "size": 20086
     },
     {
       "path": "tm-prompt-composer.js",
-      "sha256": "c48f8dfdcc734f0133701ec08efc0bca1bec52b8cbc0bafbf8ab2ddc73ef5002",
-      "size": 16326
+      "sha256": "3a8891d3de0457a9abeb45441d53eec3b67b8f26b65f82d8dce27d9d0963b131",
+      "size": 16499
     },
     {
       "path": "tm-prophecy.js",
@@ -3555,9 +4845,19 @@
       "size": 6953
     },
     {
+      "path": "tm-reflection-agent.js",
+      "sha256": "f4b3c07495d53164c30db3ae81ee30aa386e7e3057a88d695384400118cfa030",
+      "size": 13701
+    },
+    {
       "path": "tm-region-enrich.js",
       "sha256": "9ad4ca93591e2d77faa3012d81578c989adffbb7ae5f3c32ee3c06fb896ec3be",
       "size": 34188
+    },
+    {
+      "path": "tm-region-magnate.js",
+      "sha256": "94f3ba944d15328200ca1ef8c14fb1c6df17ec72e29076506388475bf3b557a4",
+      "size": 9768
     },
     {
       "path": "tm-region-status.js",
@@ -3571,13 +4871,18 @@
     },
     {
       "path": "tm-relations.js",
-      "sha256": "ba7e0034a720e0f2a3817fef0bf06e4e28c7dd7da763b3e501408ef03d49d0f6",
-      "size": 30743
+      "sha256": "e06c8c9ca1222b26b80c429b13beaffa65e834bca9bb1d05a4657b85dcffc668",
+      "size": 35739
+    },
+    {
+      "path": "tm-renli.js",
+      "sha256": "1230a496eeba0c13c596766cd6b7c561b1e82b986e9c1adf912bfec5504e3a2e",
+      "size": 70706
     },
     {
       "path": "tm-renwu-tuzhi.js",
-      "sha256": "f0c4c4435f5727a8c0658774a53f3b2b1b244f40823d7decd09bf38b86c64d95",
-      "size": 137291
+      "sha256": "a4bb76af8cda5b83fab16530bf2621b309dfe65746695365f95bfd017756d600",
+      "size": 145321
     },
     {
       "path": "tm-renwu-ui.js",
@@ -3586,13 +4891,13 @@
     },
     {
       "path": "tm-save-lifecycle.js",
-      "sha256": "075339a517c1fca6eddac4aa75fd333ee6e4e169e90699925cf1f36d3734aca3",
-      "size": 89912
+      "sha256": "e6559743bc88043dd54d8991274cddd506cfd7f8a074b1d97d7361d6eb3d30f7",
+      "size": 91855
     },
     {
       "path": "tm-save-manager.js",
-      "sha256": "53b89b9179aac76b37eafb8c061268be88d5f665e1da373b1f15a5f427e63eda",
-      "size": 40567
+      "sha256": "69739983cdfcc92e6198a86fe7dd180ad462bdb38ef720cad540e8c25e8870a6",
+      "size": 40902
     },
     {
       "path": "tm-semantic-recall.js",
@@ -3616,8 +4921,8 @@
     },
     {
       "path": "tm-shizheng-panel.js",
-      "sha256": "6e299083d3ce8d3937d5d4d3b0a6e6cf5e4d56384d85462e684d886bad4cebaf",
-      "size": 60565
+      "sha256": "6d7b69e21bcd6c7496f503ce4aa58b25ff897fe00bdcfd53cc3b04c51b79b019",
+      "size": 64707
     },
     {
       "path": "tm-sidebar-ui.js",
@@ -3626,8 +4931,8 @@
     },
     {
       "path": "tm-social-foundation.js",
-      "sha256": "202e706cbc0c19c3984bbb02d672afb6679f3b2d133506f6e50a52909fa6ad10",
-      "size": 22986
+      "sha256": "915ed2ee6e9d7cc6c183b2fd064a55f468709e7cc2988596a0eb75d6d192e203",
+      "size": 35150
     },
     {
       "path": "tm-social-political-signals.js",
@@ -3651,13 +4956,8 @@
     },
     {
       "path": "tm-test-harness.js",
-      "sha256": "c4a46013d864f9e3e9f87310c79532e63d7d4609d426cc2f17bafd266bb2a218",
-      "size": 77324
-    },
-    {
-      "path": "tm-test.js",
-      "sha256": "65b7b3c1d422a30f38e834ee75dddf02ffc91b008641ecb356cb0005895d440e",
-      "size": 7132
+      "sha256": "3ddcfcf9a278ee1f07743fa047d4649b81ffb9f08cea954ef7caa8dc77df0a1d",
+      "size": 77470
     },
     {
       "path": "tm-theme-font.js",
@@ -3666,13 +4966,18 @@
     },
     {
       "path": "tm-three-systems-ext.js",
-      "sha256": "3fc35ab75b86a0148769ebdacca6c79a99b0f2640318d5ba56457565cf99cf5f",
-      "size": 58765
+      "sha256": "f159d4f3417d4c385d528487ef41e0ac5cb48635c276bd0af47ecef896c4fd66",
+      "size": 59404
     },
     {
       "path": "tm-three-systems-ui.js",
-      "sha256": "b57fed59a5567e229e056afbd649302888f0c4da7597edcb1575feb62cc66308",
-      "size": 81398
+      "sha256": "708021bc096dbee193b8fbe081dd9bbf17a74a087da5e522e22aa5a508f9a754",
+      "size": 83178
+    },
+    {
+      "path": "tm-tianji.js",
+      "sha256": "dba9d6d422466136abc7f769cb66d8ac11bc003f018c64bd71a68bfdb8103add",
+      "size": 5399
     },
     {
       "path": "tm-time-utils.js",
@@ -3686,8 +4991,8 @@
     },
     {
       "path": "tm-tinyi-v3.js",
-      "sha256": "c64f5937bf6e69e6a262400ae7a38cd9b9041ca1a430d62c3ccdfe56c7e4ce89",
-      "size": 348472
+      "sha256": "96bdacb55f7b8fece2f92f5a8f874414aa1ac4b10048753ef1d3255cd78e75ae",
+      "size": 349133
     },
     {
       "path": "tm-topbar-vars.js",
@@ -3721,8 +5026,8 @@
     },
     {
       "path": "tm-utils.js",
-      "sha256": "3cf8e344fe1497e1992522ce14a5794ac33a1b8c79f7d1aa0c44d9d40e9666e0",
-      "size": 68096
+      "sha256": "50d5ebf4630b27f7482972fba95d420777d91559766883011ed26f65ed5cf95f",
+      "size": 85946
     },
     {
       "path": "tm-var-drawers.js",
@@ -3731,13 +5036,13 @@
     },
     {
       "path": "tm-wendui-prison.js",
-      "sha256": "02022acdc812ed0114ac972f85bcdc281241bdb1195a57202a0e903999d20c9f",
-      "size": 28851
+      "sha256": "f2da9049362cbef54bac98141b90b38b35d426d1b28d0956665f5019ba276b9d",
+      "size": 29019
     },
     {
       "path": "tm-wendui.js",
-      "sha256": "edf5cea3cc0b5e1e983df765e1c831c152dce64b43d22d7831f422af9ceb59a2",
-      "size": 208566
+      "sha256": "400169e4715062caa81ae470696839d40f9ca1b04e83465bdcd68546b04a62be",
+      "size": 223732
     },
     {
       "path": "tm-worker.js",
@@ -3761,8 +5066,13 @@
     },
     {
       "path": "tm-world.js",
-      "sha256": "b9b14dd906171b2590aacf9e8c14a2cf6e7677a8531d8d6929eb0be1ee494e93",
-      "size": 78625
+      "sha256": "0c3d94a289809114687dceae156a18a08785051f98c9de75afa6fc5b5d4c80f0",
+      "size": 79518
+    },
+    {
+      "path": "tm-xinjun-observe.js",
+      "sha256": "6421519cbe8a2f0e54b3c67e4e874a290e2d60eba8350f45cf0915284c825d0b",
+      "size": 3558
     },
     {
       "path": "tm-zip-store.js",
@@ -3835,6 +5145,16 @@
       "size": 4766
     },
     {
+      "path": "tools/test-safeeval.js",
+      "sha256": "19018d080450b82e6c76c4aaa5104376aef697b19d7f4c711ad4dc270c490a19",
+      "size": 13867
+    },
+    {
+      "path": "tools/test-save-redact.js",
+      "sha256": "c9e9b87a08e02883934cab9811cd143f9dee3fda51064078246b1a4af262693c",
+      "size": 5407
+    },
+    {
       "path": "vendor/models/README.md",
       "sha256": "25aeeab18c7a0415d580ed70a0f3fb8638402ba07f1e4f5585bbceb2ca755800",
       "size": 1689
@@ -3891,8 +5211,8 @@
     },
     {
       "path": "version.json",
-      "sha256": "8469ba1b63aa680f21c61a047aebf109612c3bb3c96655746d9254b8b3aacbc1",
-      "size": 281
+      "sha256": "435a7a8d2180ce40cf47b52582f7c2fc7eb721bd98c187e9bb05d6ce0fba4df9",
+      "size": 243
     },
     {
       "path": "workshop-admin.html",

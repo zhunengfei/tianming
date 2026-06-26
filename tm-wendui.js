@@ -362,7 +362,8 @@ function openWenduiModal(name, mode, prefillMsg) {
       var _playerLocC = (typeof _getPlayerLocation === 'function') ? _getPlayerLocation() : (GM._capital || '京师');
       var _locRaw = _gCh.location || '';
       var _loc = String(_locRaw || '').replace(/\s/g,'');
-      var _isAtCap = !_locRaw || ((typeof _isSameLocation === 'function') ? _isSameLocation(_locRaw, _playerLocC) : (_loc === String(_playerLocC || '').replace(/\s/g,'')));
+      // 2026-06-26 使节/外藩使者本就是来御前求见的·永远视作"在御前"·不受位置门拦(否则玩家不在都城时使节被判"远在·不能召见")
+      var _isAtCap = !_locRaw || _gCh._envoy || _gCh.fromFaction || ((typeof _isSameLocation === 'function') ? _isSameLocation(_locRaw, _playerLocC) : (_loc === String(_playerLocC || '').replace(/\s/g,'')));
       // 也考虑在途·若正赴京则仍不在京
       if (!_isAtCap || _gCh._travelTo || _gCh._enRouteToOffice) {
         _reasons.push('远在' + (_loc || '外地') + (_gCh._travelTo ? ('·正赴 '+_gCh._travelTo) : ''));
@@ -1269,7 +1270,7 @@ function _wdOpenAudienceQueue(qi) {
       interactionType: q.interactionType,
       _factionProposalId: q._factionProposalId, _diplomacyType: q._diplomacyType,  // 【S3】带提议 id·供准奏/驳回回写发起势力持久记忆
       envoyMission: q.reason || '',
-      location: GM._capital || '京城',
+      location: (typeof _getPlayerLocation === 'function' ? _getPlayerLocation() : null) || GM._capital || '京城',  // 2026-06-26 使节所在地随玩家实际所在地(非固定 GM._capital/京城)·否则玩家不在都城(如绍宋在应天府)时使节被判"远在京城·不能召见"
       isTemp: true,
       title: q.fromFaction ? (q.fromFaction + '使节') : '外藩使节',
       officialTitle: '使节',
@@ -1811,7 +1812,7 @@ function _wdRenderHistory(name, ch) {
     if (msg.role === 'player') {
       _wdAppendPlayerBubble(chat, msg.content);
     } else {
-      _wdAppendNpcBubble(chat, name, ch, msg.content, msg.loyaltyDelta);
+      _wdAppendNpcBubble(chat, name, ch, msg.content, msg.loyaltyDelta, msg.suggestions, msg.toneEffect);
     }
   });
 
@@ -1825,7 +1826,35 @@ function _wdShichen(i) {
   var idx = _wdSessionShichenBase + (i | 0);
   return t[Math.min(Math.max(0, idx), t.length - 1)];
 }
-function _wdAppendNpcBubble(chat, name, ch, text, loyaltyDelta) {
+// 问对回复「附加块」HTML——语气效果 +「进言要点」(NPC 建议)。
+// 2026-06-26 根治：此前仅实时回复(主路径内联渲染)有进言要点，历史重渲染(_wdAppendNpcBubble)无此渲染位置，
+// 且历史条目不存 suggestions —— 故开窗/重渲后进言要点彻底丢失=「新UI没有进言要点这个设计」。
+// 抽为共享 helper，让历史气泡也能渲染保留；条件渲染：仅当该条确有 suggestions/toneEffect 才出现
+// （非每段都有，符合老问对UI行为）。
+function _wdReplyExtrasHtml(suggestions, toneEffect) {
+  var html = '';
+  if (toneEffect) {
+    html += '<div style="margin-top:3px;font-size:0.71rem;color:var(--ink-300);font-style:italic;">【' + escHtml(String(toneEffect)) + '】</div>';
+  }
+  var sugs = (suggestions && Array.isArray(suggestions)) ? suggestions.filter(function(s){ if (!s) return false; if (typeof s === 'string') return s.trim(); return s.content || s.text; }) : [];
+  if (sugs.length > 0) {
+    html += '<div style="margin-top:4px;padding:4px 6px;background:var(--gold-500,rgba(184,154,83,0.1));border-radius:4px;font-size:0.72rem;">';
+    html += '<div style="color:var(--gold-400);font-weight:700;margin-bottom:2px;">进言要点：</div>';
+    sugs.forEach(function(sg) {
+      var _sgText = (typeof sg === 'string') ? sg
+                  : (sg && sg.content) ? ((sg.topic ? '〔' + sg.topic + '〕 ' : '') + sg.content)
+                  : (sg && sg.text) ? sg.text : '';
+      if (!_sgText) return;
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;gap:6px;">';
+      html += '<span style="color:var(--color-foreground);flex:1;">• ' + escHtml(_sgText) + '</span>';
+      html += '<span style="color:var(--celadon-400);font-size:0.7rem;opacity:0.7;white-space:nowrap;">✓已入库</span>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+  return html;
+}
+function _wdAppendNpcBubble(chat, name, ch, text, loyaltyDelta, suggestions, toneEffect) {
   var div = document.createElement('div');
   div.className = 'wendui-msg wendui-npc';
   var deltaTag = '';
@@ -1835,7 +1864,8 @@ function _wdAppendNpcBubble(chat, name, ch, text, loyaltyDelta) {
   var _portrait = ch && ch.portrait ? '<img src="'+escHtml(ch.portrait)+'" loading="lazy" decoding="async" style="width:28px;height:28px;object-fit:cover;border-radius:50%;flex-shrink:0;">' : '';
   var _ts = (typeof _wdShichen === 'function') ? _wdShichen(chat.children.length) : '';
   div.innerHTML = _portrait + '<div style="flex:1;min-width:0;"><div class="wendui-npc-name">' + escHtml(name) + deltaTag + '</div>'
-    + '<div class="wendui-npc-bubble wd-selectable">' + escHtml(text) + '<span class="wd-ts">' + _ts + '</span></div></div>';
+    + '<div class="wendui-npc-bubble wd-selectable">' + escHtml(text) + '<span class="wd-ts">' + _ts + '</span></div>'
+    + _wdReplyExtrasHtml(suggestions, toneEffect) + '</div>';
   chat.appendChild(div);
 }
 
@@ -2012,6 +2042,9 @@ async function sendWendui(){
         } catch(_){}
       }
       if (typeof _aiDialogueWordHint === 'function') sysP += '\n' + _aiDialogueWordHint("wd");
+      // 根治(2026-06-26)：真机证实此模型常把问对回复写成沉浸式散文·不守 {reply,loyaltyDelta} JSON →
+      // 改用末尾简单标记承载忠诚/压力(对这种模型远比 JSON 可靠)·顺带加「压力」维度(owner需求)。
+      sysP += '\n\n⚠【末尾硬性标记·务必输出】无论你以散文还是何种文体回话，回复的最末都必须另起一行，用此固定格式标出本次召对对你的真实影响：〔忠诚±N 压力±N〕（N为0-3整数）。判定：受重用/获理解/得偿所请→忠诚正；被冷落/受辱/失望/遭斥→忠诚负；被逼问/受责/惊惧→压力正；被安抚/宽慰/获赏→压力负；无波动填0。例：〔忠诚+2 压力-1〕。此行不可省略。';
       var history=GM.wenduiHistory[name].slice(-10);
       var messages=[{role:'system',content:sysP}];
       history.forEach(function(h){messages.push({role:h.role==='player'?'user':'assistant',content:h.content});});
@@ -2048,15 +2081,39 @@ async function sendWendui(){
       if(rawReply){
         var replyText = rawReply, loyaltyDelta = 0;
         var parsed = (typeof extractJSON==='function') ? extractJSON(rawReply) : null;
+        // 深诊断(2026-06-26)：定位"问对AI返回史记格式{shizhengji,zhengwen,player_status}"——
+        // 确认发出的 sysP 是问对(含loyaltyDelta)还是被串成史记(含shizhengji/时政记)·并看 AI 原始回复
+        try { var _spS = String(typeof sysP !== 'undefined' ? sysP : ''); console.log('[问对诊断·深] sysP问对schema=' + (_spS.indexOf('loyaltyDelta') >= 0) + '·sysP混入史记=' + (_spS.indexOf('shizhengji') >= 0 || _spS.indexOf('时政记') >= 0) + '·history条=' + ((GM.wenduiHistory && GM.wenduiHistory[name] || []).length) + '·rawReply前300=' + String(rawReply || '').slice(0, 300)); } catch (_dgX) {}
         if (parsed && parsed.reply) {
           replyText = parsed.reply;
-          // #9·基础对话忠诚缩放：深谈（多轮）更有分量·仍封顶（formal≤4·private≤5）
-          var _ldBase = (_wenduiMode === 'private') ? 3 : 2;
-          var _ldTurns = (GM._wdState && GM._wdState[name] && GM._wdState[name].turns) || 0;
-          var _ldMax = Math.min((_wenduiMode === 'private') ? 5 : 4, _ldBase + (_ldTurns >= 9 ? 2 : (_ldTurns >= 5 ? 1 : 0)));
-          loyaltyDelta = clamp(parseInt(parsed.loyaltyDelta) || 0, -_ldMax, _ldMax);
         } else {
           replyText = _wdSanitizeDialogueReplyText(name, ch, parsed, rawReply);
+        }
+        // #9·基础对话忠诚缩放：深谈（多轮）更有分量·仍封顶（formal≤4·private≤5）
+        var _ldBase = (_wenduiMode === 'private') ? 3 : 2;
+        var _ldTurns = (GM._wdState && GM._wdState[name] && GM._wdState[name].turns) || 0;
+        var _ldMax = Math.min((_wenduiMode === 'private') ? 5 : 4, _ldBase + (_ldTurns >= 9 ? 2 : (_ldTurns >= 5 ? 1 : 0)));
+        var _stressDelta = 0;
+        // 根治(2026-06-26)：真机 [问对诊断·深] 证实——此模型常把问对回复写成沉浸式散文·不返 {reply,loyaltyDelta} JSON
+        //（甚至混入史记式 JSON）。优先抽末尾标记〔忠诚±N 压力±N〕(对这种模型远比 JSON 可靠)·抽到即用并从展示正文抹去。
+        var _tagM = String(rawReply || '').match(/忠诚\s*([+\-]?\d+)[\s\S]{0,8}?压力\s*([+\-]?\d+)/);
+        if (_tagM) {
+          loyaltyDelta = clamp(parseInt(_tagM[1]) || 0, -_ldMax, _ldMax);
+          _stressDelta = clamp(parseInt(_tagM[2]) || 0, -5, 5);
+          replyText = String(replyText).replace(/〔?[^〔〕\n]*忠诚\s*[+\-]?\d+[\s\S]{0,8}?压力\s*[+\-]?\d+[^〔〕\n]*〕?/g, '').trim();
+        } else if (parsed && parsed.loyaltyDelta != null && parsed.loyaltyDelta !== '') {
+          loyaltyDelta = clamp(parseInt(parsed.loyaltyDelta) || 0, -_ldMax, _ldMax);
+          if (parsed.stressDelta != null) _stressDelta = clamp(parseInt(parsed.stressDelta) || 0, -5, 5);
+        } else if (parsed) {
+          // 兜底：AI 既无标记也无 loyaltyDelta → 用它给的情绪折算小幅忠诚(仍属 AI 驱动)
+          var _emo = String((parsed.memoryImpact && parsed.memoryImpact.emotion) || parsed.emotionState || parsed.toneEffect || '');
+          var _emoMap = { '敬':1, '喜':1, '悦':1, '感':1, '慰':1, '怒':-1, '恨':-2, '怨':-1, '惧':-1, '厌':-1, '失望':-1, '不满':-1 };
+          var _fb = 0;
+          for (var _ek in _emoMap) { if (_emo.indexOf(_ek) >= 0) { _fb = _emoMap[_ek]; break; } }
+          if (_fb !== 0) loyaltyDelta = clamp(_fb, -_ldMax, _ldMax);
+          try { console.log('[问对诊断] 无标记+AI未返回loyaltyDelta·情绪兜底=' + loyaltyDelta + '(emo=' + (_emo||'无') + ')'); } catch(_e){}
+        } else {
+          try { console.log('[问对诊断] 无标记+非JSON回复·raw前120=' + String(rawReply).slice(0,120)); } catch(_e){}
         }
         if (loyaltyDelta !== 0) {
           if (typeof adjustCharacterLoyalty === 'function') {
@@ -2071,6 +2128,11 @@ async function sendWendui(){
           // 刷新顶栏忠诚显示
           var loyEl = _$('wd-char-loyalty');
           if (loyEl) { loyEl.textContent = '忠' + (typeof _fmtNum1==='function'?_fmtNum1(ch.loyalty):ch.loyalty); loyEl.style.color = ch.loyalty > 70 ? 'var(--green)' : ch.loyalty < 30 ? 'var(--red)' : 'var(--txt-s)'; }
+        }
+        // 压力(2026-06-26·owner需求)：问对也影响对象压力·标记驱动·受逼问/惊惧→升·被宽慰/赏赐→降
+        if (_stressDelta !== 0 && ch) {
+          var _oldStress = (typeof ch.stress === 'number' && isFinite(ch.stress)) ? ch.stress : 0;
+          ch.stress = clamp(_oldStress + _stressDelta, 0, 100);
         }
         // 提取语气效果反馈
         var _toneEffect = (parsed && parsed.toneEffect) ? String(parsed.toneEffect).trim() : '';
@@ -2115,6 +2177,9 @@ async function sendWendui(){
         // L4·a·若 mode === 'cedui'·entry 加 mode + ceduiParadigmDigest 字段·便 L4·g1 自引用读
         // RX·B5·加 turn 字段·_kjpAppendOwnCeduiHint 按 turn 算近 5 turn boost
         var _wdEntry = { role:'npc', content:replyText, loyaltyDelta:loyaltyDelta, turn: (typeof GM !== 'undefined' && GM.turn) || 0 };
+        // 2026-06-26 根治：把进言要点(suggestions)与语气效果存进历史条目，使其在历史重渲染时不丢失(配合 _wdReplyExtrasHtml)
+        if (_wdSuggestions && _wdSuggestions.length) _wdEntry.suggestions = _wdSuggestions;
+        if (_toneEffect) _wdEntry.toneEffect = _toneEffect;
         if (_wenduiMode && _wenduiMode !== 'formal') _wdEntry.mode = _wenduiMode;
         if (_wenduiMode === 'cedui' && typeof window !== 'undefined' && window._kjpCurrentCeduiDigest) {
           _wdEntry.ceduiParadigmDigest = window._kjpCurrentCeduiDigest;
@@ -2764,7 +2829,7 @@ function _wdBuildPrompt(ch, name) {
     p += '请返回JSON：{"reply":"回复内容","loyaltyDelta":0,"suggestions":[{"topic":"针对什么问题/情境(10-25字)","content":"详尽可执行方案(80-200字，含执行者/手段/范围/时机，不要空话)"}],"toneEffect":"语气效果(直问时留空)","memoryImpact":{"event":"本次对话在我心中留下的最深印象(20-40字，第三人称纪要)","emotion":"敬/喜/忧/怒/恨/惧/平 之一","importance":1-10}}\n';
     p += '【deception·若有隐瞒】此人若因低忠诚/利益冲突/暗藏阴谋/有不可告人之事而隐瞒或谎报，JSON 顶层加 deception:{"lying":true,"hiding":"所隐之实或真动机","tell":"破绽(神色闪烁/答非所问/逻辑漏洞/前后矛盾·撒谎则必给一处可被明察者识破之处)"}；若坦诚相告则 lying:false 或省略此字段。高智者谎言圆融、破绽隐微；心虚或愚钝者破绽显露；皇帝逼问或沉默逼视会增其慌乱露馅。\n';
     p += '【memoryImpact·必填】此对话对我(NPC)的内心影响——event 用第三人称"我"视角纪要本次对话的核心感受，emotion 选一个最贴合的主情绪，importance 1-3=琐碎即忘 4-6=日常印象 7-8=深刻在意 9-10=终身难忘。\n';
-    p += 'loyaltyDelta 范围' + (_isPrivateMode ? '-3 到 +3' : '-2 到 +2') + '。\n';
+    p += '【loyaltyDelta·必填】范围' + (_isPrivateMode ? '-3 到 +3' : '-2 到 +2') + '——必须据本次对话对你忠诚的真实牵动给值：受重用/被理解/获准所请为正，被冷落/受辱/失望/遭驳为负，全然平淡才填0；此字段不可省略、不可一律填0。\n';
     p += '【suggestions 规则——只在你主动提出具体方案时才填】\n';
     p += '  · 每条必须是 object{topic, content}；没有具体方案则 []\n';
     p += '  · topic：明确指出此建议针对什么问题（非泛泛之议），如"针对河北灾民流亡入京"\n';

@@ -2492,11 +2492,19 @@ function doActualStart(sid){
 
   if(sc.events) {
     var allEvents = [];
-    if(sc.events.historical) allEvents = allEvents.concat(sc.events.historical.map(function(e){e.sid=sid;e.type='historical';return e;}));
-    if(sc.events.random) allEvents = allEvents.concat(sc.events.random.map(function(e){e.sid=sid;e.type='random';return e;}));
-    if(sc.events.conditional) allEvents = allEvents.concat(sc.events.conditional.map(function(e){e.sid=sid;e.type='conditional';return e;}));
-    if(sc.events.story) allEvents = allEvents.concat(sc.events.story.map(function(e){e.sid=sid;e.type='story';return e;}));
-    if(sc.events.chain) allEvents = allEvents.concat(sc.events.chain.map(function(e){e.sid=sid;e.type='chain';return e;}));
+    if (Array.isArray(sc.events)) {
+      // 扁平数组格式（官方剧本/bundle/内置自注册脚本：sc.events 直接是事件数组）。
+      // 根治：旧加载器只认 {historical/random/conditional/story/chain} 对象格式，
+      // 官方天启/绍宋的 sc.events 是扁平数组 → allEvents 恒空 → GM.events 空 → 开局事件无法激活成御案时政。
+      // （1.3.4.1 旧天启靠 split-rows 把事件直接塞 P.events 绕过此处；换成扁平内置脚本后暴露。绍宋靠预制 currentIssues 兜底未暴露。）
+      allEvents = sc.events.filter(Boolean).map(function(e){ e.sid=sid; if(!e.type) e.type='story'; return e; });
+    } else {
+      if(sc.events.historical) allEvents = allEvents.concat(sc.events.historical.map(function(e){e.sid=sid;e.type='historical';return e;}));
+      if(sc.events.random) allEvents = allEvents.concat(sc.events.random.map(function(e){e.sid=sid;e.type='random';return e;}));
+      if(sc.events.conditional) allEvents = allEvents.concat(sc.events.conditional.map(function(e){e.sid=sid;e.type='conditional';return e;}));
+      if(sc.events.story) allEvents = allEvents.concat(sc.events.story.map(function(e){e.sid=sid;e.type='story';return e;}));
+      if(sc.events.chain) allEvents = allEvents.concat(sc.events.chain.map(function(e){e.sid=sid;e.type='chain';return e;}));
+    }
     // 移除旧的该剧本的事件，添加新的
     P.events = (P.events||[]).filter(function(e){return e.sid!==sid;});
     P.events = P.events.concat(allEvents);
